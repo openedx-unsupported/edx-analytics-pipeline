@@ -1,0 +1,1 @@
+This directory contains ansible playbooks and their supporting files.  It is intended to be unpacked and ansible will be executed from the root of this directory.

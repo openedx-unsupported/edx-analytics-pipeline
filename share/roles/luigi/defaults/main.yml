@@ -1,0 +1,5 @@
+---
+
+luigi_hadoop_version: apache1
+luigi_hadoop_command: /home/hadoop/bin/hadoop
+luigi_hadoop_streaming_jar: /home/hadoop/.versions/1.0.3/share/hadoop/contrib/streaming/hadoop-streaming.jar

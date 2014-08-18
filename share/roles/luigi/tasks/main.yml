@@ -1,0 +1,7 @@
+---
+
+- name: configuration directory created
+  file: path=/etc/luigi state=directory mode=755
+
+- name: configuration file written
+  template: src=client.cfg.j2 dest=/etc/luigi/client.cfg mode=644

@@ -1,0 +1,179 @@
+---
+
+- name: Configure luigi
+  hosts: "mr_{{ name }}_master"
+  gather_facts: False
+  sudo: True
+  roles:
+    - luigi
+
+- name: Run a task
+  hosts: "mr_{{ name }}_master"
+  gather_facts: False
+
+  vars:
+    - repo: git@github.com:edx/edx-analytics-pipeline.git
+    - branch: master
+    - root_data_dir: /var/lib/analytics-tasks
+    - root_log_dir: /var/log/analytics-tasks
+    - working_dir: "{{ root_data_dir }}/{{ uuid }}"
+    - log_dir: "{{ root_log_dir }}/{{ uuid}}"
+    - working_repo_dir: "{{ working_dir }}/repo"
+    - working_venv_dir: "{{ working_dir }}/venv"
+    - task_arguments: ''
+    - git_servers:
+        # Analytics repositories are currently hosted on github.
+      - hostname: github.com
+        public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=='
+    - wait_for_task: False
+    - local_log_dir: build/logs
+    - install_env:
+        # EMR runs a modified version of Debian 6 (squeeze)
+        WHEEL_URL: http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze
+        # EMR ships with python 2.6 (unfortunately)
+        WHEEL_PYVER: 2.6
+
+    # - override_config: path/to/config.cfg (optionally adds a luigi config override)
+
+    # - secure_config_repo: git@github.com:some/repo.git
+    - secure_config_branch: origin/release
+    - secure_config_repo_dir: "{{ working_dir }}/config"
+    # - secure_config: path/to/config.cfg which can be found in the secure config repo
+
+  tasks:
+    - name: known_hosts file exists
+      command: touch /home/{{ ansible_ssh_user }}/.ssh/known_hosts creates=/home/{{ ansible_ssh_user }}/.ssh/known_hosts
+
+    - name: git server in known_hosts file
+      lineinfile: >
+        dest=/home/{{ ansible_ssh_user }}/.ssh/known_hosts
+        regexp=^{{item.hostname}}
+        line="{{ item.hostname }} {{ item.public_key }}"
+      with_items: git_servers
+
+    - name: root directories created
+      file: path={{ item }} state=directory owner=root group=root
+      sudo: True
+      with_items:
+        - "{{ root_data_dir }}"
+        - "{{ root_log_dir }}"
+
+    - name: working directories created
+      file: path={{ item }} state=directory owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
+      sudo: True
+      with_items:
+        - "{{ working_dir }}"
+        - "{{ working_repo_dir }}"
+        - "{{ working_venv_dir }}"
+
+    - name: log directory created
+      file: path={{ item }} state=directory mode=777 owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
+      sudo: True
+      with_items:
+        - "{{ log_dir }}"
+
+    - name: analytics tasks repository checked out
+      git: repo={{ repo }} dest={{ working_repo_dir }} version=release
+
+    - name: branch fetched
+      command: git fetch --all chdir={{ working_repo_dir }}
+
+    - name: branch checked out
+      command: git checkout {{ branch }} chdir={{ working_repo_dir }}
+
+    - name: ensure system packages are installed
+      command: make system-requirements chdir={{ working_repo_dir }}
+      sudo: True
+
+    - name: bootstrap pip
+      command: apt-get install -q -y python-pip
+      sudo: True
+
+    - name: virtualenv installed
+      pip: name=virtualenv version=1.10.1
+      sudo: True
+
+    - name: virtualenv created
+      command: >
+        virtualenv {{ working_venv_dir }}
+
+    - name: update pip
+      command: >
+        {{ working_venv_dir }}/bin/pip install -U pip
+
+    - name: virtualenv initialized
+      shell: >
+        . {{ working_venv_dir }}/bin/activate && make install
+        chdir={{ working_repo_dir }}
+      environment: install_env
+
+    - name: logging configured
+      template: src=logging.cfg.j2 dest={{ working_repo_dir }}/logging.cfg
+
+    - name: configuration override removed
+      file: path={{ working_repo_dir }}/override.cfg state=absent
+
+    - name: secure config repository checked out
+      git: repo={{ secure_config_repo }} dest={{ secure_config_repo_dir }} version=release
+      when: secure_config is defined
+
+    - name: secure config branch fetched
+      command: git fetch --all chdir={{ secure_config_repo_dir }}
+      when: secure_config is defined
+
+    - name: secure config branch checked out
+      command: git checkout {{ secure_config_branch }} chdir={{ secure_config_repo_dir }}
+      when: secure_config is defined
+
+    - name: secure config installed
+      command: cp {{ secure_config_repo_dir }}/{{ secure_config }} {{ working_repo_dir }}/override.cfg
+      when: secure_config is defined
+
+    - name: configuration override installed
+      copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644
+      when: override_config is defined
+
+    - name: show command to execute
+      debug: msg=". /home/hadoop/.bashrc && {{ working_venv_dir }}/bin/launch-task {{ task_arguments }} >{{ log_dir }}/stdout 2>{{ log_dir }}/stderr"
+
+    - name: show working directory
+      debug: var=working_repo_dir
+
+    # Unfortunately, we cannot make the poll value a variable because of this open issue:
+    # https://github.com/ansible/ansible/issues/255
+    # As a workaround, we define two versions of this play, then choose
+    # which one to run based on the boolean `wait_for_task`
+    # By default, `wait_for_task` is False, so we can "fire and forget" long-running tasks.
+    # In the integration tests, we will wait for tasks to complete before verifying results.
+    - name: task run (fire and forget)
+      shell: >
+        . /home/hadoop/.bashrc && {{ working_venv_dir }}/bin/launch-task {{ task_arguments }} >{{ log_dir }}/stdout 2>{{ log_dir }}/stderr chdir={{ working_repo_dir }}
+      async: 10000000000
+      poll: 0
+      sudo: True
+      sudo_user: hadoop
+      when: not wait_for_task
+
+    - name: task run (wait for completion)
+      shell: >
+        . /home/hadoop/.bashrc && {{ working_venv_dir }}/bin/launch-task {{ task_arguments }} >{{ log_dir }}/stdout 2>{{ log_dir }}/stderr chdir={{ working_repo_dir }}
+      async: 10000000000
+      poll: 10
+      sudo: True
+      sudo_user: hadoop
+      ignore_errors: yes
+      register: task_result
+      when: wait_for_task
+
+    - name: fetch logs
+      fetch: src={{ log_dir }}/{{ item }} dest={{ local_log_dir }}/{{ item }} flat=yes
+      with_items:
+        - stdout
+        - stderr
+        - edx_analytics.log
+      ignore_errors: yes
+      when: wait_for_task
+
+    - name: fail the play if the task failed
+      fail: msg="The task failed with exit code {{ task_result.rc }}"
+      when: wait_for_task and task_result.rc != 0
