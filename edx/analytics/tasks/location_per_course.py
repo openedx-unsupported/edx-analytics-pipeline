@@ -282,7 +282,6 @@ class InsertToMysqlCourseEnrollByCountryTask(InsertToMysqlCourseEnrollByCountryT
 class InsertToMysqlCourseEnrollByCountryWorkflow(
         QueryLastCountryPerCourseMixin,
         LastCountryOfUserMixin,
-        OverwriteOutputMixin,
         InsertToMysqlCourseEnrollByCountryTaskBase):
     """
     Write to course_enrollment_location_current table from CountUserActivityPerInterval.

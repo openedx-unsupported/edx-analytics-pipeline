@@ -10,12 +10,14 @@ import luigi.configuration
 from luigi.contrib.mysqldb import MySqlTarget
 
 from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
 try:
     import mysql.connector
     from mysql.connector.errors import ProgrammingError
+    from mysql.connector import errorcode
     mysql_client_available = True
 except ImportError:
     log.warn('Unable to import mysql client libraries')
@@ -24,7 +26,7 @@ except ImportError:
     mysql_client_available = False
 
 
-class MysqlInsertTask(luigi.Task):
+class MysqlInsertTask(OverwriteOutputMixin, luigi.Task):
     """
     A task for inserting a data set into RDBMS.
 
@@ -188,7 +190,26 @@ class MysqlInsertTask(luigi.Task):
         in the database to keep a rolling window of data available in
         the table.
         """
-        pass
+        # clear table contents
+        if self.overwrite:
+            # first clear the appropriate rows from the luigi mysql marker table
+            marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            try:
+                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                    marker_table=marker_table,
+                    target_table=self.table,
+                )
+                connection.cursor().execute(query)
+            except mysql.connector.Error as excp:  # handle the case where the marker_table has yet to be created
+                if excp.errno == errorcode.ER_NO_SUCH_TABLE:
+                    pass
+                else:
+                    raise
+
+            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+            # commit the currently open transaction before continuing with the copy.
+            query = "DELETE FROM {table}".format(table=self.table)
+            connection.cursor().execute(query)
 
     def _execute_insert_query(self, cursor, value_list, column_names):
         """
