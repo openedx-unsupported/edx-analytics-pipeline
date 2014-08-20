@@ -3,7 +3,7 @@ Determine the number of users that are enrolled in each course over time
 """
 import logging
 import textwrap
-
+import luigi
 from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay, BaseCourseEnrollmentTaskDownstreamMixin
@@ -60,26 +60,80 @@ class ImportDailyEnrollmentTrendsToHiveTask(BaseCourseEnrollmentTaskDownstreamMi
         )
 
 
+class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
+    """
+    Imports list of courses to blacklist from enrollment sums calculations.
+    A new partition is created for every date where the blacklist is updated.
+
+    The input file is a tsv file assumed to exist at
+    s3://edx-analytics-data/blacklist/enrollment/dt=<partition_date>
+
+    The file copied into the original partition 2014-08-27 is
+    s3://edx-analytics-data/course_enrollment_offsets_with_2012_Spring.tsv.
+    ex. MITx/EECS.6.002x/3T2013 2013-12-03  12533
+
+     """
+
+    blacklist_date = luigi.Parameter(
+        default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
+    )
+
+    @property
+    def table_name(self):
+        return 'course_enrollment_blacklist'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+        ]
+
+    @property
+    def table_location(self):
+        return "s3://edx-analytics-data/blacklist/enrollment/"
+
+    @property
+    def partition_date(self):
+        return self.blacklist_date
+
+    @property
+    def table_format(self):
+        """Provides format of Hive external table data."""
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+
+
 class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportIntoHiveTableTask):
     """Defines task to perform sum in Hive to find course enrollment counts."""
+    blacklist_date = luigi.Parameter(
+        default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
+    )
+
     def query(self):
         create_table_statements = super(SumEnrollmentDeltasTask, self).query()
         query_format = textwrap.dedent("""
             INSERT OVERWRITE TABLE {table_name}
             PARTITION (dt='{partition_date}')
-            SELECT course_id, date, sum(enrollment_delta)
-            OVER (
-                partition by course_id
-                order by date ASC
-                ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
-            )
-            FROM {incremental_table_name};
+            SELECT e.*
+            FROM
+            (
+                SELECT course_id, date, sum(enrollment_delta)
+                OVER (
+                    partition by course_id
+                    order by date ASC
+                    ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+                )
+                FROM {incremental_table_name} e
+            ) e
+            LEFT OUTER JOIN {blacklist_table} b on (e.course_id = b.course_id)
+            WHERE b.course_id IS NULL;
+
         """)
 
         insert_query = query_format.format(
             table_name=self.table_name,
             partition_date=self.partition_date,
-            incremental_table_name="course_enrollment_changes_per_day"
+            incremental_table_name="course_enrollment_changes_per_day",
+            blacklist_table="course_enrollment_blacklist"
         )
 
         query = create_table_statements + insert_query
@@ -127,7 +181,7 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
             manifest=self.manifest,
             overwrite=self.overwrite,
             run_date=self.run_date
-        )
+        ), ImportCourseEnrollmentOffsetsBlacklist(blacklist_date=self.blacklist_date)
 
 
 class ImportCourseDailyFactsIntoMysql(BaseCourseEnrollmentTaskDownstreamMixin, MysqlInsertTask):
