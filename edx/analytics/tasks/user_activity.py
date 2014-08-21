@@ -4,9 +4,11 @@ import logging
 
 import luigi
 
+from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
 import edx.analytics.tasks.util.eventlog as eventlog
 
@@ -19,32 +21,33 @@ POST_FORUM_LABEL = "POSTED_FORUM"
 
 
 class UserActivityBaseTaskDownstreamMixin(object):
-    """Defines output_root parameter with appropriate default."""
+    """
+    Defines parameters for hive data storage locations with appropriate default.
+    warehouse_path is the common directory for data warehouse tables.
+    output_root is for the soon to be deprecated UserActivityPerIntervalTask
+    """
+
+    warehouse_path = luigi.Parameter(
+        default_from_config={'section': 'hive', 'name': 'warehouse_path'}
+    )
 
     output_root = luigi.Parameter(
         default_from_config={'section': 'user-activity', 'name': 'output_root'}
     )
 
 
-class UserActivityBaseTask(EventLogSelectionMixin, MapReduceJobTask, UserActivityBaseTaskDownstreamMixin):
+class UserActivityBaseTask(
+        EventLogSelectionMixin,
+        MapReduceJobTask,
+        UserActivityBaseTaskDownstreamMixin,
+        OverwriteOutputMixin):
     """
     Base class to extract events from logs over a selected interval of time.
 
-    This class provides a parameterized mapper.  Derived classes must
-    override the predicates applied to events, and the definition of
-    what is a key and what a value from the mapper.  Derived classes
-    also define the reducer that consumes the mapper output.
+    Parameters come from EventLogSelectionMixin, MapReduceJobTask,
+    UserActivityBaseTaskDownstreamMixin, and OverwriteOutputMixin.
 
-    Parameters:
-        output_root: Directory to store the output in.
-
-        The following are defined in EventLogSelectionMixin:
-
-        source: A URL to a path that contains log files that contain the events.
-        interval: The range of dates to export logs for.
-        pattern: A regex with a named capture group for the date that approximates the date that the events within were
-            emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
-            in order for them to be processed.
+    No new parameters are added here.
     """
 
     def get_course_id(self, event):
@@ -190,6 +193,101 @@ class UserActivityPerIntervalTask(UserActivityBaseTask):
             if value not in output_values:
                 yield course_id, interval_start, interval_end, value, username
                 output_values.append(value)
+
+
+class ImportDailyUserActivityToHiveTask(
+    UserActivityBaseTaskDownstreamMixin,
+        EventLogSelectionDownstreamMixin,
+        MapReduceJobTaskMixin,
+        ImportIntoHiveTableTask):
+    """
+    Creates a Hive Table that points to Hadoop output of UserActivityPerDayTask
+
+    Parameters are defined by classes :`UserActivityBaseTaskDownstreamMixin,
+        EventLogSelectionDownstreamMixin,
+        MapReduceJobTaskMixin`.
+    """
+
+    @property
+    def table_name(self):
+        return 'daily_user_activity'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('username', 'STRING'),
+            ('category', 'STRING'),
+            ('count', 'INT')
+        ]
+
+    @property
+    def table_location(self):
+        output_name = 'daily_user_activity/'
+        return url_path_join(self.warehouse_path, output_name)
+
+    @property
+    def table_format(self):
+        """Provides structure of Hive external table data."""
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+
+    @property
+    def partition(self):
+        """Provides name of Hive database table partition.
+        This overrides the default method to partition on an interval instead of a single date """
+        # The Luigi hive code expects partitions to be defined by dictionaries.
+        return {'interval': str(self.interval)}
+
+    def requires(self):
+        return UserActivityPerDayTask(
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite
+        )
+
+
+class UserActivityPerDayTask(UserActivityBaseTask):
+    """ Make a basic task to gather activity per user for each day in a time interval """
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.warehouse_path,
+                'daily_user_activity/interval={interval}/'.format(interval=self.interval),
+            )
+        )
+
+    def get_predicate_labels(self, event):
+        return extract_predicate_labels(event)
+
+    def get_mapper_key(self, course_id, username, date_string):
+        # For daily output, do reduction on all of these.
+        return (course_id, username, date_string)
+
+    def get_mapper_value(self, _course_id, _username, _date_string, label):
+        return label
+
+    def reducer(self, key, values):
+        """Outputs labels and usernames for a given course and interval."""
+        course_id, username, date_string = key
+
+        interval_nums = str(self.interval).split('-')
+        interval_start = '-'.join(interval_nums[0:3])
+        interval_end = '-'.join(interval_nums[3:6])
+
+        if date_string >= interval_start and date_string < interval_end:
+            category_counts = {}
+            for category in values:
+                category_counts[category] = category_counts.get(category, 0) + 1
+
+            # emit all category counts for this date/course/user
+            for category in category_counts:
+                count = category_counts[category]
+                yield date_string, course_id, username, category, count
 
 
 class CountLastElementMixin(object):

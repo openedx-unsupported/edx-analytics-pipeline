@@ -8,6 +8,7 @@ from luigi import date_interval
 
 from edx.analytics.tasks.user_activity import (
     UserActivityPerIntervalTask,
+    UserActivityPerDayTask,
     ACTIVE_LABEL,
     PROBLEM_LABEL,
     PLAY_VIDEO_LABEL,
@@ -187,6 +188,73 @@ class UserActivityPerIntervalReduceTest(unittest.TestCase):
         expected = ((self.course_id, '2013-12-01', '2013-12-31', ACTIVE_LABEL, self.username),
                     (self.course_id, '2013-12-01', '2013-12-31', PROBLEM_LABEL, self.username),)
         self._check_output(inputs, expected)
+
+
+class UserActivityPerDayReduceTest(unittest.TestCase):
+    """
+    Tests to verify that UserActivityPerDayTask reducer works correctly.
+    """
+    def setUp(self):
+        self.course_id = 'course_id'
+        self.username = 'test_user'
+        self.interval_string = '2014-08-11-2014-08-15'
+        self.task = UserActivityPerDayTask(
+            interval=date_interval.Custom.parse(self.interval_string),
+            warehouse_path="/tmp/fake"
+
+        )
+
+
+    def _get_reducer_output(self, key, values):
+        """Run reducer with provided values hardcoded key."""
+        return tuple(self.task.reducer(key, values))
+
+    def _check_output(self, key, inputs, expected):
+        """Compare generated with expected output."""
+        self.assertItemsEqual(self._get_reducer_output(key, inputs), expected)
+
+    def test_date_out_of_interval(self):
+        # check that interval upper bound is excluded from output, as well as dates below lower bound
+        key_08_10 =  (self.course_id, self.username, "2014-08-10")
+        inputs_08_10 = (ACTIVE_LABEL, PROBLEM_LABEL)
+        expected = tuple()
+        self._check_output(key_08_10, inputs_08_10, expected)
+
+        key_08_15 =  (self.course_id, self.username, "2014-08-15")
+        inputs_08_15 = (ACTIVE_LABEL, PROBLEM_LABEL)
+        expected = tuple()
+        self._check_output(key_08_15, inputs_08_15, expected)
+
+    def test_single_date(self):
+        key_08_12 = (self.course_id, self.username, "2014-08-12")
+        inputs_08_12 = (ACTIVE_LABEL, PROBLEM_LABEL)
+        expected_08_12 = (('2014-08-12', self.course_id, self.username, ACTIVE_LABEL, 1 ),
+                    ('2014-08-12', self.course_id, self.username, PROBLEM_LABEL, 1 ),)
+        self._check_output(key_08_12, inputs_08_12, expected_08_12)
+
+
+    def test_multiple_dates(self):
+        key_08_12 = (self.course_id, self.username, "2014-08-12")
+        inputs_08_12 = (ACTIVE_LABEL, ACTIVE_LABEL, PROBLEM_LABEL, PROBLEM_LABEL,
+            PROBLEM_LABEL, PLAY_VIDEO_LABEL, PLAY_VIDEO_LABEL)
+        expected_08_12 = (('2014-08-12', self.course_id, self.username, ACTIVE_LABEL, 2 ),
+                    ('2014-08-12', self.course_id, self.username, PLAY_VIDEO_LABEL, 2 ),
+                    ('2014-08-12', self.course_id, self.username, PROBLEM_LABEL, 3 ),)
+        self._check_output(key_08_12, inputs_08_12, expected_08_12)
+
+
+        key_08_13 = (self.course_id, self.username, "2014-08-13")
+        inputs_08_13 = (ACTIVE_LABEL, PLAY_VIDEO_LABEL)
+        expected_08_13 = (('2014-08-13', self.course_id, self.username, ACTIVE_LABEL, 1 ),
+                    ('2014-08-13', self.course_id, self.username, PLAY_VIDEO_LABEL, 1 ),)
+        self._check_output(key_08_13, inputs_08_13, expected_08_13)
+
+        key_08_14 = (self.course_id, self.username, "2014-08-14")
+        inputs_08_14 = (ACTIVE_LABEL, PLAY_VIDEO_LABEL, PROBLEM_LABEL, PROBLEM_LABEL, ACTIVE_LABEL, ACTIVE_LABEL)
+        expected_08_14 =   (('2014-08-14', self.course_id, self.username, ACTIVE_LABEL, 3 ),
+                            ('2014-08-14', self.course_id, self.username, PLAY_VIDEO_LABEL, 1 ),
+                            ('2014-08-14', self.course_id, self.username, PROBLEM_LABEL, 2 ),)
+        self._check_output(key_08_14, inputs_08_14, expected_08_14)
 
 
 class CountLastElementMixinTest(unittest.TestCase):

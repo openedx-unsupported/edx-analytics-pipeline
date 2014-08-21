@@ -80,19 +80,21 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
             CREATE EXTERNAL TABLE {table_name} (
                 {col_spec}
             )
-            PARTITIONED BY (dt STRING)
+            PARTITIONED BY ({partition_key} STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table_name} ADD PARTITION (dt = '{partition_date}');
+            ALTER TABLE {table_name} ADD PARTITION ({partition_key} = '{partition_value}');
         """)
 
+        partition_key = self.partition.keys()[0]
         query = query_format.format(
             database_name=hive_database_name(),
             table_name=self.table_name,
             col_spec=','.join([' '.join(c) for c in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
-            partition_date=self.partition_date,
+            partition_key=partition_key,
+            partition_value=self.partition[partition_key],
         )
 
         log.debug('Executing hive query: %s', query)
