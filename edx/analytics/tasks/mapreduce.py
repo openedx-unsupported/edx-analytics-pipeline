@@ -115,6 +115,12 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
             jobconfs=job_confs,
         )
 
+    def run_job(self, job):
+        if hasattr(job, 'remove_output_on_overwrite'):
+            job.remove_output_on_overwrite()
+
+        return super(MapReduceJobRunner, self).run_job(job)
+
 
 class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
     """
