@@ -14,6 +14,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
     DATE_INTERVAL = Custom.parse('2014-06-06-2014-06-20')
     START_DATE = DATE_INTERVAL.date_a
     COURSE_ID = u'edX/Open_DemoX/edx_demo_course'
+    COURSE_ID2 = u'course-v1:edX+DemoX+Test_2014'
     NUM_REDUCERS = 1
 
     def test_user_activity(self):
@@ -41,4 +42,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
             (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ACTIVE', 4),
             (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ATTEMPTED_PROBLEM', 2),
             (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'PLAYED_VIDEO', 3),
+            (self.COURSE_ID2, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ACTIVE', 4),
+            (self.COURSE_ID2, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ATTEMPTED_PROBLEM', 1),
+            (self.COURSE_ID2, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'PLAYED_VIDEO', 3),
         ])

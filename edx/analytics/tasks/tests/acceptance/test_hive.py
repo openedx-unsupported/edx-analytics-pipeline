@@ -19,9 +19,7 @@ class HiveAcceptanceTest(AcceptanceTestCase):
 
     acceptance = 1
 
-    ENVIRONMENT = 'acceptance'
     TABLE = 'student_courseenrollment'
-    COURSE_ID = 'edX/Open_DemoX/edx_demo_course'
 
     TABLE_COLUMNS = ['id', 'user_id', 'course_id', 'created', 'is_active', 'mode']
 

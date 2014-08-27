@@ -9,29 +9,6 @@ log = logging.getLogger(__name__)
 
 PATTERN_JSON = re.compile(r'^.*?(\{.*\})\s*$')
 
-# borrowed from modulestore/parsers.py:
-ALLOWED_ID_CHARS = r'[a-zA-Z0-9_\-~.:]'
-PATTERN_COURSEID = re.compile(r'^' + ALLOWED_ID_CHARS + r'+$')
-
-
-def is_valid_course_id(course_id):
-    """
-    Determines if a course_id from an event log is possibly legitimate.
-
-    Applies two tests:
-
-    * Course Id can be split into org/coursename/runname using '/' as delimiter.
-    * Components of id contain only "allowed" characters as defined in modulestore/parsers.py.
-
-    Note this will need to be updated as split-mongo changes are rolled out
-    that permit a broader set of id values.
-    """
-    # TODO: [split-mongo] verify after course_id name changes.
-    components = course_id.split('/')
-    if len(components) != 3:
-        return False
-    return all(PATTERN_COURSEID.match(component) for component in components)
-
 
 def decode_json(line):
     """Wrapper to decode JSON string in an implementation-independent way."""

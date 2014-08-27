@@ -3,6 +3,8 @@ Tests for database export tasks
 """
 from mock import Mock
 
+from opaque_keys.edx.locator import CourseLocator
+
 from edx.analytics.tasks.database_exports import StudentModulePerCourseTask
 from edx.analytics.tasks.database_exports import STUDENT_MODULE_FIELDS
 from edx.analytics.tasks.tests import unittest
@@ -73,9 +75,14 @@ class StudentModulePerCourseTestCase(unittest.TestCase):
         self.assertEqual(result_body, expected_body)
 
     def test_output_path(self):
+        course_id = str(CourseLocator(org='Sample', course='Course', run='ID'))
+        filename = self.task.output_path_for_key(course_id)
+        expected = 'test://output/Sample-Course-ID-courseware_studentmodule-test-analytics.sql'
+        self.assertEqual(filename, expected)
+
+    def test_legacy_output_path(self):
         course_id = 'Sample/Course/ID'
         filename = self.task.output_path_for_key(course_id)
-
         expected = 'test://output/Sample-Course-ID-courseware_studentmodule-test-analytics.sql'
         self.assertEqual(filename, expected)
 

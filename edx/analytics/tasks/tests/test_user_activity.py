@@ -16,13 +16,15 @@ from edx.analytics.tasks.user_activity import (
 )
 
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class UserActivityPerIntervalMapTest(unittest.TestCase):
+class UserActivityPerIntervalMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
     def setUp(self):
+        self.initialize_ids()
         self.interval_string = '2013-12-01-2013-12-31'
         self.task = UserActivityPerIntervalTask(
             interval=date_interval.Custom.parse(self.interval_string),
@@ -31,7 +33,6 @@ class UserActivityPerIntervalMapTest(unittest.TestCase):
         # the task, so set up manually.
         self.task.init_local()
 
-        self.course_id = "Foox/Bar101/2013_Spring"
         self.username = "test_user"
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.expected_interval_string = '2013-12-17-2013-12-24'
@@ -44,7 +45,6 @@ class UserActivityPerIntervalMapTest(unittest.TestCase):
     def _create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
-        org_id = self.course_id.split('/')[0]
         event_dict = {
             "username": self.username,
             "host": "test_host",
@@ -52,7 +52,7 @@ class UserActivityPerIntervalMapTest(unittest.TestCase):
             "event_type": self.event_type,
             "context": {
                 "course_id": self.course_id,
-                "org_id": org_id,
+                "org_id": self.org_id,
                 "user_id": 21,
             },
             "time": "{0}+00:00".format(self.timestamp),
@@ -169,12 +169,17 @@ class UserActivityPerIntervalMapTest(unittest.TestCase):
         self.assertItemsEqual(outputs, expected)
 
 
-class UserActivityPerIntervalReduceTest(unittest.TestCase):
+class UserActivityPerIntervalLegacyMapTest(InitializeLegacyKeysMixin, UserActivityPerIntervalMapTest):
+    """Tests to verify that event log parsing by mapper works correctly with legacy ids."""
+    pass
+
+
+class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     """
     Tests to verify that UserActivityPerIntervalTask reducer works correctly.
     """
     def setUp(self):
-        self.course_id = 'course_id'
+        self.initialize_ids()
         self.username = 'test_user'
         self.interval_string = '2013-12-01-2013-12-31'
         self.task = UserActivityPerIntervalTask(
