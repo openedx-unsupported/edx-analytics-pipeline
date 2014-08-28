@@ -59,7 +59,7 @@
         - "{{ root_log_dir }}"
 
     - name: working directories created
-      file: path={{ item }} state=directory owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
+      file: path={{ item }} state=directory mode=777 owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
       sudo: True
       with_items:
         - "{{ working_dir }}"
