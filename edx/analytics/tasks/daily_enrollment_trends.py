@@ -2,12 +2,13 @@
 Determine the number of users that are enrolled in each course over time
 """
 import logging
-import textwrap
 
 import luigi
 
-from edx.analytics.tasks.util.hive import ImportIntoHiveTableTask, HiveTableFromQueryTask, HivePartition, TABLE_FORMAT_TSV
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.hive import (
+    ImportIntoHiveTableTask, HiveTableFromQueryTask, HivePartition, TABLE_FORMAT_TSV
+)
+from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay, BaseCourseEnrollmentTaskDownstreamMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 

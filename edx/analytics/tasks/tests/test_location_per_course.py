@@ -294,7 +294,10 @@ class InsertToMysqlCourseEnrollByCountryWorkflowTestCase(unittest.TestCase):
         required_tasks = task.requires()
         self.assertEquals(len(required_tasks), 2)
         self.assertEquals(required_tasks['credentials'].output().path, 's3://config/credentials/output-database.json')
-        self.assertEquals(required_tasks['insert_source'].output().path, 's3://fake/warehouse/course_enrollment_location_current/dt=2014-08-23')
+        self.assertEquals(
+            required_tasks['insert_source'].output().path,
+            's3://fake/warehouse/course_enrollment_location_current/dt=2014-08-23'
+        )
 
     def test_requires_with_overwrite(self):
         kwargs = self._get_kwargs()

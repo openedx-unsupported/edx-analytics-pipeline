@@ -3,17 +3,18 @@ Determine the number of users in each country are enrolled in each course.
 """
 import datetime
 import logging
-import textwrap
 
 import luigi
-from luigi.hive import HiveQueryTask, ExternalHiveTask
+from luigi.hive import ExternalHiveTask
 
 from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
-from edx.analytics.tasks.util.hive import ImportIntoHiveTableTask, HiveTableFromQueryTask, WarehouseDownstreamMixin, HivePartition, TABLE_FORMAT_TSV
+from edx.analytics.tasks.util.hive import (
+    ImportIntoHiveTableTask, HiveTableFromQueryTask, WarehouseDownstreamMixin, HivePartition, TABLE_FORMAT_TSV
+)
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.url import ExternalURL, get_target_from_url
 from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
@@ -117,7 +118,7 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
         # Because this data comes from EventLogSelectionDownstreamMixin,
         # we will use the end of the interval used to calculate
         # the country information.
-        return HivePartition('dt', self.interval.date_b.strftime('%Y-%m-%d'))
+        return HivePartition('dt', self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
 
     def requires(self):
         return LastCountryOfUser(
@@ -154,7 +155,7 @@ class QueryLastCountryPerCourseTask(HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.import_date.isoformat())
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     @property
     def table_name(self):
@@ -228,6 +229,10 @@ class InsertToMysqlCourseEnrollByCountryTask(MysqlInsertTask):
             ('course_id',),
             ('date', 'course_id'),
         ]
+
+    @property
+    def insert_source_task(self):
+        raise NotImplementedError
 
 
 class InsertToMysqlCourseEnrollByCountryWorkflow(

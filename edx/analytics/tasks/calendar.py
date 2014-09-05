@@ -1,11 +1,12 @@
+"""Generate a calendar table"""
 
-from datetime import datetime, timedelta
+from datetime import timedelta
 import logging
 
 import luigi
 
 from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util.hive import ImportIntoHiveTableTask, HivePartition, TABLE_FORMAT_TSV
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
@@ -21,6 +22,14 @@ MONTHS_PER_QUARTER = MONTHS_PER_YEAR / 4
 
 
 class CalendarMixin(OverwriteOutputMixin):
+    """
+    All parameters needed to generate a calendar.
+
+    Parameters:
+        interval (date interval): The set of dates that should be populated in the calendar.
+        fiscal_year_beings (int): A number indicating a month of the year. The first day of this month is the first day
+            of each fiscal year.
+    """
 
     interval = luigi.DateIntervalParameter(
         default_from_config={'section': 'calendar', 'name': 'interval'}
@@ -31,6 +40,17 @@ class CalendarMixin(OverwriteOutputMixin):
 
 
 class CalendarTask(CalendarMixin, luigi.Task):
+    """
+    Generate calendar information that is aware of leap years and other edge cases.
+
+    This is generally used as an authoritative source for calendar information when running SQL queries and provides
+    information about various dates, including the weeks they belong to, the day of the week and relation to fiscal
+    years and quarters.
+
+    Parameters:
+        output_root (string): A URL to a folder that the data should be stored in.
+
+    """
 
     output_root = luigi.Parameter()
 
@@ -71,6 +91,7 @@ class CalendarTask(CalendarMixin, luigi.Task):
 
 
 class ImportCalendarToHiveTask(CalendarMixin, ImportIntoHiveTableTask):
+    """Ensure hive has a copy of the calendar table."""
 
     @property
     def table_name(self):

@@ -19,11 +19,10 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
         self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
 
         self.task.launch([
-            'CountUserActivityPerIntervalTaskWorkflow',
+            'UserActivityWorkflow',
             '--source', self.test_src,
             '--interval', self.DATE_INTERVAL.to_string(),
             '--credentials', self.export_db.credentials_file_url,
-            '--output-root', self.test_out,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 

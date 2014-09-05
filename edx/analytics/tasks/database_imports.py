@@ -3,7 +3,6 @@ Import data from external RDBMS databases into Hive.
 """
 import datetime
 import logging
-import textwrap
 
 import luigi
 
@@ -56,13 +55,21 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
     """
 
     @property
+    def table_name(self):
+        raise NotImplementedError
+
+    @property
+    def columns(self):
+        raise NotImplementedError
+
+    @property
     def table_location(self):
         return url_path_join(self.destination, self.table_name)
 
     @property
     def partition(self):
         # Partition date is provided by DatabaseImportMixin.
-        return HivePartition('dt', self.import_date.isoformat())
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return SqoopImportFromMysql(

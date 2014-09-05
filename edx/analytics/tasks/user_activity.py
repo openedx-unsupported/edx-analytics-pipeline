@@ -10,11 +10,17 @@ from edx.analytics.tasks.calendar import ImportCalendarToHiveTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.util.hive import ImportIntoHiveTableTask, HiveTableFromQueryTask, WarehouseDownstreamMixin, HivePartition, TABLE_FORMAT_TSV
+from edx.analytics.tasks.util.hive import (
+    ImportIntoHiveTableTask,
+    HiveTableFromQueryTask,
+    WarehouseDownstreamMixin,
+    HivePartition,
+    TABLE_FORMAT_TSV,
+    hive_database_name,
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
+from edx.analytics.tasks.url import get_target_from_url, ExternalURL
 import edx.analytics.tasks.util.eventlog as eventlog
-from datetime import datetime, date, timedelta
 
 log = logging.getLogger(__name__)
 
@@ -149,6 +155,8 @@ class UserActivityDailyTask(ImportIntoHiveTableTask):
     Creates a Hive Table that points to Hadoop output of CategorizeUserActivityTask task.
     """
 
+    interval = luigi.DateIntervalParameter()
+
     @property
     def table_name(self):
         return 'user_activity_daily'
@@ -179,7 +187,9 @@ class UserActivityDailyTask(ImportIntoHiveTableTask):
 class UserActivityDailyWorkflow(
     EventLogSelectionDownstreamMixin,
     MapReduceJobTaskMixin,
-    UserActivityDailyTask):
+    UserActivityDailyTask
+):
+    """Populate the daily user activity data using a map reduce job"""
 
     def requires(self):
         return CategorizeUserActivityTask(
@@ -193,6 +203,7 @@ class UserActivityDailyWorkflow(
 
 
 class UserActivityWeeklyTask(HiveTableFromQueryTask):
+    """Calculate unique user counts per week"""
 
     interval = luigi.Parameter()
 
@@ -237,9 +248,11 @@ class UserActivityWeeklyTask(HiveTableFromQueryTask):
 
 
 class UserActivityWeeklyWorkflow(
-        EventLogSelectionDownstreamMixin,
-        MapReduceJobTaskMixin,
-        UserActivityWeeklyTask):
+    EventLogSelectionDownstreamMixin,
+    MapReduceJobTaskMixin,
+    UserActivityWeeklyTask
+):
+    """Populate the tables required to compute weekly activity"""
 
     def requires(self):
         yield (
@@ -260,9 +273,7 @@ class UserActivityWeeklyWorkflow(
 
 
 class UserActivityMysqlInsertTask(MysqlInsertTask):
-    """
-    Define course_activity table.
-    """
+    """Define course_activity table."""
     @property
     def table(self):
         return 'course_activity'
@@ -284,6 +295,10 @@ class UserActivityMysqlInsertTask(MysqlInsertTask):
             ('interval_end',)
         ]
 
+    @property
+    def insert_source_task(self):
+        raise NotImplementedError
+
 
 class UserActivityWorkflow(
         EventLogSelectionDownstreamMixin,
@@ -291,9 +306,7 @@ class UserActivityWorkflow(
         WarehouseDownstreamMixin,
         OverwriteOutputMixin,
         UserActivityMysqlInsertTask):
-    """
-    Write to course_activity table to mysql.
-    """
+    """Write to course_activity table to mysql."""
 
     @property
     def insert_source_task(self):
@@ -309,10 +322,11 @@ class UserActivityWorkflow(
 
     def init_copy(self, connection):
         if self.overwrite:
+            # pylint: disable=no-member
             query = "DELETE FROM {table} WHERE interval_start >= {start} AND interval_start < {end}".format(
                     table=self.table,
                     start=self.interval.date_a.isoformat(),
                     end=self.interval.date_b.isoformat()
-                )
+            )
             log.info('Removing stale data with query: %s', query)
             connection.cursor().execute(query)

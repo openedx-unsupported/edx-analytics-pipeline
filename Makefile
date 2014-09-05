@@ -50,8 +50,9 @@ coverage-local: test-local
 	diff-quality --violations=pylint --html-report diff_quality_pylint.html
 
 	# Compute style violations
-	pep8 edx > pep8.report || echo "Not pep8 clean"
-	pylint -f parseable edx > pylint.report || echo "Not pylint clean"
+	pep8 edx > pep8.report
+	# Ignore TODOs
+	pylint --disable=W0511 -f parseable edx > pylint.report || echo "Not pylint clean"
 
 coverage: test coverage-local
 
