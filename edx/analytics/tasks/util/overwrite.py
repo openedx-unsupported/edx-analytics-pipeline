@@ -24,7 +24,7 @@ class OverwriteOutputMixin(object):
     Note that this should be included in a task definition *before*
     the Task base class, so that the complete() method is overridden.
     """
-    overwrite = luigi.BooleanParameter(default=False)
+    overwrite = luigi.BooleanParameter(default=False, significant=False)
     attempted_removal = False
 
     def complete(self):
@@ -52,5 +52,9 @@ class OverwriteOutputMixin(object):
         if self.overwrite:
             self.attempted_removal = True
             if self.output().exists():
-                log.info("Removing existing output for task %s", str(self))
-                self.output().remove()
+                output_target = self.output()
+                if hasattr(output_target, 'remove'):
+                    log.info("Removing existing output for task %s", str(self))
+                    self.output().remove()
+                else:
+                    log.info("Unable to remove output for task %s. Skipping removal.", str(self))

@@ -181,7 +181,7 @@ class BaseCourseEnrollmentTaskDownstreamMixin(OverwriteOutputMixin, MapReduceJob
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
     manifest = luigi.Parameter(default=None)
-    run_date = luigi.Parameter(default=datetime.date.today())
+    run_date = luigi.Parameter(default=datetime.datetime.utcnow().date().isoformat())
 
 
 ##################################
@@ -203,10 +203,6 @@ class CourseEnrollmentEventsPerDay(
         output_name = 'course_enrollment_events_per_day_{name}/dt={date}/'.format(name=self.name, date=self.run_date)
         return get_target_from_url(url_path_join(self.dest, output_name))
 
-    def run(self):
-        self.remove_output_on_overwrite()
-        super(CourseEnrollmentEventsPerDay, self).run()
-
 
 class CourseEnrollmentChangesPerDay(
         CourseEnrollmentChangesPerDayMixin,
@@ -225,10 +221,6 @@ class CourseEnrollmentChangesPerDay(
             manifest=self.manifest,
             overwrite=self.overwrite,
         )
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        super(CourseEnrollmentChangesPerDay, self).run()
 
     def output(self):
         output_name = 'course_enrollment_changes_per_day_{name}/dt={date}/'.format(name=self.name, date=self.run_date)

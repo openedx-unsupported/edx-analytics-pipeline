@@ -3,15 +3,13 @@ Import data from external RDBMS databases into Hive.
 """
 import datetime
 import logging
-import textwrap
 
 import luigi
-from luigi.hive import HiveQueryTask, HivePartitionTarget
 
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.hive import ImportIntoHiveTableTask, HivePartition
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import hive_database_name
 
 log = logging.getLogger(__name__)
 
@@ -43,119 +41,10 @@ class DatabaseImportMixin(object):
     credentials = luigi.Parameter(
         default_from_config={'section': 'database-import', 'name': 'credentials'}
     )
-    import_date = luigi.DateParameter(default=None)
+    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
-
-    def __init__(self, *args, **kwargs):
-        super(DatabaseImportMixin, self).__init__(*args, **kwargs)
-
-        if not self.import_date:
-            self.import_date = datetime.datetime.utcnow().date()
-
-
-class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
-    """
-    Abstract class to import data into a Hive table.
-
-    Requires four properties and a requires() method to be defined.
-    """
-
-    def query(self):
-        # TODO: Figure out how to clean up old data. This just cleans
-        # out old metastore info, and doesn't actually remove the table
-        # data.
-
-        # Ensure there is exactly one available partition in the
-        # table. Don't keep historical partitions since we don't want
-        # to commit to taking snapshots at any regular interval. They
-        # will happen when/if they need to happen.  Table snapshots
-        # should *not* be used for analyzing trends, instead we should
-        # rely on events or database tables that keep historical
-        # information.
-        query_format = textwrap.dedent("""
-            USE {database_name};
-            DROP TABLE IF EXISTS {table_name};
-            CREATE EXTERNAL TABLE {table_name} (
-                {col_spec}
-            )
-            PARTITIONED BY (dt STRING)
-            {table_format}
-            LOCATION '{location}';
-            ALTER TABLE {table_name} ADD PARTITION (dt = '{partition_date}');
-        """)
-
-        query = query_format.format(
-            database_name=hive_database_name(),
-            table_name=self.table_name,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
-            location=self.table_location,
-            table_format=self.table_format,
-            partition_date=self.partition_date,
-        )
-
-        log.debug('Executing hive query: %s', query)
-
-        # Mark the output as having been removed, even though
-        # that doesn't technically happen until the query has been
-        # executed (and in particular that the 'DROP TABLE' is executed).
-        log.info("Marking existing output as having been removed for task %s", str(self))
-        self.attempted_removal = True
-
-        return query
-
-    @property
-    def partition(self):
-        """Provides name of Hive database table partition."""
-        # The Luigi hive code expects partitions to be defined by dictionaries.
-        return {'dt': self.partition_date}
-
-    @property
-    def partition_location(self):
-        """Provides location of Hive database table's partition data."""
-        # The actual folder name where the data is stored is expected to be in the format <key>=<value>
-        partition_name = '='.join(self.partition.items()[0])
-        # Make sure that input path ends with a slash, to indicate a directory.
-        # (This is necessary for S3 paths that are output from Hadoop jobs.)
-        return url_path_join(self.table_location, partition_name + '/')
-
-    @property
-    def table_name(self):
-        """Provides name of Hive database table."""
-        raise NotImplementedError
-
-    @property
-    def table_format(self):
-        """Provides format of Hive database table's data."""
-        raise NotImplementedError
-
-    @property
-    def table_location(self):
-        """Provides root location of Hive database table's data."""
-        raise NotImplementedError
-
-    @property
-    def partition_date(self):
-        """Provides value to use in constructing the partition name of Hive database table."""
-        raise NotImplementedError
-
-    @property
-    def columns(self):
-        """
-        Provides definition of columns in Hive.
-
-        This should define a list of (name, definition) tuples, where
-        the definition defines the Hive type to use. For example,
-        ('first_name', 'STRING').
-
-        """
-        raise NotImplementedError
-
-    def output(self):
-        return HivePartitionTarget(
-            self.table_name, self.partition, database=hive_database_name(), fail_missing_table=False
-        )
 
 
 class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
@@ -166,18 +55,21 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
     """
 
     @property
+    def table_name(self):
+        raise NotImplementedError
+
+    @property
+    def columns(self):
+        raise NotImplementedError
+
+    @property
     def table_location(self):
         return url_path_join(self.destination, self.table_name)
 
     @property
-    def table_format(self):
-        # Use default of hive built-in format.
-        return ""
-
-    @property
-    def partition_date(self):
+    def partition(self):
         # Partition date is provided by DatabaseImportMixin.
-        return self.import_date.isoformat()
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return SqoopImportFromMysql(

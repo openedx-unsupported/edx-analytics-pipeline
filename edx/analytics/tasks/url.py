@@ -59,8 +59,9 @@ URL_SCHEME_TO_TARGET_CLASS = {
 }
 
 
-def get_target_from_url(url):
+def get_target_from_url(*url_parts):
     """Returns a luigi target based on the url scheme"""
+    url = url_path_join(*url_parts)
     parsed_url = urlparse.urlparse(url)
     target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
     kwargs = {}

@@ -28,14 +28,14 @@ class ImportStudentCourseEnrollmentTestCase(unittest.TestCase):
         expected_query = textwrap.dedent(
             """
             USE default;
-            DROP TABLE IF EXISTS student_courseenrollment;
+
             CREATE EXTERNAL TABLE student_courseenrollment (
                 id INT,user_id INT,course_id STRING,created TIMESTAMP,is_active BOOLEAN,mode STRING
             )
             PARTITIONED BY (dt STRING)
 
             LOCATION 's3://foo/bar/student_courseenrollment';
-            ALTER TABLE student_courseenrollment ADD PARTITION (dt = '2014-07-01');
+            ALTER TABLE student_courseenrollment ADD PARTITION (dt='2014-07-01');
             """
         )
         self.assertEquals(query, expected_query)
@@ -49,7 +49,7 @@ class ImportStudentCourseEnrollmentTestCase(unittest.TestCase):
         # kwargs = {'overwrite': False}
         kwargs = {}
         task = ImportStudentCourseEnrollmentTask(**kwargs)
-        with patch('edx.analytics.tasks.database_imports.HivePartitionTarget') as mock_target:
+        with patch('edx.analytics.tasks.util.hive.HivePartitionTarget') as mock_target:
             output = mock_target()
             # Make MagicMock act more like a regular mock, so that flatten() does the right thing.
             del output.__iter__

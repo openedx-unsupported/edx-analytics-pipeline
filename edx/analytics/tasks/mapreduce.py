@@ -115,6 +115,12 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
             jobconfs=job_confs,
         )
 
+    def run_job(self, job):
+        if hasattr(job, 'remove_output_on_overwrite'):
+            job.remove_output_on_overwrite()
+
+        return super(MapReduceJobRunner, self).run_job(job)
+
 
 class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
     """
@@ -134,19 +140,21 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
 
     """
 
-    def group(self, input):
+    def group(self, input_lines):
+        """Emulates the sort and grouping operations that map-reduce does in the shuffle"""
         output = StringIO.StringIO()
-        lines = []
-        for i, line in enumerate(input):
+        output_lines = []
+        for i, line in enumerate(input_lines):
             parts = line.rstrip('\n').split('\t')
             blob = md5(str(i)).hexdigest()  # pseudo-random blob to make sure the input isn't sorted
-            lines.append((parts[:-1], blob, line))
-        for k, _, line in sorted(lines):
+            output_lines.append((parts[:-1], blob, line))
+        for _, _, line in sorted(output_lines):
             output.write(line)
         output.seek(0)
         return output
 
     def run_job(self, job):
+        """A bare-bones emulation of the execution of a map-reduce job. Very limited in scope."""
         job.init_hadoop()
         job.init_mapper()
         map_output = StringIO.StringIO()
@@ -164,7 +172,7 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
 
                 os.environ['map_input_file'] = input_target.path
                 try:
-                    outputs = job._map_input((line[:-1] for line in input_file))
+                    outputs = job._map_input((line[:-1] for line in input_file))  # pylint: disable=protected-access
                     job.internal_writer(outputs, map_output)
                 finally:
                     del os.environ['map_input_file']
@@ -174,15 +182,15 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
         reduce_input = self.group(map_output)
         try:
             reduce_output = job.output().open('w')
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             reduce_output = StringIO.StringIO()
 
         try:
-            job._run_reducer(reduce_input, reduce_output)
+            job._run_reducer(reduce_input, reduce_output)  # pylint: disable=protected-access
         finally:
             try:
                 reduce_output.close()
-            except Exception:
+            except Exception:  # pylint: disable=broad-except
                 pass
 
 

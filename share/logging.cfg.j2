@@ -13,7 +13,7 @@ keys=root,edx_analytics,luigi_interface
 keys=stderrHandler,luigiHandler,localHandler
 
 [formatters]
-keys=standard,luigi_default
+keys=standard
 
 [logger_root]
 level=INFO
@@ -28,7 +28,7 @@ propagate=0
 
 [logger_luigi_interface]
 # Errors from luigi-interface get routed to stdout.
-level=INFO
+level=DEBUG
 handlers=luigiHandler
 qualname=luigi-interface
 propagate=0
@@ -41,7 +41,7 @@ args=(sys.stderr,)
 [handler_luigiHandler]
 # Define as in luigi/interface.py.
 class=StreamHandler
-formatter=luigi_default
+formatter=standard
 args=(sys.stdout,)
 
 [handler_localHandler]
@@ -55,7 +55,3 @@ args=('{{ log_dir }}/edx_analytics.log', 'w')
 [formatter_standard]
 # Define as in edx-platform/common/lib/logsettings.py (for dev logging, not syslog).
 format=%(asctime)s %(levelname)s %(process)d [%(name)s] %(filename)s:%(lineno)d - %(message)s
-
-[formatter_luigi_default]
-# Define as in luigi/interface.py.
-format=%(levelname)s: %(message)s

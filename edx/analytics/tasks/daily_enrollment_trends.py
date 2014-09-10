@@ -2,10 +2,13 @@
 Determine the number of users that are enrolled in each course over time
 """
 import logging
-import textwrap
+
 import luigi
-from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+
+from edx.analytics.tasks.util.hive import (
+    ImportIntoHiveTableTask, HiveTableFromQueryTask, HivePartition, TABLE_FORMAT_TSV
+)
+from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay, BaseCourseEnrollmentTaskDownstreamMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
@@ -39,11 +42,11 @@ class ImportDailyEnrollmentTrendsToHiveTask(BaseCourseEnrollmentTaskDownstreamMi
     @property
     def table_format(self):
         """Provides structure of Hive external table data."""
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+        return TABLE_FORMAT_TSV
 
     @property
-    def partition_date(self):
-        return str(self.run_date)
+    def partition(self):
+        return HivePartition('dt', str(self.run_date))
 
     def requires(self):
         return CourseEnrollmentChangesPerDay(
@@ -64,15 +67,7 @@ class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
     """
     Imports list of courses to blacklist from enrollment sums calculations.
     A new partition is created for every date where the blacklist is updated.
-
-    The input file is a tsv file assumed to exist at
-    s3://some-bucket/blacklist/enrollment/dt=<partition_date>
-
-    The file copied into the original partition 2014-08-27 is
-    s3://some-bucket/course_enrollment_offsets_with_2012_Spring.tsv.
-    ex. DemoOrgX/CourseFoo/3T2013 2013-12-03  12533
-
-     """
+    """
 
     blacklist_date = luigi.Parameter(
         default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
@@ -89,30 +84,21 @@ class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
         ]
 
     @property
-    def table_location(self):
-        return "s3://some-bucket/blacklist/enrollment/"
-
-    @property
-    def partition_date(self):
-        return self.blacklist_date
+    def partition(self):
+        return HivePartition('dt', self.blacklist_date)
 
     @property
     def table_format(self):
         """Provides format of Hive external table data."""
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+        return TABLE_FORMAT_TSV
 
 
-class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportIntoHiveTableTask):
+class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, HiveTableFromQueryTask):
     """Defines task to perform sum in Hive to find course enrollment counts."""
-    blacklist_date = luigi.Parameter(
-        default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
-    )
 
-    def query(self):
-        create_table_statements = super(SumEnrollmentDeltasTask, self).query()
-        query_format = textwrap.dedent("""
-            INSERT OVERWRITE TABLE {table_name}
-            PARTITION (dt='{partition_date}')
+    @property
+    def insert_query(self):
+        return """
             SELECT e.*
             FROM
             (
@@ -122,23 +108,11 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
                     order by date ASC
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 )
-                FROM {incremental_table_name} e
+                FROM course_enrollment_changes_per_day e
             ) e
-            LEFT OUTER JOIN {blacklist_table} b on (e.course_id = b.course_id)
+            LEFT OUTER JOIN course_enrollment_blacklist b ON e.course_id = b.course_id
             WHERE b.course_id IS NULL;
-
-        """)
-
-        insert_query = query_format.format(
-            table_name=self.table_name,
-            partition_date=self.partition_date,
-            incremental_table_name="course_enrollment_changes_per_day",
-            blacklist_table="course_enrollment_blacklist"
-        )
-
-        query = create_table_statements + insert_query
-        log.debug('Executing hive query: %s', query)
-        return query
+        """
 
     @property
     def table_name(self):
@@ -157,31 +131,30 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
         return url_path_join(self.dest, self.table_name)
 
     @property
-    def table_format(self):
-        """Provides format of Hive external table data."""
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+    def partition(self):
+        return HivePartition('dt', str(self.run_date))
 
     @property
-    def partition_date(self):
-        return str(self.run_date)
-
-    def output(self):
-        # partition_location is a property depending on table_location and partitions
-        return get_target_from_url(self.partition_location)
+    def table_format(self):
+        """Provides structure of Hive external table data."""
+        return TABLE_FORMAT_TSV
 
     def requires(self):
-        return ImportDailyEnrollmentTrendsToHiveTask(
-            mapreduce_engine=self.mapreduce_engine,
-            lib_jar=self.lib_jar,
-            n_reduce_tasks=self.n_reduce_tasks,
-            name=self.name,
-            src=self.src,
-            dest=self.dest,
-            include=self.include,
-            manifest=self.manifest,
-            overwrite=self.overwrite,
-            run_date=self.run_date
-        ), ImportCourseEnrollmentOffsetsBlacklist(blacklist_date=self.blacklist_date)
+        return (
+            ImportDailyEnrollmentTrendsToHiveTask(
+                mapreduce_engine=self.mapreduce_engine,
+                lib_jar=self.lib_jar,
+                n_reduce_tasks=self.n_reduce_tasks,
+                name=self.name,
+                src=self.src,
+                dest=self.dest,
+                include=self.include,
+                manifest=self.manifest,
+                overwrite=self.overwrite,
+                run_date=self.run_date
+            ),
+            ImportCourseEnrollmentOffsetsBlacklist(),
+        )
 
 
 class ImportCourseDailyFactsIntoMysql(BaseCourseEnrollmentTaskDownstreamMixin, MysqlInsertTask):

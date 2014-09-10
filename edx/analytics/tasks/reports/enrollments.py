@@ -1,7 +1,7 @@
 """Enrollment related reports"""
 
 import csv
-from datetime import timedelta, date
+from datetime import timedelta, datetime
 
 import luigi
 import luigi.hdfs
@@ -27,7 +27,7 @@ class CourseEnrollmentCountMixin(MapReduceJobTaskMixin):
     days = luigi.Parameter(default=DEFAULT_NUM_DAYS)
     offsets = luigi.Parameter(default=None)
     history = luigi.Parameter(default=None)
-    date = luigi.DateParameter(default=date.today())
+    date = luigi.DateParameter(default=datetime.utcnow().date().isoformat())
     statuses = luigi.Parameter(default=None)
     manifest = luigi.Parameter(default=None)
     manifest_path = luigi.Parameter(default=None)

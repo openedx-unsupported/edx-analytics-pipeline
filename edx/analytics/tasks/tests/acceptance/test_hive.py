@@ -47,7 +47,7 @@ class HiveAcceptanceTest(AcceptanceTestCase):
         self.task.launch([
             'ImportStudentCourseEnrollmentTask',
             '--credentials', self.import_db.credentials_file_url,
-            '--import-date', str(datetime.date.today()),
+            '--import-date', datetime.datetime.utcnow().date().isoformat(),
             '--num-mappers', str(self.NUM_MAPPERS),
             '--destination', self.test_src,
         ])

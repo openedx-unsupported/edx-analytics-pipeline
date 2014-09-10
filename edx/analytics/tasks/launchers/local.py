@@ -27,8 +27,10 @@ OVERRIDE_CONFIGURATION_FILE = 'override.cfg'
 
 
 def main():
+    """The primary entry point used to launch luigi tasks."""
+
     # In order to see errors during extension loading, you can uncomment the next line.
-    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     # Load tasks configured using entry_points
     # TODO: launch tasks by their entry_point name
