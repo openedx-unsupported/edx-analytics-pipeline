@@ -1,5 +1,6 @@
 """Group events by institution and export them for research purposes"""
 
+import datetime
 import logging
 
 import luigi
@@ -171,9 +172,20 @@ class UserActivityPerIntervalTask(UserActivityBaseTask):
     def get_predicate_labels(self, event):
         return extract_predicate_labels(event)
 
-    def get_mapper_key(self, course_id, username, _date_string):
+    def get_mapper_key(self, course_id, username, date_string):
+        # This is much faster than strptime
+        current_date = datetime.date(*[int(a) for a in date_string.split('-')])
+
+        # The interval is open, so the last day included in it will be one day less than the end date.
+        interval_end = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+
+        week_from_end = (interval_end - current_date).days / 7
+
+        interval_end_date = self.interval.date_b - datetime.timedelta(weeks=week_from_end)  # pylint: disable=no-member
+        interval_start_date = interval_end_date - datetime.timedelta(weeks=1)
+
         # For daily output, do reduction on all of these.
-        return (course_id, username, str(self.interval))
+        return (course_id, username, '-'.join([d.isoformat() for d in (interval_start_date, interval_end_date)]))
 
     def get_mapper_value(self, _course_id, _username, _date_string, label):
         return label
@@ -184,6 +196,7 @@ class UserActivityPerIntervalTask(UserActivityBaseTask):
         interval_nums = interval_string.split('-')
         interval_start = '-'.join(interval_nums[0:3])
         interval_end = '-'.join(interval_nums[3:6])
+
         # Dedupe the output values.
         output_values = []
         for value in values:
@@ -253,7 +266,11 @@ class InsertToMysqlCourseActivityTableMixin(MysqlInsertTask):
     def indexes(self):
         return [
             ('course_id', 'label'),
+            ('interval_end',)
         ]
+
+    def init_copy(self, connection):
+        connection.cursor().execute("DELETE FROM " + self.table)
 
 
 class InsertToMysqlCourseActivityTable(InsertToMysqlCourseActivityTableMixin):
