@@ -5,6 +5,8 @@ End to end test of enrollment trends.
 import datetime
 import logging
 
+from luigi.s3 import S3Target
+
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.url import url_path_join
 
@@ -26,6 +28,19 @@ class EnrollmentTrendsAcceptanceTest(AcceptanceTestCase):
     def test_enrollment_trends(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 8, 1))
 
+        blacklist_path = url_path_join(self.test_src, 'blacklist')
+        blacklist_date = '2014-08-29'
+        blacklist_url = url_path_join(blacklist_path, 'dt=' + blacklist_date, 'blacklist.tsv')
+        with S3Target(blacklist_url).open('w') as f:
+            f.write('edX/Open_DemoX/edx_demo_course3')
+
+        config_override = {
+            'enrollments': {
+                'blacklist_date': blacklist_date,
+                'blacklist_path': blacklist_path,
+            }
+        }
+
         self.task.launch([
             'ImportCourseDailyFactsIntoMysql',
             '--credentials', self.export_db.credentials_file_url,
@@ -37,7 +52,7 @@ class EnrollmentTrendsAcceptanceTest(AcceptanceTestCase):
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-        ])
+        ], config_override=config_override)
 
         self.validate_output()
 
