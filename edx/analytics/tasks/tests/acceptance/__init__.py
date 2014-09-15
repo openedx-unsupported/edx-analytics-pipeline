@@ -63,7 +63,6 @@ class AcceptanceTestCase(unittest.TestCase):
         url = self.config['tasks_output_url']
         m = hashlib.md5()
         m.update(self.config['identifier'])
-        m.update(self.id())
         self.identifier = m.hexdigest()
         self.test_root = url_path_join(url, self.identifier, self.__class__.__name__)
 
