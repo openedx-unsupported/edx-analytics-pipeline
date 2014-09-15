@@ -77,6 +77,9 @@ class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
     blacklist_date = luigi.Parameter(
         default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
     )
+    blacklist_path = luigi.Parameter(
+        default_from_config={'section': 'enrollments', 'name': 'blacklist_path'}
+    )
 
     @property
     def table_name(self):
@@ -90,7 +93,7 @@ class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
 
     @property
     def table_location(self):
-        return "s3://some-bucket/blacklist/enrollment/"
+        return self.blacklist_path
 
     @property
     def partition_date(self):
@@ -104,9 +107,6 @@ class ImportCourseEnrollmentOffsetsBlacklist(ImportIntoHiveTableTask):
 
 class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportIntoHiveTableTask):
     """Defines task to perform sum in Hive to find course enrollment counts."""
-    blacklist_date = luigi.Parameter(
-        default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
-    )
 
     def query(self):
         create_table_statements = super(SumEnrollmentDeltasTask, self).query()
@@ -181,7 +181,7 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
             manifest=self.manifest,
             overwrite=self.overwrite,
             run_date=self.run_date
-        ), ImportCourseEnrollmentOffsetsBlacklist(blacklist_date=self.blacklist_date)
+        ), ImportCourseEnrollmentOffsetsBlacklist()
 
 
 class ImportCourseDailyFactsIntoMysql(BaseCourseEnrollmentTaskDownstreamMixin, MysqlInsertTask):
