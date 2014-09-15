@@ -1,17 +1,18 @@
+"""Ensure we can compute activity for a set of events"""
 
 import datetime
 
-from luigi.date_interval import Date
+from luigi.date_interval import Custom
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 
 
 class UserActivityAcceptanceTest(AcceptanceTestCase):
+    """Ensure we can compute activity for a set of events"""
 
     INPUT_FILE = 'user_activity_tracking.log'
-    DATE_INTERVAL = Date(2014, 6, 19)
+    DATE_INTERVAL = Custom.parse('2014-06-06-2014-06-20')
     START_DATE = DATE_INTERVAL.date_a
-    END_DATE = DATE_INTERVAL.date_b
     COURSE_ID = u'edX/Open_DemoX/edx_demo_course'
     NUM_REDUCERS = 1
 
@@ -28,15 +29,16 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
         ])
 
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT * FROM course_activity')
+            cursor.execute('SELECT * FROM course_activity ORDER BY course_id, interval_end, label')
             results = cursor.fetchall()
 
-        self.maxDiff = None  # Disable unittest limit on length of diffs
-        start_datetime = datetime.datetime(self.START_DATE.year, self.START_DATE.month, self.START_DATE.day, 0, 0)
+        # pylint: disable=line-too-long
         self.assertItemsEqual([
             row[1:6] for row in results
         ], [
-            (self.COURSE_ID, start_datetime, None, 'ACTIVE', 4),
-            (self.COURSE_ID, start_datetime, None, 'ATTEMPTED_PROBLEM', 2),
-            (self.COURSE_ID, start_datetime, None, 'PLAYED_VIDEO', 3),
+            (self.COURSE_ID, datetime.datetime(2014, 6, 6, 0, 0), datetime.datetime(2014, 6, 13, 0, 0), 'ACTIVE', 1),
+            (self.COURSE_ID, datetime.datetime(2014, 6, 6, 0, 0), datetime.datetime(2014, 6, 13, 0, 0), 'PLAYED_VIDEO', 1),
+            (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ACTIVE', 4),
+            (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'ATTEMPTED_PROBLEM', 2),
+            (self.COURSE_ID, datetime.datetime(2014, 6, 13, 0, 0), datetime.datetime(2014, 6, 20, 0, 0), 'PLAYED_VIDEO', 3),
         ])
