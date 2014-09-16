@@ -138,11 +138,10 @@ def run_ansible(args, verbose, executable='ansible'):
     env = dict(os.environ)
     env.update({
         # Ansible may be pulling down private git repos on the remote machine.  Forward the local agent so that the
-        # remote machine can access any repos this one can.
-        'ANSIBLE_SSH_ARGS': '-o ForwardAgent=yes',
-        # These machines are dynamically created, so we don't know their host key.  In an ideal world we would store the
-        # host key at provisioning time, however, that doesn't happen, so just trust we have the right machine.
-        'ANSIBLE_HOST_KEY_CHECKING': 'False'
+        # remote machine can access any repos this one can. These machines are dynamically created, so we don't know
+        # their host key.  In an ideal world we would store the host key at provisioning time, however, that doesn't
+        # happen, so just trust we have the right machine.
+        'ANSIBLE_SSH_ARGS': '-o ForwardAgent=yes -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no'
     })
     log('Running command = {0}'.format(command))
     with open('/dev/null', 'r+') as devnull:
@@ -169,6 +168,7 @@ def run_remote_shell(inventory, arguments):
         '-tt',
         '-o', 'ForwardAgent=yes',
         '-o', 'StrictHostKeyChecking=no',
+        '-o', 'UserKnownHostsFile=/dev/null',
         '-o', 'KbdInteractiveAuthentication=no',
         '-o', 'PasswordAuthentication=no',
         '-o', 'User=' + arguments.user,
