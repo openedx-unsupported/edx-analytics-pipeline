@@ -8,7 +8,6 @@ ecdsa==0.11 		# MIT
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT
 httplib2==0.9 		# MIT
-luigi==1.0.16 		# Apache License 2.0
 mechanize==0.2.5	# BSD
 mysql-connector-python==1.2.2  	# GPL v2 with FOSS License Exception
 numpy==1.8.0 		# BSD
@@ -25,3 +24,4 @@ six==1.6.1 			# MIT
 stevedore==0.14.1 	# Apache 2.0
 tornado==3.1.1 		# Apache 2.0
 wsgiref==0.1.2 		# ZPL
+-e git+https://github.com/edx/luigi.git@v1.0.17#egg=luigi 		# Apache License 2.0
