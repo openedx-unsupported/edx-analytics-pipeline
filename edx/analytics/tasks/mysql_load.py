@@ -191,6 +191,7 @@ class MysqlInsertTask(OverwriteOutputMixin, luigi.Task):
         the table.
         """
         # clear table contents
+        self.attempted_removal = True
         if self.overwrite:
             # first clear the appropriate rows from the luigi mysql marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None

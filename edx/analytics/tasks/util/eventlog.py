@@ -123,12 +123,19 @@ def timestamp_to_datestamp(timestamp):
 def get_event_time(event):
     """Returns a datetime object from an event object, if present."""
     try:
+        return datetime.datetime.strptime(get_event_time_string(event), '%Y-%m-%dT%H:%M:%S.%f')
+    except Exception:
+        return None
+
+
+def get_event_time_string(event):
+    try:
         # Get entry, and strip off time zone information.  Keep microseconds, if any.
         raw_timestamp = event['time']
         timestamp = raw_timestamp.split('+')[0]
         if '.' not in timestamp:
             timestamp = '{datetime}.000000'.format(datetime=timestamp)
-        return datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f')
+        return timestamp
     except Exception:
         return None
 
