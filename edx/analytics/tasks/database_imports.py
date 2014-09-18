@@ -227,7 +227,7 @@ class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
 
 class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
-    """Imports course enrollment information from an external LMS DB to a destination directory."""
+    """Imports user information from an external LMS DB to a destination directory."""
 
     @property
     def table_name(self):
@@ -249,6 +249,24 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
+
+    """Imports user demographic information from an external LMS DB to a destination directory."""
+
+    @property
+    def table_name(self):
+        return 'auth_userprofile'
+
+    @property
+    def columns(self):
+        return [
+            ('user_id', 'INT'),
+            ('gender', 'STRING'),
+            ('year_of_birth', 'INT'),
+            ('level_of_education', 'STRING'),
+        ]
+
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
     def requires(self):
@@ -263,6 +281,7 @@ class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, lui
         yield (
             ImportStudentCourseEnrollmentTask(**kwargs),
             ImportAuthUserTask(**kwargs),
+            ImportAuthUserProfileTask(**kwargs),
         )
 
     def output(self):
