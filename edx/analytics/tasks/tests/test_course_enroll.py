@@ -9,15 +9,16 @@ from edx.analytics.tasks.course_enroll import (
     CourseEnrollmentChangesPerDayMixin,
 )
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class CourseEnrollEventMapTest(unittest.TestCase):
+class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
     def setUp(self):
+        self.initialize_ids()
         self.task = CourseEnrollmentEventsPerDayMixin()
-        self.course_id = "MITx/8.02x/2013_Spring"
         self.user_id = 21
         self.timestamp = "2013-12-17T15:38:32.805444"
 
@@ -28,7 +29,6 @@ class CourseEnrollEventMapTest(unittest.TestCase):
     def _create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
-        org_id = self.course_id.split('/')[0]
         event_dict = {
             "username": "test_user",
             "host": "test_host",
@@ -36,7 +36,7 @@ class CourseEnrollEventMapTest(unittest.TestCase):
             "event_type": "edx.course.enrollment.activated",
             "context": {
                 "course_id": self.course_id,
-                "org_id": org_id,
+                "org_id": self.org_id,
                 "user_id": self.user_id,
             },
             "time": "{0}+00:00".format(self.timestamp),

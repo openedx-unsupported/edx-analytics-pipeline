@@ -10,6 +10,7 @@ import tempfile
 import shutil
 
 from mock import Mock, call
+from opaque_keys.edx.locator import CourseLocator
 
 from edx.analytics.tasks.answer_dist import (
     LastProblemCheckEventMixin,
@@ -18,18 +19,19 @@ from edx.analytics.tasks.answer_dist import (
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
 class LastProblemCheckEventBaseTest(unittest.TestCase):
     """Base test class for testing LastProblemCheckEventMixin."""
 
+    def initialize_ids(self):
+        """Define set of id values for use in tests."""
+        raise NotImplementedError
+
     def setUp(self):
+        self.initialize_ids()
         self.task = LastProblemCheckEventMixin()
-        self.course_id = "FooX/1.23x/2013_Spring"
-        self.org_id = self.course_id.split('/')[0]
-        self.problem_id = "i4x://FooX/1.23x/2013_Spring/problem/PSet1:PS1_Q1"
-        self.answer_id = "i4x-FooX-1_23x-problem-PSet1_PS1_Q1_2_1"
-        self.second_answer_id = "i4x-FooX-1_23x-problem-PSet1_PS1_Q1_3_1"
         self.username = 'test_user'
         self.user_id = 24
         self.timestamp = "2013-12-17T15:38:32.805444"
@@ -116,7 +118,7 @@ class LastProblemCheckEventBaseTest(unittest.TestCase):
         return event_dict
 
 
-class LastProblemCheckEventMapTest(LastProblemCheckEventBaseTest):
+class LastProblemCheckEventMapTest(InitializeOpaqueKeysMixin, LastProblemCheckEventBaseTest):
     """Tests to verify that event log parsing by mapper works correctly."""
 
     def assert_no_output_for(self, line):
@@ -197,7 +199,12 @@ class LastProblemCheckEventMapTest(LastProblemCheckEventBaseTest):
         self.assertEquals(actual_data, expected_data)
 
 
-class LastProblemCheckEventReduceTest(LastProblemCheckEventBaseTest):
+class LastProblemCheckEventLegacyMapTest(InitializeLegacyKeysMixin, LastProblemCheckEventMapTest):
+    """Run same mapper() tests, but using legacy values for keys."""
+    pass
+
+
+class LastProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, LastProblemCheckEventBaseTest):
     """
     Verify that LastProblemCheckEventMixin.reduce() works correctly.
     """
@@ -387,15 +394,18 @@ class LastProblemCheckEventReduceTest(LastProblemCheckEventBaseTest):
         self._check_output([input_data], {self.answer_id: answer_data})
 
 
-class AnswerDistributionPerCourseReduceTest(unittest.TestCase):
+class LastProblemCheckEventLegacyReduceTest(InitializeLegacyKeysMixin, LastProblemCheckEventReduceTest):
+    """Run same reducer() tests, but using legacy values for keys."""
+    pass
+
+
+class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     """
     Verify that AnswerDistributionPerCourseMixin.reduce() works correctly.
     """
     def setUp(self):
+        self.initialize_ids()
         self.task = AnswerDistributionPerCourseMixin()
-        self.course_id = "FooX/1.23x/2013_Spring"
-        self.problem_id = "i4x://FooX/1.23x/2013_Spring/problem/PSet1:PS1_Q1"
-        self.answer_id = "i4x-FooX-1_23x-problem-PSet1_PS1_Q1_2_1"
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
         self.key = (self.course_id, self.answer_id)
@@ -789,6 +799,15 @@ class AnswerDistributionPerCourseReduceTest(unittest.TestCase):
         self._check_output([input_data], (expected_output,))
 
 
+class AnswerDistributionPerCourseLegacyReduceTest(InitializeLegacyKeysMixin, AnswerDistributionPerCourseReduceTest):
+    """
+    Verify that AnswerDistributionPerCourseMixin.reduce() works correctly
+    with legacy ids.
+
+    """
+    pass
+
+
 class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase):
     """Tests for AnswerDistributionOneFilePerCourseTask class."""
 
@@ -831,8 +850,23 @@ class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase):
         expected_row_2 = ','.join(unicode(v[1]).encode('utf8') for v in column_values_1) + '\r\n'
         self.assertEquals(mock_output_file.write.mock_calls[2], call(expected_row_2))
 
-    def test_output_path_for_key(self):
+    def test_output_path_for_legacy_key(self):
         course_id = 'foo/bar/baz'
+        hashed_course_id = hashlib.sha1(course_id).hexdigest()
+        task = AnswerDistributionOneFilePerCourseTask(
+            mapreduce_engine='local',
+            src=None,
+            dest=None,
+            name='name',
+            include=None,
+            output_root='/tmp',
+        )
+        output_path = task.output_path_for_key(course_id)
+        expected_output_path = '/tmp/{0}/foo_bar_baz_answer_distribution.csv'.format(hashed_course_id)
+        self.assertEquals(output_path, expected_output_path)
+
+    def test_output_path_for_opaque_key(self):
+        course_id = str(CourseLocator(org='foo', course='bar', run='baz'))
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
         task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',

@@ -18,6 +18,7 @@ from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.tests.acceptance.services import shell
+from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id, get_org_id_for_course
 
 
 log = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
     ENVIRONMENT = 'acceptance'
     TABLE = 'courseware_studentmodule'
     COURSE_ID = 'edX/E929/2014_T1'
+    COURSE_ID2 = 'course-v1:testX+DemoX+2014_T2'
 
     def setUp(self):
         super(ExportAcceptanceTest, self).setUp()
@@ -40,14 +42,6 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         self.output_prefix = 'automation/{ident}/'.format(ident=self.identifier)
 
-        self.exported_filename = '{safe_course_id}-{table}-{suffix}-analytics.sql'.format(
-            safe_course_id=self.COURSE_ID.replace('/', '-'),
-            table=self.TABLE,
-            suffix=self.ENVIRONMENT,
-        )
-
-        self.org_id = self.COURSE_ID.split('/')[0].lower()
-
         self.create_temporary_directories()
 
     def create_temporary_directories(self):
@@ -57,9 +51,16 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         self.external_files_dir = os.path.join(self.temporary_dir, 'external')
         self.working_dir = os.path.join(self.temporary_dir, 'work')
+        self.validation_dir = os.path.join(self.working_dir, 'validation')
+        self.gpg_dir = os.path.join(self.working_dir, 'gnupg')
 
-        for dir_path in [self.external_files_dir, self.working_dir]:
+        for dir_path in [self.external_files_dir, self.working_dir, self.validation_dir, self.gpg_dir]:
             os.makedirs(dir_path)
+
+        os.chmod(self.gpg_dir, 0700)
+
+        # The exporter expects this directory to already exist.
+        os.makedirs(os.path.join(self.working_dir, 'course-data'))
 
     @unittest.skipIf(os.getenv('EXPORTER') is None, "requires private Exporter code")
     def test_database_export(self):
@@ -68,8 +69,17 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         self.load_data_from_file()
         self.run_export_task()
-        self.run_legacy_exporter()
-        self.validate_exporter_output()
+
+        for course_id in [self.COURSE_ID2, self.COURSE_ID]:
+            org_id = get_org_id_for_course(course_id).lower()
+            self.run_legacy_exporter(org_id, course_id)
+
+            exported_filename = '{safe_course_id}-{table}-{suffix}-analytics.sql'.format(
+                safe_course_id=get_filename_safe_course_id(course_id, '-'),
+                table=self.TABLE,
+                suffix=self.ENVIRONMENT,
+            )
+            self.validate_exporter_output(org_id, exported_filename)
 
     def load_data_from_file(self):
         """
@@ -101,7 +111,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
-    def run_legacy_exporter(self):
+    def run_legacy_exporter(self, org_id, course_id):
         """
         Preconditions: A text file for courseware_studentmodule has been generated and stored in the external file path.
         External Effect: Runs the legacy exporter which assembles the data package, encrypts it, and uploads it to S3.
@@ -114,27 +124,25 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         Uploads the package to s3://<exporter_output_bucket>/<output_prefix>edx-<year>-<month>-<day>.zip
 
         """
-        config_file_path = os.path.join(self.temporary_dir, 'acceptance.yml')
-        self.write_exporter_config(config_file_path)
+        config_file_path = os.path.join(self.temporary_dir, '{}_acceptance.yml'.format(org_id))
 
-        # The exporter expects this directory to already exist.
-        os.makedirs(os.path.join(self.working_dir, 'course-data'))
+        self.write_exporter_config(org_id, config_file_path)
 
         command = [
             os.getenv('EXPORTER'),
             '--work-dir', self.working_dir,
             '--bucket', self.config.get('exporter_output_bucket'),
-            '--course-id', self.COURSE_ID,
+            '--course-id', course_id,
             '--external-prefix', self.test_src,
             '--output-prefix', self.output_prefix,
             config_file_path,
             '--env', self.ENVIRONMENT,
-            '--org', self.org_id,
+            '--org', org_id,
             '--task', 'StudentModuleTask'
         ]
         shell.run(command)
 
-    def write_exporter_config(self, config_file_path):
+    def write_exporter_config(self, org_id, config_file_path):
         """Write out the configuration file that the exporter expects to the filesystem."""
         config_text = textwrap.dedent("""\
             options: {{}}
@@ -162,27 +170,24 @@ class ExportAcceptanceTest(AcceptanceTestCase):
             environment=self.ENVIRONMENT,
             sql_host=self.import_db.credentials['host'],
             external_files=self.external_files_dir,
-            org_id=self.org_id,
+            org_id=org_id,
         )
 
         with open(config_file_path, 'w') as config_file:
             config_file.write(config_text)
 
-    def validate_exporter_output(self):
+    def validate_exporter_output(self, org_id, exported_filename):
         """
         Preconditions: A complete data package has been uploaded to S3.
         External Effect: Downloads the complete data package, decompresses it, decrypts it and then compares it to the
             static expected output ignoring the ordering of the records in both files.
 
-        Downloads s3://<exporter_output_bucket>/<output_prefix>edx-<year>-<month>-<day>.zip to <temporary_dir>/work/validation/.
+        Downloads s3://<exporter_output_bucket>/<output_prefix><org_id>-<year>-<month>-<day>.zip to <temporary_dir>/work/validation/.
 
         """
-        validation_dir = os.path.join(self.working_dir, 'validation')
-        os.makedirs(validation_dir)
-
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
         bucket = boto.connect_s3().get_bucket(self.config.get('exporter_output_bucket'))
-        export_id = '{org}-{date}'.format(org=self.org_id, date=today)
+        export_id = '{org}-{date}'.format(org=org_id, date=today)
         filename = export_id + '.zip'
         key = bucket.lookup(self.output_prefix + filename)
         if key is None:
@@ -193,25 +198,21 @@ class ExportAcceptanceTest(AcceptanceTestCase):
                     filename=filename
                 )
             )
-        exporter_archive_path = os.path.join(validation_dir, filename)
+        exporter_archive_path = os.path.join(self.validation_dir, filename)
         key.get_contents_to_filename(exporter_archive_path)
 
-        shell.run(['unzip', exporter_archive_path, '-d', validation_dir])
+        shell.run(['unzip', exporter_archive_path, '-d', self.validation_dir])
 
-        gpg_dir = os.path.join(self.working_dir, 'gnupg')
-        os.makedirs(gpg_dir)
-        os.chmod(gpg_dir, 0700)
-
-        gpg = gnupg.GPG(gnupghome=gpg_dir)
+        gpg = gnupg.GPG(gnupghome=self.gpg_dir)
         with open(os.path.join('gpg-keys', 'insecure_secret.key'), 'r') as key_file:
             gpg.import_keys(key_file.read())
 
-        exported_file_path = os.path.join(validation_dir, self.exported_filename)
-        with open(os.path.join(validation_dir, export_id, self.exported_filename + '.gpg'), 'r') as encrypted_file:
+        exported_file_path = os.path.join(self.validation_dir, exported_filename)
+        with open(os.path.join(self.validation_dir, export_id, exported_filename + '.gpg'), 'r') as encrypted_file:
             gpg.decrypt_file(encrypted_file, output=exported_file_path)
 
         sorted_filename = exported_file_path + '.sorted'
         shell.run(['sort', '-o', sorted_filename, exported_file_path])
 
-        expected_output_path = os.path.join(self.data_dir, 'output', self.exported_filename + '.sorted')
+        expected_output_path = os.path.join(self.data_dir, 'output', exported_filename + '.sorted')
         shell.run(['diff', sorted_filename, expected_output_path])

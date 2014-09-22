@@ -11,9 +11,10 @@ import yaml
 from edx.analytics.tasks.event_exports import EventExportTask
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class EventExportTestCase(unittest.TestCase):
+class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
     """Tests for EventExportTask."""
 
     EXAMPLE_EVENT = '{"context":{"org_id": "FooX"}, "time": "2014-05-20T00:10:30+00:00","event_source": "server"}'
@@ -41,6 +42,7 @@ class EventExportTestCase(unittest.TestCase):
     CONFIGURATION = yaml.dump(CONFIG_DICT)
 
     def setUp(self):
+        self.initialize_ids()
         self.task = self._create_export_task()
 
     def _create_export_task(self, **kwargs):
@@ -126,7 +128,7 @@ class EventExportTestCase(unittest.TestCase):
         with patch.dict('os.environ', {'map_input_file': path}):
             return [output for output in self.task.mapper(event_string) if output is not None]
 
-    def test_institution_from_context(self):
+    def test_org_from_server_context(self):
         event = {
             'event_source': 'server',
             'context': {
@@ -135,36 +137,67 @@ class EventExportTestCase(unittest.TestCase):
         }
         self.assertEquals('FooX', self.task.get_org_id(event))
 
-    def test_empty_institution_from_context(self):
+    def test_empty_org_from_server_context(self):
         event = {
             'event_source': 'server',
             'context': {
                 'org_id': ''
             }
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
 
-    def test_missing_context(self):
+    def test_missing_server_context(self):
         event = {
             'event_source': 'server'
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
 
-    def test_institution_from_course_url(self):
+    def test_org_from_course_url(self):
+        event = {
+            'event_source': 'server',
+            'event_type': '/courses/{}/content'.format(self.course_id)
+        }
+        self.assertEquals(self.org_id, self.task.get_org_id(event))
+
+    def test_org_from_legacy_course_url(self):
         event = {
             'event_source': 'server',
             'event_type': '/courses/FooX/LearningMath/2014T2/content'
         }
         self.assertEquals('FooX', self.task.get_org_id(event))
 
+    def test_org_from_course_url_with_prefix(self):
+        event = {
+            'event_source': 'server',
+            'event_type': '/some/garbage/courses/{}/content'.format(self.course_id)
+        }
+        self.assertEquals(self.org_id, self.task.get_org_id(event))
+
+    def test_org_from_legacy_course_url_with_prefix(self):
+        event = {
+            'event_source': 'server',
+            'event_type': '/some/garbage/courses/FooX/LearningMath/2014T2/content'
+        }
+        self.assertEquals('garbage', self.task.get_org_id(event))
+
     def test_implicit_event_without_course_url(self):
         event = {
             'event_source': 'server',
             'event_type': '/any/page'
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
 
-    def test_institution_from_problem_event(self):
+    def test_org_from_problem_event(self):
+        event = {
+            'event_source': 'server',
+            'event_type': 'problem_check',
+            'event': {
+                'problem_id': self.problem_id
+            }
+        }
+        self.assertIsNone(self.task.get_org_id(event))
+
+    def test_org_from_legacy_problem_event(self):
         event = {
             'event_source': 'server',
             'event_type': 'problem_check',
@@ -181,27 +214,64 @@ class EventExportTestCase(unittest.TestCase):
             'event': {
             }
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
 
-    def test_institution_from_page(self):
+    def test_org_from_legacy_browser_context(self):
+        event = {
+            'event_source': 'browser',
+            'context': {
+                'org_id': 'FooX',
+                'course_id': 'FooX/LearningMath/2014T2',
+            }
+        }
+        self.assertIsNone(self.task.get_org_id(event))
+
+    def test_org_from_page(self):
+        event = {
+            'event_source': 'browser',
+            'page': 'http://courses.example.com/courses/{}/content'.format(self.course_id)
+        }
+        self.assertEquals(self.org_id, self.task.get_org_id(event))
+
+    def test_org_from_legacy_page(self):
         event = {
             'event_source': 'browser',
             'page': 'http://courses.example.com/courses/FooX/LearningMath/2014T2/content'
         }
         self.assertEquals('FooX', self.task.get_org_id(event))
 
+    def test_incomplete_org_from_legacy_page(self):
+        event = {
+            'event_source': 'browser',
+            'page': 'http://courses.example.com/courses/FooX/LearningMath'
+        }
+        self.assertEquals('FooX', self.task.get_org_id(event))
+
+    def test_org_from_legacy_page_with_extra_slash(self):
+        event = {
+            'event_source': 'browser',
+            'page': 'http://courses.example.com//courses/FooX/LearningMath/2014T2/content'
+        }
+        self.assertEquals('courses', self.task.get_org_id(event))
+
     def test_no_course_in_page_url(self):
         event = {
             'event_source': 'browser',
             'page': 'http://foo.example.com/any/page'
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
 
     def test_no_event_source(self):
         event = {
             'foo': 'bar'
         }
-        self.assertNotEquals('FooX', self.task.get_org_id(event))
+        self.assertIsNone(self.task.get_org_id(event))
+
+    def test_unrecognized_event_source(self):
+        event = {
+            'event_source': 'task',
+        }
+        self.assertIsNone(self.task.get_org_id(event))
 
     def test_output_path_for_key(self):
         path = self.task.output_path_for_key((datetime.date(2015, 1, 1), 'OrgX'))

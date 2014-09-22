@@ -67,9 +67,9 @@ class EnrollmentTrendsAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 3),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2),
             (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 3),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course2', 1),
+            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course2', 2),
+            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 2),
             (datetime.date(2014, 8, 6), 'edX/Open_DemoX/edx_demo_course', 0),
         ])

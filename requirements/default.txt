@@ -16,12 +16,14 @@ paramiko==1.14.0 	# LGPL
 pbr==0.5.23 		# Apache
 pycrypto==2.6.1 	# public domain
 pygeoip==0.3.1 		# LGPL
+pymongo==2.7.2		# Apache 2.0
 python-cjson==1.0.5	# LGPL
-python-dateutil==2.2 # BSD
+python-dateutil==2.2 	# BSD
 python-gnupg==0.3.6	# BSD
 pytz==2014.4		# ZPL
-six==1.6.1 			# MIT
+six==1.6.1		# MIT
 stevedore==0.14.1 	# Apache 2.0
 tornado==3.1.1 		# Apache 2.0
 wsgiref==0.1.2 		# ZPL
--e git+https://github.com/edx/luigi.git@v1.0.17#egg=luigi 		# Apache License 2.0
+-e git+https://github.com/edx/luigi.git@v1.0.17-fork.edx.1#egg=luigi 		# Apache License 2.0
+-e git+https://github.com/edx/opaque-keys.git@705cd2a5388579342d70e9d0a605bc9ef3533453#egg=opaque-keys

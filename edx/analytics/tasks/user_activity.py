@@ -10,6 +10,7 @@ from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
 import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class UserActivityBaseTask(EventLogSelectionMixin, MapReduceJobTask, UserActivit
         if not course_id:
             return None
 
-        if not eventlog.is_valid_course_id(course_id):
+        if not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered event with bogus course_id: %s", event)
             return None
 

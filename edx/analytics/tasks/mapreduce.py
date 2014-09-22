@@ -7,6 +7,7 @@ import gzip
 from hashlib import md5
 import os
 import StringIO
+import logging
 
 import luigi
 import luigi.hdfs
@@ -16,6 +17,9 @@ from luigi import configuration
 
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.manifest import convert_tasks_to_manifest_if_necessary
+
+
+log = logging.getLogger(__name__)
 
 
 DEFAULT_MARKER_ROOT = 'hdfs:///tmp/marker'

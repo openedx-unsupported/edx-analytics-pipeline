@@ -6,24 +6,6 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.tests import unittest
 
 
-class CourseIdTest(unittest.TestCase):
-    """
-    Verify that course_id filtering works correctly.
-    """
-
-    def test_normal_course_id(self):
-        course_id = "org/course_id/course_run"
-        self.assertTrue(eventlog.is_valid_course_id(course_id))
-
-    def test_course_id_without_components(self):
-        course_id = "org:course_id:course_run"
-        self.assertFalse(eventlog.is_valid_course_id(course_id))
-
-    def test_course_id_with_nonascii(self):
-        course_id = u"org/course\ufffd_id/course_run"
-        self.assertFalse(eventlog.is_valid_course_id(course_id))
-
-
 class ParseEventLogTest(unittest.TestCase):
     """
     Verify that event log parsing works correctly.

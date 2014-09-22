@@ -11,6 +11,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
 
     INPUT_FILE = 'location_by_course_tracking.log'
     COURSE_ID = u'edX/Open_DemoX/edx_demo_course'
+    COURSE_ID2 = u'course-v1:edX+Open_DemoX+edx_demo_course2'
     DATE_INTERVAL = Date(2014, 7, 21)
     START_DATE = DATE_INTERVAL.date_a
     END_DATE = DATE_INTERVAL.date_b
@@ -49,4 +50,5 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             (today, self.COURSE_ID, '', 1),
             (today, self.COURSE_ID, 'IE', 1),
             (today, self.COURSE_ID, 'TH', 1),
+            (today, self.COURSE_ID2, 'TH', 1),
         ])

@@ -13,12 +13,13 @@ import luigi.hdfs
 import luigi.s3
 from luigi.configuration import get_config
 
-import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import ExternalURL, IgnoredTarget
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
+import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 import logging
 log = logging.getLogger(__name__)
@@ -722,7 +723,7 @@ class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
         directory will be displayed on the instructor dashboard for that course.
         """
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
-        filename_safe_course_id = course_id.replace('/', '_')
+        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
         filename = u'{course_id}_answer_distribution.csv'.format(course_id=filename_safe_course_id)
         return url_path_join(self.output_root, hashed_course_id, filename)
 
@@ -921,7 +922,7 @@ def get_problem_check_event(line):
         log.error("encountered explicit problem_check event with missing course_id: %s", event)
         return None
 
-    if not eventlog.is_valid_course_id(course_id):
+    if not opaque_key_util.is_valid_course_id(course_id):
         log.error("encountered explicit problem_check event with bogus course_id: %s", event)
         return None
 

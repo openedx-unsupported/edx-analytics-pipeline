@@ -60,8 +60,8 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
         outputs = self.s3_client.list(self.test_out)
         outputs = [url_path_join(self.test_out, p) for p in outputs]
 
-        # There are 2 courses in the test data
-        self.assertEqual(len(outputs), 2)
+        # There are 3 courses in the test data
+        self.assertEqual(len(outputs), 3)
 
         # Check that the results have data
         for output in outputs:
@@ -97,8 +97,8 @@ class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTes
         with self.export_db.cursor() as cursor:
             cursor.execute('SELECT DISTINCT(`course_id`) from answer_distribution')
             uniq_course_ids = cursor.fetchall()
-            # There are 2 courses in the test data
-            self.assertEqual(len(uniq_course_ids), 2)
+            # There are 3 courses in the test data
+            self.assertEqual(len(uniq_course_ids), 3)
 
             # the fetchall above returns a list of singleton tuples, so we use course_id[0] below
             for course_id in uniq_course_ids:

@@ -5,11 +5,12 @@ import luigi
 import luigi.s3
 import datetime
 
-import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
+import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 import logging
 log = logging.getLogger(__name__)
@@ -309,7 +310,7 @@ def get_explicit_enrollment_output(line):
 
     # Get the course_id from the data, and validate.
     course_id = event_data['course_id']
-    if not eventlog.is_valid_course_id(course_id):
+    if not opaque_key_util.is_valid_course_id(course_id):
         log.error("encountered explicit enrollment event with bogus course_id: %s", event)
         return None
 

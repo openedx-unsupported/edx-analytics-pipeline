@@ -13,6 +13,7 @@ from edx.analytics.tasks.util.tsv import read_tsv
 from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
 from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
 DEFAULT_NUM_WEEKS = 52
 DEFAULT_NUM_DAYS = 28
@@ -281,10 +282,15 @@ class EnrollmentsByWeek(luigi.Task, CourseEnrollmentCountMixin):
                 yield k, '-' if numpy.isnan(v) else int(v)
 
         for course_id, series in results.iterrows():
+            # Course_id is passed throughout these reports as a
+            # utf8-encoded str, so it must be locally converted to
+            # unicode before parsing for org.
+            org_id = get_org_id_for_course(course_id.decode('utf-8'))
+
             values = {
                 'course_id': course_id,
                 'status': self.get_status_for_course(course_id, statuses),
-                'org_id': self.get_org_id_for_course(course_id),
+                'org_id': org_id or '-',
             }
             by_week_values = format_counts(series.to_dict())
             values.update(by_week_values)
@@ -305,15 +311,3 @@ class EnrollmentsByWeek(luigi.Task, CourseEnrollmentCountMixin):
             return '-'
 
         return statuses.loc[course_id]['status']
-
-    def get_org_id_for_course(self, course_id):
-        '''
-        Args:
-            course_id(str): The identifier for the course.  Should be formatted
-                as <org_id>/<name>/<run>.
-
-        Returns:
-            The org_id extracted from the course_id.
-        '''
-        split_course = course_id.split('/')
-        return '-' if len(split_course) != 3 else split_course[0]

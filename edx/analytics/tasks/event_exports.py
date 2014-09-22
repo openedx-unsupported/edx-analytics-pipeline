@@ -13,6 +13,7 @@ from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 log = logging.getLogger(__name__)
 
@@ -130,46 +131,6 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             log.warn('map_input_file not defined in os.environ, unable to determine input file path')
             return False
 
-    # This is copied verbatim (only comments changed) from the legacy event log export script.
-    def get_org_id(self, item):
-        """
-        Attempt to determine the institution that is associated with this particular event.
-
-        This method may return incorrect results, so a white list of valid institution names is used to filter out the
-        noise.
-        """
-        try:
-            if item['event_source'] == 'server':
-                institution = item.get('context', {}).get('org_id')
-                if institution:
-                    return institution
-
-                # Try to infer the institution from the event data
-                evt_type = item['event_type']
-                if '/courses/' in evt_type:
-                    institution = evt_type.split('/')[2]
-                    return institution
-                elif '/' in evt_type:
-                    return "Global"
-                else:
-                    # Specific server logging. One-off parser for each type Survey of logs showed 4 event types:
-                    # reset_problem save_problem_check, save_problem_check_fail, save_problem_fail All four of these
-                    # have a problem_id, which we extract from.
-                    try:
-                        return item['event']['problem_id'].split('/')[2]
-                    except Exception:  # pylint: disable=broad-except
-                        return "Unhandled"
-            elif item['event_source'] == 'browser':
-                page = item['page']
-                if 'courses' in page:
-                    institution = page.split('/')[4]
-                    return institution
-                else:
-                    return "BGE"
-        except Exception:  # pylint: disable=broad-except
-            log.exception('Unable to determine institution for event: %s', unicode(item).encode('utf8'))
-            return "Exception"
-
     def output_path_for_key(self, key):
         date, org_id = key
         year = str(date).split("-")[0]
@@ -216,3 +177,75 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if self.gpg_master_key is not None:
             recipients.append(self.gpg_master_key)
         return recipients
+
+    def get_org_id(self, item):
+        """
+        Attempt to determine the organization that is associated with this particular event.
+
+        This method may return incorrect results, so a white list of
+        valid organization names is used to filter out the noise.
+
+        None is returned if no org information is found in the item.
+        """
+        def get_slash_value(input_value, index):
+            """Return index value after splitting input on slashes."""
+            try:
+                return input_value.split('/')[index]
+            except IndexError:
+                return None
+
+        try:
+            # Different behavior based on type of event source.
+            if item['event_source'] == 'server':
+                # Always check context first for server events.
+                org_id = item.get('context', {}).get('org_id')
+                if org_id:
+                    return org_id
+
+                # Try to infer the institution from the event data
+                evt_type = item['event_type']
+                if '/courses/' in evt_type:
+                    course_key = opaque_key_util.get_course_key_from_url(evt_type)
+                    if course_key and '/' not in unicode(course_key):
+                        return course_key.org
+                    else:
+                        # It doesn't matter if we found a good deprecated key.
+                        # We need to provide backwards-compatibility.
+                        return get_slash_value(evt_type, 2)
+                elif '/' in evt_type:
+                    return None
+                else:
+                    # Specific server logging. One-off parser for each type.
+                    # Survey of logs showed 4 event types:
+                    # reset_problem, save_problem_check,
+                    # save_problem_check_fail, save_problem_fail.  All
+                    # four of these have a problem_id, which for legacy events
+                    # we could extract from.  For newer events, we assume this
+                    # won't be needed, because context will be present.
+                    try:
+                        return get_slash_value(item['event']['problem_id'], 2)
+                    except Exception:  # pylint: disable=broad-except
+                        return None
+            elif item['event_source'] == 'browser':
+                # Note that the context of browser events is ignored.
+                page = item['page']
+                if 'courses' in page:
+                    # This is different than the original algorithm in that it assumes
+                    # the page contains a valid coursename.  The original code
+                    # merely looked for what followed "http[s]://<host>/courses/"
+                    # (and also hoped there were no extra slashes or different content).
+                    course_key = opaque_key_util.get_course_key_from_url(page)
+                    if course_key and '/' not in unicode(course_key):
+                        return course_key.org
+                    else:
+                        # It doesn't matter if we found a good deprecated key.
+                        # We need to provide backwards-compatibility.
+                        return get_slash_value(page, 4)
+            else:
+                # TODO: Handle other event source values (e.g. task or mobile).
+                return None
+
+        except Exception:  # pylint: disable=broad-except
+            log.exception('Unable to determine institution for event: %s', unicode(item).encode('utf8'))
+
+        return None
