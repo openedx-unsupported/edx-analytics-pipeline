@@ -123,7 +123,7 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 )
                 FROM {incremental_table_name} e
-                WHERE date < {run_date}
+                WHERE date < '{run_date}'
             ) e
             LEFT OUTER JOIN {blacklist_table} b on (e.course_id = b.course_id)
             WHERE b.course_id IS NULL;
