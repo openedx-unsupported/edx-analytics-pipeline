@@ -48,7 +48,7 @@ class EnrollmentTrendsAcceptanceTest(AcceptanceTestCase):
             '--dest', self.test_out,
             '--name', 'test',
             '--include', '"*"',
-            '--run-date', '2014-08-07',
+            '--run-date', '2014-08-06',
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
@@ -71,5 +71,4 @@ class EnrollmentTrendsAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 2),
-            (datetime.date(2014, 8, 6), 'edX/Open_DemoX/edx_demo_course', 0),
         ])
