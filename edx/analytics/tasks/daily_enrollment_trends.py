@@ -123,6 +123,7 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
                     ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
                 )
                 FROM {incremental_table_name} e
+                WHERE date < {run_date}
             ) e
             LEFT OUTER JOIN {blacklist_table} b on (e.course_id = b.course_id)
             WHERE b.course_id IS NULL;
@@ -133,7 +134,8 @@ class SumEnrollmentDeltasTask(BaseCourseEnrollmentTaskDownstreamMixin, ImportInt
             table_name=self.table_name,
             partition_date=self.partition_date,
             incremental_table_name="course_enrollment_changes_per_day",
-            blacklist_table="course_enrollment_blacklist"
+            blacklist_table="course_enrollment_blacklist",
+            run_date=str(self.run_date),
         )
 
         query = create_table_statements + insert_query
