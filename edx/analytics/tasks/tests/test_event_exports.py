@@ -31,9 +31,15 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
                 'recipient': 'automation@foox.com'
             },
             'BarX': {
-                'recipient': 'automation@barx.com',
+                'recipients': ['automation@barx.com'],
                 'other_names': [
                     'BazX',
+                    'bar'
+                ]
+            },
+            'Bar2X': {
+                'recipients': ['automation@bar2x.com'],
+                'other_names': [
                     'bar'
                 ]
             }
@@ -63,7 +69,7 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
 
     def test_org_whitelist_capture(self):
         self.task.init_local()
-        self.assertItemsEqual(self.task.org_id_whitelist, ['FooX', 'BarX', 'BazX', 'bar'])
+        self.assertItemsEqual(self.task.org_id_whitelist, ['FooX', 'BarX', 'BazX', 'Bar2X', 'bar'])
 
     def test_limited_orgs(self):
         task = self._create_export_task(org_id=['FooX', 'bar'])
@@ -71,7 +77,8 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
         self.assertItemsEqual(task.org_id_whitelist, ['FooX', 'bar'])
 
     def test_mapper(self):
-        expected_output = [
+        # The following should produce one output per input:
+        expected_single_org_output = [
             (
                 (self.EXAMPLE_DATE, 'FooX',),
                 self.EVENT_TEMPLATE.format(org_id='FooX', time=self.EXAMPLE_TIME)
@@ -84,37 +91,37 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
                 (self.EXAMPLE_DATE, 'BarX'),
                 self.EVENT_TEMPLATE.format(org_id='BazX', time=self.EXAMPLE_TIME)
             ),
+        ]
+        single_org_input = [event_string for _, event_string in expected_single_org_output]
+
+        # The following should produce multiple outputs for each input from the mapper.
+        multiple_org_input = [self.EVENT_TEMPLATE.format(org_id='bar', time=self.EXAMPLE_TIME)]
+        expected_multiple_org_output = [
             (
                 (self.EXAMPLE_DATE, 'BarX'),
-                self.EVENT_TEMPLATE.format(org_id='bar', time=self.EXAMPLE_TIME)
+                multiple_org_input[0]
+            ),
+            (
+                (self.EXAMPLE_DATE, 'Bar2X'),
+                multiple_org_input[0]
             ),
         ]
 
+        # The following should produce no output from the mapper.
         excluded_events = [
-            (
-                (self.EXAMPLE_DATE, 'OtherOrgX'),
-                self.EVENT_TEMPLATE.format(org_id='OtherOrgX', time=self.EXAMPLE_TIME)
-            ),
-            (
-                (datetime.date(2013, 12, 31), 'bar'),
-                self.EVENT_TEMPLATE.format(org_id='bar', time='2013-12-31T23:59:59+00:00')
-            ),
-            (
-                (datetime.date(2015, 1, 1), 'bar'),
-                self.EVENT_TEMPLATE.format(org_id='bar', time='2015-01-01T00:00:00+00:00')
-            ),
-            (
-                (datetime.date(2015, 1, 1), 'bar'),
-                '{invalid json'
-            )
+            self.EVENT_TEMPLATE.format(org_id='OtherOrgX', time=self.EXAMPLE_TIME),
+            self.EVENT_TEMPLATE.format(org_id='bar', time='2013-12-31T23:59:59+00:00'),
+            self.EVENT_TEMPLATE.format(org_id='bar', time='2015-01-01T00:00:00+00:00'),
+            '{invalid json'
         ]
 
-        input_events = expected_output + excluded_events
+        input_events = single_org_input + multiple_org_input + excluded_events
+        expected_output = expected_multiple_org_output + expected_single_org_output
 
         self.task.init_local()
 
         results = []
-        for key, event_string in input_events:
+        for event_string in input_events:
             results.extend(self.run_mapper_for_server_file(self.SERVER_NAME_1, event_string))
 
         self.assertItemsEqual(results, expected_output)
