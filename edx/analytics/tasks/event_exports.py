@@ -76,17 +76,26 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         # Map org_ids to recipient names, taking in to account org_id aliases. For example, if an org_id Foo is also
         # known as FooX then two entries will appear in this dictionary ('Foo', 'recipient@foo.org') and
         # ('FooX', 'recipient@foo.org'). Note that both aliases map to the same recipient.
-        self.recipient_for_org_id = {}
-        self.primary_org_id_for_org_id = {}
+        self.recipients_for_org_id = {}
+        self.primary_org_ids_for_org_id = {}
         for org_id, org_config in self.organizations.iteritems():
-            recipient = org_config['recipient']
-            self.recipient_for_org_id[org_id] = recipient
-            self.primary_org_id_for_org_id[org_id] = org_id
+            recipients = org_config.get('recipients')
+            if not recipients:
+                # provide fallback to legacy parameter name:
+                recipients = [org_config['recipient']]
+            self.recipients_for_org_id[org_id] = recipients
+            self.primary_org_ids_for_org_id[org_id] = [org_id]
             for alias in org_config.get('other_names', []):
-                self.recipient_for_org_id[alias] = recipient
-                self.primary_org_id_for_org_id[alias] = org_id
+                # This entry is not explicitly used, but by creating it,
+                # we implicitly add the alias to the org whitelist.
+                self.recipients_for_org_id[alias] = recipients
+                # The same alias may be used by multiple organizations.
+                if alias in self.primary_org_ids_for_org_id:
+                    self.primary_org_ids_for_org_id[alias].append(org_id)
+                else:
+                    self.primary_org_ids_for_org_id[alias] = [org_id]
 
-        self.org_id_whitelist = set(self.recipient_for_org_id.keys())
+        self.org_id_whitelist = set(self.recipients_for_org_id.keys())
 
         # If org_ids are specified, restrict the processed files to that set.
         if len(self.org_id) > 0:
@@ -100,23 +109,25 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             return
         event, date_string = value
 
+        if not self.is_valid_input_file():
+            return
+
         org_id = self.get_org_id(event)
         if org_id not in self.org_id_whitelist:
             log.debug('Unrecognized organization: org_id=%s', org_id or '')
             return
         # Check to see if the org_id is one that should be grouped with other org_ids.
-        org_id = self.primary_org_id_for_org_id[org_id]
+        org_ids = self.primary_org_ids_for_org_id[org_id]
 
-        if not self.is_valid_input_file():
-            return
-
-        key = (date_string, org_id)
-        # Enforce a standard encoding for the parts of the key. Without this a part of the key might appear differently
-        # in the key string when it is coerced to a string by luigi. For example, if the same org_id appears in two
-        # different records, one as a str() type and the other a unicode() then without this change they would appear as
-        # u'FooX' and 'FooX' in the final key string. Although python doesn't care about this difference, hadoop does,
-        # and will bucket the values separately. Which is not what we want.
-        yield tuple([value.encode('utf8') for value in key]), line.strip()
+        for key_org_id in org_ids:
+            key = (date_string, key_org_id)
+            # Enforce a standard encoding for the parts of the key. Without this a part of the key
+            # might appear differently in the key string when it is coerced to a string by luigi. For example,
+            # if the same org_id appears in two different records, one as a str() type and the other a
+            # unicode() then without this change they would appear as u'FooX' and 'FooX' in the final key
+            # string. Although python doesn't care about this difference, hadoop does, and will bucket the
+            # values separately. Which is not what we want.
+            yield tuple([value.encode('utf8') for value in key]), line.strip()
 
     def is_valid_input_file(self):
         """
@@ -173,7 +184,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     def _get_recipients(self, org_id):
         """Get the correct recipients for the specified organization."""
-        recipients = [self.recipient_for_org_id[org_id]]
+        recipients = self.recipients_for_org_id[org_id]
         if self.gpg_master_key is not None:
             recipients.append(self.gpg_master_key)
         return recipients
