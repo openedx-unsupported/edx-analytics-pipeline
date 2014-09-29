@@ -161,7 +161,8 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
             organizations:
               {org_id}:
-                recipient: daemon@edx.org
+                recipients:
+                  - daemon@edx.org
             """)
         config_text = config_text.format(
             sql_user=self.import_db.credentials['username'],
