@@ -1,3 +1,4 @@
+"""Test enrollment computations"""
 
 import json
 
@@ -18,7 +19,7 @@ class CourseEnrollmentTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     """
     def setUp(self):
         self.initialize_ids()
-    
+
         fake_param = luigi.DateIntervalParameter()
         self.task = CourseEnrollmentTask(
             interval=fake_param.parse('2013-12-17'),
@@ -139,6 +140,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
         self._check_output(inputs, expected)
 
     def create_task(self, interval='2013-01-01'):
+        """Create a task for testing purposes."""
         fake_param = luigi.DateIntervalParameter()
         self.task = CourseEnrollmentTask(
             interval=fake_param.parse(interval),
@@ -148,11 +150,6 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
     def test_single_unenrollment(self):
         inputs = [('2013-01-01T00:00:01', DEACTIVATED), ]
         expected = (('2013-01-01', self.course_id, self.user_id, 0, -1),)
-        self._check_output(inputs, expected)
-
-    def test_single_enrollment(self):
-        inputs = [('2013-01-01T00:00:01', ACTIVATED), ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1),)
         self._check_output(inputs, expected)
 
     def test_multiple_events_on_same_day(self):

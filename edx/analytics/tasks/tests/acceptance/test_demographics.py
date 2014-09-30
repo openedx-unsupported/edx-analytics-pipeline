@@ -26,8 +26,8 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
         blacklist_date = '2014-08-29'
         blacklist_url = url_path_join(
             self.warehouse_path, 'course_enrollment_blacklist', 'dt=' + blacklist_date, 'blacklist.tsv')
-        with S3Target(blacklist_url).open('w') as f:
-            f.write('edX/Open_DemoX/edx_demo_course3')
+        with S3Target(blacklist_url).open('w') as s3_file:
+            s3_file.write('edX/Open_DemoX/edx_demo_course3')
 
         config_override = {
             'enrollments': {
@@ -41,8 +41,6 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ], config_override=config_override)
 
-        self.maxDiff = None
-
         self.validate_gender()
         self.validate_birth_year()
         self.validate_education_level()
@@ -50,7 +48,10 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
     def validate_gender(self):
         """Ensure the gender breakdown is correct."""
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT date, course_id, gender, count FROM course_enrollment_gender ORDER BY date, course_id, gender ASC')
+            cursor.execute(
+                'SELECT date, course_id, gender, count FROM course_enrollment_gender'
+                ' ORDER BY date, course_id, gender ASC'
+            )
             results = cursor.fetchall()
 
         expected = [
@@ -72,7 +73,10 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
     def validate_birth_year(self):
         """Ensure the birth year breakdown is correct."""
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT date, course_id, birth_year, count FROM course_enrollment_birth_year ORDER BY date, course_id, birth_year ASC')
+            cursor.execute(
+                'SELECT date, course_id, birth_year, count FROM course_enrollment_birth_year'
+                ' ORDER BY date, course_id, birth_year ASC'
+            )
             results = cursor.fetchall()
 
         expected = [
@@ -93,7 +97,10 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
     def validate_education_level(self):
         """Ensure the education level breakdown is correct."""
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT date, course_id, education_level, count FROM course_enrollment_education_level ORDER BY date, course_id, education_level ASC')
+            cursor.execute(
+                'SELECT date, course_id, education_level, count FROM course_enrollment_education_level'
+                ' ORDER BY date, course_id, education_level ASC'
+            )
             results = cursor.fetchall()
 
         expected = [

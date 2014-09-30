@@ -1,18 +1,18 @@
+"""Compute metrics related to user enrollments in courses"""
 
 import logging
 import textwrap
 import datetime
 
 import luigi
-from luigi.hive import HiveQueryTask, ExternalHiveTask
 
 
-from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportAuthUserProfileTask, ImportIntoHiveTableTask
+from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask, ImportIntoHiveTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.util.hive import hive_database_name, WarehouseMixin
+from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 
@@ -30,7 +30,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, date_string = value
+        event, _date_string = value
 
         event_type = event.get('event_type')
         if event_type is None:
@@ -62,6 +62,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         yield (course_id, user_id), (timestamp, event_type)
 
     def reducer(self, key, values):
+        """Emit records for each day the user was enrolled in the course."""
         course_id, user_id = key
 
         event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values)
@@ -146,7 +147,7 @@ class DaysEnrolledForEvents(object):
         # indicates the end of the requested interval. If the user's last event is an enrollment activation event then
         # they are assumed to be enrolled up until the end of the requested interval. Note that the mapper ensures that
         # no events on or after date_b are included in the analyzed data set.
-        self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None))
+        self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None))  # pylint: disable=no-member
 
         self.first_event = self.sorted_events[0]
 
@@ -298,7 +299,7 @@ class CourseEnrollmentTable(CourseEnrollmentTableDownstreamMixin, ImportIntoHive
 
     @property
     def partition_date(self):
-        return self.interval.date_b.strftime('%Y-%m-%d')
+        return self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
     def requires(self):
         return CourseEnrollmentTask(
@@ -370,6 +371,7 @@ class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, ImportInto
 
     @property
     def insert_query(self):
+        """Query the data to insert into the table."""
         raise NotImplementedError
 
     @property
@@ -391,7 +393,7 @@ class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, ImportInto
 
     @property
     def partition_date(self):
-        return self.interval.date_b.isoformat()
+        return self.interval.date_b.isoformat()  # pylint: disable=no-member
 
     def output(self):
         # partition_location is a property depending on table_location and partitions
@@ -630,10 +632,10 @@ class ImportDemographicsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wr
     def requires(self):
         kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
-            'source':self.source,
-            'interval':self.interval,
-            'pattern':self.pattern,
-            'warehouse_path':self.warehouse_path,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
         }
         yield (
             ImportEnrollmentByGenderIntoMysql(**kwargs),

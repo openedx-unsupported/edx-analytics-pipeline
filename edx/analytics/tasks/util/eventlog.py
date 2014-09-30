@@ -124,11 +124,12 @@ def get_event_time(event):
     """Returns a datetime object from an event object, if present."""
     try:
         return datetime.datetime.strptime(get_event_time_string(event), '%Y-%m-%dT%H:%M:%S.%f')
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return None
 
 
 def get_event_time_string(event):
+    """Returns the time of the event as an ISO8601 formatted string."""
     try:
         # Get entry, and strip off time zone information.  Keep microseconds, if any.
         raw_timestamp = event['time']
@@ -136,7 +137,7 @@ def get_event_time_string(event):
         if '.' not in timestamp:
             timestamp = '{datetime}.000000'.format(datetime=timestamp)
         return timestamp
-    except Exception:
+    except Exception:  # pylint: disable=broad-except
         return None
 
 
