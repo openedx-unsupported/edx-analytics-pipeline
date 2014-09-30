@@ -22,7 +22,7 @@ ACTIVATED = 'edx.course.enrollment.activated'
 
 
 class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
-    """Produce a deta set that shows which days each user was enrolled in each course."""
+    """Produce a data set that shows which days each user was enrolled in each course."""
 
     output_root = luigi.Parameter()
 
@@ -73,7 +73,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
 
 
 class EnrollmentEvent(object):
-    """All of the information necessary to process the event in the event stream."""
+    """The critical information necessary to process the event in the event stream."""
 
     def __init__(self, timestamp, event_type):
         self.timestamp = timestamp
@@ -82,7 +82,8 @@ class EnrollmentEvent(object):
 
 
 class DaysEnrolledForEvents(object):
-    """Determine which days a user was enrolled in a course given a stream of enrollment events.
+    """
+    Determine which days a user was enrolled in a course given a stream of enrollment events.
 
     Produces a record for each date in which the user was enrolled in the course. Note that the user need not have been
     enrolled in the course for the entire day. These records will have the following format:
@@ -143,7 +144,8 @@ class DaysEnrolledForEvents(object):
         self.sorted_events = [EnrollmentEvent(timestamp, value) for timestamp, value in self.sorted_events]
         # Since each event looks ahead to see the time of the next event, insert a dummy event at then end that
         # indicates the end of the requested interval. If the user's last event is an enrollment activation event then
-        # they are assumed to be enrolled up until the end of the requested interval.
+        # they are assumed to be enrolled up until the end of the requested interval. Note that the mapper ensures that
+        # no events on or after date_b are included in the analyzed data set.
         self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None))
 
         self.first_event = self.sorted_events[0]
@@ -160,7 +162,8 @@ class DaysEnrolledForEvents(object):
         self.state = self.previous_state
 
     def days_enrolled(self):
-        """A record is yielded for each day during which the user was enrolled in the course.
+        """
+        A record is yielded for each day during which the user was enrolled in the course.
 
         Yields:
             tuple: An enrollment record for each day during which the user was enrolled in the course.
@@ -200,9 +203,12 @@ class DaysEnrolledForEvents(object):
                 self.previous_state = self.state
 
     def days_enrolled_before_first_event(self):
-        """Produce records for any inferred enrollment state before the first event.
+        """
+        Produce records for any inferred enrollment state before the first event.
 
-        If the first event is an unenrollment event, back fill enrollment records to the beginning of the interval.
+        If the first event is an unenrollment event, back fill enrollment records to the day before the beginning of the
+        interval. We use the day before the start of the interval as the start date for these inferred interval so that
+        we can distinguish these inferred enrollments from enrollments about which we have more information.
 
         Yields:
             tuple: An enrollment record for each day the user is assumed to have been enrolled in the course from the
@@ -210,7 +216,7 @@ class DaysEnrolledForEvents(object):
 
         """
         if self.previous_state == self.ENROLLED:
-            interval_start_datestamp = self.interval.date_a.isoformat()
+            interval_start_datestamp = self.interval.date_a.isoformat() - datetime.timedelta(days=1)
 
             for datestamp in self.all_dates_between(interval_start_datestamp, self.first_event.datestamp):
                 yield self.enrollment_record(
@@ -220,7 +226,8 @@ class DaysEnrolledForEvents(object):
                 )
 
     def all_dates_between(self, start_date_str, end_date_str):
-        """All dates from the start date up to the end date.
+        """
+        All dates from the start date up to the end date.
 
         Yields:
             str: ISO 8601 datestamp for each date from the first date (inclusive) up to the end date (exclusive).
@@ -451,7 +458,7 @@ class ImportEnrollmentByGenderIntoMysql(CourseEnrollmentTableDownstreamMixin, My
         return [
             ('date', 'DATE NOT NULL'),
             ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('gender', 'VARCHAR(255)'),
+            ('gender', 'VARCHAR(6)'),
             ('count', 'INTEGER'),
         ]
 

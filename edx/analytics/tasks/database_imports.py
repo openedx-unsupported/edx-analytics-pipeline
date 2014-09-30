@@ -227,7 +227,7 @@ class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
 
 class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
-    """Imports course enrollment information from an external LMS DB to a destination directory."""
+    """Imports user information from an external LMS DB to a destination directory."""
 
     @property
     def table_name(self):
@@ -251,7 +251,7 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
 class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
 
-    """Imports course enrollment information from an external LMS DB to a destination directory."""
+    """Imports user demographic information from an external LMS DB to a destination directory."""
 
     @property
     def table_name(self):
@@ -259,8 +259,6 @@ class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
 
     @property
     def columns(self):
-        # Fields not included are 'password', 'first_name' and 'last_name'.
-        # In our LMS, the latter two are always empty.
         return [
             ('user_id', 'INT'),
             ('gender', 'STRING'),
