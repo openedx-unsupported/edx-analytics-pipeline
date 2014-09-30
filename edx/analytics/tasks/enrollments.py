@@ -216,7 +216,7 @@ class DaysEnrolledForEvents(object):
 
         """
         if self.previous_state == self.ENROLLED:
-            interval_start_datestamp = (self.interval.date_a - datetime.timedelta(days=1)).isoformat()
+            interval_start_datestamp = self.interval.date_a.isoformat()
 
             for datestamp in self.all_dates_between(interval_start_datestamp, self.first_event.datestamp):
                 yield self.enrollment_record(
