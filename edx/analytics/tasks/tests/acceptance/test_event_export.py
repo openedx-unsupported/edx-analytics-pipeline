@@ -58,9 +58,11 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
                     ---
                     organizations:
                       edX:
-                        recipient: daemon@edx.org
+                        recipients:
+                          - daemon@edx.org
                       AcceptanceX:
-                        recipient: daemon+2@edx.org
+                        recipients:
+                          - daemon+2@edx.org
                     """
                 )
             )
