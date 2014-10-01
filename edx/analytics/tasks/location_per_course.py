@@ -1,18 +1,21 @@
 """
 Determine the number of users in each country are enrolled in each course.
 """
+import datetime
 import logging
-import textwrap
 
 import luigi
-from luigi.hive import HiveQueryTask, ExternalHiveTask
+from luigi.hive import ExternalHiveTask
 
 from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
-from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
+from edx.analytics.tasks.util.hive import (
+    HiveTableTask, HiveTableFromQueryTask, WarehouseMixin, HivePartition
+)
+from edx.analytics.tasks.enrollments import CourseEnrollmentTable
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.url import ExternalURL, get_target_from_url
 from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
@@ -29,16 +32,11 @@ class LastCountryOfUserMixin(
     """
     Defines parameters for LastCountryOfUser task and downstream tasks that require it.
 
-    Parameters:
-        user_country_output: location of the resulting Hadoop output.
-
-    Also inherits parameters from :py:class:`MapReduceJobTaskMixin, :py:class:`EventLogSelectionDownstreamMixin`,
+    Just inherits parameters from :py:class:`MapReduceJobTaskMixin, :py:class:`EventLogSelectionDownstreamMixin`,
     :py:class:`GeolocationMixin` and :py:class:`OverwriteOutputMixin` classes.
 
     """
-    user_country_output = luigi.Parameter(
-        default_from_config={'section': 'last-country-of-user', 'name': 'user_country_output'}
-    )
+    pass
 
 
 class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeolocation, MapReduceJobTask):
@@ -50,6 +48,8 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
 
     """
 
+    output_root = luigi.Parameter()
+
     def requires_local(self):
         return ExternalURL(self.geolocation_data)
 
@@ -57,15 +57,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
         return self.input_local()
 
     def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.user_country_output, 'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))
-            )
-        )
-
-    def init_local(self):
-        super(LastCountryOfUser, self).init_local()
-        self.remove_output_on_overwrite()
+        return get_target_from_url(self.output_root)
 
     def mapper(self, line):
         # Get events prefiltered by interval:
@@ -98,7 +90,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
         yield username, (timestamp, ip_address)
 
 
-class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTableTask):
+class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, HiveTableTask):
     """
     Creates a Hive Table that points to Hadoop output of LastCountryOfUser task.
 
@@ -118,20 +110,11 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
         ]
 
     @property
-    def table_location(self):
-        return self.user_country_output
-
-    @property
-    def table_format(self):
-        """Provides name of Hive database table."""
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'"
-
-    @property
-    def partition_date(self):
+    def partition(self):
         # Because this data comes from EventLogSelectionDownstreamMixin,
         # we will use the end of the interval used to calculate
         # the country information.
-        return self.interval.date_b.strftime('%Y-%m-%d')
+        return HivePartition('dt', self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
 
     def requires(self):
         return LastCountryOfUser(
@@ -142,74 +125,50 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
+            output_root=self.partition_location,
         )
 
 
-class QueryLastCountryPerCourseMixin(object):
-    """
-    Defines parameters for QueryLastCountryPerCourseTask
-
-    Parameters:
-        course_country_output:  location to write query results.
-    """
-    course_country_output = luigi.Parameter(
-        default_from_config={'section': 'query-country-per-course', 'name': 'course_country_output'}
-    )
-
-
-class QueryLastCountryPerCourseTask(
-        QueryLastCountryPerCourseMixin,
-        OverwriteOutputMixin,
-        HiveQueryTask):
+class QueryLastCountryPerCourseTask(HiveTableFromQueryTask):
     """Defines task to perform join in Hive to find course enrollment per-country counts."""
 
-    def query(self):
+    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
-        query_format = textwrap.dedent("""
-            USE {database_name};
-            DROP TABLE IF EXISTS {table_name};
-            CREATE EXTERNAL TABLE {table_name} (
-                date STRING,
-                course_id STRING,
-                country_code STRING,
-                count INT
-            )
-            ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-            LOCATION '{location}';
-
-            INSERT OVERWRITE TABLE course_enrollment_location_current
+    @property
+    def insert_query(self):
+        return """
             SELECT
-                sce.dt,
+                sce.date,
                 sce.course_id,
                 uc.country_code,
                 count(sce.user_id)
-            FROM student_courseenrollment sce
-            LEFT OUTER JOIN auth_user au on sce.user_id = au.id
-            LEFT OUTER JOIN last_country_of_user uc on au.username = uc.username
-            WHERE sce.is_active > 0
-            GROUP BY sce.dt, sce.course_id, uc.country_code;
-        """)
+            FROM course_enrollment sce
+            LEFT OUTER JOIN auth_user au ON sce.user_id = au.id
+            LEFT OUTER JOIN last_country_of_user uc ON au.username = uc.username
+            WHERE sce.at_end = 1
+            GROUP BY sce.date, sce.course_id, uc.country_code;
+        """
 
-        query = query_format.format(
-            database_name=hive_database_name(),
-            location=self.output().path,
-            table_name='course_enrollment_location_current',
-        )
+    @property
+    def partition(self):
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
-        log.debug('Executing hive query: %s', query)
-        return query
+    @property
+    def table_name(self):
+        return 'course_enrollment_location_current'
 
-    def init_local(self):
-        super(QueryLastCountryPerCourseTask, self).init_local()
-        self.remove_output_on_overwrite()
-
-    def output(self):
-        return get_target_from_url(self.course_country_output + "/")
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('country_code', 'STRING'),
+            ('count', 'INT'),
+        ]
 
     def requires(self):
         yield (
-            ExternalHiveTask(table='student_courseenrollment', database=hive_database_name()),
+            ExternalHiveTask(table='course_enrollment', database=hive_database_name()),
             ExternalHiveTask(table='auth_user', database=hive_database_name()),
             ExternalHiveTask(table='last_country_of_user', database=hive_database_name()),
         )
@@ -223,6 +182,7 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
         # and 'date' -- we will use the default values for those.
         kwargs_for_db_import = {
             'overwrite': self.overwrite,
+            'import_date': self.import_date,
         }
         yield (
             ImportLastCountryOfUserToHiveTask(
@@ -232,21 +192,28 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 interval=self.interval,
                 pattern=self.pattern,
                 geolocation_data=self.geolocation_data,
-                overwrite=self.overwrite,
-                user_country_output=self.user_country_output,
+                overwrite=self.overwrite
             ),
-            # We can't make explicit dependencies on this yet, until we
-            # solve the multiple-credentials problem, as well as the split-kwargs
-            # problem.
-            ImportStudentCourseEnrollmentTask(**kwargs_for_db_import),
+            CourseEnrollmentTable(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                warehouse_path=self.warehouse_path
+            ),
             ImportAuthUserTask(**kwargs_for_db_import),
         )
 
 
-class InsertToMysqlCourseEnrollByCountryTaskBase(MysqlInsertTask):
+class InsertToMysqlCourseEnrollByCountryTask(MysqlInsertTask):
     """
     Define course_enrollment_location_current table.
     """
+
+    overwrite = luigi.BooleanParameter(default=True)
+
     @property
     def table(self):
         return "course_enrollment_location_current"
@@ -267,25 +234,20 @@ class InsertToMysqlCourseEnrollByCountryTaskBase(MysqlInsertTask):
             ('date', 'course_id'),
         ]
 
-
-class InsertToMysqlCourseEnrollByCountryTask(InsertToMysqlCourseEnrollByCountryTaskBase):
-    """
-    Write to course_enrollment_location_current table from specified source, as a standalone task.
-    """
-    insert_source = luigi.Parameter()
-
     @property
     def insert_source_task(self):
-        return ExternalURL(url=self.insert_source)
+        raise NotImplementedError
 
 
 class InsertToMysqlCourseEnrollByCountryWorkflow(
-        QueryLastCountryPerCourseMixin,
         LastCountryOfUserMixin,
-        InsertToMysqlCourseEnrollByCountryTaskBase):
+        WarehouseMixin,
+        InsertToMysqlCourseEnrollByCountryTask):
     """
     Write to course_enrollment_location_current table from CountUserActivityPerInterval.
     """
+
+    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     @property
     def insert_source_task(self):
@@ -297,6 +259,6 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
-            course_country_output=self.course_country_output,
+            warehouse_path=self.warehouse_path,
+            import_date=self.import_date,
         )
