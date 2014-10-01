@@ -79,6 +79,10 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         self.recipients_for_org_id = {}
         self.primary_org_ids_for_org_id = {}
         for org_id, org_config in self.organizations.iteritems():
+            # If org_ids are specified, restrict the processed files to that set of primary org ids.
+            if len(self.org_id) > 0 and org_id not in self.org_id:
+                continue
+
             recipients = org_config.get('recipients')
             if not recipients:
                 # provide fallback to legacy parameter name:
@@ -96,10 +100,6 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                     self.primary_org_ids_for_org_id[alias] = [org_id]
 
         self.org_id_whitelist = set(self.recipients_for_org_id.keys())
-
-        # If org_ids are specified, restrict the processed files to that set.
-        if len(self.org_id) > 0:
-            self.org_id_whitelist.intersection_update(self.org_id)
 
         log.debug('Using org_id whitelist ["%s"]', '", "'.join(self.org_id_whitelist))
 
