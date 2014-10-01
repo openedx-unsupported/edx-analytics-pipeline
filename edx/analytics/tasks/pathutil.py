@@ -138,7 +138,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 
     def requires(self):
         if len(self.pattern) == 1 and self.pattern[0] == '.*':
-            return ExternalURL(url=self.source)
+            return (ExternalURL(url=self.source),)
 
         # This method gets called several times. Avoid making multiple round trips to S3 by caching the first result.
         if self.requirements is None:
