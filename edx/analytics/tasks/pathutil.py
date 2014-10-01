@@ -104,7 +104,6 @@ class EventLogSelectionDownstreamMixin(object):
         is_list=True,
         default_from_config={'section': 'event-logs', 'name': 'pattern'}
     )
-    full_scan_source = luigi.Parameter()
 
 
 class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
@@ -134,8 +133,8 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         self.requirements = None
 
     def requires(self):
-        if self.full_scan_source:
-            return ExternalURL(url=self.full_scan_source)
+        if len(self.pattern) == 1 and self.pattern[0] == '.*':
+            return ExternalURL(url=self.source)
 
         # This method gets called several times. Avoid making multiple round trips to S3 by caching the first result.
         if self.requirements is None:
