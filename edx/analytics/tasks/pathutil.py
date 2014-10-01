@@ -124,6 +124,10 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             in order for them to be processed.
     """
 
+    expand_interval = luigi.TimeDeltaParameter(
+        default_from_config={'section': 'event-logs', 'name': 'expand_interval'}
+    )
+
     def __init__(self, *args, **kwargs):
         super(EventLogSelectionTask, self).__init__(*args, **kwargs)
         self.interval = DateInterval(
