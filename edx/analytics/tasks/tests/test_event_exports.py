@@ -70,11 +70,23 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
     def test_org_whitelist_capture(self):
         self.task.init_local()
         self.assertItemsEqual(self.task.org_id_whitelist, ['FooX', 'BarX', 'BazX', 'Bar2X', 'bar'])
+        expected_primary_org_id_map = {
+            'FooX': ['FooX'],
+            'BarX': ['BarX'],
+            'BazX': ['BarX'],
+            'Bar2X': ['Bar2X'],
+            'bar': ['BarX', 'Bar2X'],
+        }
+        # Compare contents of dicts, but allowing for different order within list values.
+        self.assertItemsEqual(self.task.primary_org_ids_for_org_id, expected_primary_org_id_map)
+        for key in expected_primary_org_id_map:
+            self.assertItemsEqual(self.task.primary_org_ids_for_org_id[key], expected_primary_org_id_map[key])
 
     def test_limited_orgs(self):
-        task = self._create_export_task(org_id=['FooX', 'bar'])
+        task = self._create_export_task(org_id=['Bar2X'])
         task.init_local()
-        self.assertItemsEqual(task.org_id_whitelist, ['FooX', 'bar'])
+        self.assertItemsEqual(task.org_id_whitelist, ['Bar2X', 'bar'])
+        self.assertEqual(task.primary_org_ids_for_org_id, {'Bar2X': ['Bar2X'], 'bar': ['Bar2X']})
 
     def test_mapper(self):
         # The following should produce one output per input:
