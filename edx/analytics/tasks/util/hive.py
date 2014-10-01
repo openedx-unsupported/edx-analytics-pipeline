@@ -9,6 +9,7 @@ from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 
@@ -216,8 +217,8 @@ class ParameterizedHiveTableFromQueryTask(HiveTableFromQueryTask):
     partition = HivePartitionParameter()
 
 
-class HiveQueryToMysqlTask(WarehouseMixin, OverwriteOutputMixin, MysqlInsertTask):
-    
+class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
+
     overwrite = luigi.BooleanParameter(default=True)
 
     SQL_TO_HIVE_TYPE = {

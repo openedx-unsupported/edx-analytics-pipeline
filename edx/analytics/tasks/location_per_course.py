@@ -41,12 +41,12 @@ class LastCountryOfUserMixin(
     )
 
 
-class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeolocation, MapReduceJobTask):
+class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, MapReduceJobTask):
     """
     Identifies the country of the last IP address associated with each user.
 
-    Uses :py:class:`LastCountryOfUserMixin` to define parameters, :py:class:`EventLogSelectionMixin`
-    to define required input log files, and :py:class:`BaseGeolocation` to provide geolocation setup.
+    Uses :py:class:`LastCountryOfUserMixin` to define parameters, and :py:class:`EventLogSelectionMixin`
+    to define required input log files.
 
     """
 
@@ -273,7 +273,7 @@ class EnrollmentByLocationTask(LastCountryOfUserMixin, HiveQueryToMysqlTask):
         )
 
 
-class UsersPerCountryReport(LastCountryOfUserMixin, HiveQueryToMysqlTask):
+class CountryUserSummary(LastCountryOfUserMixin, HiveQueryToMysqlTask):
     """
     Calculates TSV report containing number of users per country.
 

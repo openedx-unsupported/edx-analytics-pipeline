@@ -93,7 +93,20 @@ class PathSetTask(luigi.Task):
         return [task.output() for task in self.requires()]
 
 
-class EventLogSelectionTask(luigi.WrapperTask):
+class EventLogSelectionDownstreamMixin(object):
+    """Defines parameters for passing upstream to tasks that use EventLogSelectionMixin."""
+
+    source = luigi.Parameter(
+        default_from_config={'section': 'event-logs', 'name': 'source'}
+    )
+    interval = luigi.DateIntervalParameter()
+    pattern = luigi.Parameter(
+        is_list=True,
+        default_from_config={'section': 'event-logs', 'name': 'pattern'}
+    )
+
+
+class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
     """
     Select all relevant event log input files from a directory.
 
@@ -110,17 +123,6 @@ class EventLogSelectionTask(luigi.WrapperTask):
             emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
             in order for them to be processed.
     """
-
-    source = luigi.Parameter(
-        default_from_config={'section': 'event-logs', 'name': 'source'}
-    )
-    interval = luigi.DateIntervalParameter()
-    expand_interval = luigi.TimeDeltaParameter(
-        default_from_config={'section': 'event-logs', 'name': 'expand_interval'}
-    )
-    pattern = luigi.Parameter(
-        default_from_config={'section': 'event-logs', 'name': 'pattern'}
-    )
 
     def __init__(self, *args, **kwargs):
         super(EventLogSelectionTask, self).__init__(*args, **kwargs)
@@ -199,18 +201,6 @@ class EventLogSelectionTask(luigi.WrapperTask):
 
     def output(self):
         return [task.output() for task in self.requires()]
-
-
-class EventLogSelectionDownstreamMixin(object):
-    """Defines parameters for passing upstream to tasks that use EventLogSelectionMixin."""
-
-    source = luigi.Parameter(
-        default_from_config={'section': 'event-logs', 'name': 'source'}
-    )
-    interval = luigi.DateIntervalParameter()
-    pattern = luigi.Parameter(
-        default_from_config={'section': 'event-logs', 'name': 'pattern'}
-    )
 
 
 class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):

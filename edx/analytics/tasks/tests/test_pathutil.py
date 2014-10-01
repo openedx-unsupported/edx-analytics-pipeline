@@ -69,7 +69,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
@@ -84,7 +84,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
@@ -107,7 +107,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
@@ -119,7 +119,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(1),
         )
 
@@ -141,6 +141,6 @@ class EventLogSelectionTaskTest(unittest.TestCase):
     def test_pattern_override(self):
         task = EventLogSelectionTask(
             interval=Month.parse('2014-03'),
-            pattern='baz'
+            pattern=['baz']
         )
         self.assertEquals(task.pattern, 'baz')
