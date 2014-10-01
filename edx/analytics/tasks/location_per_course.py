@@ -3,20 +3,21 @@ Determine the number of users in each country are enrolled in each course.
 """
 import datetime
 import logging
+import tempfile
 
 import luigi
 from luigi.hive import ExternalHiveTask
+import pygeoip
 
 from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
 from edx.analytics.tasks.util.hive import (
-    HiveTableTask, HiveTableFromQueryTask, WarehouseMixin, HivePartition
+    HiveTableTask, HiveQueryToMysqlTask, HiveTableFromQueryTask, WarehouseMixin, HivePartition
 )
 from edx.analytics.tasks.enrollments import CourseEnrollmentTable
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import ExternalURL, get_target_from_url
-from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import hive_database_name
@@ -27,7 +28,6 @@ log = logging.getLogger(__name__)
 class LastCountryOfUserMixin(
         MapReduceJobTaskMixin,
         EventLogSelectionDownstreamMixin,
-        GeolocationMixin,
         OverwriteOutputMixin):
     """
     Defines parameters for LastCountryOfUser task and downstream tasks that require it.
@@ -36,7 +36,9 @@ class LastCountryOfUserMixin(
     :py:class:`GeolocationMixin` and :py:class:`OverwriteOutputMixin` classes.
 
     """
-    pass
+    geolocation_data = luigi.Parameter(
+        default_from_config={'section': 'geolocation', 'name': 'geolocation_data'}
+    )
 
 
 class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeolocation, MapReduceJobTask):
@@ -49,6 +51,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
     """
 
     output_root = luigi.Parameter()
+    geoip = None
 
     def requires_local(self):
         return ExternalURL(self.geolocation_data)
@@ -89,6 +92,76 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
 
         yield username, (timestamp, ip_address)
 
+    def init_reducer(self):
+        # Copy the remote version of the geolocation data file to a local file.
+        # This is required by the GeoIP call, which assumes that the data file is located
+        # on a local file system.
+        self.temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
+        with self.geolocation_data_target().open() as geolocation_data_input:
+            while True:
+                transfer_buffer = geolocation_data_input.read(1024)
+                if transfer_buffer:
+                    self.temporary_data_file.write(transfer_buffer)
+                else:
+                    break
+        self.temporary_data_file.seek(0)
+
+        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+
+    def reducer(self, key, values):
+        """Outputs country for last ip address associated with a user."""
+
+        # DON'T presort input values (by timestamp).  The data potentially takes up too
+        # much memory.  Scan the input values instead.
+
+        # We assume the timestamp values (strings) are in ISO
+        # representation, so that they can be compared as strings.
+        username = key
+        last_ip = None
+        last_timestamp = ""
+        for timestamp, ip_address in values:
+            if timestamp > last_timestamp:
+                last_ip = ip_address
+                last_timestamp = timestamp
+
+        if not last_ip:
+            return
+
+        # This ip address might not provide a country name.
+        try:
+            country = self.geoip.country_name_by_addr(last_ip)
+            code = self.geoip.country_code_by_addr(last_ip)
+        except Exception:
+            log.exception("Encountered exception getting country:  user '%s', last_ip '%s' on '%s'.",
+                          username, last_ip, last_timestamp)
+            country = UNKNOWN_COUNTRY
+            code = UNKNOWN_CODE
+
+        if country is None or len(country.strip()) <= 0:
+            log.error("No country found for user '%s', last_ip '%s' on '%s'.", username, last_ip, last_timestamp)
+            # TODO: try earlier IP addresses, if we find this happens much.
+            country = UNKNOWN_COUNTRY
+
+        if code is None or len(code.strip()) <= 0:
+            log.error("No code found for user '%s', last_ip '%s', country '%s' on '%s'.",
+                      username, last_ip, country, last_timestamp)
+            # TODO: try earlier IP addresses, if we find this happens much.
+            code = UNKNOWN_CODE
+
+        # Add the username for debugging purposes.  (Not needed for counts.)
+        yield (country, code), username
+
+    def final_reducer(self):
+        """Clean up after the reducer is done."""
+        del self.geoip
+        self.temporary_data_file.close()
+
+        return tuple()
+
+    def extra_modules(self):
+        """Pygeoip is required by all tasks that load this file."""
+        return [pygeoip]
+
 
 class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, HiveTableTask):
     """
@@ -114,7 +187,7 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, HiveTableTask):
         # Because this data comes from EventLogSelectionDownstreamMixin,
         # we will use the end of the interval used to calculate
         # the country information.
-        return HivePartition('dt', self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return LastCountryOfUser(
@@ -129,10 +202,8 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, HiveTableTask):
         )
 
 
-class QueryLastCountryPerCourseTask(HiveTableFromQueryTask):
+class EnrollmentByLocationTask(LastCountryOfUserMixin, HiveQueryToMysqlTask):
     """Defines task to perform join in Hive to find course enrollment per-country counts."""
-
-    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     @property
     def insert_query(self):
@@ -151,72 +222,11 @@ class QueryLastCountryPerCourseTask(HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
     def table_name(self):
         return 'course_enrollment_location_current'
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'STRING'),
-            ('course_id', 'STRING'),
-            ('country_code', 'STRING'),
-            ('count', 'INT'),
-        ]
-
-    def requires(self):
-        yield (
-            ExternalHiveTask(table='course_enrollment', database=hive_database_name()),
-            ExternalHiveTask(table='auth_user', database=hive_database_name()),
-            ExternalHiveTask(table='last_country_of_user', database=hive_database_name()),
-        )
-
-
-class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountryPerCourseTask):
-
-    """Defines dependencies for performing join in Hive to find course enrollment per-country counts."""
-    def requires(self):
-        # Note that import parameters not included are 'destination', 'num_mappers', 'verbose',
-        # and 'date' -- we will use the default values for those.
-        kwargs_for_db_import = {
-            'overwrite': self.overwrite,
-            'import_date': self.import_date,
-        }
-        yield (
-            ImportLastCountryOfUserToHiveTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                geolocation_data=self.geolocation_data,
-                overwrite=self.overwrite
-            ),
-            CourseEnrollmentTable(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                overwrite=self.overwrite,
-                warehouse_path=self.warehouse_path
-            ),
-            ImportAuthUserTask(**kwargs_for_db_import),
-        )
-
-
-class InsertToMysqlCourseEnrollByCountryTask(MysqlInsertTask):
-    """
-    Define course_enrollment_location_current table.
-    """
-
-    overwrite = luigi.BooleanParameter(default=True)
-
-    @property
-    def table(self):
-        return "course_enrollment_location_current"
 
     @property
     def columns(self):
@@ -235,23 +245,85 @@ class InsertToMysqlCourseEnrollByCountryTask(MysqlInsertTask):
         ]
 
     @property
-    def insert_source_task(self):
-        raise NotImplementedError
+    def required_tables(self):
+        kwargs_for_db_import = {
+            'overwrite': self.overwrite,
+        }
+        yield (
+            ImportLastCountryOfUserToHiveTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                geolocation_data=self.geolocation_data,
+                overwrite=self.overwrite,
+                warehouse_path=self.warehouse_path
+            ),
+            CourseEnrollmentTable(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                warehouse_path=self.warehouse_path
+            ),
+            ImportAuthUserTask(**kwargs_for_db_import),
+        )
 
 
-class InsertToMysqlCourseEnrollByCountryWorkflow(
-        LastCountryOfUserMixin,
-        WarehouseMixin,
-        InsertToMysqlCourseEnrollByCountryTask):
+class UsersPerCountryReport(LastCountryOfUserMixin, HiveQueryToMysqlTask):
     """
-    Write to course_enrollment_location_current table from CountUserActivityPerInterval.
-    """
+    Calculates TSV report containing number of users per country.
 
-    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    Parameters:
+        report: Location of the resulting report. The output format is a
+            tsv file with country and count.
+    """
 
     @property
-    def insert_source_task(self):
-        return QueryLastCountryPerCourseWorkflow(
+    def query(self):
+        return """
+            SELECT
+                (COUNT(lc.username) / t.total_users) AS percent,
+                COUNT(lc.username) AS count,
+                lc.country_name AS country,
+                lc.country_code AS code
+            FROM last_country_of_user lc
+            JOIN (
+                    SELECT
+                        dt,
+                        COUNT(username) AS total_users
+                    FROM last_country_of_user
+                    GROUP BY dt
+                 ) t
+            GROUP BY
+                lc.dt, lc.country_name, lc.country_code, t.total_users
+            ORDER BY
+                percent DESC;
+        """
+
+    @property
+    def table_name(self):
+        return 'country_user_summary'
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('percent', 'DOUBLE NOT NULL'),
+            ('count', 'INT NOT NULL'),
+            ('country', 'VARCHAR(255) NOT NULL'),
+            ('code', 'VARCHAR(255) NOT NULL')
+        ]
+
+    @property
+    def required_tables(self):
+        return ImportLastCountryOfUserToHiveTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -259,6 +331,5 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            warehouse_path=self.warehouse_path,
-            import_date=self.import_date,
+            warehouse_path=self.warehouse_path
         )

@@ -6,6 +6,7 @@ import textwrap
 import luigi
 from luigi.configuration import get_config
 from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner
+from luigi.parameter import Parameter
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -154,6 +155,9 @@ class HivePartition(object):
         """This is the format that luigi uses internally to represent partitions"""
         return {self.key: self.value}
 
+    def __unicode__(self):
+        return self.path_spec
+
     @property
     def query_spec(self):
         """This format is used when a partition needs to be referred to in a query"""
@@ -169,6 +173,13 @@ class HivePartition(object):
             key=self.key,
             value=self.value,
         )
+
+
+class HivePartitionParameter(Parameter):
+
+    def parse(self, s):
+        parts = string.split('=')
+        return HivePartition(parts[0], parts[1])
 
 
 class HiveTableFromQueryTask(HiveTableTask):
@@ -195,3 +206,75 @@ class HiveTableFromQueryTask(HiveTableTask):
 
     def output(self):
         return get_target_from_url(self.partition_location)
+
+
+class ParameterizedHiveTableFromQueryTask(HiveTableFromQueryTask):
+
+    insert_query = luigi.Parameter()
+    table_name = luigi.Parameter()
+    columns = luigi.Parameter(is_list=True)
+    partition = HivePartitionParameter()
+
+
+class HiveQueryToMysqlTask(WarehouseMixin, OverwriteOutputMixin, MysqlInsertTask):
+    
+    overwrite = luigi.BooleanParameter(default=True)
+
+    SQL_TO_HIVE_TYPE = {
+        'varchar': 'STRING',
+        'datetime': 'TIMESTAMP',
+        'date': 'STRING',
+        'integer': 'INT',
+        'double': 'DOUBLE',
+        'tinyint': 'TINYINT',
+        'longtext': 'STRING',
+    }
+
+    @property
+    def insert_source_task(self):
+        return ParameterizedHiveTableFromQueryTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+            insert_query=self.query,
+            table_name=self.table_name,
+            columns=self.hive_columns,
+            partition=self.partition,
+        )
+
+    def requires(self):
+        requirements = super(HiveQueryToMysqlTask, self).requires()
+        requirements['other_tables'] = self.required_tables
+        return requirements
+
+    @property
+    def table_name(self):
+        raise NotImplementedError
+
+    @property
+    def query(self):
+        raise NotImplementedError
+
+    @property
+    def columns(self):
+        raise NotImplementedError
+
+    @property
+    def partition(self):
+        raise NotImplementedError
+
+    @property
+    def required_tables(self):
+        return []
+
+    @property
+    def hive_columns(self):
+        hive_cols = []
+        for column in self.columns:
+            column_name, sql_type = column
+            raw_sql_type = sql_type.split(' ')[0]
+            unparam_sql_type = raw_sql_type.split('(')[0]
+            hive_type = self.SQL_TO_HIVE_TYPE[unparam_sql_type.lower()]
+
+            hive_cols.append((column_name, hive_type))
+
+        return hive_cols

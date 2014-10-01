@@ -12,7 +12,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTas
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HiveTableFromQueryTask, HivePartition
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HiveTableFromQueryTask, HivePartition, HiveQueryToMysqlTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 
@@ -325,11 +325,11 @@ class EnrollmentCourseBlacklistTable(HiveTableTask):
         return HivePartition('dt', self.blacklist_date)  # pylint: disable=no-member
 
 
-class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, HiveTableFromQueryTask):
+class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for demographic breakdowns of enrollments"""
 
     @property
-    def insert_query(self):
+    def query(self):
         return """
             SELECT e.*
             FROM
@@ -343,6 +343,13 @@ class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, HiveTableF
         )
 
     @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            ('date', 'course_id'),
+        ]
+
+    @property
     def demographic_query(self):
         raise NotImplementedError
 
@@ -350,7 +357,8 @@ class EnrollmentDemographicTask(CourseEnrollmentTableDownstreamMixin, HiveTableF
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
-    def requires(self):
+    @property
+    def required_tables(self):
         yield (
             CourseEnrollmentTable(
                 mapreduce_engine=self.mapreduce_engine,
@@ -386,47 +394,11 @@ class EnrollmentByGenderTask(EnrollmentDemographicTask):
     """
     table_name = 'course_enrollment_gender'
     columns = [
-        ('date', 'STRING'),
-        ('course_id', 'STRING'),
-        ('gender', 'STRING'),
-        ('count', 'INT'),
+        ('date', 'DATE NOT NULL'),
+        ('course_id', 'VARCHAR(255) NOT NULL'),
+        ('gender', 'VARCHAR(6)'),
+        ('count', 'INTEGER'),
     ]
-
-
-class ImportEnrollmentByGenderIntoMysql(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
-    """Load gender breakdowns into MySQL"""
-
-    overwrite = luigi.BooleanParameter(default=True)
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('gender', 'VARCHAR(6)'),
-            ('count', 'INTEGER'),
-        ]
-
-    @property
-    def indexes(self):
-        return [
-            ('course_id',),
-            ('date', 'course_id'),
-        ]
-
-    @property
-    def table(self):
-        return 'course_enrollment_gender'
-
-    @property
-    def insert_source_task(self):
-        return EnrollmentByGenderTask(
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
 
 
 class EnrollmentByBirthYearTask(EnrollmentDemographicTask):
@@ -448,47 +420,11 @@ class EnrollmentByBirthYearTask(EnrollmentDemographicTask):
     """
     table_name = 'course_enrollment_birth_year'
     columns = [
-        ('date', 'STRING'),
-        ('course_id', 'STRING'),
-        ('birth_year', 'INT'),
-        ('count', 'INT'),
+        ('date', 'DATE NOT NULL'),
+        ('course_id', 'VARCHAR(255) NOT NULL'),
+        ('birth_year', 'INTEGER'),
+        ('count', 'INTEGER'),
     ]
-
-
-class ImportEnrollmentByBirthYearIntoMysql(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
-    """Load age breakdowns into MySQL"""
-
-    overwrite = luigi.BooleanParameter(default=True)
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('birth_year', 'INTEGER'),
-            ('count', 'INTEGER'),
-        ]
-
-    @property
-    def indexes(self):
-        return [
-            ('course_id',),
-            ('date', 'course_id'),
-        ]
-
-    @property
-    def table(self):
-        return 'course_enrollment_birth_year'
-
-    @property
-    def insert_source_task(self):
-        return EnrollmentByBirthYearTask(
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
 
 
 class EnrollmentByEducationLevelTask(EnrollmentDemographicTask):
@@ -510,47 +446,11 @@ class EnrollmentByEducationLevelTask(EnrollmentDemographicTask):
     """
     table_name = 'course_enrollment_education_level'
     columns = [
-        ('date', 'STRING'),
-        ('course_id', 'STRING'),
-        ('education_level', 'STRING'),
-        ('count', 'INT'),
+        ('date', 'DATE NOT NULL'),
+        ('course_id', 'VARCHAR(255) NOT NULL'),
+        ('education_level', 'VARCHAR(6)'),
+        ('count', 'INTEGER'),
     ]
-
-
-class ImportEnrollmentByEducationLevelIntoMysql(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
-    """Load education level breakdowns into MySQL"""
-
-    overwrite = luigi.BooleanParameter(default=True)
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('education_level', 'VARCHAR(6)'),
-            ('count', 'INTEGER'),
-        ]
-
-    @property
-    def indexes(self):
-        return [
-            ('course_id',),
-            ('date', 'course_id'),
-        ]
-
-    @property
-    def table(self):
-        return 'course_enrollment_education_level'
-
-    @property
-    def insert_source_task(self):
-        return EnrollmentByEducationLevelTask(
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
 
 
 class ImportDemographicsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
