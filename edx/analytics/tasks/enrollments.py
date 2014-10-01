@@ -465,7 +465,7 @@ class ImportDemographicsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wr
             'warehouse_path': self.warehouse_path,
         }
         yield (
-            ImportEnrollmentByGenderIntoMysql(**kwargs),
-            ImportEnrollmentByBirthYearIntoMysql(**kwargs),
-            ImportEnrollmentByEducationLevelIntoMysql(**kwargs)
+            EnrollmentByGenderTask(**kwargs),
+            EnrollmentByBirthYearTask(**kwargs),
+            EnrollmentByEducationLevelTask(**kwargs)
         )
