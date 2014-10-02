@@ -170,8 +170,8 @@ class DaysEnrolledForEvents(object):
             tuple: An enrollment record for each day during which the user was enrolled in the course.
 
         """
-        for day_enrolled_record in self.days_enrolled_before_first_event():
-            yield day_enrolled_record
+        #for day_enrolled_record in self.days_enrolled_before_first_event():
+        #    yield day_enrolled_record
 
         # The last element of the list is a placeholder indicating the end of the interval. Don't process it.
         for index in range(len(self.sorted_events) - 1):
