@@ -175,6 +175,9 @@ class HivePartition(object):
             value=self.value,
         )
 
+    def __unicode__(self):
+        return self.path_spec
+
 
 class HivePartitionParameter(Parameter):
 
