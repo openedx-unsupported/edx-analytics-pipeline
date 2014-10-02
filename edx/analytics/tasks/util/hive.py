@@ -238,7 +238,6 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
     def insert_source_task(self):
         return ParameterizedHiveTableFromQueryTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
             insert_query=self.query,
             table=self.table,
             columns=self.hive_columns,
