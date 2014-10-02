@@ -206,7 +206,7 @@ class EnrollmentByLocationTask(LastCountryOfUserMixin, HiveQueryToMysqlTask):
     """Defines task to perform join in Hive to find course enrollment per-country counts."""
 
     @property
-    def insert_query(self):
+    def query(self):
         return """
             SELECT
                 sce.date,
