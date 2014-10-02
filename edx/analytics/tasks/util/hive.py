@@ -229,6 +229,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
         'datetime': 'TIMESTAMP',
         'date': 'STRING',
         'integer': 'INT',
+        'int': 'INT',
         'double': 'DOUBLE',
         'tinyint': 'TINYINT',
         'longtext': 'STRING',
