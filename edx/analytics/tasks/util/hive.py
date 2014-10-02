@@ -175,7 +175,7 @@ class HivePartition(object):
             value=self.value,
         )
 
-    def __unicode__(self):
+    def __str__(self):
         return self.path_spec
 
 
