@@ -171,7 +171,7 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, HiveTableTask):
     """
 
     @property
-    def table_name(self):
+    def table(self):
         return 'last_country_of_user'
 
     @property
@@ -225,7 +225,7 @@ class EnrollmentByLocationTask(LastCountryOfUserMixin, HiveQueryToMysqlTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
-    def table_name(self):
+    def table(self):
         return 'course_enrollment_location_current'
 
     @property
@@ -305,7 +305,7 @@ class CountryUserSummary(LastCountryOfUserMixin, HiveQueryToMysqlTask):
         """
 
     @property
-    def table_name(self):
+    def table(self):
         return 'country_user_summary'
 
     @property

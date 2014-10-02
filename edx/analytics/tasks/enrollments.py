@@ -275,7 +275,7 @@ class CourseEnrollmentTable(CourseEnrollmentTableDownstreamMixin, HiveTableTask)
     """Hive table that stores the set of users enrolled in each course over time."""
 
     @property
-    def table_name(self):
+    def table(self):
         return 'course_enrollment'
 
     @property
@@ -311,7 +311,7 @@ class EnrollmentCourseBlacklistTable(HiveTableTask):
     )
 
     @property
-    def table_name(self):
+    def table(self):
         return 'course_enrollment_blacklist'
 
     @property
@@ -392,7 +392,7 @@ class EnrollmentByGenderTask(EnrollmentDemographicTask):
             ce.course_id,
             IF(p.gender != '', p.gender, NULL)
     """
-    table_name = 'course_enrollment_gender'
+    table = 'course_enrollment_gender'
     columns = [
         ('date', 'DATE NOT NULL'),
         ('course_id', 'VARCHAR(255) NOT NULL'),
@@ -418,7 +418,7 @@ class EnrollmentByBirthYearTask(EnrollmentDemographicTask):
             ce.course_id,
             p.year_of_birth
     """
-    table_name = 'course_enrollment_birth_year'
+    table = 'course_enrollment_birth_year'
     columns = [
         ('date', 'DATE NOT NULL'),
         ('course_id', 'VARCHAR(255) NOT NULL'),
@@ -444,7 +444,7 @@ class EnrollmentByEducationLevelTask(EnrollmentDemographicTask):
             ce.course_id,
             IF(p.level_of_education != '', p.level_of_education, NULL)
     """
-    table_name = 'course_enrollment_education_level'
+    table = 'course_enrollment_education_level'
     columns = [
         ('date', 'DATE NOT NULL'),
         ('course_id', 'VARCHAR(255) NOT NULL'),

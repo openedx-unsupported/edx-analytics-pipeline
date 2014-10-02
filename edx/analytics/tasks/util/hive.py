@@ -49,7 +49,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         # Ideally this would be added to the query by the custom runner, however, this is easier.
         drop_on_overwrite = ''
         if self.overwrite:
-            drop_on_overwrite = 'DROP TABLE IF EXISTS {0};'.format(self.table_name)
+            drop_on_overwrite = 'DROP TABLE IF EXISTS {0};'.format(self.table)
 
         # TODO: Figure out how to clean up old data. This just cleans
         # out old metastore info, and doesn't actually remove the table
@@ -59,19 +59,19 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         query_format = """
             USE {database_name};
             {drop_on_overwrite}
-            CREATE EXTERNAL TABLE {table_name} (
+            CREATE EXTERNAL TABLE {table} (
                 {col_spec}
             )
             PARTITIONED BY ({partition.key} STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table_name} ADD PARTITION ({partition.query_spec});
+            ALTER TABLE {table} ADD PARTITION ({partition.query_spec});
         """
 
         query = query_format.format(
             database_name=hive_database_name(),
             drop_on_overwrite=drop_on_overwrite,
-            table_name=self.table_name,
+            table=self.table,
             col_spec=','.join([' '.join(c) for c in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
@@ -95,7 +95,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return url_path_join(self.table_location, self.partition.path_spec + '/')
 
     @property
-    def table_name(self):
+    def table(self):
         """Provides name of Hive database table."""
         raise NotImplementedError
 
@@ -107,7 +107,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     @property
     def table_location(self):
         """Provides root location of Hive database table's data."""
-        return url_path_join(self.warehouse_path, self.table_name) + '/'
+        return url_path_join(self.warehouse_path, self.table) + '/'
 
     @property
     def columns(self):
@@ -123,7 +123,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
 
     def output(self):
         return HivePartitionTarget(
-            self.table_name, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
+            self.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
         )
 
     def job_runner(self):
@@ -192,11 +192,11 @@ class HiveTableFromQueryTask(HiveTableTask):
     def query(self):
         create_table_statements = super(HiveTableFromQueryTask, self).query()
         full_insert_query = """
-            INSERT INTO TABLE {table_name}
+            INSERT INTO TABLE {table}
             PARTITION ({partition.query_spec})
             {insert_query}
         """.format(
-            table_name=self.table_name,
+            table=self.table,
             partition=self.partition,
             insert_query=self.insert_query.strip(),
         )
@@ -215,7 +215,7 @@ class HiveTableFromQueryTask(HiveTableTask):
 class ParameterizedHiveTableFromQueryTask(HiveTableFromQueryTask):
 
     insert_query = luigi.Parameter()
-    table_name = luigi.Parameter()
+    table = luigi.Parameter()
     columns = luigi.Parameter(is_list=True)
     partition = HivePartitionParameter()
 
@@ -240,7 +240,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
             warehouse_path=self.warehouse_path,
             overwrite=self.overwrite,
             insert_query=self.query,
-            table_name=self.table_name,
+            table=self.table,
             columns=self.hive_columns,
             partition=self.partition,
         )
@@ -251,7 +251,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
         return requirements
 
     @property
-    def table_name(self):
+    def table(self):
         raise NotImplementedError
 
     @property
