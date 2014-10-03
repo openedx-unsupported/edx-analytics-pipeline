@@ -98,12 +98,17 @@ class DaysEnrolledForEvents(object):
 
     If the first event in the stream for a user in a course is an unenrollment event, that would indicate that the user
     was enrolled in the course before that moment in time. It is unknown, however, when the user enrolled in the course,
-    so we assume that they have been enrolled in the course since the beginning of the interval and records are produced
-    accordingly.
+    so we conservatively omit records for the time before that unenrollment event even though it is likely they were
+    enrolled in the course for some unknown amount of time before then. Enrollment counts for dates before the
+    unenrollment event will be less than the actual value.
 
-    Similarly if the last event for a user is an enrollment event, that would indicate that the user was still enrolled
-    in the course at the end of the interval, so records are produced from that last enrollment event all the way to the
-    end of the interval.
+    If the last event for a user is an enrollment event, that would indicate that the user was still enrolled in the
+    course at the end of the interval, so records are produced from that last enrollment event all the way to the end of
+    the interval. If we miss an unenrollment event after this point, it will result in enrollment counts that are
+    actually higher than the actual value.
+
+    Both of the above paragraphs describe edge cases that account for the majority of the error that can be observed in
+    the results of this analysis.
 
     Ranges of dates where the user is continuously enrolled will be represented as contiguous records with the first
     record indicating the change (new enrollment), and the last record indicating the unenrollment. It will look
@@ -154,13 +159,12 @@ class DaysEnrolledForEvents(object):
         # track the previous state in order to easily detect state changes between days.
         if self.first_event.event_type == DEACTIVATED:
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
-            self.previous_state = self.ENROLLED
-        else:
-            self.previous_state = self.UNENROLLED
+            log.warning('First event is an unenrollment for user %d in course %s on %s',
+                self.user_id, self.course_id, self.first_event.datestamp)
 
         # Before we start processing events, we can assume that their current state is the same as it has been for all
         # time before the first event.
-        self.state = self.previous_state
+        self.state = self.previous_state = self.UNENROLLED
 
     def days_enrolled(self):
         """
@@ -170,9 +174,6 @@ class DaysEnrolledForEvents(object):
             tuple: An enrollment record for each day during which the user was enrolled in the course.
 
         """
-        for day_enrolled_record in self.days_enrolled_before_first_event():
-            yield day_enrolled_record
-
         # The last element of the list is a placeholder indicating the end of the interval. Don't process it.
         for index in range(len(self.sorted_events) - 1):
             self.event = self.sorted_events[index]
@@ -202,29 +203,6 @@ class DaysEnrolledForEvents(object):
                     yield self.enrollment_record(self.event.datestamp, self.UNENROLLED, change_since_last_day)
 
                 self.previous_state = self.state
-
-    def days_enrolled_before_first_event(self):
-        """
-        Produce records for any inferred enrollment state before the first event.
-
-        If the first event is an unenrollment event, back fill enrollment records to the day before the beginning of the
-        interval. We use the day before the start of the interval as the start date for these inferred interval so that
-        we can distinguish these inferred enrollments from enrollments about which we have more information.
-
-        Yields:
-            tuple: An enrollment record for each day the user is assumed to have been enrolled in the course from the
-                start of the interval up to the date where the first enrollment event appears.
-
-        """
-        if self.previous_state == self.ENROLLED:
-            interval_start_datestamp = self.interval.date_a.isoformat()
-
-            for datestamp in self.all_dates_between(interval_start_datestamp, self.first_event.datestamp):
-                yield self.enrollment_record(
-                    datestamp,
-                    self.ENROLLED,
-                    1 if datestamp == interval_start_datestamp else 0
-                )
 
     def all_dates_between(self, start_date_str, end_date_str):
         """

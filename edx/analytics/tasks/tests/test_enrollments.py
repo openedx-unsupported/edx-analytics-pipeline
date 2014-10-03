@@ -152,7 +152,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
 
     def test_single_unenrollment(self):
         inputs = [('2013-01-01T00:00:01', DEACTIVATED), ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, -1),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
         self._check_output(inputs, expected)
 
     def test_multiple_events_on_same_day(self):
@@ -180,9 +180,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
             ('2013-01-01T00:00:01', DEACTIVATED),
         ]
         expected = (
-            ('2012-12-30', self.course_id, self.user_id, 1, 1),
-            ('2012-12-31', self.course_id, self.user_id, 1, 0),
-            ('2013-01-01', self.course_id, self.user_id, 0, -1),
+            ('2013-01-01', self.course_id, self.user_id, 0, 0),
         )
         self._check_output(inputs, expected)
 
@@ -242,7 +240,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
             ('2013-01-01T00:00:03', DEACTIVATED),
             ('2013-01-01T00:00:04', DEACTIVATED),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, -1),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
         self._check_output(inputs, expected)
 
     def test_multiple_enroll_events_on_many_days(self):
@@ -301,9 +299,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
             ('2013-01-03T00:00:01', ACTIVATED),
         ]
         expected = (
-            ('2012-12-30', self.course_id, self.user_id, 1, 1),
-            ('2012-12-31', self.course_id, self.user_id, 1, 0),
-            ('2013-01-01', self.course_id, self.user_id, 0, -1),
+            ('2013-01-01', self.course_id, self.user_id, 0, 0),
             ('2013-01-03', self.course_id, self.user_id, 1, 1),
             ('2013-01-04', self.course_id, self.user_id, 1, 0),
             ('2013-01-05', self.course_id, self.user_id, 1, 0),
