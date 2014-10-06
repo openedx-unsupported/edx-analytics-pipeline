@@ -73,6 +73,54 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
+class EnrollmentEventsForCourse(EventLogSelectionMixin, MapReduceJobTask):
+    """Produce a data set that shows which days each user was enrolled in each course."""
+
+    output_root = luigi.Parameter()
+    course_id = luigi.Parameter()
+
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, _date_string = value
+
+        event_type = event.get('event_type')
+        if event_type is None:
+            log.error("encountered event with no event_type: %s", event)
+            return
+
+        if event_type not in (DEACTIVATED, ACTIVATED):
+            return
+
+        timestamp = eventlog.get_event_time_string(event)
+        if timestamp is None:
+            log.error("encountered event with bad timestamp: %s", event)
+            return
+
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            return
+
+        course_id = event_data.get('course_id')
+        if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
+            log.error("encountered explicit enrollment event with invalid course_id: %s", event)
+            return
+
+        if course_id != self.course_id:
+            return
+
+        user_id = event_data.get('user_id')
+        if user_id is None:
+            log.error("encountered explicit enrollment event with no user_id: %s", event)
+            return
+
+        yield (course_id, user_id), (timestamp, event_type)
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+
 class EnrollmentEvent(object):
     """The critical information necessary to process the event in the event stream."""
 
