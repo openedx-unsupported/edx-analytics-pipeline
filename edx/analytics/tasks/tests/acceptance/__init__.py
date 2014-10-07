@@ -72,9 +72,11 @@ class AcceptanceTestCase(unittest.TestCase):
         database_name = 'test_' + self.identifier
         import_database_name = 'import_' + database_name
         export_database_name = 'export_' + database_name
+        self.warehouse_path = url_path_join(self.test_root, 'warehouse')
         task_config_override = {
             'hive': {
-                'database': database_name
+                'database': database_name,
+                'warehouse_path': self.warehouse_path
             },
             'map-reduce': {
                 'marker': url_path_join(self.test_root, 'marker')
@@ -85,7 +87,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'database-import': {
                 'credentials': self.config['credentials_file_url'],
-                'destination': url_path_join(self.test_root, 'database-import'),
+                'destination': self.warehouse_path,
                 'database': import_database_name
             },
             'database-export': {
@@ -94,6 +96,9 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'geolocation': {
                 'geolocation_data': self.config['geolocation_data']
+            },
+            'event-logs': {
+                'source': self.test_src
             }
         }
 
