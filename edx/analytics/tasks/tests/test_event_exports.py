@@ -56,7 +56,7 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
             mapreduce_engine='local',
             output_root='test://output/',
             config='test://config/default.yaml',
-            source='test://input/',
+            source=['test://input/'],
             environment='prod',
             interval=Year.parse('2014'),
             gpg_key_dir='test://config/gpg-keys/',
@@ -312,7 +312,7 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
         self.assertEquals(1, len(requirements))
 
         task = requirements[0]
-        self.assertEquals('test://input/', task.source)
+        self.assertEquals(('test://input/',), task.source)
         # Pattern is difficult to validate since it's read from the config
         # Interval is also difficult to validate since it is expanded by the initializer
 
