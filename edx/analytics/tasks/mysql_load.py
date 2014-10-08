@@ -253,7 +253,15 @@ class MysqlInsertTask(OverwriteOutputMixin, luigi.Task):
         query = "INSERT INTO {table} ({column_names}) VALUES {values}".format(
             table=self.table, column_names=column_names, values=all_parameters
         )
-        cursor.execute(query, list(chain.from_iterable(value_list)))
+        try:
+            cursor.execute(query, list(chain.from_iterable(value_list)))
+        except mysql.connector.Error as excp:
+            log.debug("Encountered query error")
+            log.debug(excp)
+            log.debug("Query was: {}".format(query))
+            log.debug("Values were:")
+            log.debug(value_list)
+
         log.debug("Wrote %d rows to table %s", num_rows, self.table)
 
     def insert_rows(self, cursor):

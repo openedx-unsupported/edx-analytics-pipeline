@@ -464,7 +464,7 @@ class AnswerDistributionPerCourseMixin(object):
         valid_type_str = get_config().get(
             'answer-distribution',
             'valid_response_types',
-            'choiceresponse,optionresponse,multiplechoiceresponse,numericalresponse,stringresponse,formularesponse'
+            'customresponse,choiceresponse,optionresponse,multiplechoiceresponse,numericalresponse,stringresponse,formularesponse'
         )
 
         valid_types = set(valid_type_str.split(","))
