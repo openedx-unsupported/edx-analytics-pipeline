@@ -10,6 +10,7 @@ import os
 import tempfile
 import textwrap
 import shutil
+import urlparse
 
 import boto
 import gnupg
@@ -128,12 +129,15 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         self.write_exporter_config(org_id, config_file_path)
 
+        src_url_tuple = urlparse.urlparse(self.test_src)
+
         command = [
             os.getenv('EXPORTER'),
             '--work-dir', self.working_dir,
             '--bucket', self.config.get('exporter_output_bucket'),
+            '--pipeline-bucket', src_url_tuple.netloc,
             '--course-id', course_id,
-            '--external-prefix', self.test_src,
+            '--external-prefix', src_url_tuple.path.lstrip('/'),
             '--output-prefix', self.output_prefix,
             config_file_path,
             '--env', self.ENVIRONMENT,
