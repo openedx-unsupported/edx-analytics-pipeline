@@ -160,7 +160,7 @@ class DaysEnrolledForEvents(object):
         if self.first_event.event_type == DEACTIVATED:
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
             log.warning('First event is an unenrollment for user %d in course %s on %s',
-                self.user_id, self.course_id, self.first_event.datestamp)
+                        self.user_id, self.course_id, self.first_event.datestamp)
 
         # Before we start processing events, we can assume that their current state is the same as it has been for all
         # time before the first event.
