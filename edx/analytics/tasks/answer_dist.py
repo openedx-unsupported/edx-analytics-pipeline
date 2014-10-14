@@ -2,6 +2,7 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
+import math
 import csv
 import hashlib
 import html5lib
@@ -861,7 +862,11 @@ class AnswerDistributionToMySQLTaskWorkflow(
 ################################
 def try_str_to_float(value_str):
     try:
-        return float(value_str)
+        float_val = float(value_str)
+        # infinity values and NaN actually break mysql-connector (because they look like a string), so make those None
+        if math.isinf(float_val) or math.isnan(float_val):
+            return None
+        return float_val
     except (ValueError, TypeError):
         return None
 

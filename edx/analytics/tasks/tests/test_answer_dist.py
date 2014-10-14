@@ -8,6 +8,7 @@ import hashlib
 import os
 import tempfile
 import shutil
+import math
 
 from mock import Mock, call
 from opaque_keys.edx.locator import CourseLocator
@@ -16,6 +17,7 @@ from edx.analytics.tasks.answer_dist import (
     LastProblemCheckEventMixin,
     AnswerDistributionPerCourseMixin,
     AnswerDistributionOneFilePerCourseTask,
+    try_str_to_float,
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
@@ -923,3 +925,57 @@ class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
         )
         self.assertFalse(task.complete())
         self.assertFalse(os.path.exists(self.output_root))
+
+
+class TestHelperFunctions(unittest.TestCase):
+    """
+    Test cases for helper functions
+    """
+    EXPECTED_RESULTS = (
+        (u"234", 234, 234),
+        (u"-1.5", -1.5, -1.5),
+        (35.8, 35.8, 35.8)
+    )
+
+    EXPECTED_CONVERSION_EXCEPTIONS = (
+        (u"-3d", ValueError, None),
+        (Exception, TypeError, None),
+        (str, TypeError, None),
+    )
+
+    NAN_STRINGS = (u"NaN", u"nan")
+
+    INFINITY_STRINGS = (u"inf", u"-inf", u"infinity", u"-infinity")
+
+    def test_try_str_to_float_no_exception(self):
+        """
+        Tests try_str_to_float for cases where float() doesn't throw an exception
+        """
+        for testval, float_output, expected in self.EXPECTED_RESULTS:
+            self.assertEqual(float_output, float(testval))
+            self.assertEqual(expected, try_str_to_float(testval))
+
+    def test_try_str_to_float_with_exception(self):
+        """
+        Tests try_str_to_float for cases where float() throws an exception
+        """
+        for testval, float_exception, expected in self.EXPECTED_CONVERSION_EXCEPTIONS:
+            with self.assertRaises(float_exception):
+                float(testval)
+            self.assertEqual(expected, try_str_to_float(testval))
+
+    def test_try_str_to_float_nan(self):
+        """
+        Tests try_str_to_float for NaN-like values.  We want it to return None
+        """
+        for testval in self.NAN_STRINGS:
+            self.assertTrue(math.isnan(float(testval)))
+            self.assertIsNone(try_str_to_float(testval))
+
+    def test_try_str_to_float_infinity(self):
+        """
+        Tests try_str_to_float for infinity-like values.  We want it to return None
+        """
+        for testval in self.INFINITY_STRINGS:
+            self.assertTrue(math.isinf(float(testval)))
+            self.assertIsNone(try_str_to_float(testval))
