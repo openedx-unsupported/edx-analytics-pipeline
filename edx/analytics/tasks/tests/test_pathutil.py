@@ -133,6 +133,23 @@ class EventLogSelectionTaskTest(unittest.TestCase):
             'FakeOldServerGroup3/tracking_14602.log.gz',
         ])
 
+    def test_multiple_filtering_of_urls(self):
+        task = EventLogSelectionTask(
+            source=self.SOURCE,
+            interval=Month.parse('2014-03'),
+            pattern=[
+                r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+                r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            ],
+            expand_interval=datetime.timedelta(0),
+        )
+
+        self.assert_only_matched(task, [
+            'FakeServerGroup/tracking.log-20140318.gz',
+            'FakeServerGroup/tracking.log-20140319-1395256622.gz',
+            'FakeEdgeServerGroup/tracking.log-20140324-1395670621.gz',
+        ])
+
     def assert_only_matched(self, task, paths):
         """Assert that the task only includes the given paths in the selected set of files."""
         matched_urls = []
