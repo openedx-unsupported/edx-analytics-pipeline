@@ -416,7 +416,7 @@ class EnrollmentByGenderTask(EnrollmentDemographicTask):
 
     @property
     def table_name(self):
-        return 'course_enrollment_gender'
+        return 'course_enrollment_gender_daily'
 
     @property
     def columns(self):
@@ -451,7 +451,7 @@ class ImportEnrollmentByGenderIntoMysql(CourseEnrollmentTableDownstreamMixin, My
 
     @property
     def table(self):
-        return 'course_enrollment_gender'
+        return 'course_enrollment_gender_daily'
 
     @property
     def insert_source_task(self):
@@ -486,7 +486,7 @@ class EnrollmentByBirthYearTask(EnrollmentDemographicTask):
 
     @property
     def table_name(self):
-        return 'course_enrollment_birth_year'
+        return 'course_enrollment_birth_year_daily'
 
     @property
     def columns(self):
@@ -521,7 +521,7 @@ class ImportEnrollmentByBirthYearIntoMysql(CourseEnrollmentTableDownstreamMixin,
 
     @property
     def table(self):
-        return 'course_enrollment_birth_year'
+        return 'course_enrollment_birth_year_daily'
 
     @property
     def insert_source_task(self):
@@ -556,7 +556,7 @@ class EnrollmentByEducationLevelTask(EnrollmentDemographicTask):
 
     @property
     def table_name(self):
-        return 'course_enrollment_education_level'
+        return 'course_enrollment_education_level_daily'
 
     @property
     def columns(self):
@@ -591,7 +591,7 @@ class ImportEnrollmentByEducationLevelIntoMysql(CourseEnrollmentTableDownstreamM
 
     @property
     def table(self):
-        return 'course_enrollment_education_level'
+        return 'course_enrollment_education_level_daily'
 
     @property
     def insert_source_task(self):
