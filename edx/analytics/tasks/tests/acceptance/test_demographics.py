@@ -49,7 +49,7 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
         """Ensure the gender breakdown is correct."""
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT date, course_id, gender, count FROM course_enrollment_gender'
+                'SELECT date, course_id, gender, count FROM course_enrollment_gender_daily'
                 ' ORDER BY date, course_id, gender ASC'
             )
             results = cursor.fetchall()
@@ -74,7 +74,7 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
         """Ensure the birth year breakdown is correct."""
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT date, course_id, birth_year, count FROM course_enrollment_birth_year'
+                'SELECT date, course_id, birth_year, count FROM course_enrollment_birth_year_daily'
                 ' ORDER BY date, course_id, birth_year ASC'
             )
             results = cursor.fetchall()
@@ -98,7 +98,7 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
         """Ensure the education level breakdown is correct."""
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT date, course_id, education_level, count FROM course_enrollment_education_level'
+                'SELECT date, course_id, education_level, count FROM course_enrollment_education_level_daily'
                 ' ORDER BY date, course_id, education_level ASC'
             )
             results = cursor.fetchall()
