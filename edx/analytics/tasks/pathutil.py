@@ -105,6 +105,7 @@ class EventLogSelectionDownstreamMixin(object):
         default_from_config={'section': 'event-logs', 'name': 'expand_interval'}
     )
     pattern = luigi.Parameter(
+        is_list=True,
         default_from_config={'section': 'event-logs', 'name': 'pattern'}
     )
 
@@ -158,7 +159,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             else:
                 url_gens.append(self._get_local_urls(source))
 
-        log.debug('Matching urls using pattern="%s"', self.pattern)
+        log.debug('Matching urls using pattern(s)="%s"', self.pattern)
         log.debug(
             'Date interval: %s <= date < %s', self.interval.date_a.isoformat(), self.interval.date_b.isoformat()
         )
@@ -187,13 +188,17 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 
         Presently filters first on pattern match and then on the datestamp extracted from the file name.
         """
-        match = re.match(self.pattern, url)
+        match = None
+        for pattern in self.pattern:
+            match = re.match(pattern, url)
+            if match:
+                break
+
         if not match:
             log.debug('Excluding due to pattern mismatch: %s', url)
             return False
 
         # TODO: support patterns that don't contain a "date" group
-
         parsed_datetime = datetime.datetime.strptime(match.group('date'), '%Y%m%d')
         parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
         should_include = parsed_date in self.interval
