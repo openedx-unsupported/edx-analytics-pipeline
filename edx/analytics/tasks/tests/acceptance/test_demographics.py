@@ -105,17 +105,17 @@ class DemographicsAcceptanceTest(AcceptanceTestCase):
 
         expected = [
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'b', 2),
+            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'b', 1),
+            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1),
             (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'b', 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'b', 1),
+            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2),
+            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'b', 1),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'b', 1),
+            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1),
+            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'a', 1),
-            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'b', 1),
+            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'associates', 1),
+            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
         ]
         self.assertItemsEqual(expected, results)
