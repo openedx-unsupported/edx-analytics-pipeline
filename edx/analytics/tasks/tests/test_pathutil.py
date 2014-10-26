@@ -121,6 +121,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
             pattern=[
                 r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
                 r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+                r'.*tracking_\d{3,5}\.log\.gz$',
             ],
             expand_interval=datetime.timedelta(0),
         )
@@ -129,6 +130,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
             'FakeServerGroup/tracking.log-20140318.gz',
             'FakeServerGroup/tracking.log-20140319-1395256622.gz',
             'FakeEdgeServerGroup/tracking.log-20140324-1395670621.gz',
+            'FakeOldServerGroup3/tracking_14602.log.gz',
         ])
 
     def assert_only_matched(self, task, paths):

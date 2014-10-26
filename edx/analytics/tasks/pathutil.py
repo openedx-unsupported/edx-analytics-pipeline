@@ -188,6 +188,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 
         Presently filters first on pattern match and then on the datestamp extracted from the file name.
         """
+        # Find the first pattern (if any) that matches the URL.
         match = None
         for pattern in self.pattern:
             match = re.match(pattern, url)
@@ -198,10 +199,13 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             log.debug('Excluding due to pattern mismatch: %s', url)
             return False
 
-        # TODO: support patterns that don't contain a "date" group
-        parsed_datetime = datetime.datetime.strptime(match.group('date'), '%Y%m%d')
-        parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
-        should_include = parsed_date in self.interval
+        # If the pattern contains a date group, use that to check if within the requested interval.
+        # If it doesn't contain such a group, then assume that it should be included.
+        should_include = True
+        if 'date' in match.groupdict():
+            parsed_datetime = datetime.datetime.strptime(match.group('date'), '%Y%m%d')
+            parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
+            should_include = parsed_date in self.interval
 
         if should_include:
             log.debug('Including: %s', url)
