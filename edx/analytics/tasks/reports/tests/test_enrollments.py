@@ -30,7 +30,7 @@ class TestEnrollmentsByWeek(unittest.TestCase):
 
         # Make offsets None if it was not specified.
         task = EnrollmentsByWeek(name='fake_name',
-                                 src='fake_source',
+                                 src=['fake_source'],
                                  offsets='fake_offsets' if offset else None,
                                  destination='fake_destination',
                                  date=parsed_date,
@@ -180,7 +180,7 @@ class TestEnrollmentsByWeek(unittest.TestCase):
         date = datetime.date(2013, 01, 20)
 
         task = EnrollmentsByWeek(name='fake_name',
-                                 src='s3://bucket/path/',
+                                 src=['s3://bucket/path/'],
                                  offsets='s3://bucket/file.txt',
                                  destination='file://path/file.txt',
                                  date=date)

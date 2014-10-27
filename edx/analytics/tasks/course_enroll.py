@@ -178,7 +178,7 @@ class BaseCourseEnrollmentTaskDownstreamMixin(OverwriteOutputMixin, MapReduceJob
       run_date: the date to use as the partition version
     """
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
     manifest = luigi.Parameter(default=None)

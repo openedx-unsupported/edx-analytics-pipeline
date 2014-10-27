@@ -586,7 +586,7 @@ class BaseAnswerDistributionTask(MapReduceJobTask):
         manifest: a URL to a file location that can store the complete set of input files.
     """
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
     # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
@@ -674,7 +674,7 @@ class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
         delete_output_root: if True, recursively deletes the output_root at task creation.
     """
 
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
     name = luigi.Parameter(default='periodic')
@@ -814,7 +814,7 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
 
 class AnswerDistributionToMySQLParamsMixin(object):
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
     # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
