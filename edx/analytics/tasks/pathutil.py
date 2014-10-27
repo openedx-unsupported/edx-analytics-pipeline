@@ -39,6 +39,7 @@ class PathSetTask(luigi.Task):
       manifest: a URL pointing to a manifest file location.
     """
     src = luigi.Parameter(
+        is_list=True,
         default_from_config={'section': 'event-logs', 'name': 'source'}
     )
     include = luigi.Parameter(is_list=True, default=('*',))
@@ -50,21 +51,22 @@ class PathSetTask(luigi.Task):
 
     def generate_file_list(self):
         """Yield each individual path given a source folder and a set of file-matching expressions."""
-        if self.src.startswith('s3'):
-            # connect lazily as needed:
-            if self.s3_conn is None:
-                self.s3_conn = boto.connect_s3()
-            for _bucket, _root, path in generate_s3_sources(self.s3_conn, self.src, self.include):
-                source = url_path_join(self.src, path)
-                yield ExternalURL(source)
-        else:
-            # Apply the include patterns to the relative path below the src directory.
-            for dirpath, _dirnames, files in os.walk(self.src):
-                for filename in files:
-                    filepath = os.path.join(dirpath, filename)
-                    relpath = os.path.relpath(filepath, self.src)
-                    if any(fnmatch.fnmatch(relpath, include_val) for include_val in self.include):
-                        yield ExternalURL(filepath)
+        for src in self.src:
+            if src.startswith('s3'):
+                # connect lazily as needed:
+                if self.s3_conn is None:
+                    self.s3_conn = boto.connect_s3()
+                for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include):
+                    source = url_path_join(src, path)
+                    yield ExternalURL(source)
+            else:
+                # Apply the include patterns to the relative path below the src directory.
+                for dirpath, _dirnames, files in os.walk(src):
+                    for filename in files:
+                        filepath = os.path.join(dirpath, filename)
+                        relpath = os.path.relpath(filepath, src)
+                        if any(fnmatch.fnmatch(relpath, include_val) for include_val in self.include):
+                            yield ExternalURL(filepath)
 
     def manifest_file_list(self):
         """Write each individual path to a manifest file and yield the path to that file."""

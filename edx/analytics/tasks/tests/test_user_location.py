@@ -78,7 +78,7 @@ class LastCountryForEachUserMapperTestCase(BaseUserLocationEventTestCase):
         self.task = LastCountryForEachUser(
             mapreduce_engine='local',
             name='test',
-            src='test://input/',
+            src=['test://input/'],
             dest='test://output/',
             end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
             geolocation_data='test://data/data.file',
@@ -135,7 +135,7 @@ class LastCountryForEachUserReducerTestCase(unittest.TestCase):
         self.task = LastCountryForEachUser(
             mapreduce_engine='local',
             name='test',
-            src='test://input/',
+            src=['test://input/'],
             dest='test://output/',
             end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
             geolocation_data='test://data/data.file',
@@ -219,7 +219,7 @@ class UsersPerCountryTestCase(unittest.TestCase):
         self.task = UsersPerCountry(
             mapreduce_engine='local',
             name='test',
-            src='test://input/',
+            src=['test://input/'],
             dest='test://output/',
             end_date=self.end_date,
             geolocation_data='test://data/data.file',
@@ -325,7 +325,7 @@ class UsersPerCountryReportWorkflowTestCase(BaseUserLocationEventTestCase):
         task = UsersPerCountryReportWorkflow(
             mapreduce_engine='local',
             name='test',
-            src=src_path,
+            src=[src_path],
             end_date=datetime.datetime.strptime(end_date, '%Y-%m-%d').date(),
             geolocation_data=data_filepath,
             counts=counts_path,
