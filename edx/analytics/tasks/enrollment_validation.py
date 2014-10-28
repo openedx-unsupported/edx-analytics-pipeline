@@ -8,6 +8,7 @@ import os
 import re
 
 import luigi
+from luigi.date_interval import DateInterval
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
@@ -95,7 +96,10 @@ class CourseEnrollmentValidationTask(
         is_active = event_data.get('is_active')
         created = event_data.get('created')
 
-        yield (course_id, user_id), (timestamp, event_type, is_active, created)
+        # Make sure key values that are strings are encoded strings.
+        # Note, however, that user_id is an int.
+        key = (unicode(course_id).encode('utf-8'), user_id)
+        yield key, (timestamp, event_type, is_active, created)
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
@@ -514,12 +518,14 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
             log.error("Encountered bad input: %s", line)
             return
 
-        (_db_id, user_id, encoded_course_id, mysql_created, mysql_is_active, mode) = fields
+        (_db_id, user_id_string, encoded_course_id, mysql_created, mysql_is_active, mode) = fields
 
-        # 'created' is of the form '2012-07-25 12:26:22.0', coming out of
+        # `created` is of the form '2012-07-25 12:26:22.0', coming out of
         # mysql.  Convert it to isoformat.
         created = self._mysql_datetime_to_isoformat(mysql_created)
+        # `is_active` should be a boolean and `user_id` is an int.
         is_active = (mysql_is_active == "true")
+        user_id = int(user_id_string)
 
         # Note that we do not have several standard properties that we
         # might expect in such an event.  These include a username,
@@ -564,3 +570,44 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
             dumpdate=self.dump_date,
         )
         return url_path_join(self.output_root, filename)
+
+
+class CreateAllEnrollmentValidationEventsTask(MapReduceJobTaskMixin, luigi.WrapperTask):
+    """
+    TODO:
+    """
+    source_root = luigi.Parameter()
+    interval = luigi.DateIntervalParameter()
+    output_root = luigi.Parameter()
+
+    required_tasks = None
+
+    def _get_required_tasks(self):
+        """Internal method to actually calculate required tasks once."""
+        start_date = self.interval.date_a
+        end_date = self.interval.date_b
+
+        current_date = start_date
+        while current_date < end_date:
+            datestring = current_date.strftime('%Y-%m-%d')
+            current_date += datetime.timedelta(days=1)
+
+            src_datestring = "dt={}".format(datestring)
+            source_dir = url_path_join(self.source_root, src_datestring)
+            target = get_target_from_url(source_dir)
+            if target.exists():
+                output_dir = url_path_join(self.output_root, datestring)
+                yield CreateEnrollmentValidationEventsTask(
+                    source_dir=source_dir,
+                    output_root=output_dir,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                )
+
+    def requires(self):
+        if not self.required_tasks:
+            self.required_tasks = [task for task in self._get_required_tasks()]
+
+        return self.required_tasks
+
+    def output(self):
+        return [task.output() for task in self.requires()]
