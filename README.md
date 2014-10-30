@@ -13,9 +13,9 @@ Your machine will need the following in order to run the code in this repository
 
 All of the components above can be installed with your preferred package manager (e.g. apt, yum, [brew](http://brew.sh).
 
-The requirements in requirements/default.txt and requirements/test.txt can be installed with pip:
+The requirements in requirements/default.txt and requirements/test.txt can be installed with pip (via make):
 
-    pip install -U -r requirements/default.txt
+    make requirements
 
 *Known Issues on Mac OS X*
 
