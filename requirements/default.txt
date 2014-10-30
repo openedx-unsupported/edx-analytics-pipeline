@@ -1,7 +1,7 @@
 Jinja2==2.7.3		# BSD License
 MarkupSafe==0.23	# BSD
 PyYAML==3.10		# MIT License
-ansible==1.4.4		# GPL v3 License
+ansible==1.4.5		# GPL v3 License
 argparse==1.2.1 	# Python Software Foundation License
 boto==2.22.1 		# MIT
 ecdsa==0.11 		# MIT
