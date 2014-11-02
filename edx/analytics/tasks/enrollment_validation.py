@@ -92,14 +92,25 @@ class CourseEnrollmentValidationTask(
             log.error("encountered explicit enrollment event with no user_id: %s", event)
             return
 
-        # Pull in extra properties provided only by synthetic enrollment validation events.
-        is_active = event_data.get('is_active')
-        created = event_data.get('created')
+        mode = event_data.get('mode')
+        if mode is None:
+            log.error("encountered explicit enrollment event with no mode: %s", event)
+            return
 
-        # Make sure key values that are strings are encoded strings.
+        # Pull in extra properties provided only by synthetic enrollment validation events.
+        validation_info = None
+        if 'dump_start' in event_data:
+            validation_info = {
+                'is_active': event_data.get('is_active'),
+                'created': event_data.get('created'),
+                'dump_start': event_data.get('dump_start'),
+                'dump_end': event_data.get('dump_end'),
+            }
+
+        # Make sure key values that are strings are properly encoded.
         # Note, however, that user_id is an int.
         key = (unicode(course_id).encode('utf-8'), user_id)
-        yield key, (timestamp, event_type, is_active, created)
+        yield key, (timestamp, event_type, mode, validation_info)
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
@@ -124,11 +135,15 @@ class CourseEnrollmentValidationTask(
 class EnrollmentEvent(object):
     """The critical information necessary to process the event in the event stream."""
 
-    def __init__(self, timestamp, event_type, is_active, created):
+    def __init__(self, timestamp, event_type, mode, validation_info):
         self.timestamp = timestamp
         self.event_type = event_type
-        self.is_active = is_active
-        self.created = created
+        self.mode = mode
+        if validation_info:
+            self.is_active = validation_info['is_active']
+            self.created = validation_info['created']
+            self.dump_start = validation_info['dump_start']
+            self.dump_end = validation_info['dump_end']
 
 
 class ValidateEnrollmentForEvents(object):
@@ -156,12 +171,12 @@ class ValidateEnrollmentForEvents(object):
         # Create list of events in reverse order, as processing goes backwards
         # from validation states.
         self.sorted_events = [
-            EnrollmentEvent(timestamp, event_type, is_active, created)
-            for timestamp, event_type, is_active, created in sorted(events, reverse=True)
+            EnrollmentEvent(timestamp, event_type, mode, validation_info)
+            for timestamp, event_type, mode, validation_info in sorted(events, reverse=True)
         ]
 
         # Add a marker event to signal the beginning of the interval.
-        initial_state = EnrollmentEvent(None, SENTINEL, is_active=False, created=None)
+        initial_state = EnrollmentEvent(None, SENTINEL, mode=None, validation_info=None)
         self.sorted_events.append(initial_state)
 
     def missing_enrolled(self):
@@ -169,7 +184,7 @@ class ValidateEnrollmentForEvents(object):
         A synthetic event is yielded for each transition in user's events for which a real event is missing.
 
         Yields:
-            json-encoded string representing a synthetic event.
+            json-encoded string representing a synthetic event, or a tuple.
         """
         # The last element of the list is a placeholder indicating the beginning of the interval.
         # Don't process it.
@@ -475,11 +490,15 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         with metadata_target.open('r') as metadata_file:
             metadata = json.load(metadata_file)
             self.dump_start_time = metadata["start_time"]
-            log.debug("Found self.dump_start_time = %s", self.dump_start_time)
+            self.dump_end_time = metadata["end_time"]
+            log.debug("Found self.dump_start_time = %s  end_time = %s", self.dump_start_time, self.dump_end_time)
             self.dump_date = ''.join((self.dump_start_time.split('T')[0]).split('-'))
 
+        # Set the timestamp of all events to be the dump's end time.
+        # The events that are actually dumped are not within a transaction,
+        # so the actual event time may be earlier, anywhere up to the dump's start time.
         self.factory = SyntheticEventFactory(
-            timestamp=self.dump_start_time,
+            timestamp=self.dump_end_time,
             event_source='server',
             event_type=VALIDATED,
             synthesizer='enrollment_from_db',
@@ -487,11 +506,9 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         )
 
     def _get_metadata_target(self):
-        """TODO:"""
+        """Returns target for metadata file from the given dump."""
         # find the .metadata file in the source directory.
-        # return url_path_join(self.source_dir, ".metadata")
         metadata_path = url_path_join(self.source_dir, ".metadata")
-        print "calling metadata_target " + str(metadata_path)
         return get_target_from_url(metadata_path)
 
     def _mysql_datetime_to_isoformat(self, mysql_datetime):
@@ -512,7 +529,6 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         return timestamp
 
     def mapper(self, line):
-        # print "calling mapper:  " + line
         fields = line.split('\x01')
         if len(fields) != 6:
             log.error("Encountered bad input: %s", line)
@@ -540,6 +556,8 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
             'mode': mode,
             'is_active': is_active,
             'created': created,
+            'dump_start': self.dump_start_time,
+            'dump_end': self.dump_end_time,
         }
 
         # stuff for context:
