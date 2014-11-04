@@ -15,6 +15,8 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelecti
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
+from edx.analytics.tasks.util.datetime_util import add_microseconds
+
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +134,10 @@ class CourseEnrollmentValidationTask(
         return get_target_from_url(self.output_root)
 
 
+#from functools import total_ordering
+
+
+#@total_ordering
 class EnrollmentEvent(object):
     """The critical information necessary to process the event in the event stream."""
 
@@ -144,6 +150,29 @@ class EnrollmentEvent(object):
             self.created = validation_info['created']
             self.dump_start = validation_info['dump_start']
             self.dump_end = validation_info['dump_end']
+
+    def is_during_dump(self, timestamp):
+        """Determine if a timestamp occurs during the current event's dump (if any)."""
+        return (self.dump_start is not None and
+                self.dump_start < timestamp and
+                timestamp < self.dump_end)
+
+    STATE_MAP = {
+        VALIDATED: "validate",
+        ACTIVATED: "activate",
+        DEACTIVATED: "deactivate",
+        SENTINEL: "start",
+    }
+
+    def get_state_string(self):
+        """Output string representation of event type and is_active (if applies)."""
+        state_name = self.STATE_MAP.get(self.event_type, "unknown")
+        if self.event_type == VALIDATED:
+            state_name += "(active)" if self.is_active else "(inactive)"
+        return state_name
+
+    def __repr__(self):
+        return "{} at {} mode {}".format(self.get_state_string(), self.timestamp, self.mode)
 
 
 class ValidateEnrollmentForEvents(object):
@@ -175,9 +204,33 @@ class ValidateEnrollmentForEvents(object):
             for timestamp, event_type, mode, validation_info in sorted(events, reverse=True)
         ]
 
+        self.reorder_within_dumps()
+
         # Add a marker event to signal the beginning of the interval.
         initial_state = EnrollmentEvent(None, SENTINEL, mode=None, validation_info=None)
         self.sorted_events.append(initial_state)
+
+    def reorder_within_dumps(self):
+        """
+        Fix the timestamp of a validation event if an enrollment event occurs during the dump.
+        """
+        num_events = len(self.sorted_events) - 1
+        for index in range(num_events):
+            event = self.sorted_events[index]
+            prev_event = self.sorted_events[index + 1]
+            log.debug("Comparing %s with %s", event, prev_event)
+            if (event.event_type == VALIDATED and 
+                prev_event.event_type != VALIDATED and
+                event.is_during_dump(prev_event.timestamp)
+            ):
+                log.debug("Found event during dump: %s", prev_event)
+                if ((event.is_active and prev_event.event_type == DEACTIVATED) or
+                    (not event.is_active and prev_event.event_type == ACTIVATED)):
+                    # Change the timestamp of the validation event to precede
+                    # the other event, and swap them.
+                    event.timestamp = add_microseconds(prev_event.timestamp, -1)
+                    self.sorted_events[index] = prev_event
+                    self.sorted_events[index + 1] = event
 
     def missing_enrolled(self):
         """
@@ -208,7 +261,7 @@ class ValidateEnrollmentForEvents(object):
         return all_missing_events
 
     def create_tuple(self, timestamp, event_type, reason, after=None, before=None):
-        """TODO"""
+        """Returns a tuple representation of the output, for TSV-based debugging."""
         datestamp = eventlog.timestamp_to_datestamp(timestamp)
         return datestamp, (self.course_id, self.user_id, timestamp, event_type, reason, after, before)
 
@@ -218,6 +271,7 @@ class ValidateEnrollmentForEvents(object):
         event_data = {
             'course_id': self.course_id,
             'user_id': self.user_id,
+            # TODO: add the correct mode here.  (Should be passed in, with a default.)
             # 'mode': mode,
         }
 
@@ -243,29 +297,6 @@ class ValidateEnrollmentForEvents(object):
         datestamp = eventlog.timestamp_to_datestamp(timestamp)
         return datestamp, json.dumps(event)
 
-    def _add_microseconds(self, timestamp, microseconds):
-        """
-        Add given microseconds to a timestamp.
-
-        Input and output are timestamps as ISO format strings.  Microseconds can be negative.
-        """
-        # First try to parse the timestamp string and do simple math, to avoid
-        # the high cost of using strptime to parse in most cases.
-        timestamp_base, _period, microsec_base = timestamp.partition('.')
-        if not microsec_base:
-            microsec_base = '0'
-            timestamp = '{datetime}.000000'.format(datetime=timestamp)
-        microsec_int = int(microsec_base) + microseconds
-        if microsec_int >= 0 and microsec_int < 1000000:
-            return "{}.{}".format(timestamp_base, str(microsec_int).zfill(6))
-
-        # If there's a carry, then just use the datetime library.
-        parsed_timestamp = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f')
-        newtimestamp = (parsed_timestamp + datetime.timedelta(microseconds=microseconds)).isoformat()
-        if '.' not in newtimestamp:
-            newtimestamp = '{datetime}.000000'.format(datetime=newtimestamp)
-        return newtimestamp
-
     def _get_fake_timestamp(self, after, before):
         """
         Pick a time in an interval.
@@ -277,30 +308,16 @@ class ValidateEnrollmentForEvents(object):
         # Just pick the time at the beginning of the interval.
         if after:
             # Add a microsecond to 'after'
-            return self._add_microseconds(after, 1)
+            return add_microseconds(after, 1)
         else:
             # Subtract a microsecond from 'before'
-            return self._add_microseconds(before, -1)
-
-    STATE_MAP = {
-        VALIDATED: "validate",
-        ACTIVATED: "activate",
-        DEACTIVATED: "deactivate",
-        SENTINEL: "start",
-    }
-
-    def _get_state_string(self, event):
-        """TODO"""
-        state_name = self.STATE_MAP.get(event.event_type, "unknown")
-        if event.event_type == VALIDATED:
-            state_name += "(active)" if event.is_active else "(inactive)"
-        return state_name
+            return add_microseconds(before, -1)
 
     def _get_transition_string(self, prev_event, curr_event):
         """TODO"""
         return "{prev} => {curr}".format(
-            prev=self._get_state_string(prev_event),
-            curr=self._get_state_string(curr_event),
+            prev=prev_event.get_state_string(),
+            curr=curr_event.get_state_string(),
         )
 
     def check_transition(self, prev_event, curr_event):

@@ -12,6 +12,7 @@ from edx.analytics.tasks.enrollment_validation import (
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.datetime_util import add_microseconds
 
 
 class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
@@ -168,9 +169,9 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
     def _deactivated(self, timestamp):
         return (timestamp, DEACTIVATED, self.mode, None)
 
-    def _validated(self, timestamp, is_active, created, 
-                   dump_start='2014-10-08T04:52:48.154228',
-                   dump_end='2014-10-08T04:57:38.145282'):
+    def _validated(self, timestamp, is_active, created, dump_duration_in_secs=300):
+        dump_end = timestamp
+        dump_start = add_microseconds(timestamp, int(dump_duration_in_secs) * -100000)
         validation_info = {
             'is_active': is_active,
             'created':  created,
@@ -303,6 +304,24 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._validated('2013-09-01T00:00:01.123456', False, '2013-04-01T00:00:01.123456'),
             self._deactivated('2013-05-01T00:00:01.123456'),
             self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_unenroll_during_dump(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
+            self._deactivated('2013-09-01T00:00:00.123456'),
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_unenroll_during_dump_reverse(self):
+        inputs = [
+            self._activated('2013-04-01T00:00:01.123456'),
+            self._deactivated('2013-09-01T00:00:00.123456'),
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
         self.check_output(inputs, tuple())
@@ -594,3 +613,16 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
               '2013-09-01T00:00:01.123456', '2013-10-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
+
+    def test_unenroll_during_dump(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
+            self._deactivated('2013-09-01T00:00:00.123456'),
+        ]
+        expected = (
+            ('2013-04-01',
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(active)",
+              '2013-04-01T00:00:01.123456', '2013-09-01T00:00:00.123455')),
+        )
+        self.check_output(inputs, expected)
+
