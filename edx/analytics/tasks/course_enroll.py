@@ -319,6 +319,9 @@ def get_explicit_enrollment_output(line):
     if user_id is None:
         log.error("encountered explicit enrollment event with no user_id: %s", event)
         return None
+    elif "anon__" in user_id and len(user_id) == 30:
+        print "ANON USER: " + user_i
+        return None
 
     # For now, ignore the enrollment 'mode' (e.g. 'honor').
 
