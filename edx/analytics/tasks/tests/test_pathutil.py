@@ -76,7 +76,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
@@ -94,17 +94,43 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(interval=Month.parse('2014-03'))
         self.assertEquals(task.source, ('s3://fake/input/', 's3://fake/input2/'))
 
+    def test_default_pattern(self):
+        task = EventLogSelectionTask(interval=Month.parse('2014-03'))
+        self.assertEquals(task.pattern, (
+            r'.*tracking.log-(?P<date>\d{8}).*\.gz',
+            r'.*tracking.notalog-(?P<date>\d{8}).*\.gz',
+        ))
+
     def test_filtering_of_urls(self):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
         self.assert_only_matched(task, [
             'FakeServerGroup/tracking.log-20140318.gz',
             'FakeServerGroup/tracking.log-20140319-1395256622.gz',
+        ])
+
+    def test_multiple_filtering_of_urls(self):
+        task = EventLogSelectionTask(
+            source=self.SOURCE,
+            interval=Month.parse('2014-03'),
+            pattern=[
+                r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+                r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+                r'.*tracking_\d{3,5}\.log\.gz$',
+            ],
+            expand_interval=datetime.timedelta(0),
+        )
+
+        self.assert_only_matched(task, [
+            'FakeServerGroup/tracking.log-20140318.gz',
+            'FakeServerGroup/tracking.log-20140319-1395256622.gz',
+            'FakeEdgeServerGroup/tracking.log-20140324-1395670621.gz',
+            'FakeOldServerGroup3/tracking_14602.log.gz',
         ])
 
     def assert_only_matched(self, task, paths):
@@ -123,7 +149,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(0),
         )
 
@@ -135,7 +161,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
-            pattern=r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz',
+            pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
             expand_interval=datetime.timedelta(1),
         )
 
@@ -151,12 +177,12 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         task = EventLogSelectionTask(
             interval=Month.parse('2014-03')
         )
-        self.assertEquals(task.pattern, 'foobar')
+        self.assertEquals(task.pattern, ('foobar',))
 
-    @with_luigi_config('event-logs', 'pattern', 'foobar')
+    @with_luigi_config('event-logs', 'pattern', ['foobar'])
     def test_pattern_override(self):
         task = EventLogSelectionTask(
             interval=Month.parse('2014-03'),
-            pattern='baz'
+            pattern=['baz']
         )
-        self.assertEquals(task.pattern, 'baz')
+        self.assertEquals(task.pattern, ('baz',))
