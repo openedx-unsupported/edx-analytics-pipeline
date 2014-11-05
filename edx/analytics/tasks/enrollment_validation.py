@@ -13,8 +13,9 @@ from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduce
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
+from edx.analytics.tasks.util.datetime_util import add_microseconds, mysql_datetime_to_isoformat
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
-from edx.analytics.tasks.util.datetime_util import add_microseconds
+from edx.analytics.tasks.util.hive import WarehouseMixin
 
 
 log = logging.getLogger(__name__)
@@ -530,23 +531,6 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         metadata_path = url_path_join(self.source_dir, ".metadata")
         return get_target_from_url(metadata_path)
 
-    def _mysql_datetime_to_isoformat(self, mysql_datetime):
-        """
-        Convert mysql datetime strings to isoformat standard.
-
-        Mysql outputs strings of the form '2012-07-25 12:26:22.0'.
-        Log files use isoformat strings for sorting.
-        """
-        # TODO: move this into utility, or into mysql-support file.
-        date_parts = [int(d) for d in re.split(r'[:\-\. ]', mysql_datetime)]
-        if len(date_parts) > 6:
-            tenths = date_parts[6]
-            date_parts[6] = tenths * 100000
-        timestamp = datetime.datetime(*date_parts).isoformat()
-        if '.' not in timestamp:
-            timestamp = '{datetime}.000000'.format(datetime=timestamp)
-        return timestamp
-
     def mapper(self, line):
         fields = line.split('\x01')
         if len(fields) != 6:
@@ -557,7 +541,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
 
         # `created` is of the form '2012-07-25 12:26:22.0', coming out of
         # mysql.  Convert it to isoformat.
-        created = self._mysql_datetime_to_isoformat(mysql_created)
+        created = mysql_datetime_to_isoformat(mysql_created)
         # `is_active` should be a boolean and `user_id` is an int.
         is_active = (mysql_is_active == "true")
         user_id = int(user_id_string)
@@ -565,7 +549,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         # Note that we do not have several standard properties that we
         # might expect in such an event.  These include a username,
         # host, session_id, agent.  These values will be stubbed by
-        # the factory.
+        # the factory as empty strings.
 
         course_id = encoded_course_id.decode('utf-8')
         # data for the particular type of event:
@@ -609,11 +593,10 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         return url_path_join(self.output_root, filename)
 
 
-class CreateAllEnrollmentValidationEventsTask(MapReduceJobTaskMixin, luigi.WrapperTask):
+class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
     """
     TODO:
     """
-    source_root = luigi.Parameter()
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
 
@@ -623,6 +606,8 @@ class CreateAllEnrollmentValidationEventsTask(MapReduceJobTaskMixin, luigi.Wrapp
         """Internal method to actually calculate required tasks once."""
         start_date = self.interval.date_a
         end_date = self.interval.date_b
+        table_name = "student_courseenrollment"
+        source_root = url_path_join(self.warehouse_path, table_name)
 
         current_date = start_date
         while current_date < end_date:
@@ -630,7 +615,7 @@ class CreateAllEnrollmentValidationEventsTask(MapReduceJobTaskMixin, luigi.Wrapp
             current_date += datetime.timedelta(days=1)
 
             src_datestring = "dt={}".format(datestring)
-            source_dir = url_path_join(self.source_root, src_datestring)
+            source_dir = url_path_join(source_root, src_datestring)
             target = get_target_from_url(source_dir)
             if target.exists():
                 output_dir = url_path_join(self.output_root, datestring)

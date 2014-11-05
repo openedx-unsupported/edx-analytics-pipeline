@@ -1,8 +1,6 @@
 """Utility functions for manipulating datetime information."""
 import datetime
-import logging
-
-log = logging.getLogger(__name__)
+import re
 
 
 def add_microseconds(timestamp, microseconds):
@@ -26,5 +24,22 @@ def add_microseconds(timestamp, microseconds):
     newtimestamp = (parsed_timestamp + datetime.timedelta(microseconds=microseconds)).isoformat()
     if '.' not in newtimestamp:
         newtimestamp = '{datetime}.000000'.format(datetime=newtimestamp)
-    log.debug("Adding %d microseconds to timestamp %s yields %s", microseconds, timestamp, newtimestamp)
+
     return newtimestamp
+
+
+def mysql_datetime_to_isoformat(mysql_datetime):
+    """
+    Convert mysql datetime strings to isoformat standard.
+
+    Mysql outputs strings of the form '2012-07-25 12:26:22.0'.
+    Log files use isoformat strings for sorting.
+    """
+    date_parts = [int(d) for d in re.split(r'[:\-\. ]', mysql_datetime)]
+    if len(date_parts) > 6:
+        tenths = date_parts[6]
+        date_parts[6] = tenths * 100000
+    timestamp = datetime.datetime(*date_parts).isoformat()
+    if '.' not in timestamp:
+        timestamp = '{datetime}.000000'.format(datetime=timestamp)
+    return timestamp
