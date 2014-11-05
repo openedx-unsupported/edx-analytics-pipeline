@@ -319,10 +319,11 @@ def get_explicit_enrollment_output(line):
     if user_id is None:
         log.error("encountered explicit enrollment event with no user_id: %s", event)
         return None
-    elif "anon__" in user_id and len(user_id) == 30:
-        print "ANON USER: " + user_i
+
+    username = event_data.get('username')
+    if username is None or ("anon__" in username and len(username) == 30):
+        log.debug('encountered anonymous user, discounting from enrollment: ' + username
         return None
 
     # For now, ignore the enrollment 'mode' (e.g. 'honor').
-
     return (course_id, user_id), (timestamp, action_value)
