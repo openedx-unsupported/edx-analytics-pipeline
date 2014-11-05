@@ -320,9 +320,10 @@ def get_explicit_enrollment_output(line):
         log.error("encountered explicit enrollment event with no user_id: %s", event)
         return None
 
+    # Get the username from the data and check for direct access:
     username = event_data.get('username')
     if username is None or ("anon__" in username and len(username) == 30):
-        log.debug('encountered anonymous user, discounting from enrollment: ' + username
+        log.debug('encountered anonymous user, discounting from enrollment: ' + username)
         return None
 
     # For now, ignore the enrollment 'mode' (e.g. 'honor').
