@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 def add_microseconds(timestamp, microseconds):
     """
     Add given microseconds to a timestamp.
-    
+
     Input and output are timestamps as ISO format strings.  Microseconds can be negative.
     """
     # First try to parse the timestamp string and do simple math, to avoid
@@ -28,4 +28,3 @@ def add_microseconds(timestamp, microseconds):
         newtimestamp = '{datetime}.000000'.format(datetime=newtimestamp)
     log.debug("Adding %d microseconds to timestamp %s yields %s", microseconds, timestamp, newtimestamp)
     return newtimestamp
-

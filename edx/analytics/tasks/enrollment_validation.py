@@ -8,7 +8,6 @@ import os
 import re
 
 import luigi
-from luigi.date_interval import DateInterval
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
@@ -218,14 +217,17 @@ class ValidateEnrollmentForEvents(object):
         for index in range(num_events):
             event = self.sorted_events[index]
             prev_event = self.sorted_events[index + 1]
-            log.debug("Comparing %s with %s", event, prev_event)
-            if (event.event_type == VALIDATED and 
+            is_nonvalidate_during_validate = (
+                event.event_type == VALIDATED and
                 prev_event.event_type != VALIDATED and
                 event.is_during_dump(prev_event.timestamp)
-            ):
-                log.debug("Found event during dump: %s", prev_event)
-                if ((event.is_active and prev_event.event_type == DEACTIVATED) or
-                    (not event.is_active and prev_event.event_type == ACTIVATED)):
+            )
+            if is_nonvalidate_during_validate:
+                is_active_is_inconsistent = (
+                    (event.is_active and prev_event.event_type == DEACTIVATED) or
+                    (not event.is_active and prev_event.event_type == ACTIVATED)
+                )
+                if is_active_is_inconsistent:
                     # Change the timestamp of the validation event to precede
                     # the other event, and swap them.
                     event.timestamp = add_microseconds(prev_event.timestamp, -1)
@@ -287,7 +289,7 @@ class ValidateEnrollmentForEvents(object):
             'reason': reason,
         }
 
-        event = self.factory.create_event(event_data, **event_properties)
+        event = self.factory.create_event_dict(event_data, **event_properties)
         synthesized = event['synthesized']
         if after:
             synthesized['after_time'] = after
@@ -590,7 +592,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         # (Note that if we want everything zipped into a single file,
         # then we can just pass a single dummy value for the key instead of
         # breaking the output out by course_id.)
-        yield encoded_course_id, json.dumps(event)
+        yield encoded_course_id, event
 
     def multi_output_reducer(self, _key, values, output_file):
         with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:

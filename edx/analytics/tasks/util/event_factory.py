@@ -1,5 +1,6 @@
 """Define factory class for creating synthetic events."""
 import datetime
+import json
 
 
 class SyntheticEventFactory(object):
@@ -13,11 +14,11 @@ class SyntheticEventFactory(object):
         self.user_id = kwargs.get('user_id', '')
         # define default values for event:
         self.username = kwargs.get('username', '')
-        self.hostname = kwargs.get('host', 'test_host')
+        self.hostname = kwargs.get('host', '')
         self.event_source = kwargs.get('event_source', 'server')
         self.event_type = kwargs.get('event_type', 'UNKNOWN')
         self.timestamp = kwargs.get('timestamp', '2012-01-01T00:00.000')
-        self.ip_address = kwargs.get('ip', '127.0.0.1')
+        self.ip_address = kwargs.get('ip', '')
         self.synthesizer = kwargs.get('synthesizer', 'UNKNOWN')
         self.reason = kwargs.get('reason', '')
 
@@ -49,7 +50,7 @@ class SyntheticEventFactory(object):
         return synthesized
 
     def create_event_dict(self, event_data_dict, **kwargs):
-        """Create an event log with test values, as a dict."""
+        """Create a synthetic event as a dict."""
         # Define default values for event log entry.
         event_dict = {
             "username": self.username,
@@ -60,7 +61,7 @@ class SyntheticEventFactory(object):
             "time": "{0}+00:00".format(self.timestamp),
             "ip": self.ip_address,
             "event": event_data_dict,
-            "agent": "blah, blah, blah",
+            "agent": "",
             "page": None,
             "synthesized": self._create_event_synthesized(**kwargs),
         }
@@ -68,4 +69,5 @@ class SyntheticEventFactory(object):
         return event_dict
 
     def create_event(self, event_data_dict, **kwargs):
-        return self.create_event_dict(event_data_dict, **kwargs)
+        """Create a synthetic event as a json-encoded dict."""
+        return json.dumps(self.create_event_dict(event_data_dict, **kwargs))

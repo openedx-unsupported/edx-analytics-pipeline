@@ -117,7 +117,7 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
     def test_good_validation_event(self):
         validation_info = {
             'is_active': True,
-            'created':  '2012-07-24T12:37:32.000000',
+            'created': '2012-07-24T12:37:32.000000',
             'dump_start': '2014-10-08T04:52:48.154228',
             'dump_end': '2014-10-08T04:57:38.145282',
         }
@@ -164,17 +164,20 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
         self.task.init_local()
 
     def _activated(self, timestamp):
+        """Creates an ACTIVATED event."""
         return (timestamp, ACTIVATED, self.mode, None)
 
     def _deactivated(self, timestamp):
+        """Creates a DEACTIVATED event."""
         return (timestamp, DEACTIVATED, self.mode, None)
 
     def _validated(self, timestamp, is_active, created, dump_duration_in_secs=300):
+        """Creates a VALIDATED event."""
         dump_end = timestamp
         dump_start = add_microseconds(timestamp, int(dump_duration_in_secs) * -100000)
         validation_info = {
             'is_active': is_active,
-            'created':  created,
+            'created': created,
             'dump_start': dump_start,
             'dump_end': dump_end,
         }
@@ -625,4 +628,3 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:00.123455')),
         )
         self.check_output(inputs, expected)
-
