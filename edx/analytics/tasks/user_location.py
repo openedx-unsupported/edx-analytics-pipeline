@@ -46,7 +46,7 @@ class BaseUserLocationTask(GeolocationMixin):
 
     """
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
 
@@ -351,7 +351,7 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
     """
 
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     include = luigi.Parameter(is_list=True, default=('*',))
     manifest = luigi.Parameter(default=None)
     base_input_format = luigi.Parameter(default=None)
