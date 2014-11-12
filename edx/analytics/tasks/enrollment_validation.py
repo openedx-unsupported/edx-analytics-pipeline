@@ -95,9 +95,14 @@ class CourseEnrollmentValidationTask(
             return
 
         mode = event_data.get('mode')
+        # TODO: update synthetic events with mode information.
+        # (For now, permit synthetic events to be processed without mode info for validation purposes.)
         if mode is None:
-            log.error("encountered explicit enrollment event with no mode: %s", event)
-            return
+            if 'synthesized' in event:
+                mode = "honor"
+            else:
+                log.error("encountered explicit enrollment event with no mode: %s", event)
+                return
 
         # Pull in extra properties provided only by synthetic enrollment validation events.
         validation_info = None

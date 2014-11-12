@@ -13,6 +13,7 @@ from edx.analytics.tasks.enrollment_validation import (
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.util.datetime_util import add_microseconds
+from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 
 
 class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
@@ -33,35 +34,29 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.mode = 'honor'
 
+        self.factory = SyntheticEventFactory(
+            timestamp=self.timestamp,
+            event_source='server',
+            event_type=ACTIVATED,
+            synthesizer='enrollment_from_db',
+            reason='db entry',
+            user_id=self.user_id,
+            course_id=self.course_id,
+            org_id=self.org_id,
+        )
+
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
         return json.dumps(self._create_event_dict(**kwargs))
 
     def _create_event_dict(self, **kwargs):
-        """Create an event log with test values, as a dict."""
-        # Define default values for event log entry.
-        event_dict = {
-            "username": "test_user",
-            "host": "test_host",
-            "event_source": "server",
-            "event_type": "edx.course.enrollment.activated",
-            "context": {
-                "course_id": self.course_id,
-                "org_id": self.org_id,
-                "user_id": self.user_id,
-            },
-            "time": "{0}+00:00".format(self.timestamp),
-            "ip": "127.0.0.1",
-            "event": {
-                "course_id": self.course_id,
-                "user_id": self.user_id,
-                "mode": self.mode,
-            },
-            "agent": "blah, blah, blah",
-            "page": None
+        event_data = {
+            'course_id': self.course_id,
+            'user_id': self.user_id,
+            'mode': self.mode,
         }
-        event_dict.update(**kwargs)
-        return event_dict
+        event = self.factory.create_event_dict(event_data, **kwargs)
+        return event
 
     def assert_no_output_for(self, line):
         """Assert that an input line generates no output."""
