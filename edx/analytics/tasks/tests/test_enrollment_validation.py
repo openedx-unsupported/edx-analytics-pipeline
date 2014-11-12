@@ -137,7 +137,7 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
     """Provide common methods for testing CourseEnrollmentValidationTask reducer."""
 
     def setUp(self):
-        self.mode = 'Honor'
+        self.mode = 'honor'
 
     @property
     def key(self):
@@ -206,7 +206,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(active)",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(active)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -219,10 +219,10 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(inactive)",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(inactive)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123457', DEACTIVATED, "start => validate(inactive)",
+             ('2013-04-01T00:00:01.123457', DEACTIVATED, "honor", "start => validate(inactive)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -243,7 +243,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => deactivate",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => deactivate",
               '2013-04-01T00:00:01.123456', '2013-05-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -256,7 +256,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01', ACTIVATED, "start => deactivate",
+             ('2013-04-01T00:00:01', ACTIVATED, "honor", "start => deactivate",
               '2013-04-01T00:00:01', '2013-05-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -268,7 +268,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-05-01',
-             ('2013-05-01T00:00:01.123455', ACTIVATED, "start => deactivate",
+             ('2013-05-01T00:00:01.123455', ACTIVATED, "honor", "start => deactivate",
               None, '2013-05-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -280,7 +280,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-05-01',
-             ('2013-05-01T00:00:00.999999', ACTIVATED, "start => deactivate",
+             ('2013-05-01T00:00:00.999999', ACTIVATED, "honor", "start => deactivate",
               None, '2013-05-01T00:00:01.000000')),
         )
         self.check_output(inputs, expected)
@@ -292,7 +292,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-05-01',
-             ('2013-05-01T00:00:00.999999', ACTIVATED, "start => deactivate",
+             ('2013-05-01T00:00:00.999999', ACTIVATED, "honor", "start => deactivate",
               None, '2013-05-01T00:00:01')),
         )
         self.check_output(inputs, expected)
@@ -352,7 +352,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(active)",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(active)",
               '2013-04-01T00:00:01.123456', '2013-07-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -377,7 +377,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-08-01',
-             ('2013-08-01T00:00:01.123457', ACTIVATED, "validate(inactive) => validate(active)",
+             ('2013-08-01T00:00:01.123457', ACTIVATED, "honor", "validate(inactive) => validate(active)",
               '2013-08-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -391,7 +391,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-08-01',
-             ('2013-08-01T00:00:01.123457', DEACTIVATED, "validate(active) => validate(inactive)",
+             ('2013-08-01T00:00:01.123457', DEACTIVATED, "honor", "validate(active) => validate(inactive)",
               '2013-08-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -405,7 +405,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-08-01',
-             ('2013-08-01T00:00:01.123457', DEACTIVATED, "validate(active) => activate",
+             ('2013-08-01T00:00:01.123457', DEACTIVATED, "honor", "validate(active) => activate",
               '2013-08-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -418,7 +418,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123457', DEACTIVATED, "activate => validate(inactive)",
+             ('2013-04-01T00:00:01.123457', DEACTIVATED, "honor", "activate => validate(inactive)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -431,7 +431,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:02.000000', DEACTIVATED, "activate => validate(inactive)",
+             ('2013-04-01T00:00:02.000000', DEACTIVATED, "honor", "activate => validate(inactive)",
               '2013-04-01T00:00:01.999999', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -445,7 +445,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-08-01',
-             ('2013-08-01T00:00:01.123457', ACTIVATED, "deactivate => validate(active)",
+             ('2013-08-01T00:00:01.123457', ACTIVATED, "honor", "deactivate => validate(active)",
               '2013-08-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -459,7 +459,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-08-01',
-             ('2013-08-01T00:00:01.123457', ACTIVATED, "deactivate => deactivate",
+             ('2013-08-01T00:00:01.123457', ACTIVATED, "honor", "deactivate => deactivate",
               '2013-08-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -472,7 +472,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-01-01',
-             ('2013-01-01T00:00:01.123457', DEACTIVATED, "activate => activate",
+             ('2013-01-01T00:00:01.123457', DEACTIVATED, "honor", "activate => activate",
               '2013-01-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -487,7 +487,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         expected = (
             ('2013-09-01',
-             ('2013-09-01T00:00:01.123457', ACTIVATED, "validate(inactive) => deactivate",
+             ('2013-09-01T00:00:01.123457', ACTIVATED, "honor", "validate(inactive) => deactivate",
               '2013-09-01T00:00:01.123456', '2013-10-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -539,7 +539,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(active)",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(active)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -570,7 +570,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         # self.check_output(inputs, tuple())
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123457', DEACTIVATED, "activate => validate(inactive)",
+             ('2013-04-01T00:00:01.123457', DEACTIVATED, "honor", "activate => validate(inactive)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -583,7 +583,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => deactivate",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => deactivate",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -607,7 +607,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         ]
         expected = (
             ('2013-09-01',
-             ('2013-09-01T00:00:01.123457', ACTIVATED, "validate(inactive) => deactivate",
+             ('2013-09-01T00:00:01.123457', ACTIVATED, "honor", "validate(inactive) => deactivate",
               '2013-09-01T00:00:01.123456', '2013-10-01T00:00:01.123456')),
         )
         self.check_output(inputs, expected)
@@ -619,7 +619,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         ]
         expected = (
             ('2013-04-01',
-             ('2013-04-01T00:00:01.123456', ACTIVATED, "start => validate(active)",
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(active)",
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:00.123455')),
         )
         self.check_output(inputs, expected)

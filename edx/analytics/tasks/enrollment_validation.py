@@ -24,6 +24,7 @@ DEACTIVATED = 'edx.course.enrollment.deactivated'
 ACTIVATED = 'edx.course.enrollment.activated'
 VALIDATED = 'edx.course.enrollment.validated'
 SENTINEL = 'edx.course.enrollment.sentinel'
+MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
 class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -44,16 +45,20 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
     # location to write output
     output_root = luigi.Parameter()
 
-    # flag indicating whether to output synthetic events or tuples
+    # Flag indicating whether to output synthetic events or tuples
     event_output = luigi.BooleanParameter(default=False)
 
     # If set, generates events that occur before the start of the specified interval.
     # Default is incremental validation.
     generate_before = luigi.BooleanParameter(default=False)
 
-    # if set, expects that every user/course combination will have a validation event
-    # TODO: implement.  Decide what happens if event is missing. (Output missing validation event.)
-    require_validation = luigi.BooleanParameter(default=False)
+    # If set, events are suppressed for transitions that don't result in a
+    # change in enrollment state.  (For example, two activations in a row.)
+    include_nonstate_changes = luigi.BooleanParameter(default=True)
+
+    # If set, events that would be generated before this timestamp would instead
+    # be assigned this timestamp.
+    earliest_timestamp = luigi.Parameter(default=None)
 
 
 class CourseEnrollmentValidationTask(
@@ -125,9 +130,10 @@ class CourseEnrollmentValidationTask(
 
         options = {
             'event_output': self.event_output,
-            'require_validation': self.require_validation,
+            'include_nonstate_changes': self.include_nonstate_changes,
             'generate_before': self.generate_before,
             'lower_bound_date_string': self.lower_bound_date_string,
+            'earliest_timestamp': self.earliest_timestamp,
         }
         event_stream_processor = ValidateEnrollmentForEvents(
             course_id, user_id, self.interval, values, **options
@@ -139,10 +145,6 @@ class CourseEnrollmentValidationTask(
         return get_target_from_url(self.output_root)
 
 
-#from functools import total_ordering
-
-
-#@total_ordering
 class EnrollmentEvent(object):
     """The critical information necessary to process the event in the event stream."""
 
@@ -189,9 +191,10 @@ class ValidateEnrollmentForEvents(object):
         self.interval = interval
         self.creation_timestamp = None
         self.event_output = kwargs.get('event_output')
-        self.require_validation = kwargs.get('require_validation')
+        self.include_nonstate_changes = kwargs.get('include_nonstate_changes')
         self.generate_before = kwargs.get('generate_before')
         self.lower_bound_date_string = kwargs.get('lower_bound_date_string')
+        self.earliest_timestamp = kwargs.get('earliest_timestamp')
 
         if self.event_output:
             self.factory = SyntheticEventFactory(
@@ -212,7 +215,7 @@ class ValidateEnrollmentForEvents(object):
         self.reorder_within_dumps()
 
         # Add a marker event to signal the beginning of the interval.
-        initial_state = EnrollmentEvent(None, SENTINEL, mode=None, validation_info=None)
+        initial_state = EnrollmentEvent(None, SENTINEL, mode='honor', validation_info=None)
         self.sorted_events.append(initial_state)
 
     def reorder_within_dumps(self):
@@ -233,14 +236,16 @@ class ValidateEnrollmentForEvents(object):
                     (event.is_active and prev_event.event_type == DEACTIVATED) or
                     (not event.is_active and prev_event.event_type == ACTIVATED)
                 )
-                if is_active_is_inconsistent:
+                mode_is_inconsistent = (event.mode != prev_event.mode and prev_event.event_type == MODE_CHANGED)
+                
+                if is_active_is_inconsistent or mode_is_inconsistent:
                     # Change the timestamp of the validation event to precede
                     # the other event, and swap them.
                     event.timestamp = add_microseconds(prev_event.timestamp, -1)
                     self.sorted_events[index] = prev_event
                     self.sorted_events[index + 1] = event
 
-    def missing_enrolled(self):
+    def original_missing_enrolled(self):
         """
         A synthetic event is yielded for each transition in user's events for which a real event is missing.
 
@@ -264,23 +269,41 @@ class ValidateEnrollmentForEvents(object):
             if missing_events:
                 all_missing_events.extend(missing_events)
 
-            if self.require_validation and not validation_found:
-                log.error("No validation event found for user %s in course %s", self.user_id, self.course_id)
         return all_missing_events
 
-    def create_tuple(self, timestamp, event_type, reason, after=None, before=None):
+    def missing_enrolled(self):
+        """
+        A synthetic event is yielded for each transition in user's events for which a real event is missing.
+
+        Yields:
+            json-encoded string representing a synthetic event, or a tuple.
+        """
+        # The last element of the list is a placeholder indicating the beginning of the interval.
+        # Don't process it.
+        num_events = len(self.sorted_events) - 1
+
+        self.initialize_state(self.sorted_events[0])
+        all_missing_events = []
+        for index in range(num_events):
+            event = self.sorted_events[index + 1]
+            missing_events = self.check_event(event)
+            if missing_events:
+                all_missing_events.extend(missing_events)
+
+        return all_missing_events
+
+    def create_tuple(self, timestamp, event_type, mode, reason, after=None, before=None):
         """Returns a tuple representation of the output, for TSV-based debugging."""
         datestamp = eventlog.timestamp_to_datestamp(timestamp)
-        return datestamp, (self.course_id, self.user_id, timestamp, event_type, reason, after, before)
+        return datestamp, (self.course_id, self.user_id, timestamp, event_type, mode, reason, after, before)
 
-    def synthetic_event(self, timestamp, event_type, reason, after=None, before=None):
+    def synthetic_event(self, timestamp, event_type, mode, reason, after=None, before=None):
         """Create a synthetic event."""
         # data specific to course enrollment events:
         event_data = {
             'course_id': self.course_id,
             'user_id': self.user_id,
-            # TODO: add the correct mode here.  (Should be passed in, with a default.)
-            # 'mode': mode,
+            'mode': mode,
         }
 
         event_properties = {
@@ -305,6 +328,13 @@ class ValidateEnrollmentForEvents(object):
         datestamp = eventlog.timestamp_to_datestamp(timestamp)
         return datestamp, json.dumps(event)
 
+    def _truncate_timestamp(self, timestamp):
+        """Makes sure that timestamp is no earlier than limit specified, if any."""
+        if self.earliest_timestamp and timestamp < self.earliest_timestamp:
+            return self.earliest_timestamp
+        else:
+            return timestamp
+
     def _get_fake_timestamp(self, after, before):
         """
         Pick a time in an interval.
@@ -328,6 +358,187 @@ class ValidateEnrollmentForEvents(object):
             curr=curr_event.get_state_string(),
         )
 
+    def _get_reason_string(self, prev_event, curr_event_string):
+        """TODO"""
+        return "{prev} => {curr}".format(
+            prev=prev_event.get_state_string(),
+            curr=curr_event_string,
+        )
+
+
+    def initialize_state(self, event):
+        """Define initial values for validation state machine."""
+        self.update_state(event)
+        # If the most-recent event is a mode-change event, then we don't
+        # know from it what the activation is.
+        if event.event_type == MODE_CHANGED:
+            self.activation_type = None
+
+
+    def update_state(self, event):
+        """Define current values for validation state machine."""
+        # Some events define an activation state.
+        if event.event_type != MODE_CHANGED:
+            self.activation_type = event.event_type
+            self.activation_state = event.get_state_string()
+            self.activation_timestamp = event.timestamp
+
+        # All events set mode.
+        self.current_mode = event.mode
+        self.mode_type = event.event_type
+        self.mode_state = event.get_state_string()
+        self.mode_timestamp = event.timestamp
+
+        # Only validation events define a created timestamp and activation state.
+        if event.event_type == VALIDATED:
+            self.currently_active = event.is_active
+
+            if self.creation_timestamp:
+                # compare with previously-viewed (i.e. later-in-time) validation:
+                if event.created != self.creation_timestamp:
+                    log.error("Encountered validation with different creation timestamp: %s => %s",
+                              event.created, self.creation_timestamp)
+            # Use the earliest validation:
+            self.creation_timestamp = event.created
+
+    def check_event(self, prev_event):
+        """Compare a previous event with current state generated from later events. """
+        prev_type = prev_event.event_type
+        prev_mode = prev_event.mode
+
+        reason = self._get_reason_string(prev_event, self.activation_state)
+        prev = prev_event.timestamp
+        curr = self.activation_timestamp
+        timestamp = self._get_fake_timestamp(prev, curr)
+
+        missing = []
+        if prev_type == ACTIVATED:
+            if self.activation_type is None:
+                pass
+            elif self.activation_type == ACTIVATED and self.include_nonstate_changes:
+                # Duplicate activate event.
+                missing.append(self.generate_output(timestamp, DEACTIVATED, prev_mode, reason, prev, curr))
+            elif self.activation_type == DEACTIVATED:
+                pass  # normal case
+            elif self.activation_type == VALIDATED and self.currently_active:
+                pass  # normal case
+            elif self.activation_type == VALIDATED and not self.currently_active:
+                # missing deactivate event (a/vi)
+                missing.append(self.generate_output(timestamp, DEACTIVATED, prev_mode, reason, prev, curr))
+
+            # Check for mode change as well:
+            if prev_event.mode != self.current_mode:
+                if missing:
+                    prev = timestamp 
+                curr = self.mode_timestamp
+                timestamp = self._get_fake_timestamp(prev, curr)
+                reason = self._get_reason_string(prev_event, self.mode_state)
+                missing.append(self.generate_output(timestamp, MODE_CHANGED, self.current_mode, reason, timestamp, curr))
+
+        elif prev_type == DEACTIVATED:
+            if self.activation_type is None:
+                pass  # Last event defining activation
+            elif self.activation_type == ACTIVATED:
+                pass  # normal case
+            elif self.activation_type == DEACTIVATED and self.include_nonstate_changes:
+                # Duplicate deactivate event.
+                missing.append(self.generate_output(timestamp, ACTIVATED, prev_mode, reason, prev, curr))
+            elif self.activation_type == VALIDATED and not self.currently_active:
+                pass  # normal case
+            elif self.activation_type == VALIDATED and self.currently_active:
+                # missing activate event (d/va)
+                missing.append(self.generate_output(timestamp, ACTIVATED, prev_mode, reason, prev, curr))
+
+            # Check for mode change as well:
+            if prev_event.mode != self.current_mode:
+                if missing:
+                    prev = timestamp 
+                curr = self.mode_timestamp
+                timestamp = self._get_fake_timestamp(prev, curr)
+                reason = self._get_reason_string(prev_event, self.mode_state)
+                missing.append(self.generate_output(timestamp, MODE_CHANGED, self.current_mode, reason, timestamp, curr))
+
+        elif prev_type == VALIDATED:
+            if self.activation_type is None:
+                pass
+            elif self.activation_type == ACTIVATED:
+                if prev_event.is_active and self.include_nonstate_changes:
+                    # Missing deactivate (va/a)
+                    missing.append(self.generate_output(timestamp, DEACTIVATED, prev_mode, reason, prev, curr))
+            elif self.activation_type == DEACTIVATED:
+                if not prev_event.is_active and self.include_nonstate_changes:
+                    # Missing deactivate (vi/d)
+                    missing.append(self.generate_output(timestamp, ACTIVATED, prev_mode, reason, prev, curr))
+            elif self.activation_type == VALIDATED:
+                if prev_event.is_active and not self.currently_active:
+                    # Missing deactivate (va/vi)
+                    missing.append(self.generate_output(timestamp, DEACTIVATED, prev_mode, reason, prev, curr))
+                elif not prev_event.is_active and self.currently_active:
+                    # Missing activate (vi/va)
+                    missing.append(self.generate_output(timestamp, ACTIVATED, prev_mode, reason, prev, curr))
+
+        elif prev_type == SENTINEL:
+            if self.activation_type is None:
+                # TODO: determine what to do if there are not activation-type events (i.e. only mode-change).
+                pass
+            elif self.activation_type == ACTIVATED:
+                pass  # normal case
+            elif self.activation_type == DEACTIVATED:
+                # If we had a validation after the deactivation,
+                # and it provided a creation_timestamp within the interval,
+                # then there should be an activate within the interval.
+                if self.creation_timestamp and (
+                        self.generate_before or
+                        self.creation_timestamp >= self.lower_bound_date_string):
+                    creation_timestamp = self._truncate_timestamp(self.creation_timestamp)
+                    missing.append(self.generate_output(
+                        creation_timestamp, ACTIVATED, prev_mode, reason, self.creation_timestamp, curr
+                    ))
+                elif self.generate_before:
+                    # For now, hack the timestamp by making it a little before the deactivate,
+                    # so that it at least has a value.
+                    timestamp2 = self._get_fake_timestamp(None, curr)
+                    missing.append(self.generate_output(timestamp2, ACTIVATED, prev_mode, reason, None, curr))
+
+            elif self.activation_type == VALIDATED:
+                # If we are validating only within an interval and the create_timestamp
+                # is outside this interval, we can't know whether the events are really
+                # missing or just not included.
+                creation_timestamp = self._truncate_timestamp(self.creation_timestamp)
+
+                if not self.generate_before and self.creation_timestamp < self.lower_bound_date_string:
+                    pass
+                elif self.currently_active:
+                    missing.append(self.generate_output(
+                        creation_timestamp, ACTIVATED, prev_mode, reason, self.creation_timestamp, curr
+                    ))
+                elif self.include_nonstate_changes:
+                    # There may be missing Activate and Deactivate events, or there may
+                    # just be that a inactive table row was created as part of an enrollment
+                    # flow, but no enrollment was completed.
+                    missing.append(self.generate_output(
+                        creation_timestamp, ACTIVATED, prev_mode, reason, self.creation_timestamp, curr
+                    ))
+                    timestamp2 = self._get_fake_timestamp(creation_timestamp, curr)
+                    missing.append(self.generate_output(timestamp2, DEACTIVATED, prev_mode, reason, self.creation_timestamp, curr))
+
+
+        # Mode changes are always made after activate changes (but before deactivate?)
+        elif prev_type == MODE_CHANGED:
+            # compare mode with what is known, if anything.
+            prev_mode = prev_event.mode
+            if prev_mode != self.current_mode:
+                reason = self._get_reason_string(prev_event, self.mode_state)
+                prev = prev_event.timestamp
+                curr = self.mode_timestamp
+                timestamp = self._get_fake_timestamp(prev, curr)
+                missing.append(self.generate_output(timestamp, MODE_CHANGED, self.current_mode, reason, prev, curr))
+
+        # Finally, set state for the next one....
+        self.update_state(prev_event)
+
+        return missing
+
     def check_transition(self, prev_event, curr_event):
         """TODO: """
         prev_type = prev_event.event_type
@@ -336,6 +547,8 @@ class ValidateEnrollmentForEvents(object):
         curr = curr_event.timestamp
         timestamp = self._get_fake_timestamp(prev, curr)
         reason = self._get_transition_string(prev_event, curr_event)
+        prev_mode = prev_event.mode
+        curr_mode = curr_event.mode
 
         if curr_type == VALIDATED:
             if self.creation_timestamp:
@@ -348,42 +561,45 @@ class ValidateEnrollmentForEvents(object):
 
             if prev_type == VALIDATED:
                 if curr_event.is_active and not prev_event.is_active:
-                    return [self.generate_output(timestamp, ACTIVATED, reason, prev, curr)]
+                    return [self.generate_output(timestamp, ACTIVATED, mode, reason, prev, curr)]
                 elif not curr_event.is_active and prev_event.is_active:
-                    return [self.generate_output(timestamp, DEACTIVATED, reason, prev, curr)]
+                    return [self.generate_output(timestamp, DEACTIVATED, mode, reason, prev, curr)]
             elif prev_type == ACTIVATED:
                 if not curr_event.is_active:
-                    return [self.generate_output(timestamp, DEACTIVATED, reason, prev, curr)]
+                    return [self.generate_output(timestamp, DEACTIVATED, mode, reason, prev, curr)]
             elif prev_type == DEACTIVATED:
                 if curr_event.is_active:
-                    return [self.generate_output(timestamp, ACTIVATED, reason, prev, curr)]
+                    return [self.generate_output(timestamp, ACTIVATED, mode, reason, prev, curr)]
             elif prev_type == SENTINEL:
                 # If we are validating only within an interval and the create_timestamp
                 # is outside this interval, we can't know whether the events are really
                 # missing or just not included.
+                creation_timestamp = self._truncate_timestamp(self.creation_timestamp)
+
                 if not self.generate_before and self.creation_timestamp < self.lower_bound_date_string:
                     pass
                 elif curr_event.is_active:
-                    # TODO: check that creation_timestamp is before 'curr'
                     return [self.generate_output(
-                        self.creation_timestamp, ACTIVATED, reason, self.creation_timestamp, curr
+                        creation_timestamp, ACTIVATED, mode, reason, self.creation_timestamp, curr
                     )]
-                else:
-                    # missing Activate and Deactivate events
-                    # TODO: check that creation_timestamp is before 'curr'
+                elif self.include_nonstate_changes:
+                    # There may be missing Activate and Deactivate events, or there may
+                    # just be that a inactive table row was created as part of an enrollment
+                    # flow, but no enrollment was completed.
                     event1 = self.generate_output(
-                        self.creation_timestamp, ACTIVATED, reason, self.creation_timestamp, curr
+                        creation_timestamp, ACTIVATED, mode, reason, self.creation_timestamp, curr
                     )
-                    timestamp2 = self._get_fake_timestamp(self.creation_timestamp, curr)
-                    event2 = self.generate_output(timestamp2, DEACTIVATED, reason, self.creation_timestamp, curr)
+                    timestamp2 = self._get_fake_timestamp(creation_timestamp, curr)
+                    event2 = self.generate_output(timestamp2, DEACTIVATED, mode, reason, self.creation_timestamp, curr)
                     return [event1, event2]
 
         elif curr_type == ACTIVATED:
             if prev_type == VALIDATED:
-                if prev_event.is_active:
-                    return [self.generate_output(timestamp, DEACTIVATED, reason, prev, curr)]
+                if prev_event.is_active and self.include_nonstate_changes:
+                    return [self.generate_output(timestamp, DEACTIVATED, mode, reason, prev, curr)]
             elif prev_type == ACTIVATED:
-                return [self.generate_output(timestamp, DEACTIVATED, reason, prev, curr)]
+                if self.include_nonstate_changes:
+                    return [self.generate_output(timestamp, DEACTIVATED, mode, reason, prev, curr)]
             elif prev_type == DEACTIVATED:
                 pass  # normal case
             elif prev_type == SENTINEL:
@@ -391,12 +607,13 @@ class ValidateEnrollmentForEvents(object):
 
         elif curr_type == DEACTIVATED:
             if prev_type == VALIDATED:
-                if not prev_event.is_active:
-                    return [self.generate_output(timestamp, ACTIVATED, reason, prev, curr)]
+                if not prev_event.is_active and self.include_nonstate_changes:
+                    return [self.generate_output(timestamp, ACTIVATED, mode, reason, prev, curr)]
             elif prev_type == ACTIVATED:
                 pass  # normal case
             elif prev_type == DEACTIVATED:
-                return [self.generate_output(timestamp, ACTIVATED, reason, prev, curr)]
+                if self.include_nonstate_changes:
+                    return [self.generate_output(timestamp, ACTIVATED, mode, reason, prev, curr)]
             elif prev_type == SENTINEL:
                 # TODO: check that creation_timestamp is before 'curr'
                 # Note:  we are getting a significant number of deactivate events
@@ -408,14 +625,15 @@ class ValidateEnrollmentForEvents(object):
                 if self.creation_timestamp and (
                         self.generate_before or
                         self.creation_timestamp >= self.lower_bound_date_string):
+                    creation_timestamp = self._truncate_timestamp(self.creation_timestamp)
                     return [self.generate_output(
-                        self.creation_timestamp, ACTIVATED, reason, self.creation_timestamp, curr
+                        creation_timestamp, ACTIVATED, mode, reason, self.creation_timestamp, curr
                     )]
                 elif self.generate_before:
                     # For now, hack the timestamp by making it a little before the deactivate,
                     # so that it at least has a value.
                     timestamp2 = self._get_fake_timestamp(None, curr)
-                    return [self.generate_output(timestamp2, ACTIVATED, reason, None, curr)]
+                    return [self.generate_output(timestamp2, ACTIVATED, mode, reason, None, curr)]
 
 
 class CourseEnrollmentValidationPerDateTask(
