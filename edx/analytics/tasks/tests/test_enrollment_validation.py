@@ -8,6 +8,7 @@ from edx.analytics.tasks.enrollment_validation import (
     CourseEnrollmentValidationTask,
     DEACTIVATED,
     ACTIVATED,
+    MODE_CHANGED,
     VALIDATED,
 )
 from edx.analytics.tasks.tests import unittest
@@ -50,6 +51,7 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
         return json.dumps(self._create_event_dict(**kwargs))
 
     def _create_event_dict(self, **kwargs):
+        """Create an event log with test values, as a dict."""
         event_data = {
             'course_id': self.course_id,
             'user_id': self.user_id,
@@ -109,6 +111,12 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
         expected = (((self.course_id, self.user_id), (self.timestamp, DEACTIVATED, self.mode, None)),)
         self.assertEquals(event, expected)
 
+    def test_good_mode_change_event(self):
+        line = self._create_event_log_line(event_type=MODE_CHANGED)
+        event = tuple(self.task.mapper(line))
+        expected = (((self.course_id, self.user_id), (self.timestamp, MODE_CHANGED, self.mode, None)),)
+        self.assertEquals(event, expected)
+
     def test_good_validation_event(self):
         validation_info = {
             'is_active': True,
@@ -129,7 +137,7 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
 
 
 class CourseEnrollmentValidationTaskLegacyMapTest(InitializeLegacyKeysMixin, CourseEnrollmentValidationTaskMapTest):
-    """TODO:"""
+    """Tests to verify that event log parsing by mapper works correctly with legacy course_id."""
     pass
 
 
@@ -146,27 +154,37 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
         course_id = 'foo/bar/baz'
         return (course_id, user_id)
 
-    def create_task(self, generate_before=True, event_output=False):
+    def create_task(self, generate_before=True, event_output=False, include_nonstate_changes=True,
+                    earliest_timestamp=None):
         """Create a task for testing purposes."""
         interval = '2013-01-01-2014-10-10'
-        fake_param = luigi.DateIntervalParameter()
+
+        interval_value = luigi.DateIntervalParameter().parse(interval)
+        earliest_timestamp_value = luigi.DateHourParameter().parse(earliest_timestamp) if earliest_timestamp else None
+
         self.task = CourseEnrollmentValidationTask(
-            interval=fake_param.parse(interval),
+            interval=interval_value,
             output_root="/fake/output",
             generate_before=generate_before,
             event_output=event_output,
+            include_nonstate_changes=include_nonstate_changes,
+            earliest_timestamp=earliest_timestamp_value,
         )
         self.task.init_local()
 
-    def _activated(self, timestamp):
+    def _activated(self, timestamp, mode=None):
         """Creates an ACTIVATED event."""
-        return (timestamp, ACTIVATED, self.mode, None)
+        return (timestamp, ACTIVATED, mode or self.mode, None)
 
-    def _deactivated(self, timestamp):
+    def _deactivated(self, timestamp, mode=None):
         """Creates a DEACTIVATED event."""
-        return (timestamp, DEACTIVATED, self.mode, None)
+        return (timestamp, DEACTIVATED, mode or self.mode, None)
 
-    def _validated(self, timestamp, is_active, created, dump_duration_in_secs=300):
+    def _mode_changed(self, timestamp, mode=None):
+        """Creates a MODE_CHANGED event."""
+        return (timestamp, MODE_CHANGED, mode or self.mode, None)
+
+    def _validated(self, timestamp, is_active, created, mode=None, dump_duration_in_secs=300):
         """Creates a VALIDATED event."""
         dump_end = timestamp
         dump_start = add_microseconds(timestamp, int(dump_duration_in_secs) * -100000)
@@ -176,7 +194,7 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
             'dump_start': dump_start,
             'dump_end': dump_end,
         }
-        return (timestamp, VALIDATED, self.mode, validation_info)
+        return (timestamp, VALIDATED, mode or self.mode, validation_info)
 
     def _get_reducer_output(self, values):
         """Run reducer with provided values hardcoded key."""
@@ -492,6 +510,67 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         )
         self.check_output(inputs, expected)
 
+    def test_activate_missing_mode_change(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456', mode='verified'),
+            # missing mode-change
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        expected = (
+            ('2013-04-01',
+             ('2013-04-01T00:00:01.123457', MODE_CHANGED, "verified",
+              "activate => validate(active) (honor=>verified)",
+              '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
+
+    def test_missing_initial_mode_change(self):
+        # TODO: this should actually put the mode change *after*
+        # the activation event, but without a validation event,
+        # we don't know that it's wrong until we hit the start.
+        inputs = [
+            self._activated('2013-04-01T00:00:01.123456', mode='verified'),
+        ]
+        expected = (
+            ('2013-04-01',
+             ('2013-04-01T00:00:01.123455', MODE_CHANGED, "verified",
+              "start => activate (honor=>verified)",
+              None, '2013-04-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
+
+    def test_activate_duplicate_mode_change(self):
+        inputs = [
+            self._mode_changed('2013-05-01T00:00:01.123456', mode='honor'),
+            self._activated('2013-04-01T00:00:01.123456', mode='honor'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_activate_with_mode_change(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456', mode='verified'),
+            self._mode_changed('2013-05-01T00:00:01.123456', mode='verified'),
+            self._activated('2013-04-01T00:00:01.123456', mode='honor'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_activate_with_only_mode_change(self):
+        inputs = [
+            self._mode_changed('2013-05-01T00:00:01.123456', mode='verified'),
+            self._activated('2013-04-01T00:00:01.123456', mode='honor'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_only_mode_change(self):
+        inputs = [
+            self._mode_changed('2013-05-01T00:00:01.123456', mode='verified'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
 
 class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
     """
@@ -519,6 +598,42 @@ class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidat
         self.assertEquals(synthesized.get('reason'), "start => validate(active)")
         self.assertEquals(synthesized.get('after_time'), '2013-04-01T00:00:01.123456')
         self.assertEquals(synthesized.get('before_time'), '2013-09-01T00:00:01.123456')
+
+
+class EarliestTimestampTaskReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
+    """
+    Tests to verify that events before first validation event are properly skipped.
+    """
+    def setUp(self):
+        super(EarliestTimestampTaskReducerTest, self).setUp()
+        self.create_task(earliest_timestamp="2013-01-01T11")
+
+    def test_no_events(self):
+        self.check_output([], tuple())
+
+    def test_missing_single_enrollment(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
+            # missing activation (4/1/13)
+        ]
+        expected = (
+            ('2013-04-01',
+             ('2013-04-01T00:00:01.123456', ACTIVATED, "honor", "start => validate(active)",
+              '2013-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
+
+    def test_missing_early_single_enrollment(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2012-04-01T00:00:01.123456'),
+            # missing activation (4/1/12)
+        ]
+        expected = (
+            ('2013-01-01',
+             ('2013-01-01T11:00:00.000000', ACTIVATED, "honor", "start => validate(active)",
+              '2012-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
 
 
 class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
@@ -566,8 +681,6 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             # missing deactivation
             self._activated('2013-04-01T00:00:01.123456'),
         ]
-        # NO LONGER expect no event.
-        # self.check_output(inputs, tuple())
         expected = (
             ('2013-04-01',
              ('2013-04-01T00:00:01.123457', DEACTIVATED, "honor", "activate => validate(inactive)",
@@ -623,3 +736,72 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
               '2013-04-01T00:00:01.123456', '2013-09-01T00:00:00.123455')),
         )
         self.check_output(inputs, expected)
+
+
+class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
+    """
+    Tests to verify that events transitions that don't change state are properly ignored.
+
+    Cases include:
+
+    * activate => activate
+    * validate(active) => activate
+    * deactivate => deactivate
+    * validate(inactive) => deactivate
+    * start => validate(inactive)
+
+    """
+    def setUp(self):
+        super(ExcludeNonstateChangesTaskReducerTest, self).setUp()
+        self.create_task(generate_before=False, include_nonstate_changes=False)
+
+    def test_no_events(self):
+        self.check_output([], tuple())
+
+    def test_missing_deactivate_between_activation(self):
+        inputs = [
+            self._activated('2013-09-01T00:00:01.123456'),
+            # missing deactivation
+            self._activated('2013-01-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_missing_deactivate_before_activation(self):
+        inputs = [
+            self._activated('2013-09-01T00:00:01.123456'),
+            # missing deactivation
+            self._validated('2013-08-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_missing_activate_between_deactivation(self):
+        inputs = [
+            self._deactivated('2013-09-01T00:00:01.123456'),
+            # missing activation
+            self._deactivated('2013-08-01T00:00:01.123456'),
+            self._activated('2013-01-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_missing_activate_before_deactivation(self):
+        inputs = [
+            self._deactivated('2013-09-01T00:00:01.123456'),
+            # missing activation
+            self._validated('2013-08-01T00:00:01.123456', False, '2013-04-01T00:00:01.123456'),
+            self._deactivated('2013-05-01T00:00:01.123456'),
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
+    def test_single_deactivation_validation(self):
+        inputs = [
+            self._validated('2013-08-01T00:00:01.123456', False, '2013-04-01T00:00:01.123456'),
+            # missing activation and deactivation?
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())

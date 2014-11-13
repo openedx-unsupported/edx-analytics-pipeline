@@ -3,6 +3,18 @@ import datetime
 import re
 
 
+def ensure_microseconds(timestamp):
+    """
+    Make sure timestamp strings contain microseconds, even if zero.
+
+    This is needed after datetime.isoformat() calls, which truncate zero microseconds.
+    """
+    if '.' not in timestamp:
+        return '{datetime}.000000'.format(datetime=timestamp)
+    else:
+        return timestamp
+
+
 def add_microseconds(timestamp, microseconds):
     """
     Add given microseconds to a timestamp.
@@ -14,7 +26,7 @@ def add_microseconds(timestamp, microseconds):
     timestamp_base, _period, microsec_base = timestamp.partition('.')
     if not microsec_base:
         microsec_base = '0'
-        timestamp = '{datetime}.000000'.format(datetime=timestamp)
+        timestamp = ensure_microseconds(timestamp)
     microsec_int = int(microsec_base) + microseconds
     if microsec_int >= 0 and microsec_int < 1000000:
         return "{}.{}".format(timestamp_base, str(microsec_int).zfill(6))
@@ -22,10 +34,7 @@ def add_microseconds(timestamp, microseconds):
     # If there's a carry, then just use the datetime library.
     parsed_timestamp = datetime.datetime.strptime(timestamp, '%Y-%m-%dT%H:%M:%S.%f')
     newtimestamp = (parsed_timestamp + datetime.timedelta(microseconds=microseconds)).isoformat()
-    if '.' not in newtimestamp:
-        newtimestamp = '{datetime}.000000'.format(datetime=newtimestamp)
-
-    return newtimestamp
+    return ensure_microseconds(newtimestamp)
 
 
 def mysql_datetime_to_isoformat(mysql_datetime):
@@ -40,6 +49,4 @@ def mysql_datetime_to_isoformat(mysql_datetime):
         tenths = date_parts[6]
         date_parts[6] = tenths * 100000
     timestamp = datetime.datetime(*date_parts).isoformat()
-    if '.' not in timestamp:
-        timestamp = '{datetime}.000000'.format(datetime=timestamp)
-    return timestamp
+    return ensure_microseconds(timestamp)
