@@ -551,6 +551,8 @@ class CourseEnrollmentValidationPerDateTask(
             output_root=self.intermediate_output,
             event_output=self.event_output,
             generate_before=self.generate_before,
+            include_nonstate_changes=self.include_nonstate_changes,
+            earliest_timestamp=self.earliest_timestamp,
         )
 
     def mapper(self, line):
