@@ -525,19 +525,11 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         self.check_output(inputs, expected)
 
     def test_missing_initial_mode_change(self):
-        # TODO: this should actually put the mode change *after*
-        # the activation event, but without a validation event,
-        # we don't know that it's wrong until we hit the start.
         inputs = [
             self._activated('2013-04-01T00:00:01.123456', mode='verified'),
         ]
-        expected = (
-            ('2013-04-01',
-             ('2013-04-01T00:00:01.123455', MODE_CHANGED, "verified",
-              "start => activate (honor=>verified)",
-              None, '2013-04-01T00:00:01.123456')),
-        )
-        self.check_output(inputs, expected)
+        # expect no event.
+        self.check_output(inputs, tuple())
 
     def test_activate_duplicate_mode_change(self):
         inputs = [
@@ -555,6 +547,21 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         # expect no event.
         self.check_output(inputs, tuple())
+
+    def test_validate_with_missing_mode_change(self):
+        inputs = [
+            self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456', mode='audited'),
+            # missing mode change
+            self._mode_changed('2013-05-01T00:00:01.123456', mode='verified'),
+            self._activated('2013-04-01T00:00:01.123456', mode='honor'),
+        ]
+        expected = (
+            ('2013-05-01',
+             ('2013-05-01T00:00:01.123457', MODE_CHANGED, "audited",
+              "mode_change => validate(active) (verified=>audited)",
+              '2013-05-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
 
     def test_activate_with_only_mode_change(self):
         inputs = [
