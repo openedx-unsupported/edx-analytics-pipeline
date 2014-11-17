@@ -155,12 +155,15 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
         return (course_id, user_id)
 
     def create_task(self, generate_before=True, event_output=False, include_nonstate_changes=True,
-                    earliest_timestamp=None):
+                    earliest_timestamp=None, expected_validation=None):
         """Create a task for testing purposes."""
         interval = '2013-01-01-2014-10-10'
 
         interval_value = luigi.DateIntervalParameter().parse(interval)
         earliest_timestamp_value = luigi.DateHourParameter().parse(earliest_timestamp) if earliest_timestamp else None
+        expected_validation_value = (
+            luigi.DateHourParameter().parse(expected_validation) if expected_validation else None
+        )
 
         self.task = CourseEnrollmentValidationTask(
             interval=interval_value,
@@ -169,6 +172,7 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
             event_output=event_output,
             include_nonstate_changes=include_nonstate_changes,
             earliest_timestamp=earliest_timestamp_value,
+            expected_validation=expected_validation_value,
         )
         self.task.init_local()
 
@@ -510,6 +514,15 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         )
         self.check_output(inputs, expected)
 
+    def test_mode_change_via_activate(self):
+        inputs = [
+            self._activated('2013-10-01T00:00:01.123456', mode='verified'),
+            self._deactivated('2013-08-01T00:00:01.123456'),
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        # expect no event.
+        self.check_output(inputs, tuple())
+
     def test_activate_missing_mode_change(self):
         inputs = [
             self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456', mode='verified'),
@@ -639,6 +652,42 @@ class EarliestTimestampTaskReducerTest(BaseCourseEnrollmentValidationTaskReducer
             ('2013-01-01',
              ('2013-01-01T11:00:00.000000', ACTIVATED, "honor", "start => validate(active)",
               '2012-04-01T00:00:01.123456', '2013-09-01T00:00:01.123456')),
+        )
+        self.check_output(inputs, expected)
+
+
+class ExpectedValidationTaskReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
+    """
+    Tests to verify that events before first validation event are properly skipped.
+    """
+    def setUp(self):
+        super(ExpectedValidationTaskReducerTest, self).setUp()
+        self.create_task(expected_validation="2014-10-01T11")
+
+    def test_no_events(self):
+        self.check_output([], tuple())
+
+    def test_missing_validation_from_activation(self):
+        inputs = [
+            # missing validation
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        expected = (
+            ('2013-04-01',
+             ('2013-04-01T00:00:01.123457', DEACTIVATED, "honor", "activate => missing",
+              '2013-04-01T00:00:01.123456', '2014-10-01T11:00:00.000000')),
+        )
+        self.check_output(inputs, expected)
+
+    def test_missing_validation_from_deactivation(self):
+        inputs = [
+            self._deactivated('2013-09-01T00:00:01.123456'),
+            self._activated('2013-04-01T00:00:01.123456'),
+        ]
+        expected = (
+            ('2013-09-01',
+             ('2013-09-01T00:00:01.123457', DEACTIVATED, "honor", "deactivate => missing",
+              '2013-09-01T00:00:01.123456', '2014-10-01T11:00:00.000000')),
         )
         self.check_output(inputs, expected)
 

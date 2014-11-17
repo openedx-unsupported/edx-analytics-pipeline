@@ -27,8 +27,9 @@ MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 # Validation-event event_type values:
 VALIDATED = 'edx.course.enrollment.validated'
 
-# Internal marker:
+# Internal markers:
 SENTINEL = 'sentinel_event_type'
+MISSING = 'missing_event_type'
 
 
 class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -45,7 +46,22 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
         generate_before:  A flag indicating that events should be created preceding the specified interval.
             Default behavior is to suppress the generation of events before the specified interval.
 
-        TODO: add additional values here.
+        include_nonstate_changes:  A flag indicating that events should be created
+            to fix all transitions, even those that don't result in a change in enrollment
+            state.  An "activate" following another "activate" is one such example.
+            Default behavior is to skip generating events for non-state changes.
+
+        earliest_timestamp:  A "DateHour" parameter ("yyyy-mm-ddThh"), which if set,
+            specifies the earliest timestamp that should occur in the output.  Events
+            that would be generated before this timestamp would instead be assigned this
+            timestamp.  This is left unspecified by default.
+
+        expected_validation:  A "DateHour" parameter ("yyyy-mm-ddThh"), which if set,
+            specifies a point in time where every user with events before this time
+            should also have a corresponding validation event.  Those without such an
+            validation event were not really created, and events should be synthesized
+            to simulate "roll back" of the events.
+
     """
     # location to write output
     output_root = luigi.Parameter()
@@ -57,13 +73,17 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
     # Default is incremental validation.
     generate_before = luigi.BooleanParameter(default=False)
 
-    # If set, events are suppressed for transitions that don't result in a
+    # If set, events are included for transitions that don't result in a
     # change in enrollment state.  (For example, two activations in a row.)
     include_nonstate_changes = luigi.BooleanParameter(default=False)
 
     # If set, events that would be generated before this timestamp would instead
     # be assigned this timestamp.
     earliest_timestamp = luigi.DateHourParameter(default=None)
+
+    # If set, users with events before this timestamp would be expected to have
+    # a corresponding validation event.
+    expected_validation = luigi.DateHourParameter(default=None)
 
 
 class CourseEnrollmentValidationTask(
@@ -104,14 +124,9 @@ class CourseEnrollmentValidationTask(
             return
 
         mode = event_data.get('mode')
-        # (For now, permit synthetic events to be processed without mode info for validation purposes.)
-        # TODO: remove this when synthetic events all have mode added.
         if mode is None:
-            if 'synthesized' in event:
-                mode = "honor"
-            else:
-                log.error("encountered explicit enrollment event with no mode: %s", event)
-                return
+            log.error("encountered explicit enrollment event with no mode: %s", event)
+            return
 
         # Pull in extra properties provided only by synthetic enrollment validation events.
         validation_info = None
@@ -135,6 +150,9 @@ class CourseEnrollmentValidationTask(
         earliest_timestamp_value = None
         if self.earliest_timestamp is not None:
             earliest_timestamp_value = ensure_microseconds(self.earliest_timestamp.isoformat())
+        expected_validation_value = None
+        if self.expected_validation is not None:
+            expected_validation_value = ensure_microseconds(self.expected_validation.isoformat())
 
         options = {
             'event_output': self.event_output,
@@ -142,6 +160,7 @@ class CourseEnrollmentValidationTask(
             'generate_before': self.generate_before,
             'lower_bound_date_string': self.lower_bound_date_string,
             'earliest_timestamp': earliest_timestamp_value,
+            'expected_validation': expected_validation_value,
         }
         event_stream_processor = ValidateEnrollmentForEvents(
             course_id, user_id, self.interval, values, **options
@@ -178,6 +197,7 @@ class EnrollmentEvent(object):
         DEACTIVATED: "deactivate",
         MODE_CHANGED: "mode_change",
         SENTINEL: "start",
+        MISSING: "missing",
     }
 
     def get_state_string(self):
@@ -192,8 +212,9 @@ class EnrollmentEvent(object):
 
 
 class ValidateEnrollmentForEvents(object):
-    """TODO: More to say...."""
-
+    """
+    Collects and validates events for a given user in a given course.
+    """
     def __init__(self, course_id, user_id, interval, events, **kwargs):
         self.course_id = course_id
         self.user_id = user_id
@@ -204,6 +225,7 @@ class ValidateEnrollmentForEvents(object):
         self.generate_before = kwargs.get('generate_before')
         self.lower_bound_date_string = kwargs.get('lower_bound_date_string')
         self.earliest_timestamp = kwargs.get('earliest_timestamp')
+        self.expected_validation = kwargs.get('expected_validation')
 
         if self.event_output:
             self.factory = SyntheticEventFactory(
@@ -222,6 +244,9 @@ class ValidateEnrollmentForEvents(object):
         ]
 
         self._reorder_within_dumps()
+
+        if self.expected_validation:
+            self._check_for_missing_validation()
 
         # Add a marker event to signal the beginning of the interval.
         initial_state = EnrollmentEvent(None, SENTINEL, mode='honor', validation_info=None)
@@ -253,6 +278,21 @@ class ValidateEnrollmentForEvents(object):
                     event.timestamp = add_microseconds(prev_event.timestamp, -1)
                     self.sorted_events[index] = prev_event
                     self.sorted_events[index + 1] = event
+
+    def _check_for_missing_validation(self):
+        """Check last event to see if it is missing an expected validation event."""
+        if len(self.sorted_events) > 0 and self.sorted_events[0].timestamp < self.expected_validation:
+            validation_info = {
+                'is_active': False,
+                'created': None,
+                'dump_start': None,
+                'dump_end': None,
+            }
+            missing_event = [EnrollmentEvent(
+                self.expected_validation, MISSING, mode=None, validation_info=validation_info
+            )]
+            missing_event.extend(self.sorted_events)
+            self.sorted_events = missing_event
 
     def missing_enrolled(self):
         """
@@ -365,12 +405,15 @@ class ValidateEnrollmentForEvents(object):
             self.activation_state = event.get_state_string()
             self.activation_timestamp = event.timestamp
 
-        # All events set mode.
-        self.current_mode = event.mode
-        self.mode_type = event.event_type
-        self.mode_state = event.get_state_string()
-        self.mode_timestamp = event.timestamp
+        # Most events set mode.
         self.mode_changed = (event.event_type == MODE_CHANGED)
+        if event.event_type != MISSING:
+            self.current_mode = event.mode
+            self.mode_type = event.event_type
+            self.mode_state = event.get_state_string()
+            self.mode_timestamp = event.timestamp
+        else:
+            self.current_mode = None
 
         # Only validation events define a created timestamp and activation state.
         if event.event_type == VALIDATED:
@@ -386,18 +429,29 @@ class ValidateEnrollmentForEvents(object):
 
     def _check_for_mode_change(self, prev_event, last_timestamp):
         """Check if a mode-change event should be synthesized."""
-        # If the current state was last changed by a mode-change event, then
-        # we don't expect the previous event to have the same mode.  Otherwise,
-        # we do expect the mode to be the same.  (And while we might
-        # want to output something when an explicit mode-change event
-        # has no apparent effect, it's not clear what to output.)
-        if prev_event.mode != self.current_mode and not self.mode_changed and not prev_event.event_type == SENTINEL:
+        # There are several reasons to suppress a mode-change.
+        # The most obvious is if there is no change in mode.
+        # Other cases include:
+        #  * No "current" mode (e.g. current event is "MISSING").
+        #  * Current event is known to reset the mode, so no comparison
+        #    is needed (or possible).  This includes MODE_CHANGED and ACTIVATE
+        #    events.
+        #  * No previous event (i.e. previous event is "SENTINEL").
+        suppress_mode_change = (
+            prev_event.mode == self.current_mode or
+            not self.current_mode or
+            self.mode_changed or
+            self.mode_type == ACTIVATED or
+            prev_event.event_type == SENTINEL
+        )
+
+        if suppress_mode_change:
+            return []
+        else:
             curr = self.mode_timestamp
             timestamp = self._get_fake_timestamp(last_timestamp, curr)
             reason = self._get_reason_string(prev_event, self.mode_state, self.current_mode)
             return [self.generate_output(timestamp, MODE_CHANGED, self.current_mode, reason, last_timestamp, curr)]
-        else:
-            return []
 
     def _check_on_activated(self, generate_output_for_event):
         """Check if a deactivation event should be synthesized after an activation event."""
@@ -410,6 +464,9 @@ class ValidateEnrollmentForEvents(object):
             pass  # normal case
         elif self.activation_type == VALIDATED and not self.currently_active:
             # Missing deactivate event (a/vi)
+            return [generate_output_for_event(DEACTIVATED)]
+        elif self.activation_type == MISSING:
+            # Missing deactivate event (a/m)
             return [generate_output_for_event(DEACTIVATED)]
         return []
 
@@ -425,6 +482,10 @@ class ValidateEnrollmentForEvents(object):
         elif self.activation_type == VALIDATED and self.currently_active:
             # Missing activate event (d/va)
             return [generate_output_for_event(ACTIVATED)]
+        elif self.activation_type == MISSING and self.include_nonstate_changes:
+            # Missing validation event (d/m) -- generate a second deactivate event
+            # just to mark the inconsistency.
+            return [generate_output_for_event(DEACTIVATED)]
         return []
 
     def _check_on_validation(self, prev_event, generate_output_for_event):
@@ -540,8 +601,7 @@ class CourseEnrollmentValidationPerDateTask(
     Parameters:
         intermediate_output: a URL for the location to write intermediate output.
 
-        output_root: location where the one-file-per-date outputs
-            are written.
+    Other parameters are defined in mixins.
 
     """
 
@@ -560,6 +620,7 @@ class CourseEnrollmentValidationPerDateTask(
             generate_before=self.generate_before,
             include_nonstate_changes=self.include_nonstate_changes,
             earliest_timestamp=self.earliest_timestamp,
+            expected_validation=self.expected_validation,
         )
 
     def mapper(self, line):
