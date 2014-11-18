@@ -253,14 +253,14 @@ class DaysEnrolledForEvents(object):
 
         Note that in spite of our best efforts some events might be lost, causing invalid state transitions.
         """
+        self.mode = self.event.mode
+
         if self.state == self.ENROLLED and self.event.event_type == DEACTIVATED:
             self.state = self.UNENROLLED
-            self.mode = self.event.mode
         elif self.state == self.UNENROLLED and self.event.event_type == ACTIVATED:
             self.state = self.ENROLLED
-            self.mode = self.event.mode
         elif self.event.event_type == MODE_CHANGED:
-            self.mode = self.event.mode
+            pass
         else:
             log.warning(
                 'No state change for %s event. User %d is already in the requested state for course %s on %s.',
