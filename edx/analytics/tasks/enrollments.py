@@ -288,6 +288,7 @@ class CourseEnrollmentTable(CourseEnrollmentTableDownstreamMixin, ImportIntoHive
             ('user_id', 'INT'),
             ('at_end', 'TINYINT'),
             ('change', 'TINYINT'),
+            ('mode', 'STRING'),
         ]
 
     @property
@@ -688,6 +689,75 @@ class ImportEnrollmentByEducationLevelIntoMysql(CourseEnrollmentTableDownstreamM
     @property
     def insert_source_task(self):
         return EnrollmentByEducationLevelTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+
+class EnrollmentByModeTask(EnrollmentDemographicTask):
+    """Breakdown of enrollments by age as reported by the user"""
+
+    @property
+    def insert_query(self):
+        return """
+            SELECT
+                ce.date,
+                ce.course_id,
+                ce.mode,
+                COUNT(ce.user_id)
+            FROM course_enrollment ce
+            WHERE ce.at_end = 1
+            GROUP BY
+                ce.date,
+                ce.course_id,
+                ce.mode
+            """
+
+    @property
+    def table_name(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+            ('count', 'INT'),
+        ]
+
+
+class ImportEnrollmentByModeIntoMysql(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
+    """Load age breakdowns into MySQL"""
+
+    overwrite = luigi.BooleanParameter(default=True)
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('mode', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INTEGER'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            ('date', 'course_id'),
+        ]
+
+    @property
+    def table(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def insert_source_task(self):
+        return EnrollmentByModeTask(
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
