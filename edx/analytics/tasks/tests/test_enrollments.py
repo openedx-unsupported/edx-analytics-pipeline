@@ -8,6 +8,7 @@ from edx.analytics.tasks.enrollments import (
     CourseEnrollmentTask,
     DEACTIVATED,
     ACTIVATED,
+    MODE_CHANGED
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
@@ -102,13 +103,13 @@ class CourseEnrollmentTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
     def test_good_enroll_event(self):
         line = self._create_event_log_line()
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, ACTIVATED)),)
+        expected = (((self.course_id, self.user_id), (self.timestamp, ACTIVATED, 'honor')),)
         self.assertEquals(event, expected)
 
     def test_good_unenroll_event(self):
         line = self._create_event_log_line(event_type=DEACTIVATED)
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, DEACTIVATED)),)
+        expected = (((self.course_id, self.user_id), (self.timestamp, DEACTIVATED, 'honor')),)
         self.assertEquals(event, expected)
 
 
@@ -138,8 +139,8 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
         self._check_output([], tuple())
 
     def test_single_enrollment(self):
-        inputs = [('2013-01-01T00:00:01', ACTIVATED), ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1),)
+        inputs = [('2013-01-01T00:00:01', ACTIVATED, 'honor'), ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),)
         self._check_output(inputs, expected)
 
     def create_task(self, interval='2013-01-01'):
@@ -151,157 +152,228 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
         )
 
     def test_single_unenrollment(self):
-        inputs = [('2013-01-01T00:00:01', DEACTIVATED), ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
+        inputs = [('2013-01-01T00:00:01', DEACTIVATED, 'honor'), ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),)
         self._check_output(inputs, expected)
 
     def test_multiple_events_on_same_day(self):
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-01T00:00:02', DEACTIVATED),
-            ('2013-01-01T00:00:03', ACTIVATED),
-            ('2013-01-01T00:00:04', DEACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:04', DEACTIVATED, 'honor'),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),)
         self._check_output(inputs, expected)
 
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-01T00:00:02', DEACTIVATED),
-            ('2013-01-01T00:00:03', DEACTIVATED),
-            ('2013-01-01T00:00:04', ACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:04', ACTIVATED, 'honor'),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),)
         self._check_output(inputs, expected)
 
     def test_oversized_interval_unenrollment(self):
         self.create_task('2012-12-30-2013-01-04')
         inputs = [
-            ('2013-01-01T00:00:01', DEACTIVATED),
+            ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 0, 0),
+            ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
         )
         self._check_output(inputs, expected)
 
     def test_oversized_interval_enrollment(self):
         self.create_task('2012-12-30-2013-01-04')
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 1, 1),
-            ('2013-01-02', self.course_id, self.user_id, 1, 0),
-            ('2013-01-03', self.course_id, self.user_id, 1, 0),
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 0, 'honor'),
         )
         self._check_output(inputs, expected)
 
     def test_missing_days(self):
         self.create_task('2012-12-30-2013-01-07')
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-04T00:00:01', DEACTIVATED),
-            ('2013-01-06T00:00:01', ACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-04T00:00:01', DEACTIVATED, 'honor'),
+            ('2013-01-06T00:00:01', ACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 1, 1),
-            ('2013-01-02', self.course_id, self.user_id, 1, 0),
-            ('2013-01-03', self.course_id, self.user_id, 1, 0),
-            ('2013-01-04', self.course_id, self.user_id, 0, -1),
-            ('2013-01-06', self.course_id, self.user_id, 1, 1),
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-04', self.course_id, self.user_id, 0, -1, 'honor'),
+            ('2013-01-06', self.course_id, self.user_id, 1, 1, 'honor'),
         )
         self._check_output(inputs, expected)
 
     def test_multiple_events_out_of_order(self):
         # Make sure that events are sorted by the reducer.
         inputs = [
-            ('2013-01-01T00:00:04', DEACTIVATED),
-            ('2013-01-01T00:00:03', ACTIVATED),
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-01T00:00:02', DEACTIVATED),
+            ('2013-01-01T00:00:04', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'honor'),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),)
         self._check_output(inputs, expected)
 
     def test_multiple_enroll_events_on_same_day(self):
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-01T00:00:02', ACTIVATED),
-            ('2013-01-01T00:00:03', ACTIVATED),
-            ('2013-01-01T00:00:04', ACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:04', ACTIVATED, 'honor'),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),)
         self._check_output(inputs, expected)
 
     def test_multiple_unenroll_events_on_same_day(self):
         inputs = [
-            ('2013-01-01T00:00:01', DEACTIVATED),
-            ('2013-01-01T00:00:02', DEACTIVATED),
-            ('2013-01-01T00:00:03', DEACTIVATED),
-            ('2013-01-01T00:00:04', DEACTIVATED),
+            ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:04', DEACTIVATED, 'honor'),
         ]
-        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0),)
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),)
         self._check_output(inputs, expected)
 
     def test_multiple_enroll_events_on_many_days(self):
         self.create_task('2013-01-01-2013-01-05')
         inputs = [
-            ('2013-01-01T00:00:01', ACTIVATED),
-            ('2013-01-01T00:00:02', ACTIVATED),
-            ('2013-01-02T00:00:03', ACTIVATED),
-            ('2013-01-02T00:00:04', ACTIVATED),
-            ('2013-01-04T00:00:05', DEACTIVATED),
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', ACTIVATED, 'honor'),
+            ('2013-01-02T00:00:03', ACTIVATED, 'honor'),
+            ('2013-01-02T00:00:04', ACTIVATED, 'honor'),
+            ('2013-01-04T00:00:05', DEACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 1, 1),
-            ('2013-01-02', self.course_id, self.user_id, 1, 0),
-            ('2013-01-03', self.course_id, self.user_id, 1, 0),
-            ('2013-01-04', self.course_id, self.user_id, 0, -1),
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-04', self.course_id, self.user_id, 0, -1, 'honor'),
         )
         self._check_output(inputs, expected)
 
     def test_multiple_events_on_many_days(self):
         self.create_task('2013-01-01-2013-01-10')
         inputs = [
-            ('2013-01-01T1', ACTIVATED),
-            ('2013-01-01T2', DEACTIVATED),
-            ('2013-01-01T3', ACTIVATED),
-            ('2013-01-01T4', DEACTIVATED),
-            ('2013-01-02', ACTIVATED),
-            ('2013-01-03', ACTIVATED),
-            ('2013-01-04T1', ACTIVATED),
-            ('2013-01-04T2', DEACTIVATED),
-            ('2013-01-05', DEACTIVATED),
-            ('2013-01-06', DEACTIVATED),
-            ('2013-01-07', ACTIVATED),
-            ('2013-01-08T1', ACTIVATED),
-            ('2013-01-08T2', ACTIVATED),
-            ('2013-01-09T1', DEACTIVATED),
-            ('2013-01-09T2', DEACTIVATED),
+            ('2013-01-01T1', ACTIVATED, 'honor'),
+            ('2013-01-01T2', DEACTIVATED, 'honor'),
+            ('2013-01-01T3', ACTIVATED, 'honor'),
+            ('2013-01-01T4', DEACTIVATED, 'honor'),
+            ('2013-01-02', ACTIVATED, 'honor'),
+            ('2013-01-03', ACTIVATED, 'honor'),
+            ('2013-01-04T1', ACTIVATED, 'honor'),
+            ('2013-01-04T2', DEACTIVATED, 'honor'),
+            ('2013-01-05', DEACTIVATED, 'honor'),
+            ('2013-01-06', DEACTIVATED, 'honor'),
+            ('2013-01-07', ACTIVATED, 'honor'),
+            ('2013-01-08T1', ACTIVATED, 'honor'),
+            ('2013-01-08T2', ACTIVATED, 'honor'),
+            ('2013-01-09T1', DEACTIVATED, 'honor'),
+            ('2013-01-09T2', DEACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 0, 0),
-            ('2013-01-02', self.course_id, self.user_id, 1, 1),
-            ('2013-01-03', self.course_id, self.user_id, 1, 0),
-            ('2013-01-04', self.course_id, self.user_id, 0, -1),
-            ('2013-01-05', self.course_id, self.user_id, 0, 0),
-            ('2013-01-06', self.course_id, self.user_id, 0, 0),
-            ('2013-01-07', self.course_id, self.user_id, 1, 1),
-            ('2013-01-08', self.course_id, self.user_id, 1, 0),
-            ('2013-01-09', self.course_id, self.user_id, 0, -1),
+            ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-04', self.course_id, self.user_id, 0, -1, 'honor'),
+            ('2013-01-05', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-06', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-07', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-08', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-09', self.course_id, self.user_id, 0, -1, 'honor'),
         )
         self._check_output(inputs, expected)
 
     def test_oversized_interval_both_sides(self):
         self.create_task('2012-12-30-2013-01-06')
         inputs = [
-            ('2013-01-01T00:00:01', DEACTIVATED),
-            ('2013-01-03T00:00:01', ACTIVATED),
+            ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
+            ('2013-01-03T00:00:01', ACTIVATED, 'honor'),
         ]
         expected = (
-            ('2013-01-01', self.course_id, self.user_id, 0, 0),
-            ('2013-01-03', self.course_id, self.user_id, 1, 1),
-            ('2013-01-04', self.course_id, self.user_id, 1, 0),
-            ('2013-01-05', self.course_id, self.user_id, 1, 0),
+            ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-04', self.course_id, self.user_id, 1, 0, 'honor'),
+            ('2013-01-05', self.course_id, self.user_id, 1, 0, 'honor'),
+        )
+        self._check_output(inputs, expected)
+
+    def test_mode_change_same_day(self):
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', ACTIVATED, 'verified'),
+        ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'verified'),)
+        self._check_output(inputs, expected)
+
+    def test_mode_change_multi_day(self):
+        self.create_task('2013-01-01-2013-01-03')
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-02T00:00:02', DEACTIVATED, 'honor'),
+            ('2013-01-02T00:00:03', ACTIVATED, 'verified'),
+        ]
+        expected = (
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'verified'),
+        )
+        self._check_output(inputs, expected)
+
+    def test_mode_change_missed_event(self):
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:03', ACTIVATED, 'verified'),
+        ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'verified'),)
+        self._check_output(inputs, expected)
+
+    def test_mode_change_first_deactivated(self):
+        inputs = [
+            ('2013-01-01T00:00:01', DEACTIVATED, 'audit'),
+        ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'audit'),)
+        self._check_output(inputs, expected)
+
+    def test_mode_change_last_deactivated(self):
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-01T00:00:02', DEACTIVATED, 'audit'),
+        ]
+        expected = (('2013-01-01', self.course_id, self.user_id, 0, 0, 'audit'),)
+        self._check_output(inputs, expected)
+
+    def test_explicit_mode_change_multi_day(self):
+        self.create_task('2013-01-01-2013-01-03')
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-02T00:00:02', MODE_CHANGED, 'verified')
+        ]
+        expected = (
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'verified'),
+        )
+        self._check_output(inputs, expected)
+
+    def test_explicit_mode_change_multiple(self):
+        self.create_task('2013-01-01-2013-01-03')
+        inputs = [
+            ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-02T00:00:02', MODE_CHANGED, 'verified'),
+            ('2013-01-02T00:00:03', MODE_CHANGED, 'honor'),
+            ('2013-01-02T00:00:04', MODE_CHANGED, 'audit')
+        ]
+        expected = (
+            ('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 1, 0, 'audit'),
         )
         self._check_output(inputs, expected)
