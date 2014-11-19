@@ -207,3 +207,39 @@ class UserEventCounts(EventLogSelectionMixin, MapReduceJobTask):
     def reducer(self, key, values):
         date_string, username = key
         yield date_string, username, sum(values)
+
+
+import re
+
+class StartedVerifiedFlow(EventLogSelectionMixin, MapReduceJobTask):
+
+    output_root = luigi.Parameter()
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+    def mapper(self, line):
+        result = self.get_event_and_date_string(line)
+        if result is None:
+            return
+
+        event, date_string = result
+        username = event.get('username')
+        if username is None or len(username.strip()) == 0:
+            return
+
+        event_type = event['event_type']
+        if 'course_modes/choose' not in event_type:
+            return
+
+        m = re.match(r'course_modes/choose/(.*)$', event_type.rstrip('/'))
+        if not m:
+            return
+
+        course_id = m.group(1)
+
+        yield (username, course_id, date_string), 1
+
+    def reducer(self, key, values):
+        username, course_id, date_string = key
+        yield username, course_id, date_string, sum(values)
