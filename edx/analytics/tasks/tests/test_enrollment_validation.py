@@ -1,6 +1,10 @@
 """Test enrollment computations"""
 
+import datetime
 import json
+import os
+import shutil
+import tempfile
 
 import luigi
 
@@ -10,6 +14,8 @@ from edx.analytics.tasks.enrollment_validation import (
     ACTIVATED,
     MODE_CHANGED,
     VALIDATED,
+    CreateAllEnrollmentValidationEventsTask,
+    CreateEnrollmentValidationEventsForTodayTask,
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
@@ -154,7 +160,7 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
         course_id = 'foo/bar/baz'
         return (course_id, user_id)
 
-    def create_task(self, generate_before=True, event_output=False, include_nonstate_changes=True,
+    def create_task(self, generate_before=True, tuple_output=True, include_nonstate_changes=True,
                     earliest_timestamp=None, expected_validation=None):
         """Create a task for testing purposes."""
         interval = '2013-01-01-2014-10-10'
@@ -169,7 +175,7 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
             interval=interval_value,
             output_root="/fake/output",
             generate_before=generate_before,
-            event_output=event_output,
+            tuple_output=tuple_output,
             include_nonstate_changes=include_nonstate_changes,
             earliest_timestamp=earliest_timestamp_value,
             expected_validation=expected_validation_value,
@@ -598,7 +604,7 @@ class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidat
     """
     def setUp(self):
         super(CourseEnrollmentValidationTaskEventReducerTest, self).setUp()
-        self.create_task(event_output=True)
+        self.create_task(tuple_output=False)
 
     def test_missing_single_enrollment(self):
         inputs = [
@@ -861,3 +867,57 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         ]
         # expect no event.
         self.check_output(inputs, tuple())
+
+
+class CreateAllEnrollmentValidationEventsTest(unittest.TestCase):
+
+    def setUp(self):
+        # Define a real output directory, so it can
+        # be removed if existing.
+        def cleanup(dirname):
+            """Remove the temp directory only if it exists."""
+            if os.path.exists(dirname):
+                shutil.rmtree(dirname)
+
+        self.output_root = tempfile.mkdtemp()
+        self.addCleanup(cleanup, self.output_root)
+
+    def test_requires_includes_today(self):
+        today_datestring = datetime.datetime.utcnow().strftime('%Y-%m-%d')
+        fake_param = luigi.DateIntervalParameter()
+        interval_string = '2013-12-17-{}'.format(today_datestring)
+        interval = fake_param.parse(interval_string)
+        task = CreateAllEnrollmentValidationEventsTask(
+            interval=interval,
+            output_root=self.output_root,
+            warehouse_path=self.output_root,
+        )
+        required = task.requires()
+        self.assertTrue(any([isinstance(dep, CreateEnrollmentValidationEventsForTodayTask) for dep in required]))
+
+    def test_requires_is_empty(self):
+        interval = luigi.DateIntervalParameter().parse('2013-12-17-2014-01-15')
+        task = CreateAllEnrollmentValidationEventsTask(
+            interval=interval,
+            output_root=self.output_root,
+            warehouse_path=self.output_root,
+        )
+        required = task.requires()
+        self.assertEquals(required, [])
+
+    def test_requires_is_not_empty(self):
+        interval = luigi.DateIntervalParameter().parse('2013-12-17-2014-01-15')
+        warehouse_path = self.output_root
+        source_dir = os.path.join(warehouse_path, "student_courseenrollment", "dt=2014-01-01")
+        os.makedirs(source_dir)
+        self.assertTrue(os.path.exists(source_dir))
+        task = CreateAllEnrollmentValidationEventsTask(
+            interval=interval,
+            output_root=self.output_root,
+            warehouse_path=warehouse_path,
+        )
+        required = task.requires()
+        self.assertEquals(len(required), 1)
+        one_required = required[0]
+        self.assertTrue(one_required.source_dir, source_dir)
+        self.assertTrue(one_required.output_root, self.output_root)

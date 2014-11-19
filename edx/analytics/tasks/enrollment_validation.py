@@ -7,7 +7,9 @@ import logging
 import os
 
 import luigi
+import luigi.task
 
+from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
@@ -40,11 +42,12 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
 
         output_root: A URL to a path where output event files will be written.
 
-        event_output:  A flag indicating that output should be in the form of events.
-            Default = tuples.
+        tuple_output:  A flag indicating that output should be in the form of tuples, not events.
+            Default = events.
 
-        generate_before:  A flag indicating that events should be created preceding the specified interval.
-            Default behavior is to suppress the generation of events before the specified interval.
+        generate_before:  A flag indicating that events should be created preceding the
+            specified interval. Default behavior is to suppress the generation of events
+            before the specified interval.
 
         include_nonstate_changes:  A flag indicating that events should be created
             to fix all transitions, even those that don't result in a change in enrollment
@@ -67,7 +70,7 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
     output_root = luigi.Parameter()
 
     # Flag indicating whether to output synthetic events or tuples
-    event_output = luigi.BooleanParameter(default=False)
+    tuple_output = luigi.BooleanParameter(default=False)
 
     # If set, generates events that occur before the start of the specified interval.
     # Default is incremental validation.
@@ -155,7 +158,7 @@ class CourseEnrollmentValidationTask(
             expected_validation_value = ensure_microseconds(self.expected_validation.isoformat())
 
         options = {
-            'event_output': self.event_output,
+            'tuple_output': self.tuple_output,
             'include_nonstate_changes': self.include_nonstate_changes,
             'generate_before': self.generate_before,
             'lower_bound_date_string': self.lower_bound_date_string,
@@ -220,21 +223,21 @@ class ValidateEnrollmentForEvents(object):
         self.user_id = user_id
         self.interval = interval
         self.creation_timestamp = None
-        self.event_output = kwargs.get('event_output')
+        self.tuple_output = kwargs.get('tuple_output')
         self.include_nonstate_changes = kwargs.get('include_nonstate_changes')
         self.generate_before = kwargs.get('generate_before')
         self.lower_bound_date_string = kwargs.get('lower_bound_date_string')
         self.earliest_timestamp = kwargs.get('earliest_timestamp')
         self.expected_validation = kwargs.get('expected_validation')
 
-        if self.event_output:
+        if self.tuple_output:
+            self.generate_output = self._create_tuple
+        else:
             self.factory = SyntheticEventFactory(
                 event_source='server',
                 synthesizer='enrollment_validation',
             )
             self.generate_output = self._synthetic_event
-        else:
-            self.generate_output = self._create_tuple
 
         # Create list of events in reverse order, as processing goes backwards
         # from validation states.
@@ -605,7 +608,14 @@ class CourseEnrollmentValidationPerDateTask(
 
     """
 
-    intermediate_output = luigi.Parameter()
+    intermediate_output = luigi.Parameter(default=None)
+
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentValidationPerDateTask, self).__init__(*args, **kwargs)
+
+        # Update intermediate_output if not present.
+        if self.intermediate_output is None:
+            self.intermediate_output = url_path_join(output_root, "all-events")
 
     def requires(self):
         return CourseEnrollmentValidationTask(
@@ -616,7 +626,7 @@ class CourseEnrollmentValidationPerDateTask(
             source=self.source,
             pattern=self.pattern,
             output_root=self.intermediate_output,
-            event_output=self.event_output,
+            tuple_output=self.tuple_output,
             generate_before=self.generate_before,
             include_nonstate_changes=self.include_nonstate_changes,
             earliest_timestamp=self.earliest_timestamp,
@@ -634,7 +644,7 @@ class CourseEnrollmentValidationPerDateTask(
                 outfile.write('\n')
 
     def output_path_for_key(self, datestamp):
-        if self.event_output:
+        if self.tuple_output:
             # Match tracking.log-{datestamp}.gz format.
             filename = u'synthetic_enroll.log-{datestamp}.gz'.format(
                 datestamp=datestamp.replace('-', ''),
@@ -659,6 +669,14 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
 
     The date for the synthesized events is the start time of the Sqoop dump.  This
     is when the particular enrollment states were observed.
+
+    Parameters:
+
+        source_dir: the URL of the location of the desired database dump.  This should
+            include the 'dt=<date>' partition specification.
+
+    Other parameters are defined by MultiOutputMapReduceJobTask.
+
     """
     # Note: we could just read the corresponding validation data into
     # the reducer.  So this would just need to produce reducer input
@@ -775,12 +793,45 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
         return url_path_join(self.output_root, filename)
 
 
+class CreateEnrollmentValidationEventsForTodayTask(CreateEnrollmentValidationEventsTask):
+
+    credentials = luigi.Parameter(default=None)
+
+    def requires_hadoop(self):
+        # Instead of just pointing to the output directory of a dump, let's make sure
+        # there is a dump.
+        # We don't have a way to just dump the Mysql table, so deal with the Hive table
+        # definition as well.
+        yield ImportStudentCourseEnrollmentTask(credentials=self.credentials)
+
+    def input_hadoop(self):
+        # The requires() method will return the Hive target, but really we need the
+        # file dump instead.
+        yield ExternalURL(self.source_dir).output()
+
+
 class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
     """
-    TODO:
+    Task to create enrollment validation events over an interval.
+
+    Scans all dates in the specified interval, and checks if there is
+    a courseenrollment dump for that date but no corresponding validation events.
+    If so, it generates validation events from the courseenrollment dump.
+
+    Parameters:
+
+        interval: Date interval (specified as yyyy-mm-dd-yyyy-mm-dd) over which to check.
+
+        output_root:  root directory to which to write validation events.  Actual
+            output files get written to a subdirectory named with the dump date (yyyy-mm-dd).
+
+        credentials: Path to the external access credentials file, if performing a dump.
+            Default is to use value from config file for database-import.
+
     """
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
+    credentials = luigi.Parameter(default=None)
 
     required_tasks = None
 
@@ -790,17 +841,23 @@ class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMi
         end_date = self.interval.date_b
         table_name = "student_courseenrollment"
         source_root = url_path_join(self.warehouse_path, table_name)
-
+        today_datestring = datetime.datetime.utcnow().strftime('%Y-%m-%d')
         current_date = start_date
-        while current_date < end_date:
+        while current_date <= end_date:
             datestring = current_date.strftime('%Y-%m-%d')
             current_date += datetime.timedelta(days=1)
-
             src_datestring = "dt={}".format(datestring)
             source_dir = url_path_join(source_root, src_datestring)
             target = get_target_from_url(source_dir)
-            if target.exists():
-                output_dir = url_path_join(self.output_root, datestring)
+            output_dir = url_path_join(self.output_root, datestring)
+            if datestring == today_datestring:
+                yield CreateEnrollmentValidationEventsForTodayTask(
+                    source_dir=source_dir,
+                    output_root=output_dir,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                    credentials=self.credentials,
+                )
+            elif target.exists():
                 yield CreateEnrollmentValidationEventsTask(
                     source_dir=source_dir,
                     output_root=output_dir,
@@ -815,3 +872,48 @@ class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMi
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+class EnrollmentValidationWorkflow(CourseEnrollmentValidationTask):
+    """
+    Performs validation of enrollment data over an interval of time.
+
+    Makes sure that a recent dump has been performed, if necessary,
+    and that enrollment validation events have been created.
+
+    """
+
+    validation_root = luigi.Parameter(
+        default_from_config={'section': 'enrollment-validation', 'name': 'validation_root'}
+    )
+    validation_pattern = luigi.Parameter(
+        default_from_config={'section': 'enrollment-validation', 'name': 'validation_pattern'}
+    )
+    credentials = luigi.Parameter(default=None)
+
+    def requires(self):
+        # we need to add the CreateAllEnrollmentValidationEventsTask to the
+        # requirements of the base task.
+        for requirement in luigi.task.flatten(super(EnrollmentValidationWorkflow, self).requires()):
+            yield requirement
+
+        yield CreateAllEnrollmentValidationEventsTask(
+            output_root=self.validation_root,
+            interval=self.interval,
+            credentials=self.credentials,
+            n_reduce_tasks=self.n_reduce_tasks,
+        )
+
+    def _append_value_to_tuple(self, source_tuple, value):
+        """Converts tuple to list, appends, and converts back."""
+        source_list = [source for source in source_tuple]
+        source_list.append(value)
+        return tuple(source_list)
+
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentValidationWorkflow, self).__init__(*args, **kwargs)
+
+        # Update source and pattern with special values to include
+        # validation events.  Values here are tuples, not lists.
+        self.source = self._append_value_to_tuple(self.source, self.validation_root)
+        self.pattern = self._append_value_to_tuple(self.pattern, self.validation_pattern)
