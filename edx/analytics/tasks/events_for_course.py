@@ -228,18 +228,35 @@ class StartedVerifiedFlow(EventLogSelectionMixin, MapReduceJobTask):
         if username is None or len(username.strip()) == 0:
             return
 
-        event_type = event['event_type']
-        if 'course_modes/choose' not in event_type:
+        timestamp = eventlog.get_event_time_string(event)
+        if timestamp is None:
             return
 
-        m = re.match(r'course_modes/choose/(.*)$', event_type.rstrip('/'))
-        if not m:
+        event_type = event.get('event_type')
+        if not event_type:
             return
 
-        course_id = m.group(1)
+        m = re.match(r'/course_modes/choose/(.*)$', event_type.rstrip('/'))
+        if m:
+            course_id = m.group(1)
+            yield (username, course_id), (timestamp, 'enter_checkout', 'verified')
+        elif event_type == 'edx.course.enrollment.activated':
+            event_data = eventlog.get_event_data(event)
+            if event_data is None:
+                event_data = {}
 
-        yield (username, course_id, date_string), 1
+            course_id = event_data.get('course_id')
+            if course_id is None:
+                course_id='foo'
+
+            mode = event_data.get('mode')
+            if mode is None:
+                mode='bar'
+
+            yield (username, course_id), (timestamp, 'activated', mode)
+
 
     def reducer(self, key, values):
-        username, course_id, date_string = key
-        yield username, course_id, date_string, sum(values)
+        (username, course_id) = key
+        for (timestamp, action, mode) in values:
+            yield username, course_id, timestamp, action, mode
