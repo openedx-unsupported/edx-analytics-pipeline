@@ -102,7 +102,7 @@ class UserActivityBaseTask(EventLogSelectionMixin, MapReduceJobTask, UserActivit
         # TODO: refactor this into a utility function and update jobs
         # to always UTF8 encode mapper keys.
         if len(values) > 1:
-            return tuple([value.encode('utf8') for value in values])
+            return tuple([(value.encode('utf8') if isinstance(value, basestring) else value) for value in values])
         else:
             return values[0].encode('utf8')
 
