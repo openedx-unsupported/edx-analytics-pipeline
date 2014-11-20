@@ -59,6 +59,10 @@ class PathSetTask(luigi.Task):
                 for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
+            elif src.startswith('hdfs'):
+                for source in luigi.hdfs.listdir(src):
+                    if any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
+                        yield ExternalURL(source)
             else:
                 # Apply the include patterns to the relative path below the src directory.
                 for dirpath, _dirnames, files in os.walk(src):
