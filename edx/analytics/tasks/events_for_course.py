@@ -243,15 +243,15 @@ class StartedVerifiedFlow(EventLogSelectionMixin, MapReduceJobTask):
         elif event_type == 'edx.course.enrollment.activated':
             event_data = eventlog.get_event_data(event)
             if event_data is None:
-                event_data = {}
+                return
 
             course_id = event_data.get('course_id')
             if course_id is None:
-                course_id='foo'
+                return
 
             mode = event_data.get('mode')
             if mode is None:
-                mode='bar'
+                return
 
             yield (username, course_id), (timestamp, 'activated', mode)
 
