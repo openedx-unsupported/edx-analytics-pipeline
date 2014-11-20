@@ -236,7 +236,7 @@ class StartedVerifiedFlow(EventLogSelectionMixin, MapReduceJobTask):
         if not event_type:
             return
 
-        m = re.match(r'/course_modes/choose/(.*)$', event_type.rstrip('/'))
+        m = re.match(r'/verify_student/show_requirements/(.*)$', event_type.rstrip('/'))
         if m:
             course_id = m.group(1)
             yield (username, course_id), (timestamp, 'enter_checkout', 'verified')
