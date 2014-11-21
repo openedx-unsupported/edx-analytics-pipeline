@@ -3,19 +3,35 @@
 import datetime
 import logging
 import re
+import textwrap
 
 import luigi
+from luigi.hive import HiveQueryTask
 
+from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
+from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.user_activity import UserActivityBaseTask, UserActivityBaseTaskDownstreamMixin
 from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
 import edx.analytics.tasks.util.eventlog as eventlog
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.hive import hive_database_name
 
 log = logging.getLogger(__name__)
 
 
-class UserCollocationTask(UserActivityBaseTask):
-    """Make a basic task to gather action collocations per user for a single time interval."""
+class UserCollocationTaskMixin(UserActivityBaseTaskDownstreamMixin):
+    """
+    Define parameters for user-collocation task.
+
+    Parameters:
+        max_time:  maximum number of seconds duration between events.
+    """
     max_time = luigi.IntParameter(default=300)
+
+
+class UserCollocationTask(UserCollocationTaskMixin, UserActivityBaseTask):
+    """Make a basic task to gather action collocations per user for a single time interval."""
 
     def get_mapper_key(self, course_id, user_id, date_string):
         # For now, break up processing into individual days.
@@ -53,8 +69,10 @@ class UserCollocationTask(UserActivityBaseTask):
 
         if event_source == 'browser':
             if event_type == 'play_video':
+                # The "id", the "code", and the "page" may all provide relevant identifiers.
                 # event: {"id":"i4x-ANUx-ANU-ASTRO3x-video-e75b6863d9af45839b7536d21fd6e75a","currentTime":0,"code":"oi7DqsnFB1k"}
                 # page: https://courses.edx.org/courses/ANUx/ANU-ASTRO3x/4T2014/courseware/fc2c2ebe4e3c4636aef36a0b302a50cd/c649ed78ccaf4fbfbd7c7f5b99cd2fdd/
+                # For now, just use the "id".
                 event_dict = eventlog.get_event_data(event)
                 if event_dict:
                     event_id = event_dict.get('id')
@@ -118,17 +136,20 @@ class UserCollocationTask(UserActivityBaseTask):
         """Outputs labels and user_ids for a given course and interval."""
         course_id, user_id, date_string = key
 
-        event_stream_processor = CollocatedEventProcessor(course_id, user_id, date_string, values, self.max_time)
+        # event_stream_processor = CollocatedEventProcessor(course_id, user_id, date_string, values, self.max_time)
+        event_stream_processor = UniqueCollocatedEventProcessor(course_id, user_id, date_string, values, self.max_time)
+
         for collocation in event_stream_processor.get_collocations():
             yield self._encode_tuple(collocation)
 
     def output(self):
-        return get_target_from_url(
+        target = get_target_from_url(
             url_path_join(
                 self.output_root,
-                'user-collocation-per-interval/'
+                'user-collocation-per-interval',
             )
         )
+        return target
 
                 
 class CollocatableEvent(object):
@@ -181,42 +202,232 @@ class CollocatedEventProcessor(object):
                 num_events, first_event_name, first_event_id, second_event_name, second_event_id)
 
 
-# class CourseUserCollocationTable(CourseEnrollmentTableDownstreamMixin, ImportIntoHiveTableTask):
-#     """Hive table that stores the set of users enrolled in each course over time."""
+class UniqueCollocatedEventProcessor(object):
+    """Identifies and deduplicates collocations for a user in a course."""
+    def __init__(self, course_id, user_id, date_string, events, max_time):
+        self.course_id = course_id
+        self.user_id = user_id
+        self.date_string = date_string
+        self.max_time = max_time
 
-#     @property
-#     def table_name(self):
-#         return 'course_user_collocation'
+        self.sorted_events = sorted(events)
+        self.sorted_events = [
+            CollocatableEvent(timestamp, event_name, event_id) for timestamp, event_name, event_id in self.sorted_events
+        ]
 
-#     @property
-#     def columns(self):
-#         return [
-#             ('date', 'STRING'),
-#             ('course_id', 'STRING'),
-#             ('user_id', 'INT'),
-#             ('at_end', 'TINYINT'),
-#             ('change', 'TINYINT'),
-#         ]
+    def _get_collocation_key(self, source_value, dest_value):
+        return (source_value.event_name, source_value.event_id, dest_value.event_name, dest_value.event_id)
 
-#     @property
-#     def table_location(self):
-#         return url_path_join(self.warehouse_path, self.table_name)
+    def get_collocations(self):
+        collocations = {}
+        for source_index in range(len(self.sorted_events) - 1):
+            for dest_index in range(source_index + 1, len(self.sorted_events) - 1):
+                source_value = self.sorted_events[source_index]
+                dest_value = self.sorted_events[dest_index]
+                time_diff = (dest_value.timestamp_object - source_value.timestamp_object).seconds
+                num_events = dest_index - source_index
+                if not self.max_time or time_diff <= self.max_time:
+                    key = self._get_collocation_key(source_value, dest_value)
+                    # minimize the diffs:
+                    if key in collocations:
+                        curr_time_diff, curr_num_events = collocations[key]
+                        time_diff = curr_time_diff if curr_time_diff < time_diff else time_diff
+                        num_events = curr_num_events if curr_num_events < num_events else num_events
+                    collocations[key] = (time_diff, num_events)
 
-#     @property
-#     def table_format(self):
-#         """Provides name of Hive database table."""
-#         return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'"
+                else:
+                    break
+        # Once done with collecting unique collocations per user (and some stats about them),
+        # output the results.
+        for key, value in collocations.iteritems():
+            yield self.collocation_record(key, value)
 
-#     @property
-#     def partition_date(self):
-#         return self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+    def collocation_record(self, key, value):
+        """A complete collocation record."""
+        first_event_name, first_event_id, second_event_name, second_event_id = key
+        time_diff, num_events = value
+        return (self.course_id, self.user_id, first_event_name, first_event_id, second_event_name, second_event_id,
+                time_diff, num_events)
 
-#     def requires(self):
-#         return CourseEnrollmentTask(
-#             mapreduce_engine=self.mapreduce_engine,
-#             n_reduce_tasks=self.n_reduce_tasks,
-#             source=self.source,
-#             interval=self.interval,
-#             pattern=self.pattern,
-#             output_root=self.partition_location,
-#         )
+
+class UserCollocationOutputForHiveTask(
+        UserCollocationTaskMixin,
+        EventLogSelectionDownstreamMixin,
+        MultiOutputMapReduceJobTask):
+    """
+    A thin task to partition collocation data by date.
+
+    By doing so, the data can be easily extended by running other date intervals
+    and populating other partitions.
+    """
+    intermediate_output = luigi.Parameter()
+
+    def mapper(self, line):
+        """Groups by first element (date_string)."""
+        values = line.split('\t')
+        yield values[0], tuple(values[1:])
+
+    def multi_output_reducer(self, _key, values, output_file):
+        """Returns an iterable of strings that are written out to the appropriate output file for this key."""
+        for value in values:
+            output_file.write(value)
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        return get_target_from_url(
+            url_path_join(
+                self.output_root,
+                'dt={partition_date}'.format(partition_date=key),
+            )
+        )
+
+    def requires(self):
+        # Pass the intermediate_output as the value for output_root.
+        return UserCollocationTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            output_root=self.intermediate_output,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            max_time=self.max_time,
+        )
+
+
+class CourseUserCollocationTable(
+        UserCollocationTaskMixin,
+        MapReduceJobTaskMixin,
+        EventLogSelectionDownstreamMixin,
+        ImportIntoHiveTableTask):
+    """Creates a Hive Table that points to Hadoop output of UserCollationTask."""
+
+    @property
+    def table_name(self):
+        return 'course_user_collocations'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('user_id', 'INT'),
+            ('first_event_name', 'STRING'),
+            ('first_event_id', 'STRING'),
+            ('second_event_name', 'STRING'),
+            ('second_event_id', 'STRING'),
+            ('time_diff', 'INT'),
+            ('num_events', 'INT'),
+        ]
+
+    @property
+    def table_location(self):
+        # return url_path_join(self.warehouse_path, self.table_name)
+        return url_path_join(self.output_root, self.table_name)
+
+    @property
+    def table_format(self):
+        """Provides format of Hive database table."""
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'"
+
+    @property
+    def partition_date(self):
+        # This gets called and added to automatically add just this partition,
+        # when in fact we want to add all partitions.
+        return self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+
+    def requires(self):
+        # just put all data into a single table.
+        # return UserCollocationOutputForHiveTask(
+        return UserCollocationTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.partition_location,
+            max_time=self.max_time,
+        )
+
+class QueryCourseUserCollocationMixin(object):
+    """
+    Defines parameters for QueryCourseUserCollocationTask.
+
+    Parameters:
+        course_collocation_output:  location to write query results.
+    """
+    course_collocation_output = luigi.Parameter()
+
+
+class QueryCourseUserCollocationTask(
+        QueryCourseUserCollocationMixin,
+        OverwriteOutputMixin,
+        HiveQueryTask):
+    """Defines task to perform join in Hive to find collocation counts across users."""
+
+    def query(self):
+
+        query_format = textwrap.dedent("""
+            USE {database_name};
+            DROP TABLE IF EXISTS {table_name};
+            CREATE EXTERNAL TABLE {table_name} (
+                course_id STRING,
+                first_event_name STRING,
+                first_event_id STRING,
+                second_event_name STRING,
+                second_event_id STRING,
+                avg_time_diff DOUBLE,
+                avg_num_events DOUBLE,
+                count INT
+            )
+            ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+            LOCATION '{location}';
+
+            INSERT OVERWRITE TABLE {table_name}
+            SELECT
+                cuc.course_id,
+                cuc.first_event_name,
+                cuc.first_event_id,
+                cuc.second_event_name,
+                cuc.second_event_id,
+                avg(cuc.time_diff),
+                avg(cuc.num_events),
+                count(cuc.user_id)
+            FROM course_user_collocations cuc
+            GROUP BY cuc.course_id, cuc.first_event_name, cuc.first_event_id, cuc.second_event_name, cuc.second_event_id;
+        """)
+
+        query = query_format.format(
+            database_name=hive_database_name(),
+            location=self.output().path,
+            table_name='course_collocation',
+        )
+
+        log.debug('Executing hive query: %s', query)
+        return query
+
+    def init_local(self):
+        super(QueryCourseUserCollocationTask, self).init_local()
+        self.remove_output_on_overwrite()
+
+    def output(self):
+        return get_target_from_url(self.course_collocation_output + "/")
+
+    def requires(self):
+        return ExternalHiveTask(table='course_user_collocations', database=hive_database_name())
+
+
+class QueryCourseUserCollocationWorkflow(
+        UserCollocationTaskMixin,
+        MapReduceJobTaskMixin,
+        EventLogSelectionDownstreamMixin,
+        QueryCourseUserCollocationTask):
+    """Defines dependencies for performing join in Hive to find course enrollment per-country counts."""
+    def requires(self):
+        return CourseUserCollocationTable(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            overwrite=self.overwrite,
+            output_root=self.output_root,
+        )
