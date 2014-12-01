@@ -615,7 +615,7 @@ class CourseEnrollmentValidationPerDateTask(
 
         # Update intermediate_output if not present.
         if self.intermediate_output is None:
-            self.intermediate_output = url_path_join(output_root, "all-events")
+            self.intermediate_output = url_path_join(self.output_root, "all-events")
 
     def requires(self):
         return CourseEnrollmentValidationTask(
@@ -644,7 +644,7 @@ class CourseEnrollmentValidationPerDateTask(
                 outfile.write('\n')
 
     def output_path_for_key(self, datestamp):
-        if self.tuple_output:
+        if not self.tuple_output:
             # Match tracking.log-{datestamp}.gz format.
             filename = u'synthetic_enroll.log-{datestamp}.gz'.format(
                 datestamp=datestamp.replace('-', ''),
@@ -667,7 +667,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
     uniformly.  But it allows us to also separate the enrollment results into separate
     courses so that validation runs can be more fine-grained.
 
-    The date for the synthesized events is the start time of the Sqoop dump.  This
+    The date for the synthesized events is the end time of the Sqoop dump.  This
     is when the particular enrollment states were observed.
 
     Parameters:
@@ -874,7 +874,7 @@ class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMi
         return [task.output() for task in self.requires()]
 
 
-class EnrollmentValidationWorkflow(CourseEnrollmentValidationTask):
+class EnrollmentValidationWorkflow(CourseEnrollmentValidationPerDateTask):
     """
     Performs validation of enrollment data over an interval of time.
 

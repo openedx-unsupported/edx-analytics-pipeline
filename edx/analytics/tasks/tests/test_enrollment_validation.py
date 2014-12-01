@@ -870,6 +870,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
 
 
 class CreateAllEnrollmentValidationEventsTest(unittest.TestCase):
+    """Test that requirements for creating enrollment validation events are generated correctly."""
 
     def setUp(self):
         # Define a real output directory, so it can
