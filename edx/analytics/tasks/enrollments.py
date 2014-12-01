@@ -19,6 +19,7 @@ from edx.analytics.tasks.mysql_load import MysqlInsertTask
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'
 ACTIVATED = 'edx.course.enrollment.activated'
+MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
 class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -37,7 +38,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered event with no event_type: %s", event)
             return
 
-        if event_type not in (DEACTIVATED, ACTIVATED):
+        if event_type not in (DEACTIVATED, ACTIVATED, MODE_CHANGED):
             return
 
         timestamp = eventlog.get_event_time_string(event)
@@ -59,7 +60,12 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered explicit enrollment event with no user_id: %s", event)
             return
 
-        yield (course_id, user_id), (timestamp, event_type)
+        mode = event_data.get('mode')
+        if mode is None:
+            log.error("encountered explicit enrollment event with no mode: %s", event)
+            return
+
+        yield (course_id, user_id), (timestamp, event_type, mode)
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
@@ -76,10 +82,11 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
 class EnrollmentEvent(object):
     """The critical information necessary to process the event in the event stream."""
 
-    def __init__(self, timestamp, event_type):
+    def __init__(self, timestamp, event_type, mode):
         self.timestamp = timestamp
         self.datestamp = eventlog.timestamp_to_datestamp(timestamp)
         self.event_type = event_type
+        self.mode = mode
 
 
 class DaysEnrolledForEvents(object):
@@ -139,6 +146,7 @@ class DaysEnrolledForEvents(object):
 
     ENROLLED = 1
     UNENROLLED = 0
+    MODE_UNKNOWN = 'unknown'
 
     def __init__(self, course_id, user_id, interval, events):
         self.course_id = course_id
@@ -147,12 +155,14 @@ class DaysEnrolledForEvents(object):
 
         self.sorted_events = sorted(events)
         # After sorting, we can discard time information since we only care about date transitions.
-        self.sorted_events = [EnrollmentEvent(timestamp, value) for timestamp, value in self.sorted_events]
+        self.sorted_events = [
+            EnrollmentEvent(timestamp, event_type, mode) for timestamp, event_type, mode in self.sorted_events
+        ]
         # Since each event looks ahead to see the time of the next event, insert a dummy event at then end that
         # indicates the end of the requested interval. If the user's last event is an enrollment activation event then
         # they are assumed to be enrolled up until the end of the requested interval. Note that the mapper ensures that
         # no events on or after date_b are included in the analyzed data set.
-        self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None))  # pylint: disable=no-member
+        self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None, None))  # pylint: disable=no-member
 
         self.first_event = self.sorted_events[0]
 
@@ -161,10 +171,14 @@ class DaysEnrolledForEvents(object):
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
             log.warning('First event is an unenrollment for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
+        elif self.first_event.event_type == MODE_CHANGED:
+            log.warning('First event is a mode change for user %d in course %s on %s',
+                        self.user_id, self.course_id, self.first_event.datestamp)
 
         # Before we start processing events, we can assume that their current state is the same as it has been for all
         # time before the first event.
         self.state = self.previous_state = self.UNENROLLED
+        self.mode = self.MODE_UNKNOWN
 
     def days_enrolled(self):
         """
@@ -195,12 +209,18 @@ class DaysEnrolledForEvents(object):
                         yield self.enrollment_record(
                             datestamp,
                             self.ENROLLED,
-                            change_since_last_day if datestamp == self.event.datestamp else 0
+                            change_since_last_day if datestamp == self.event.datestamp else 0,
+                            self.mode
                         )
                 else:
                     # This indicates that the user was enrolled at some point on this day, but was not enrolled as of
                     # 23:59:59.999999.
-                    yield self.enrollment_record(self.event.datestamp, self.UNENROLLED, change_since_last_day)
+                    yield self.enrollment_record(
+                        self.event.datestamp,
+                        self.UNENROLLED,
+                        change_since_last_day,
+                        self.mode
+                    )
 
                 self.previous_state = self.state
 
@@ -224,19 +244,23 @@ class DaysEnrolledForEvents(object):
         date_parts = [int(p) for p in date_str.split('-')[:3]]
         return datetime.date(*date_parts)
 
-    def enrollment_record(self, datestamp, enrolled_at_end, change_since_last_day):
+    def enrollment_record(self, datestamp, enrolled_at_end, change_since_last_day, mode_at_end):
         """A complete enrollment record."""
-        return (datestamp, self.course_id, self.user_id, enrolled_at_end, change_since_last_day)
+        return (datestamp, self.course_id, self.user_id, enrolled_at_end, change_since_last_day, mode_at_end)
 
     def change_state(self):
         """Change state when appropriate.
 
         Note that in spite of our best efforts some events might be lost, causing invalid state transitions.
         """
+        self.mode = self.event.mode
+
         if self.state == self.ENROLLED and self.event.event_type == DEACTIVATED:
             self.state = self.UNENROLLED
         elif self.state == self.UNENROLLED and self.event.event_type == ACTIVATED:
             self.state = self.ENROLLED
+        elif self.event.event_type == MODE_CHANGED:
+            pass
         else:
             log.warning(
                 'No state change for %s event. User %d is already in the requested state for course %s on %s.',
@@ -264,6 +288,7 @@ class CourseEnrollmentTable(CourseEnrollmentTableDownstreamMixin, ImportIntoHive
             ('user_id', 'INT'),
             ('at_end', 'TINYINT'),
             ('change', 'TINYINT'),
+            ('mode', 'STRING'),
         ]
 
     @property
@@ -672,8 +697,77 @@ class ImportEnrollmentByEducationLevelIntoMysql(CourseEnrollmentTableDownstreamM
         )
 
 
-class ImportDemographicsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
-    """Import all demographic breakdowns of enrollment into MySQL"""
+class EnrollmentByModeTask(EnrollmentDemographicTask):
+    """Breakdown of enrollments by mode"""
+
+    @property
+    def insert_query(self):
+        return """
+            SELECT
+                ce.date,
+                ce.course_id,
+                ce.mode,
+                COUNT(ce.user_id)
+            FROM course_enrollment ce
+            WHERE ce.at_end = 1
+            GROUP BY
+                ce.date,
+                ce.course_id,
+                ce.mode
+            """
+
+    @property
+    def table_name(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+            ('count', 'INT'),
+        ]
+
+
+class ImportEnrollmentByModeIntoMysql(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
+    """Load mode breakdowns into MySQL"""
+
+    overwrite = luigi.BooleanParameter(default=True)
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('mode', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INTEGER'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            ('date', 'course_id'),
+        ]
+
+    @property
+    def table(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def insert_source_task(self):
+        return EnrollmentByModeTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+
+class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
+    """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
         kwargs = {
@@ -686,5 +780,6 @@ class ImportDemographicsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wr
         yield (
             ImportEnrollmentByGenderIntoMysql(**kwargs),
             ImportEnrollmentByBirthYearIntoMysql(**kwargs),
-            ImportEnrollmentByEducationLevelIntoMysql(**kwargs)
+            ImportEnrollmentByEducationLevelIntoMysql(**kwargs),
+            ImportEnrollmentByModeIntoMysql(**kwargs),
         )
