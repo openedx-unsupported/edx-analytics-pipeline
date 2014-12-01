@@ -59,6 +59,10 @@ class PathSetTask(luigi.Task):
                 for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
+            elif src.startswith('hdfs'):
+                for source in luigi.hdfs.listdir(src):
+                    if any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
+                        yield ExternalURL(source)
             else:
                 # Apply the include patterns to the relative path below the src directory.
                 for dirpath, _dirnames, files in os.walk(src):
@@ -158,6 +162,8 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         for source in self.source:
             if source.startswith('s3'):
                 url_gens.append(self._get_s3_urls(source))
+            elif source.startswith('hdfs'):
+                url_gens.append(self._get_hdfs_urls(source))
             else:
                 url_gens.append(self._get_local_urls(source))
 
@@ -177,6 +183,10 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             if key_metadata.size > 0:
                 key_path = key_metadata.key[len(root):].lstrip('/')
                 yield url_path_join(source, key_path)
+
+    def _get_hdfs_urls(self, source):
+        for source in luigi.hdfs.listdir(source):
+            yield source
 
     def _get_local_urls(self, source):
         """Recursively list all files inside the source directory on the local filesystem."""
