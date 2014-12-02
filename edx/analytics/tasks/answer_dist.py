@@ -279,9 +279,7 @@ class AnswerDistributionPerCourseMixin(object):
         # Now construct answer distribution for this input.
         problem_id = most_recent_answer.get('problem_id')
         problem_display_name = most_recent_answer.get('problem_display_name')
-        most_recent_question = most_recent_answer.get('question', '')
         answer_uses_value_id = ('answer_value_id' in most_recent_answer)
-        answer_uses_variant = (most_recent_answer.get('variant', '') != '')
         answer_dist = {}
         for _timestamp, value_string in reversed(values):
             answer = json.loads(value_string)
@@ -325,19 +323,12 @@ class AnswerDistributionPerCourseMixin(object):
                 answer_value_contains_html = (value_id is not None and value_id != '')
                 answer_value = self.stringify(answer_value, contains_html=answer_value_contains_html)
 
-                # If there is a variant, then the question might not be
-                # the same for all variants presented to students.  So
-                # we take the value (if any) provided in this variant.
-                # If there is no variant, then the question should be
-                # the same, and we want to go with the most recently
-                # defined value.
-                if answer_uses_variant:
-                    question = answer.get('question', '')
-                    variant = answer.get('variant') or ''
-                else:
-                    question = most_recent_question
-                    variant = ''
-
+                # Even if the most recent answer does not have a variant,
+                # the question could have been randomized earlier and then
+                # switched, so the variant must be checked for all answers.
+                question = answer.get('question', '')
+                variant = answer.get('variant') or ''
+                
                 # Key values here should match those used in get_column_order().
                 answer_dist[answer_grouping_key] = {
                     'ModuleID': problem_id,
