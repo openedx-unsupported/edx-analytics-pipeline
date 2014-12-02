@@ -325,8 +325,7 @@ def get_explicit_enrollment_output(line):
     if not username:
         return None
     else:
-        if "anon__" in username and len(username) == 30:
-            log.debug('encountered anonymous user, discounting from enrollment: %s', username)
+        if username == 'anonymous':
             return None
 
     # For now, ignore the enrollment 'mode' (e.g. 'honor').
