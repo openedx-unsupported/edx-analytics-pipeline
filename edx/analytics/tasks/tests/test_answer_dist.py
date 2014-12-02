@@ -669,20 +669,24 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
         input_data_2 = (self.timestamp, json.dumps(answer_data_2))
         expected_output_2 = self._get_expected_output(answer_data_2)
-        # An older non-submission-based event should inherit some
+        # An older non-submission-based event should not inherit
         # information from a newer submission-based event.
-        # In particular, the Variant, the Question, and Problem Display Name.
-        expected_output_1 = self._get_expected_output(
-            answer_data_1,
-            Variant="",
-            Question=expected_output_2['Question'],
-        )
+        expected_output_1 = self._get_expected_output(answer_data_1)
         expected_output_1['Problem Display Name'] = expected_output_2['Problem Display Name']
         self._check_output([input_data_1, input_data_2], (expected_output_1, expected_output_2))
 
     def test_two_answer_event_different_variant(self):
         answer_data_1 = self._get_answer_data(variant=123)
         answer_data_2 = self._get_answer_data(variant=456)
+        input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
+        input_data_2 = (self.timestamp, json.dumps(answer_data_2))
+        expected_output_1 = self._get_expected_output(answer_data_1)
+        expected_output_2 = self._get_expected_output(answer_data_2)
+        self._check_output([input_data_1, input_data_2], (expected_output_1, expected_output_2))
+
+    def test_two_answer_event_different_variant_empty_new(self):
+        answer_data_1 = self._get_answer_data(variant=123)
+        answer_data_2 = self._get_answer_data(variant='')
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
         input_data_2 = (self.timestamp, json.dumps(answer_data_2))
         expected_output_1 = self._get_expected_output(answer_data_1)
