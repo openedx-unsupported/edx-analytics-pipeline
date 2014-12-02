@@ -91,6 +91,13 @@ class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         line = self._create_event_log_line(event={"course_id": self.course_id})
         self.assert_no_output_for(line)
 
+    def test_anonymous_user(self):
+        line = self._create_event_log_line(
+            event_type='edx.course.enrollment.activated',
+            username='anonymous'
+        )
+        self.assert_no_output_for(line)
+
     def test_good_enroll_event(self):
         line = self._create_event_log_line()
         event = tuple(self.task.mapper(line))
