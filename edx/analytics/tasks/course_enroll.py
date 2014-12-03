@@ -321,11 +321,8 @@ def get_explicit_enrollment_output(line):
         return None
 
     # Get the username from the data and check for direct access:
-    username = event.get('username')
-    if not username:
-        return None
-    else:
-        if username == 'anonymous':
+    username = event.get('username', '')
+    if 'anon__' in username:
             return None
 
     # For now, ignore the enrollment 'mode' (e.g. 'honor').
