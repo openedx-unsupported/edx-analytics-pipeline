@@ -926,6 +926,7 @@ class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
             include=None,
             output_root=self.output_root,
             delete_output_root="true",
+            marker=self.output_root,
         )
         self.assertFalse(task.complete())
         self.assertFalse(os.path.exists(self.output_root))

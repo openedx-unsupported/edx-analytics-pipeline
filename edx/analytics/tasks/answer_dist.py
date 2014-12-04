@@ -18,7 +18,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduce
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import ExternalURL, IgnoredTarget
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
@@ -329,7 +329,7 @@ class AnswerDistributionPerCourseMixin(object):
                 # switched, so the variant must be checked for all answers.
                 question = answer.get('question', '')
                 variant = answer.get('variant') or ''
-                
+
                 # Key values here should match those used in get_column_order().
                 answer_dist[answer_grouping_key] = {
                     'ModuleID': problem_id,
@@ -563,7 +563,7 @@ def get_text_from_element(node):
 # Task requires/output definitions
 ##################################
 
-class BaseAnswerDistributionTask(MapReduceJobTask):
+class BaseAnswerDistributionDownstreamMixin(object):
     """
     Base class for answer distribution calculations.
 
@@ -580,16 +580,24 @@ class BaseAnswerDistributionTask(MapReduceJobTask):
     src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
-    # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
-    # number of arguments passed to the mapper process on the task nodes.
+    # A manifest file is required by hadoop if there are too many
+    # input paths. It hits an operating system limit on the number of
+    # arguments passed to the mapper process on the task nodes.
     manifest = luigi.Parameter(default=None)
+
+
+class BaseAnswerDistributionTask(MapReduceJobTask):
+    """Base class for answer distribution calculations."""
 
     def extra_modules(self):
         import six
         return [html5lib, six]
 
 
-class LastProblemCheckEvent(LastProblemCheckEventMixin, BaseAnswerDistributionTask):
+class LastProblemCheckEvent(
+        BaseAnswerDistributionDownstreamMixin,
+        LastProblemCheckEventMixin,
+        BaseAnswerDistributionTask):
     """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
 
     def requires(self):
@@ -600,20 +608,26 @@ class LastProblemCheckEvent(LastProblemCheckEventMixin, BaseAnswerDistributionTa
         return get_target_from_url(url_path_join(self.dest, output_name))
 
 
-class AnswerDistributionPerCourse(AnswerDistributionPerCourseMixin, BaseAnswerDistributionTask):
+class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
     """
-    Calculates answer distribution on a problem in a course, given per-user answers by date.
-
+    Parameters needed for calculating answer distribution.
 
     Additional Parameters:
         answer_metadata:  optional file to provide information about particular answers.
             Includes problem_display_name, input_type, response_type, and question.
         base_input_format:  The input format to use on the first map reduce job in the chain. This job takes in the most
             input and may need a custom input format.
-    """
 
+    """
     answer_metadata = luigi.Parameter(default=None)
     base_input_format = luigi.Parameter(default=None)
+
+
+class AnswerDistributionPerCourse(
+        AnswerDistributionDownstreamMixin,
+        AnswerDistributionPerCourseMixin,
+        BaseAnswerDistributionTask):
+    """Calculates answer distribution on a problem in a course, given per-user answers by date."""
 
     def requires(self):
         results = {
@@ -652,7 +666,7 @@ class AnswerDistributionPerCourse(AnswerDistributionPerCourseMixin, BaseAnswerDi
         super(AnswerDistributionPerCourse, self).run()
 
 
-class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
+class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, MultiOutputMapReduceJobTask):
     """
     Groups answer distributions by course, producing a different file for each.
 
@@ -663,21 +677,8 @@ class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
             are written.  This is distinct from `dest`, which is where
             intermediate output is written.
         delete_output_root: if True, recursively deletes the output_root at task creation.
+        marker:  a URL location where a marker file should be written.
     """
-
-    src = luigi.Parameter(is_list=True)
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    name = luigi.Parameter(default='periodic')
-    answer_metadata = luigi.Parameter(default=None)
-    manifest = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
-
-    def output(self):
-        # Because this task writes to a shared directory, we don't
-        # want to include a marker for job success.  Use a special
-        # target that always triggers new runs and never writes out.
-        return IgnoredTarget()
 
     def requires(self):
         return AnswerDistributionPerCourse(
@@ -803,21 +804,9 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
         ]
 
 
-class AnswerDistributionToMySQLParamsMixin(object):
-    name = luigi.Parameter()
-    src = luigi.Parameter(is_list=True)
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
-    # number of arguments passed to the mapper process on the task nodes.
-    manifest = luigi.Parameter(default=None)
-    answer_metadata = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
-
-
 class AnswerDistributionToMySQLTaskWorkflow(
     InsertToMysqlAnswerDistributionTableBase,
-    AnswerDistributionToMySQLParamsMixin,
+    AnswerDistributionDownstreamMixin,
     MapReduceJobTaskMixin
 ):
     def init_copy(self, connection):
@@ -845,6 +834,52 @@ class AnswerDistributionToMySQLTaskWorkflow(
             name=self.name,
             answer_metadata=self.answer_metadata,
             manifest=self.manifest,
+        )
+
+
+class AnswerDistributionWorkflow(
+        AnswerDistributionDownstreamMixin,
+        MysqlInsertTaskMixin,
+        MapReduceJobTaskMixin,
+        luigi.WrapperTask):
+    """Calculate answer distribution and output to files and to database."""
+
+    # Add additional args for MultiOutputMapReduceJobTask.
+    output_root = luigi.Parameter()
+    marker = luigi.Parameter()
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'lib_jar': self.lib_jar,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'name': self.name,
+            'src': self.src,
+            'dest': self.dest,
+            'include': self.include,
+            'manifest': self.manifest,
+            'answer_metadata': self.answer_metadata,
+            'base_input_format': self.base_input_format,
+        }
+
+        # Add additional args for MultiOutputMapReduceJobTask.
+        kwargs1 = {
+            'output_root': self.output_root,
+            'marker': self.marker,
+        }
+        kwargs1.update(kwargs)
+
+        # Add additional args for MysqlInsertTaskMixin.
+        kwargs2 = {
+            'database': self.database,
+            'credentials': self.credentials,
+            'insert_chunk_size': self.insert_chunk_size,
+        }
+        kwargs2.update(kwargs)
+
+        yield (
+            AnswerDistributionOneFilePerCourseTask(**kwargs1),
+            AnswerDistributionToMySQLTaskWorkflow(**kwargs2),
         )
 
 

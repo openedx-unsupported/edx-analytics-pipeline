@@ -22,9 +22,6 @@ from edx.analytics.tasks.util.manifest import convert_tasks_to_manifest_if_neces
 log = logging.getLogger(__name__)
 
 
-DEFAULT_MARKER_ROOT = 'hdfs:///tmp/marker'
-
-
 class MapReduceJobTaskMixin(object):
     """Defines arguments used by downstream tasks to pass to upstream MapReduceJobTask."""
 
@@ -202,13 +199,17 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     Parameters:
         output_root: a URL location where the split files will be stored.
         delete_output_root: if True, recursively deletes the output_root at task creation.
+        marker:  a URL location to a directory where a marker file will be written on task completion.
     """
     output_root = luigi.Parameter()
     delete_output_root = luigi.BooleanParameter(default=False, significant=False)
+    marker = luigi.Parameter(
+        default_from_config={'section': 'map-reduce', 'name': 'marker'},
+        significant=False
+    )
 
     def output(self):
-        marker_base_url = configuration.get_config().get('map-reduce', 'marker', DEFAULT_MARKER_ROOT)
-        marker_url = url_path_join(marker_base_url, str(hash(self)))
+        marker_url = url_path_join(self.marker, str(hash(self)))
         return get_target_from_url(marker_url)
 
     def reducer(self, key, values):
