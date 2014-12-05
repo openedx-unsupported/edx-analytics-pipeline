@@ -134,7 +134,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         command = [
             os.getenv('EXPORTER'),
             '--work-dir', self.working_dir,
-            '--bucket', self.config.get('exporter_output_bucket'),
+            '--output-bucket', self.config.get('exporter_output_bucket'),
             '--pipeline-bucket', src_url_tuple.netloc,
             '--course-id', course_id,
             '--external-prefix', src_url_tuple.path.lstrip('/'),
