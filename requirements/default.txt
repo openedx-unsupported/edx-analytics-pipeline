@@ -4,6 +4,7 @@ PyYAML==3.10		# MIT License
 ansible==1.4.5		# GPL v3 License
 argparse==1.2.1 	# Python Software Foundation License
 boto==2.22.1 		# MIT
+docker-py==0.6.0        # Apache 2.0
 ecdsa==0.11 		# MIT
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT

@@ -4,6 +4,7 @@ Support for loading data into a Mysql database.
 import json
 import logging
 from itertools import chain
+import urlparse
 
 import luigi
 import luigi.configuration
@@ -55,10 +56,37 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
-                'credentials': ExternalURL(url=self.credentials),
                 'insert_source': self.insert_source_task
             }
+            if self.parse_credentials() is None:
+                self.required_tasks['credentials'] = ExternalURL(url=self.credentials)
         return self.required_tasks
+
+    def parse_credentials(self):
+        parsed_url = urlparse.urlparse(self.credentials)
+        if parsed_url.scheme != 'mysql':
+            return None
+        else:
+            split_netloc = parsed_url.netloc.split('@')
+            username = split_netloc[0]
+            password = None
+            if ':' in username:
+                username, password = username.split(':')
+            host = split_netloc[1]
+            port = None
+            if ':' in host:
+                host, port = host.split(':')
+                port = int(port)
+
+            credentials = {
+                'username': username,
+                'host': host
+            }
+            if port:
+                credentials['port'] = port
+            if password:
+                credentials['password'] = password
+            return credentials
 
     @property
     def insert_source_task(self):
@@ -182,7 +210,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         """
         if self.output_target is None:
             self.output_target = CredentialFileMysqlTarget(
-                credentials_target=self.input()['credentials'],
+                credentials_target=(self.parse_credentials() or self.input()['credentials']),
                 database_name=self.database,
                 table=self.table,
                 update_id=self.update_id()
@@ -364,17 +392,21 @@ class CredentialFileMysqlTarget(MySqlTarget):
     """
 
     def __init__(self, credentials_target, database_name, table, update_id):
-        with credentials_target.open('r') as credentials_file:
-            cred = json.load(credentials_file)
-            return super(CredentialFileMysqlTarget, self).__init__(
-                # Annoying, but the port must be passed in with the host string...
-                host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 3306)),
-                database=database_name,
-                user=cred.get('username'),
-                password=cred.get('password'),
-                table=table,
-                update_id=update_id
-            )
+        try:
+            with credentials_target.open('r') as credentials_file:
+                cred = json.load(credentials_file)
+        except AttributeError:
+            cred = credentials_target
+
+        return super(CredentialFileMysqlTarget, self).__init__(
+            # Annoying, but the port must be passed in with the host string...
+            host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 3306)),
+            database=database_name,
+            user=cred.get('username'),
+            password=cred.get('password'),
+            table=table,
+            update_id=update_id
+        )
 
     def exists(self, connection=None):
         # The parent class fails if the database does not exist. This override tolerates that error.

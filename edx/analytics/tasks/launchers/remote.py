@@ -20,6 +20,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--job-flow-id', help='EMR job flow to run the task', default=None)
     parser.add_argument('--job-flow-name', help='EMR job flow to run the task', default=None)
+    parser.add_argument('--docker-container-name', help='Docker container to run the task', default=None)
     parser.add_argument('--branch', help='git branch to checkout before running the task', default='release')
     parser.add_argument('--repo', help='git repository to clone')
     parser.add_argument('--remote-name', help='an identifier for this remote task')
@@ -42,7 +43,7 @@ def main():
     uid = arguments.remote_name or str(uuid.uuid4())
     log('Remote name = {0}'.format(uid))
 
-    inventory = get_ansible_inventory()
+    inventory = get_ansible_inventory(arguments)
     if arguments.shell:
         return_code = run_remote_shell(inventory, arguments, arguments.shell)
     else:
@@ -116,7 +117,7 @@ def convert_args_to_extra_vars(arguments, uid):
         uid (str): A unique identifier for this task execution.
     """
     extra_vars = {
-        'name': arguments.job_flow_id or arguments.job_flow_name,
+        'name': arguments.job_flow_id or arguments.job_flow_name or arguments.docker_container_name,
         'branch': arguments.branch,
         'uuid': uid,
         'root_data_dir': REMOTE_DATA_DIR,
@@ -135,14 +136,14 @@ def convert_args_to_extra_vars(arguments, uid):
     return json.dumps(extra_vars)
 
 
-def get_ansible_inventory():
+def get_ansible_inventory(arguments):
     """
     Ensure the EC2 inventory cache is cleared before running ansible.
 
     Otherwise new resources will not be present in the inventory which will cause ansible to fail to connect to them.
 
     """
-    executable_path = os.path.join(STATIC_FILES_PATH, 'ec2.py')
+    executable_path = os.path.join(STATIC_FILES_PATH, get_inventory_script_name(arguments))
     command = [executable_path, '--refresh-cache']
     log('Running command = {0}'.format(command))
     with open('/dev/null', 'r+') as devnull:
@@ -160,7 +161,14 @@ def get_ansible_inventory():
     return json.loads(stdout)
 
 
-def run_ansible(args, verbose, executable='ansible'):
+def get_inventory_script_name(arguments):
+    if arguments.job_flow_id or arguments.job_flow_name:
+        return 'ec2.py'
+    elif arguments.docker_container_name:
+        return 'local_docker.sh'
+
+
+def run_ansible(args, verbose, executable='ansible', inventory='ec2.py'):
     """
     Execute ansible passing in the provided arguments.
 
@@ -171,7 +179,7 @@ def run_ansible(args, verbose, executable='ansible'):
 
     """
     executable_path = os.path.join(sys.prefix, 'bin', executable)
-    command = [executable_path, '-i', 'ec2.py'] + list(args)
+    command = [executable_path, '-i', inventory] + list(args)
     if verbose:
         command.append('-vvvv')
 
@@ -198,11 +206,18 @@ def run_ansible(args, verbose, executable='ansible'):
 
 def run_remote_shell(inventory, arguments, shell_command):
     """Run a shell command on a hadoop cluster."""
-    ansible_group_name = 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
+    cluster_name = arguments.job_flow_id or arguments.job_flow_name or arguments.docker_container_name
+    ansible_group_name = 'mr_{0}_master'.format(cluster_name)
     hostname = inventory[ansible_group_name][0]
-    sudo_user = arguments.sudo_user
-    if sudo_user:
-        shell_command = 'sudo -u {0} /bin/bash -c {1}'.format(sudo_user, pipes.quote(shell_command))
+    port = None
+    hostvars = inventory.get('_meta', {}).get('hostvars', {}).get(hostname, {})
+    if 'ansible_ssh_host' in hostvars:
+        hostname = hostvars['ansible_ssh_host']
+    if 'ansible_ssh_port' in hostvars:
+        port = hostvars['ansible_ssh_port']
+    shell_command = arguments.shell
+    if arguments.sudo_user:
+        shell_command = 'sudo -u {user} /bin/sh -c {cmd}'.format(user=arguments.sudo_user, cmd=pipes.quote(arguments.shell))
     command = [
         'ssh',
         '-tt',
@@ -213,9 +228,10 @@ def run_remote_shell(inventory, arguments, shell_command):
         '-o', 'PasswordAuthentication=no',
         '-o', 'User=' + arguments.user,
         '-o', 'ConnectTimeout=10',
-        hostname,
-        shell_command
     ]
+    if port:
+        command += ['-p', str(port)]
+    command += [hostname, shell_command]
     log('Running command = {0}'.format(command))
     proc = Popen(
         command,
