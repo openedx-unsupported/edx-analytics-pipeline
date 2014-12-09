@@ -26,9 +26,13 @@ except ImportError:
     mysql_client_available = False
 
 
-class MysqlInsertTask(OverwriteOutputMixin, luigi.Task):
+class MysqlInsertTaskMixin(OverwriteOutputMixin):
     """
-    A task for inserting a data set into RDBMS.
+    Parameters for inserting a data set into RDBMS.
+
+        credentials: Path to the external access credentials file.
+        database:  The name of the database to which to write.
+        insert_chunk_size:  The number of rows to insert at a time.
 
     """
     database = luigi.Parameter(
@@ -39,6 +43,12 @@ class MysqlInsertTask(OverwriteOutputMixin, luigi.Task):
     )
     insert_chunk_size = luigi.IntParameter(default=100, significant=False)
 
+
+class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
+    """
+    A task for inserting a data set into RDBMS.
+
+    """
     required_tasks = None
     output_target = None
 
