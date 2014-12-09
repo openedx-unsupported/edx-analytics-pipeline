@@ -20,6 +20,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--job-flow-id', help='EMR job flow to run the task', default=None)
     parser.add_argument('--job-flow-name', help='EMR job flow to run the task', default=None)
+    parser.add_argument('--host', help='host:port to run the task on', default=None)
+    parser.add_argument('--vagrant-path', help='path to the root directory containing a running vagrant container', default=None)
     parser.add_argument('--branch', help='git branch to checkout before running the task', default='release')
     parser.add_argument('--repo', help='git repository to clone')
     parser.add_argument('--remote-name', help='an identifier for this remote task')
@@ -27,6 +29,7 @@ def main():
     parser.add_argument('--verbose', action='store_true', help='display very verbose output')
     parser.add_argument('--log-path', help='download luigi output streams after completing the task', default=None)
     parser.add_argument('--user', help='remote user name to connect as', default=None)
+    parser.add_argument('--private-key', help='a private key file to use to connect to the host', default=None)
     parser.add_argument('--override-config', help='config file to use to run the job', default=None)
     parser.add_argument('--secure-config', help='config file in secure config repo to use to run the job', default=None)
     parser.add_argument('--secure-config-branch', help='git branch to checkout to find the secure config file', default=None)
@@ -34,6 +37,8 @@ def main():
     parser.add_argument('--shell', help='execute a shell command on the cluster and exit', default=None)
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
+    parser.add_argument('--wheel-url', help='url of the wheelhouse', default=os.getenv('WHEEL_URL'))
+    parser.add_argument('--retry', action='store_true', help='skip setup of the environment, --remote-name also must be specified and point to a valid environment')
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -42,7 +47,14 @@ def main():
     uid = arguments.remote_name or str(uuid.uuid4())
     log('Remote name = {0}'.format(uid))
 
-    inventory = get_ansible_inventory()
+    if arguments.vagrant_path:
+        parse_vagrant_ssh_config(arguments)
+
+    if arguments.host:
+        inventory = {}
+    else:
+        inventory = get_ansible_inventory()
+
     if arguments.shell:
         return_code = run_remote_shell(inventory, arguments, arguments.shell)
     else:
@@ -60,13 +72,12 @@ def run_task_playbook(inventory, arguments, uid):
         arguments (argparse.Namespace): The arguments that were passed in on the command line.
         uid (str): A unique identifier for this task execution.
     """
-    extra_vars = convert_args_to_extra_vars(arguments, uid)
-    args = ['task.yml', '-e', extra_vars]
-    if arguments.user:
-        args.extend(['-u', arguments.user])
-    prep_result = run_ansible(tuple(args), arguments.verbose, executable='ansible-playbook')
-    if prep_result != 0:
-        return prep_result
+    if not arguments.retry:
+        extra_vars = convert_args_to_extra_vars(arguments, uid)
+        args = ['task.yml', '-e', extra_vars]
+        prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+        if prep_result != 0:
+            return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
     log_dir = os.path.join(REMOTE_LOG_DIR, uid)
@@ -115,8 +126,12 @@ def convert_args_to_extra_vars(arguments, uid):
         arguments (argparse.Namespace): The arguments that were passed in on the command line.
         uid (str): A unique identifier for this task execution.
     """
+    if arguments.host:
+        name = 'all'
+    else:
+        name = 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
     extra_vars = {
-        'name': arguments.job_flow_id or arguments.job_flow_name,
+        'name': name,
         'branch': arguments.branch,
         'uuid': uid,
         'root_data_dir': REMOTE_DATA_DIR,
@@ -132,8 +147,48 @@ def convert_args_to_extra_vars(arguments, uid):
         extra_vars['secure_config_branch'] = arguments.secure_config_branch
     if arguments.secure_config:
         extra_vars['secure_config'] = arguments.secure_config
+    if arguments.wheel_url:
+        extra_vars['install_env'] = {
+            'WHEEL_URL': arguments.wheel_url,
+            'WHEEL_PYVER': '2.7'
+        }
     return json.dumps(extra_vars)
 
+def parse_vagrant_ssh_config(arguments):
+    log('Connecting to vagrant container in {0}'.format(arguments.vagrant_path))
+    command = 'vagrant ssh-config'
+    log('Running command = {0}'.format(command))
+    with open('/dev/null', 'r+') as devnull:
+        proc = Popen(
+            command,
+            stdin=devnull,
+            stdout=PIPE,
+            cwd=arguments.vagrant_path,
+            shell=True
+        )
+        stdout = proc.communicate()[0]
+
+    if proc.returncode != 0:
+        raise RuntimeError('Unable to determine vagrant connectivity parameters.')
+
+    hostname = '127.0.0.1'
+    port = '2222'
+    for line in stdout.split('\n'):
+        split_line = line.strip().split(' ')
+        if len(split_line) != 2:
+            continue
+
+        key, value = split_line
+        if key == "HostName":
+            hostname = value
+        elif key == "User":
+            arguments.user = value
+        elif key == "Port":
+            port = value
+        elif key == "IdentityFile":
+            arguments.private_key = value
+
+    arguments.host = hostname + ':' + port
 
 def get_ansible_inventory():
     """
@@ -160,7 +215,7 @@ def get_ansible_inventory():
     return json.loads(stdout)
 
 
-def run_ansible(args, verbose, executable='ansible'):
+def run_ansible(args, arguments, executable='ansible'):
     """
     Execute ansible passing in the provided arguments.
 
@@ -170,9 +225,17 @@ def run_ansible(args, verbose, executable='ansible'):
         executable (str): The executable script to invoke on the command line.  Defaults to "ansible".
 
     """
+    if arguments.host:
+        inventory_file_path = arguments.host + ','
+    else:
+        inventory_file_path = 'ec2.py'
     executable_path = os.path.join(sys.prefix, 'bin', executable)
-    command = [executable_path, '-i', 'ec2.py'] + list(args)
-    if verbose:
+    command = [executable_path, '-i', inventory_file_path] + list(args)
+    if arguments.user:
+        command.extend(['-u', arguments.user])
+    if arguments.private_key:
+        command.extend(['--private-key', arguments.private_key])
+    if arguments.verbose:
         command.append('-vvvv')
 
     env = dict(os.environ)
@@ -198,8 +261,15 @@ def run_ansible(args, verbose, executable='ansible'):
 
 def run_remote_shell(inventory, arguments, shell_command):
     """Run a shell command on a hadoop cluster."""
-    ansible_group_name = 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
-    hostname = inventory[ansible_group_name][0]
+    port = None
+    if not arguments.host:
+        ansible_group_name = 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
+        hostname = inventory[ansible_group_name][0]
+    else:
+        split_host = arguments.host.split(':')
+        hostname = split_host[0]
+        if len(split_host) > 1:
+            port = split_host[1]
     sudo_user = arguments.sudo_user
     if sudo_user:
         shell_command = 'sudo -u {0} /bin/bash -c {1}'.format(sudo_user, pipes.quote(shell_command))
@@ -213,9 +283,12 @@ def run_remote_shell(inventory, arguments, shell_command):
         '-o', 'PasswordAuthentication=no',
         '-o', 'User=' + arguments.user,
         '-o', 'ConnectTimeout=10',
-        hostname,
-        shell_command
     ]
+    if port:
+        command.extend(['-p', port])
+    if arguments.private_key:
+        command.extend(['-i', arguments.private_key])
+    command.extend([hostname, shell_command])
     log('Running command = {0}'.format(command))
     proc = Popen(
         command,
