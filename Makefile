@@ -21,7 +21,12 @@ develop: requirements
 system-requirements:
 	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base
+	if (sudo dpkg --get-selections | grep -v deinstall | grep mariadb); \
+	then \
+		sudo apt-get install -y -q libmariadbclient-dev libatlas3gf-base; \
+	else \
+		sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base; \
+	fi
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/default.txt
