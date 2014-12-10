@@ -138,6 +138,22 @@ class EventExportTestCase(EventExportTestCaseBase):
             ),
         ]
 
+        # This event should be included in the output, even though it was emitted long ago
+        delayed_input = [
+            '{{"context":{{"org_id": "{org_id}", "received_at": "{received_time}"}}, '
+            '"time": "{time}","event_source": "server"}}'.format(
+                org_id='FooX',
+                received_time=self.EXAMPLE_TIME,
+                time='2013-05-20T00:10:30+00:00'
+            )
+        ]
+        expected_delayed_output = [
+            (
+                (self.EXAMPLE_DATE, 'FooX'),
+                delayed_input[0]
+            )
+        ]
+
         # The following should produce no output from the mapper.
         excluded_events = [
             self.EVENT_TEMPLATE.format(org_id='OtherOrgX', time=self.EXAMPLE_TIME),
@@ -146,8 +162,8 @@ class EventExportTestCase(EventExportTestCaseBase):
             '{invalid json'
         ]
 
-        input_events = single_org_input + multiple_org_input + excluded_events
-        expected_output = expected_multiple_org_output + expected_single_org_output
+        input_events = single_org_input + multiple_org_input + delayed_input + excluded_events
+        expected_output = expected_multiple_org_output + expected_single_org_output + expected_delayed_output
 
         self.task.init_local()
 

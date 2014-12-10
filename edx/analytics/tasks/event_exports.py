@@ -14,6 +14,7 @@ from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
+from edx.analytics.tasks.util import eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 
@@ -129,6 +130,17 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # string. Although python doesn't care about this difference, hadoop does, and will bucket the
             # values separately. Which is not what we want.
             yield tuple([value.encode('utf8') for value in key]), line.strip()
+
+    def get_event_time(self, event):
+        # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
+        # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
+        # events locally and then when connectivity is restored transmit them to the server. We log the time that they
+        # were received by the server and use that to batch them into exports since it is much simpler than trying to
+        # inject them into past exports.
+        try:
+            return event['context']['received_at']
+        except KeyError:
+            return super(EventExportTask, self).get_event_time(event)
 
     def is_valid_input_file(self):
         """

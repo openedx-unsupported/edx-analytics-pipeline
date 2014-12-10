@@ -261,10 +261,8 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         if event is None:
             return None
 
-        try:
-            event_time = event['time']
-        except KeyError:
-            self.incr_counter('Event', 'Missing Time Field', 1)
+        event_time = self.get_event_time(event)
+        if not event_time:
             return None
 
         # Don't use strptime to parse the date, it is extremely slow
@@ -277,3 +275,10 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
             return None
 
         return event, date_string
+
+    def get_event_time(self, event):
+        try:
+            return event['time']
+        except KeyError:
+            self.incr_counter('Event', 'Missing Time Field', 1)
+            return None
