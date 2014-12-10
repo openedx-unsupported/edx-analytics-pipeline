@@ -351,15 +351,19 @@ class EventExportTestCase(EventExportTestCaseBase):
 class TestEvent():
     DATE = '2014-05-20'
 
-    def __init__(self, org_id=None, course_id=None, event_type=None):
-        data = {'context': {}, 'event_source': 'server', 'time': '2014-05-20T00:10:30+00:00'}
+    def __init__(self, org_id=None, course_id=None, url=None, source='server'):
+        data = {'context': {}, 'event_source': source, 'time': '2014-05-20T00:10:30+00:00'}
 
         if org_id:
             data['context']['org_id'] = org_id
+
         if course_id:
             data['context']['course_id'] = course_id
-        if event_type:
-            data['event_type'] = event_type
+
+        if source == 'server':
+            data['event_type'] = url or ''
+        elif source == 'browser':
+            data['page'] = 'https://edx.org' + (url or '')
 
         self.data = data
 
@@ -375,7 +379,7 @@ class CourseEventExportTestCase(EventExportTestCaseBase):
             'BarX': {
                 'recipients': ['automation@barx.com'],
                 'other_names': ['FooX', 'baz'],
-                'courses': ['barx/a/b', 'foox/a/b']
+                'courses': ['BarX/a/b', 'FooX/a/b']
             },
         }
     }
@@ -387,38 +391,44 @@ class CourseEventExportTestCase(EventExportTestCaseBase):
 
         expected_only_foo = convert([
             ('FooX',),
-            ('FooX', 'foox/c/d'),
-            ('FooX', 'foox/c/d', 'wut'),
-            ('FooX', None, '/courses/foox/c/d'),
-            ('FooX', None, '/something/foox/a/b'),
+            ('FooX', 'FooX/c/d'),
+            ('FooX', 'FooX/c/d', 'wut'),
+            ('FooX', None, '/courses/FooX/c/d'),
+            ('FooX', None, '/something/FooX/a/b'),
+            (None, None, '/courses/FooX/c/d', 'browser')
         ])
 
         expected_only_bar = convert([
-            ('BarX', 'barx/a/b'),
-            ('BarX', 'barx/a/b', 'wut'),
-            ('BarX', None, '/courses/barx/a/b'),
+            ('BarX', 'BarX/a/b'),
+            ('BarX', 'BarX/a/b', 'wut'),
+            ('BarX', None, '/courses/BarX/a/b'),
+            (None, None, '/courses/BarX/a/b', 'browser')
         ])
 
         expected_both = convert([
-            ('FooX', 'foox/a/b'),
-            ('FooX', None, '/courses/foox/a/b'),
+            ('FooX', 'FooX/a/b'),
+            ('FooX', None, '/courses/FooX/a/b'),
+            (None, None, '/courses/FooX/a/b', 'browser')
         ])
 
         non_expected = convert([
             ('BarX',),
-            ('BazX', 'barx/c/d'),
-            ('BarX', 'barx/c/d', 'wut'),
+            ('BarX', 'BarX/c/d', 'wut'),
             ('BarX', None, 'wut'),
-            ('BarX', None, '/courses/barx/c/d'),
-            ('BarX', None, '/barx/courses/'),
-            ('BarX', None, '/courses/barx'),
-            ('BarX', None, '/courses/barx/a'),
-            ('BarX', None, '/something/barx/a/b'),
+            ('BarX', None, '/courses/BarX/c/d'),
+            ('BarX', None, '/BarX/courses/'),
+            ('BarX', None, '/courses/BarX'),
+            ('BarX', None, '/courses/BarX/a'),
+            ('BarX', None, '/something/BarX/a/b'),
+            ('BazX', 'BarX/c/d'),
+            (None, None, '/courses/BarX/c/d', 'browser')
         ])
 
         events = expected_only_foo + expected_only_bar + expected_both + non_expected
 
         self.task.init_local()
+
+        self.maxDiff = None
 
         results = defaultdict(list)
         for event in events:

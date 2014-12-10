@@ -193,25 +193,33 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     def get_course_id(self, event):
         """Gets course_id from event."""
 
-        # TODO: This is a simplistic way to get the course_id for each event. A
-        # more complete function that also works for old events should have all
-        # the nuances of the `get_org_id` function below. Even so, it will still
-        # fail to include certain events that do not contain the course run
-        # component (for example events from the course wiki).
+        # TODO: This is an arbitrary way to get the course_id. A more complete
+        # routine should deal with all the corner cases as in the `get_org_id`
+        # function below. The subset of event that will return a course_id is
+        # considered a compromise between the events that are useful and
+        # increasing the complexity of the code.
 
         # Try to get the course from the context
+
         course_id = event.get('context', {}).get('course_id')
         if course_id:
             return course_id
 
-        # Try to get the id from the URL for implicit events which
-        # should only happen for old events, that did not have a
-        # context at the time they were emitted.
-        event_type = event.get('event_type', '')
-        if event_type.startswith('/courses/'):
-            course_id = '/'.join(event_type.split('/')[2:])
-            if opaque_key_util.is_valid_course_id(course_id):
-                return course_id
+        # Try to get the course_id from the URLs in `event_type` (for implicit
+        # server events) and `page` (for browser events).
+
+        source = event.get('event_source')
+
+        if source == 'server':
+            url = event.get('event_type', '')
+        elif source == 'browser':
+            url = event.get('page', '')
+        else:
+            url = ''
+
+        course_key = opaque_key_util.get_course_key_from_url(url)
+        if course_key:
+            return unicode(course_key)
 
         return None
 
@@ -273,7 +281,8 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         return None
 
     def _parse_browser_event(self, event):
-        # Note that the context of browser events is ignored.
+        # TODO: Note that for browser events we are not using the org_id from the context.
+
         page = event['page']
         if 'courses' in page:
             # This is different than the original algorithm in that it assumes
