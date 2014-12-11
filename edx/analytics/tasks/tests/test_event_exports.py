@@ -138,10 +138,10 @@ class EventExportTestCase(EventExportTestCaseBase):
             ),
         ]
 
-        # This event should be included in the output, even though it was emitted long ago
+        # This event should be included in the output, even though it was emitted long ago by a mobile device
         delayed_input = [
             '{{"context":{{"org_id": "{org_id}", "received_at": "{received_time}"}}, '
-            '"time": "{time}","event_source": "server"}}'.format(
+            '"time": "{time}","event_source": "mobile"}}'.format(
                 org_id='FooX',
                 received_time=self.EXAMPLE_TIME,
                 time='2013-05-20T00:10:30+00:00'
