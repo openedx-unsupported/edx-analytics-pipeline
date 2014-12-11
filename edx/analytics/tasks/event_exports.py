@@ -251,8 +251,10 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 return self._parse_server_event(event)
             elif event['event_source'] == 'browser':
                 return self._parse_browser_event(event)
+            elif event['event_source'] == 'mobile':
+                return self._parse_mobile_event(event)
             else:
-                # TODO: Handle other event source values (e.g. task or mobile).
+                # TODO: Handle other event source values (e.g. task).
                 return None
         except Exception:  # pylint: disable=broad-except
             log.exception('Unable to determine organization for event: %s', unicode(event).encode('utf8'))
@@ -308,6 +310,13 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 # It doesn't matter if we found a good deprecated key.
                 # We need to provide backwards-compatibility.
                 return get_slash_value(page, 4)
+
+        return None
+
+    def _parse_mobile_event(self, event):
+        org_id = event.get('context', {}).get('org_id')
+        if org_id:
+            return org_id
 
         return None
 
