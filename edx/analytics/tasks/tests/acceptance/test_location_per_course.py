@@ -36,7 +36,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         ])
 
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT * FROM course_enrollment_location_current ORDER BY country_code')
+            cursor.execute('SELECT * FROM course_enrollment_location_current ORDER BY country_code, course_id')
             results = cursor.fetchall()
 
         self.maxDiff = None
@@ -49,6 +49,6 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         ], [
             (today, self.COURSE_ID, '', 1),
             (today, self.COURSE_ID, 'IE', 1),
-            (today, self.COURSE_ID, 'TH', 1),
             (today, self.COURSE_ID2, 'TH', 1),
+            (today, self.COURSE_ID, 'TH', 1),
         ])
