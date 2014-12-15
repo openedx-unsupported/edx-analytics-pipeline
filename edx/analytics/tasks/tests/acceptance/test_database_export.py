@@ -127,7 +127,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         """
         config_file_path = os.path.join(self.temporary_dir, '{}_acceptance.yml'.format(org_id))
 
-        self.write_exporter_config(org_id, config_file_path)
+        self.write_exporter_config(org_id, course_id, config_file_path)
 
         src_url_tuple = urlparse.urlparse(self.test_src)
 
@@ -136,7 +136,6 @@ class ExportAcceptanceTest(AcceptanceTestCase):
             '--work-dir', self.working_dir,
             '--output-bucket', self.config.get('exporter_output_bucket'),
             '--pipeline-bucket', src_url_tuple.netloc,
-            '--course-id', course_id,
             '--external-prefix', src_url_tuple.path.lstrip('/'),
             '--output-prefix', self.output_prefix,
             config_file_path,
@@ -146,7 +145,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         ]
         shell.run(command)
 
-    def write_exporter_config(self, org_id, config_file_path):
+    def write_exporter_config(self, org_id, course_id, config_file_path):
         """Write out the configuration file that the exporter expects to the filesystem."""
         config_text = textwrap.dedent("""\
             options: {{}}
@@ -167,6 +166,8 @@ class ExportAcceptanceTest(AcceptanceTestCase):
               {org_id}:
                 recipients:
                   - daemon@edx.org
+                courses:
+                  - {course_id}
             """)
         config_text = config_text.format(
             sql_user=self.import_db.credentials['username'],
@@ -176,6 +177,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
             sql_host=self.import_db.credentials['host'],
             external_files=self.external_files_dir,
             org_id=org_id,
+            course_id=course_id,
         )
 
         with open(config_file_path, 'w') as config_file:
