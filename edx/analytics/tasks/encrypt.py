@@ -38,7 +38,9 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None):
         if recipients is None:
             recipients = [key['keyid'] for key in gpg.list_keys()]
         with open(temp_input_filepath, 'r') as temp_input_file:
+            log.debug('encrypting %r', temp_input_file)
             _encrypt_file(gpg, temp_input_file, temp_encrypted_filepath, recipients)
+            log.debug('encrypting done')
         _copy_file_to_open_file(temp_encrypted_filepath, output_file)
 
 
@@ -67,6 +69,8 @@ def _encrypt_file(gpg_instance, input_file, encrypted_filepath, recipients):
 
 def _copy_file_to_open_file(filepath, output_file):
     """Copies a filepath to a file object already opened for writing."""
+    log.debug('copying %r', output_file)
+
     with open(filepath, 'r') as src_file:
         while True:
             transfer_buffer = src_file.read(1024)
@@ -74,3 +78,5 @@ def _copy_file_to_open_file(filepath, output_file):
                 output_file.write(transfer_buffer)
             else:
                 break
+
+    log.debug('copying done')

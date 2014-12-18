@@ -185,15 +185,25 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         _date_string, org_id = key
         recipients = self._get_recipients(org_id)
 
+        log.debug('multi_output_reducer key=%s values_type=%r  output=%r', key, values, output_file)
+
         key_file_targets = [get_target_from_url(url_path_join(self.gpg_key_dir, recipient)) for recipient in recipients]
+
+        log.debug('%r', key_file_targets)
+
         with make_encrypted_file(output_file, key_file_targets) as encrypted_output_file:
             outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
+            log.debug('compressing %r', outfile)
             try:
                 for value in values:
                     outfile.write(value.strip())
                     outfile.write('\n')
             finally:
                 outfile.close()
+
+            log.debug('compressing done')
+
+        log.debug('multi_output_reducer done')
 
     def _get_recipients(self, org_id):
         """Get the correct recipients for the specified organization."""
