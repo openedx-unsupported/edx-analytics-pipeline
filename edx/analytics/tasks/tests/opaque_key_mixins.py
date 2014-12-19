@@ -16,6 +16,15 @@ class InitializeOpaqueKeysMixin(object):
         self.answer_id = "{block_id}_2_1".format(block_id=block_id)
         self.second_answer_id = "{block_id}_3_1".format(block_id=block_id)
 
+    def empty_ids(self):
+        """Set keys to empty strings."""
+        self.course_id = ""
+        self.org_id = ""
+        self.problem_id = ""
+        self.second_answer_id = ""
+        self.answer_id = ""
+        self.user_id = ""
+
 
 class InitializeLegacyKeysMixin(object):
     """Test class for providing common legacy key values for tests."""
