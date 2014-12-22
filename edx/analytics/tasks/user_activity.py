@@ -1,16 +1,18 @@
-"""Group events by institution and export them for research purposes"""
+"""Categorize activity of users."""
 
 import datetime
 import logging
 
 import luigi
+import luigi.date_interval
 
+from edx.analytics.tasks.calendar import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
+from edx.analytics.tasks.url import get_target_from_url
 import edx.analytics.tasks.util.eventlog as eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util import Week
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
 log = logging.getLogger(__name__)
 
@@ -20,67 +22,70 @@ PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
 POST_FORUM_LABEL = "POSTED_FORUM"
 
 
-class UserActivityBaseTaskDownstreamMixin(object):
-    """Defines output_root parameter with appropriate default."""
-
-    output_root = luigi.Parameter(
-        default_from_config={'section': 'user-activity', 'name': 'output_root'}
-    )
-
-
-class UserActivityBaseTask(EventLogSelectionMixin, MapReduceJobTask, UserActivityBaseTaskDownstreamMixin):
+class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
     """
-    Base class to extract events from logs over a selected interval of time.
+    Categorize activity of users.
 
-    This class provides a parameterized mapper.  Derived classes must
-    override the predicates applied to events, and the definition of
-    what is a key and what a value from the mapper.  Derived classes
-    also define the reducer that consumes the mapper output.
+    Analyze the history of user actions and categorize their activity. Note that categories are not mutually exclusive.
+    A single event may belong to multiple categories. For example, we define a generic "ACTIVE" category that refers
+    to any event that has a course_id associated with it, but is not an enrollment event. Other events, such as a
+    video play event, will also belong to other categories.
+
+    The output from this job is a table that represents the number of events seen for each user in each course in each
+    category on each day.
 
     Parameters:
-        output_root: Directory to store the output in.
 
-        The following are defined in EventLogSelectionMixin:
-
-        source: A URL to a path that contains log files that contain the events.
-        interval: The range of dates to export logs for.
-        pattern: A regex with a named capture group for the date that approximates the date that the events within were
-            emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
-            in order for them to be processed.
+        output_root (str): path to store the output in.
     """
 
-    def get_course_id(self, event):
-        """Gets course_id from event's data."""
-        # TODO: move into eventlog
+    output_root = luigi.Parameter()
 
-        # Get the event data:
-        event_context = event.get('context')
-        if event_context is None:
-            # Assume it's old, and not worth logging...
-            return None
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, date_string = value
 
-        # Get the course_id from the data, and validate.
-        course_id = event_context.get('course_id', '')
+        username = event.get('username', '').strip()
+        if not username:
+            return
+
+        course_id = eventlog.get_course_id(event)
         if not course_id:
-            return None
+            return
 
-        if not opaque_key_util.is_valid_course_id(course_id):
-            log.error("encountered event with bogus course_id: %s", event)
-            return None
-
-        return course_id
+        for label in self.get_predicate_labels(event):
+            yield self._encode_tuple((course_id, username, date_string, label)), 1
 
     def get_predicate_labels(self, event):
-        """Override this with calculation of one or more possible labels for the current event."""
-        raise NotImplementedError
+        """Creates labels by applying hardcoded predicates to a single event."""
+        # We only want the explicit event, not the implicit form.
+        event_type = event.get('event_type')
+        event_source = event.get('event_source')
 
-    def get_mapper_key(self, _course_id, _username, _date_string):
-        """Return a tuple representing the key to use for a log entry, or None if skipping."""
-        raise NotImplementedError
+        # Ignore all background task events, since they don't count as a form of activity.
+        if event_source == 'task':
+            return []
 
-    def get_mapper_value(self, _course_id, _username, _date_string, label):
-        """Return a tuple representing the value to use for a log entry."""
-        raise NotImplementedError
+        # Ignore all enrollment events, since they don't count as a form of activity.
+        if event_type.startswith('edx.course.enrollment.'):
+            return []
+
+        labels = [ACTIVE_LABEL]
+
+        if event_source == 'server':
+            if event_type == 'problem_check':
+                labels.append(PROBLEM_LABEL)
+
+            if event_type.endswith("threads/create"):
+                labels.append(POST_FORUM_LABEL)
+
+        if event_source in ('browser', 'mobile'):
+            if event_type == 'play_video':
+                labels.append(PLAY_VIDEO_LABEL)
+
+        return labels
 
     def _encode_tuple(self, values):
         """
@@ -106,152 +111,159 @@ class UserActivityBaseTask(EventLogSelectionMixin, MapReduceJobTask, UserActivit
         else:
             return values[0].encode('utf8')
 
-    def mapper(self, line):
-        """Default mapper implementation, that always outputs the log line, but with a configurable key."""
-        value = self.get_event_and_date_string(line)
-        if value is None:
-            return
-        event, date_string = value
+    def reducer(self, key, values):
+        num_events = sum(values)
+        if num_events > 0:
+            yield key, num_events
 
-        username = event.get('username', '').strip()
-        if not username:
-            return
-
-        course_id = self.get_course_id(event)
-        if not course_id:
-            return
-
-        predicate_labels = self.get_predicate_labels(event)
-        key = self.get_mapper_key(course_id, username, date_string)
-
-        for label in predicate_labels:
-            output_value = self.get_mapper_value(course_id, username, date_string, label)
-            yield self._encode_tuple(key), output_value
-
-
-def extract_predicate_labels(event):
-    """Creates labels by applying hardcoded predicates to a single event."""
-    # We only want the explicit event, not the implicit form.
-    event_type = event.get('event_type')
-    event_source = event.get('event_source')
-
-    # Ignore all background task events, since they don't count as a form of activity.
-    if event_source == 'task':
-        return []
-
-    # Ignore all enrollment events, since they don't count as a form of activity.
-    if event_type.startswith('edx.course.enrollment.'):
-        return []
-
-    labels = [ACTIVE_LABEL]
-
-    if event_source == 'server':
-        if event_type == 'problem_check':
-            labels.append(PROBLEM_LABEL)
-
-        if event_type.endswith("threads/create"):
-            labels.append(POST_FORUM_LABEL)
-
-    if event_source == 'browser':
-        if event_type == 'play_video':
-            labels.append(PLAY_VIDEO_LABEL)
-
-    return labels
-
-
-class UserActivityPerIntervalTask(UserActivityBaseTask):
-    """Make a basic task to gather activity per user for a single time interval."""
+    combiner = reducer
 
     def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.output_root,
-                'user-activity-per-interval-{interval}.tsv/'.format(interval=self.interval),
-            )
-        )
-
-    def get_predicate_labels(self, event):
-        return extract_predicate_labels(event)
-
-    def get_mapper_key(self, course_id, username, date_string):
-        # This is much faster than strptime
-        current_date = datetime.date(*[int(a) for a in date_string.split('-')])
-
-        # The interval is open, so the last day included in it will be one day less than the end date.
-        interval_end = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-
-        week_from_end = (interval_end - current_date).days / 7
-
-        interval_end_date = self.interval.date_b - datetime.timedelta(weeks=week_from_end)  # pylint: disable=no-member
-        interval_start_date = interval_end_date - datetime.timedelta(weeks=1)
-
-        # For daily output, do reduction on all of these.
-        return (course_id, username, '-'.join([d.isoformat() for d in (interval_start_date, interval_end_date)]))
-
-    def get_mapper_value(self, _course_id, _username, _date_string, label):
-        return label
-
-    def reducer(self, key, values):
-        """Outputs labels and usernames for a given course and interval."""
-        course_id, username, interval_string = key
-        interval_nums = interval_string.split('-')
-        interval_start = '-'.join(interval_nums[0:3])
-        interval_end = '-'.join(interval_nums[3:6])
-
-        # Dedupe the output values.
-        output_values = []
-        for value in values:
-            if value not in output_values:
-                yield course_id, interval_start, interval_end, value, username
-                output_values.append(value)
+        return get_target_from_url(self.output_root)
 
 
-class CountLastElementMixin(object):
-    """Replaces the last element in a tuple with the count of values."""
-    def mapper(self, line):
-        """Counts number of values of last element."""
-        values = line.split('\t')
-        yield tuple(values[0:-1]), 1
-
-    def reducer(self, key, values):
-        """Sums values for the given key. """
-        count = sum(int(v) for v in values)
-        yield key, count
+class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+    """All parameters needed to run the UserActivityTableTask task."""
+    pass
 
 
-class CountUserActivityPerIntervalTask(
-        CountLastElementMixin,
-        MapReduceJobTask,
-        UserActivityBaseTaskDownstreamMixin,
-        EventLogSelectionDownstreamMixin):
-    """Counts the number of users for each course/interval/label combination."""
+class UserActivityTableTask(UserActivityDownstreamMixin, HiveTableTask):
+    """Hive table that stores the set of users active in each course over time."""
+
+    @property
+    def table(self):
+        return 'user_activity_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('username', 'STRING'),
+            ('date', 'STRING'),
+            ('category', 'STRING'),
+            ('count', 'INT'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        return UserActivityPerIntervalTask(
+        return UserActivityTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
-            output_root=self.output_root,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
+            output_root=self.partition_location,
         )
 
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.output_root,
-                'count-user-activity-per-interval-{interval}.tsv/'.format(interval=self.interval),
+
+class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryToMysqlTask):
+    """Base class for activity queries, captures common dependencies and parameters."""
+
+    @property
+    def query(self):
+        return self.activity_query.format(
+            interval_start=self.interval.date_a.isoformat(),
+            interval_end=self.interval.date_b.isoformat(),
+        )
+
+    @property
+    def activity_query(self):
+        raise NotImplementedError
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def required_table_tasks(self):
+        yield (
+            UserActivityTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+            ),
+            CalendarTableTask(
+                warehouse_path=self.warehouse_path,
+                overwrite=self.hive_overwrite,
             )
         )
 
 
-class InsertToMysqlCourseActivityTableMixin(MysqlInsertTask):
+class CourseActivityWeeklyTask(CourseActivityTask):
     """
-    Define course_activity table.
+    Number of users performing each category of activity each ISO week.
+
+    Note that this was the original activity metric, so it is stored in the original table that is simply named
+    "course_activity" even though it should probably be named "course_activity_weekly". Also the schema does not match
+    the other activity tables for the same reason.
+
+    All references to weeks in here refer to ISO weeks. Note that ISO weeks may belong to different ISO years than the
+    Gregorian calendar year.
+
+    If, for example, you wanted to analyze all data in the past week, you could run the job on Monday and pass in 1 to
+    the "weeks" parameter. This will not analyze data for the week that contains the current day (since it is not
+    complete). It will only compute data for the previous week.
+
+    TODO: update table name and schema to be consistent with other tables.
+
+    Parameters:
+
+        end_date (date): A day within the upper bound week. The week that contains this date will *not* be included in
+            the analysis, however, all of the data up to the first day of this week will be included. This is consistent
+            with all of our existing closed-open intervals.
+        weeks (int): The number of weeks to include in the analysis, counting back from the week that contains the
+            end_date.
     """
+
+    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    weeks = luigi.IntParameter(default=24)
+
+    @property
+    def interval(self):
+        """Given the parameters, compute the first and last date of the interval."""
+
+        if self.weeks == 0:
+            raise ValueError('Number of weeks to process must be greater than 0')
+
+        starting_week = self.get_iso_week_containing_date(self.end_date - datetime.timedelta(weeks=self.weeks))
+        ending_week = self.get_iso_week_containing_date(self.end_date)
+
+        # include all complete weeks up to but not including the week containing the end_date
+        return luigi.date_interval.Custom(starting_week.monday(), ending_week.monday())
+
+    def get_iso_week_containing_date(self, date):
+        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        return Week(iso_year, iso_weekofyear)
+
     @property
     def table(self):
-        return "course_activity"
+        return 'course_activity'
+
+    @property
+    def activity_query(self):
+        # Note that hive timestamp format is "yyyy-mm-dd HH:MM:SS.ffff" so we have to snap all of our dates to midnight
+        return """
+            SELECT
+                act.course_id as course_id,
+                CONCAT(cal.iso_week_start, ' 00:00:00') as interval_start,
+                CONCAT(cal.iso_week_end, ' 00:00:00') as interval_end,
+                act.category as label,
+                COUNT(DISTINCT username) as count
+            FROM user_activity_daily act
+            JOIN calendar cal ON act.date = cal.date
+            WHERE "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            GROUP BY
+                act.course_id,
+                cal.iso_week_start,
+                cal.iso_week_end,
+                act.category;
+        """
 
     @property
     def columns(self):
@@ -270,37 +282,121 @@ class InsertToMysqlCourseActivityTableMixin(MysqlInsertTask):
             ('interval_end',)
         ]
 
-    def init_copy(self, connection):
-        connection.cursor().execute("DELETE FROM " + self.table)
 
-
-class InsertToMysqlCourseActivityTable(InsertToMysqlCourseActivityTableMixin):
-    """
-    Write to course_activity table from specified source.
-    """
-    insert_source = luigi.Parameter()
+class CourseActivityDailyTask(CourseActivityTask):
+    """Number of users performing each category of activity each calendar day."""
 
     @property
-    def insert_source_task(self):
-        return ExternalURL(url=self.insert_source)
-
-
-class CountUserActivityPerIntervalTaskWorkflow(
-        InsertToMysqlCourseActivityTableMixin,
-        UserActivityBaseTaskDownstreamMixin,
-        MapReduceJobTaskMixin,
-        EventLogSelectionDownstreamMixin):
-    """
-    Write to course_activity table from CountUserActivityPerInterval.
-    """
+    def table(self):
+        return 'course_activity_daily'
 
     @property
-    def insert_source_task(self):
-        return CountUserActivityPerIntervalTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            output_root=self.output_root,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-        )
+    def activity_query(self):
+        return """
+            SELECT
+                act.date,
+                act.course_id as course_id,
+                act.category as label,
+                COUNT(DISTINCT username) as count
+            FROM user_activity_daily act
+            WHERE "{interval_start}" <= act.date AND act.date < "{interval_end}"
+            GROUP BY
+                act.course_id,
+                act.date,
+                act.category;
+        """
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('label', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INT(11) NOT NULL'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'label'),
+            ('date',)
+        ]
+
+
+class CourseActivityMonthlyTask(CourseActivityTask):
+    """
+    Number of users performing each category of activity each calendar month.
+
+    Note that the month containing the end_date is not included in the analysis.
+
+    If, for example, you wanted to analyze all data in the past month, you could run the job on the first day of the
+    following month pass in 1 to the "months" parameter. This will not analyze data for the month that contains the
+    current day (since it is not complete). It will only compute data for the previous month.
+
+    Parameters:
+        end_date (date): A date within the month that will be the upper bound of the closed-open interval.
+        months (int): The number of months to include in the analysis, counting back from the month that contains the
+            end_date.
+
+    """
+
+    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    months = luigi.IntParameter(default=6)
+
+    @property
+    def interval(self):
+        """Given the parameters, compute the first and last date of the interval."""
+        from dateutil.relativedelta import relativedelta
+
+        # We don't actually care about the particular day of the month in this computation since we are fixing both the
+        # start and end dates to the first day of the month, so we can perform simple arithmetic with the numeric month
+        # and only have to worry about adjusting the year. Note that bankers perform this arithmetic differently so it
+        # is spelled out here explicitly even though their are third party libraries that contain this computation.
+
+        if self.months == 0:
+            raise ValueError('Number of months to process must be greater than 0')
+
+        ending_date = self.end_date.replace(day=1)
+        starting_date = ending_date - relativedelta(months=self.months)
+
+        return luigi.date_interval.Custom(starting_date, ending_date)
+
+    @property
+    def table(self):
+        return 'course_activity_monthly'
+
+    @property
+    def activity_query(self):
+        return """
+            SELECT
+                act.course_id as course_id,
+                cal.year,
+                cal.month,
+                act.category as label,
+                COUNT(DISTINCT username) as count
+            FROM user_activity_daily act
+            JOIN calendar cal ON act.date = cal.date
+            WHERE "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            GROUP BY
+                act.course_id,
+                cal.year,
+                cal.month,
+                act.category;
+        """
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('year', 'INT(11) NOT NULL'),
+            ('month', 'INT(11) NOT NULL'),
+            ('label', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INT(11) NOT NULL'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'label'),
+            ('year', 'month')
+        ]

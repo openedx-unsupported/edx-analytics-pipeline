@@ -2,9 +2,12 @@
 
 import cjson
 import datetime
+import logging
 import re
 
-import logging
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+
+
 log = logging.getLogger(__name__)
 
 PATTERN_JSON = re.compile(r'^.*?(\{.*\})\s*$')
@@ -219,3 +222,24 @@ def get_augmented_event_data(event, fields_to_augment):
         event_data['username'] = username
 
     return event_data
+
+
+def get_course_id(event):
+    """Gets course_id from event's data."""
+
+    # Get the event data:
+    event_context = event.get('context')
+    if event_context is None:
+        # Assume it's old, and not worth logging...
+        return None
+
+    # Get the course_id from the data, and validate.
+    course_id = event_context.get('course_id', '')
+    if not course_id:
+        return None
+
+    if not opaque_key_util.is_valid_course_id(course_id):
+        log.error("encountered event with bogus course_id: %s", event)
+        return None
+
+    return course_id
