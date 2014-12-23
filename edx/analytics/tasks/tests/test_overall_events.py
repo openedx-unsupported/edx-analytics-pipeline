@@ -1,14 +1,14 @@
 """Tests overall count of events"""
 
+import sys
 import json
-
 import luigi
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.overall_events import TotalEventsDailyTask
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
-from mock import patch
+from StringIO import StringIO
 
 
 class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
@@ -105,35 +105,17 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         self.assertEquals(tuple(self.task.mapper(line)), (('2014-12-05', 1), ))
 
     def test_no_time_element(self):
-        event = {
-            "username": "faker",
-            "event_source": "server",
-            "name": "edx.course.enrollment.activated",
-            "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) "
-                     "Chrome/39.0.2171.71 Safari/537.36",
-            "page": "null",
-            "host": "precise64",
-            "session": "b8cf518e5233afb402419ef896263122",
-            "context": {
-                "user_id": 5,
-                "org_id": "edX",
-                "course_id": "edX/DemoX/Demo_Course",
-                "path": "/change_enrollment"
-            },
-            "ip": "192.168.1.2",
-            "event": {
-                "course_id": "edX/DemoX/Demo_Course",
-                "user_id": 5,
-                "mode": "honor"
-            },
-            "event_type": "edx.course.enrollment.activated"
-        }
-
-        line = json.dumps(event)
-        # Quiet internal luigi noise for our test output
-        patcher = patch('luigi.hadoop.JobTask.incr_counter').start()
+        event_line = self._create_event_dict()
+        del event_line["time"]
+        line = json.dumps(event_line)
+        # When the time element is missing, luigi will print an error to stderr.
+        # Capture stderr and assert it is what we expect. Also assert that we do not
+        # count the event.
+        test_stderr = StringIO()
+        sys.stderr = test_stderr
         self.assertEquals(tuple(self.task.mapper(line)), tuple())
-        patcher.stop()
+        test_stderr = test_stderr.getvalue().strip()
+        self.assertEquals(test_stderr, 'reporter:counter:Event,Missing Time Field,1')
 
 
 class TotalEventsTaskReducerTest(unittest.TestCase):
