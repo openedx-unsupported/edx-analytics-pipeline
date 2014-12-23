@@ -143,7 +143,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
         date_string, course_id = key
         date_directory = "dt={0}".format(date_string)
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
-        filename = u'{course_id}_answers.tsv'.format(course_id=filename_safe_course_id)
+        filename = u'{course_id}_answers.json'.format(course_id=filename_safe_course_id)
         return url_path_join(self.output_root, date_directory, filename)
 
     def multi_output_reducer(self, key, values, output_file):
@@ -210,7 +210,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
     def _output_answer(self, answer, output_file):
         """
-        Outputs answer dict in TSV format for input to Hive.
+        Outputs answer dict in JSON format for input to Hive.
 
         An example answer dict:
         {'course_user_tags': {}, 'answer_value_id': u'4', 'uses_submission': False, 'user_id': 14,
@@ -223,7 +223,9 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
         # TODO: figure out how to encode results that have embedded tabs, or use a different delimiter.
         # Mostly 'question', but maybe 'problem_display_name'.
         # Also, course_user_tags is just a string representation of a dict.  Placeholder....
-        answer_string = '\t'.join([str(answer.get(value, "")) for value in self.COLUMN_NAMES])
+        # Yuck.  It won't work like this.  There are embedded newlines, and lots of non-ascii characters.
+        # answer_string = '\t'.join([str(answer.get(value, "")) for value in self.COLUMN_NAMES])
+        answer_string = json.dumps(answer)
         output_file.write(answer_string)
         output_file.write("\n")
 
@@ -257,7 +259,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
             """Convert submission to result to be returned."""
             # First augment submission with problem-level information
             # not found in the submission:
-            answer['timestamp'] = timestamp
+            answer['time'] = timestamp
             answer['course_id'] = course_id
             answer['user_id'] = user_id
             answer['problem_id'] = problem_id
