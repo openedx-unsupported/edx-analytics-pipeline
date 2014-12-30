@@ -8,6 +8,7 @@ from hashlib import md5
 import os
 import StringIO
 import logging
+import logging.config
 
 import luigi
 import luigi.hdfs
@@ -37,12 +38,42 @@ class MapReduceJobTaskMixin(object):
     # user should be able to tweak it depending on their particular configuration.
     n_reduce_tasks = luigi.Parameter(default=25, significant=False)
 
+    remote_log_level = luigi.Parameter(
+        default_from_config={'section': 'map-reduce', 'name': 'remote_log_level'},
+        significant=False
+    )
+
 
 class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
     """
     Execute a map reduce job.  Typically using Hadoop, but can execute the
     job in process as well.
     """
+
+    def init_hadoop(self):
+        log_format = '%(asctime)s %(levelname)s %(process)d [%(name)s] %(filename)s:%(lineno)d - %(message)s'
+        logging.config.dictConfig(
+            {
+                'version': 1,
+                'disable_existing_loggers': False,
+                'formatters': {
+                    'default': {
+                        'format': log_format,
+                    },
+                },
+                'handlers': {
+                    'stderr': {
+                        'formatter': 'default',
+                        'class': 'logging.StreamHandler',
+                    },
+                },
+                'root': {
+                    'handlers': ['stderr'],
+                    'level': self.remote_log_level.upper(),  # pylint: disable=no-member
+                },
+            }
+        )
+        return super(MapReduceJobTask, self).init_hadoop()
 
     def job_runner(self):
         # Lazily import this since this module will be loaded on hadoop worker nodes however stevedore will not be
@@ -218,6 +249,7 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
         """
         output_path = self.output_path_for_key(key)
         if output_path:
+            log.info('Writing output file: %s', output_path)
             output_file_target = get_target_from_url(output_path)
             with output_file_target.open('w') as output_file:
                 self.multi_output_reducer(key, values, output_file)

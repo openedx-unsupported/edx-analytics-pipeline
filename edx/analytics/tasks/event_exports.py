@@ -88,8 +88,9 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         for org_id, org_config in organizations.iteritems():
             aliases = [org_id] + org_config.get('other_names', [])
 
-            recipients = org_config['recipients']
-            self.recipients_for_org_id[org_id] = recipients
+            self.recipients_for_org_id[org_id] = set(org_config.get('recipients', []))
+            if self.gpg_master_key is not None:
+                self.recipients_for_org_id[org_id].add(self.gpg_master_key)
 
             self.courses_for_org_id[org_id] = org_config.get('courses')
 
@@ -183,24 +184,25 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         Write to the encrypted file by streaming through gzip, which compresses before encrypting
         """
         _date_string, org_id = key
-        recipients = self._get_recipients(org_id)
+        recipients = self.recipients_for_org_id[org_id]
+        log.info('Encryption recipients: %s', str(recipients))
+
+        def report_progress(num_bytes):
+            """Update hadoop counters as the file is written"""
+            self.incr_counter('Event Export', 'Bytes Written to Output', num_bytes)
 
         key_file_targets = [get_target_from_url(url_path_join(self.gpg_key_dir, recipient)) for recipient in recipients]
-        with make_encrypted_file(output_file, key_file_targets) as encrypted_output_file:
+        with make_encrypted_file(output_file, key_file_targets, progress=report_progress) as encrypted_output_file:
             outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
             try:
                 for value in values:
                     outfile.write(value.strip())
                     outfile.write('\n')
+                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+                    # Do not remove it.
+                    self.incr_counter('Event Export', 'Raw Bytes Written', len(value) + 1)
             finally:
                 outfile.close()
-
-    def _get_recipients(self, org_id):
-        """Get the correct recipients for the specified organization."""
-        recipients = self.recipients_for_org_id[org_id]
-        if self.gpg_master_key is not None:
-            recipients.append(self.gpg_master_key)
-        return recipients
 
     def get_course_id(self, event):
         """Gets course_id from event."""
