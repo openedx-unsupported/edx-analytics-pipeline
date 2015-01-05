@@ -25,6 +25,11 @@ from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
+# TODO: move these to util.hive
+import textwrap
+from luigi.hive import HiveTableTarget
+from edx.analytics.tasks.util.hive import OverwriteAwareHiveQueryRunner, HiveTableTask, WarehouseMixin, HivePartition, hive_database_name
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -37,14 +42,16 @@ UNKNOWN_ANSWER_VALUE = ''
 UNMAPPED_ANSWER_VALUE = ''
 PROBLEM_CHECK_EVENT = 'problem_check'
 
-class AllProblemCheckEventsParamMixin(EventLogSelectionDownstreamMixin):
+class AllProblemCheckEventsParamMixin(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """Parameters for AllProblemCheckEventsTask."""
 
-    output_root = luigi.Parameter()
 
 
 class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
+
+    # TODO: set this up to use warehouse_path instead...
+    output_root = luigi.Parameter()
 
     def mapper(self, line):
         """
@@ -188,6 +195,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
                 self._output_answer(answer, output_file)
 
     COLUMN_NAMES = [
+        'time',
         # Info about problem:
         'course_id',
         'problem_id',
@@ -199,13 +207,13 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
         'course_user_tags',
         'variant',
         # Info about answer:
-        'timestamp',
         'correct',
         'answer',
         'answer_value_id',
         'answer_uses_value_id',
         'grouping_key',
         'uses_submission',
+        'should_include_answer',
     ]
 
     def _output_answer(self, answer, output_file):
@@ -225,7 +233,8 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
         # Also, course_user_tags is just a string representation of a dict.  Placeholder....
         # Yuck.  It won't work like this.  There are embedded newlines, and lots of non-ascii characters.
         # answer_string = '\t'.join([str(answer.get(value, "")) for value in self.COLUMN_NAMES])
-        answer_string = json.dumps(answer)
+        # answer_string = json.dumps(answer)
+        answer_string = '\t'.join([answer.get(value, u'').encode('utf-8') for value in self.COLUMN_NAMES])
         output_file.write(answer_string)
         output_file.write("\n")
 
@@ -241,8 +250,6 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
         See docstring for reducer() for more details.
         """
-        # print "Generating answers from event string %s" % event_string
-        # event_string = event_string.decode('utf-8')
         event_string = event_string[0]
         event = json.loads(event_string)
 
@@ -272,8 +279,21 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
             answer['grouping_key'] = self.get_answer_grouping_key(answer)
             answer['part_id'] = answer_id
-            # results.append((output_key, output_value))
-            results.append(answer)
+
+            # TODO: remove embedded newlines here at least, so that downstream
+            # processing can safely use newlines as record delimiters.
+            # If we did that, we could also do the same for tabs.
+            def cleaned(value):
+                if isinstance(value, basestring):
+                    return value.replace('\t', '\\t').replace('\n', '\\n')
+                elif isinstance(value, dict):
+                    # Convert 'course_user_tags' to a json string.
+                    return json.dumps(value).replace('\t', '\\t').replace('\n', '\\n')
+                else:
+                    return unicode(value)
+
+            clean_answer = {key : cleaned(answer[key]) for key in answer}
+            results.append(clean_answer)
 
         answers = event.get('answers')
         if 'submission' in event:
@@ -447,10 +467,465 @@ def stringify_value(answer_value, contains_html=False):
         return unicode(answer_value)
 
 
-class AllProblemCheckEventsInHiveTask(luigi.Task):
+class MultipartitionJsonHiveTableTask(HiveTableTask):
+    """
+    Abstract class to import JSON data into a Hive table with multiple partitions.
+# TODO: switch names to non-JSON as well...
+    """
+
+    def query(self):
+        query_format = """
+            {define_jars}
+            USE {database_name};
+            DROP TABLE IF EXISTS {table};
+            CREATE EXTERNAL TABLE {table} (
+                {col_spec}
+            )
+            PARTITIONED BY ({partition_key} STRING)
+            {table_format}
+            LOCATION '{location}';
+            {recover_partitions}
+        """
+
+        query = query_format.format(
+            define_jars=self.define_jars,
+            database_name=hive_database_name(),
+            table=self.table,
+            col_spec=','.join([' '.join(c) for c in self.columns]),
+            location=self.table_location,
+            table_format=self.table_format,
+            partition_key=self.partition.key,
+            recover_partitions=self.recover_partitions,
+        )
+
+        query = textwrap.dedent(query)
+
+        return query
+
+    @property
+    def define_jars(self):
+        # return 'add jar s3://elasticmapreduce/samples/hive-ads/libs/jsonserde.jar;'
+        return ''
+
+    @property
+    def recover_partitions(self):
+        # TODO: make this sensitive to the underlying client.
+        return 'ALTER TABLE {table} RECOVER PARTITIONS;'.format(table=self.table)
+
+    @property
+    def partition(self):
+        """Provides name of Hive database table partition."""
+        raise NotImplementedError
+
+    @property
+    def partition_location(self):
+        """Provides location of Hive database table's partition data."""
+        # Make sure that input path ends with a slash, to indicate a directory.
+        # (This is necessary for S3 paths that are output from Hadoop jobs.)
+        return url_path_join(self.table_location, self.partition.path_spec + '/')
+
+    @property
+    def table(self):
+        """Provides name of Hive database table."""
+        raise NotImplementedError
+
+    @property
+    def table_format(self):
+        """Provides format of Hive database table's data."""
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+        # TODO: parameterize serde name.
+        #col_spec=','.join([c[0] for c in self.columns])
+        #serde_name = "com.amazon.elasticmapreduce.JsonSerde"
+        #return "row format serde '{serde_name}' with serdeproperties ('paths'='{col_spec}')".format(
+        #    serde_name=serde_name,
+        #    col_spec=col_spec
+        #)
+
+    @property
+    def table_location(self):
+        """Provides root location of Hive database table's data."""
+        return url_path_join(self.warehouse_path, self.table) + '/'
+
+    @property
+    def columns(self):
+        """
+        Provides definition of columns in Hive.
+
+        This should define a list of (name, definition) tuples, where
+        the definition defines the Hive type to use. For example,
+        ('first_name', 'STRING').
+
+        """
+        raise NotImplementedError
+
+    def output(self):
+        # TODO:  at present, this just checks to see if the table is present.
+        # Instead, we should see if all requested partitions in a specified
+        # interval are present.
+        return HiveTableTarget(self.table, database=hive_database_name())
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+
+class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, MultipartitionJsonHiveTableTask):
     """
     A task to load all problem-check events into Hive.
 
-    For now, just use a TSV as input, instead of JSON SerDe.
     """
-    pass
+    @property
+    def partition(self):
+        """Provides name of Hive database table partition."""
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def table(self):
+        """Provides name of Hive database table."""
+        return 'all_answers'
+
+    @property
+    def columns(self):
+        return [
+            ('time', 'STRING'), 
+            ('course_id', 'STRING'),
+            ('problem_id', 'STRING'),
+            ('part_id', 'STRING'),
+            ('problem_display_name', 'STRING'),
+            ('question', 'STRING'),
+            ('user_id', 'STRING'),
+            ('course_user_tags', 'STRING'),
+            ('variant', 'STRING'),
+            ('correct', 'STRING'),
+            ('answer', 'STRING'),
+            ('answer_value_id', 'STRING'),
+            ('answer_uses_value_id', 'STRING'),
+            ('grouping_key', 'STRING'),
+            ('uses_submission', 'STRING'),
+            ('should_include_answer', 'STRING'),
+        ]
+
+    def requires(self):
+        return AllProblemCheckEventsTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.table_location,  # this is the table, not the partition
+        )
+
+class HiveAnswerTableFromQueryTask(AllProblemCheckEventsParamMixin, HiveTableTask):
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    def query(self):
+        create_table_statements = super(HiveAnswerTableFromQueryTask, self).query()
+        full_insert_query = """
+            INSERT INTO TABLE {table}
+            PARTITION ({partition.query_spec})
+            {insert_query}
+        """.format(
+            table=self.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+        )
+
+        return create_table_statements + textwrap.dedent(full_insert_query)
+
+    def output(self):
+        return get_target_from_url(self.partition_location)
+
+
+class LatestProblemInfo(HiveAnswerTableFromQueryTask):
+
+    @property
+    def table(self):
+        return 'latest_problem_info'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('part_id', 'STRING'),
+            ('problem_id', 'STRING'),
+            ('question', 'STRING'),
+            ('problem_display_name', 'STRING'),
+            ('answer_uses_value_id', 'STRING'),   # change to TINYINT sometime...
+            ('time', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT aat.course_id, aat.part_id, aat.problem_id, aat.question, aat.problem_display_name,
+                     aat.answer_uses_value_id, aat.time
+        FROM all_answers aat
+        INNER JOIN (
+            SELECT course_id, part_id, max(time) as latest_time
+                  FROM all_answers
+                  GROUP BY course_id, part_id
+            ) latest
+          ON (aat.course_id = latest.course_id
+              AND aat.part_id = latest.part_id
+              AND aat.time = latest.latest_time)
+        WHERE aat.should_include_answer = 'True' AND aat.uses_submission = 'True'
+        """
+
+    def requires(self):
+        return AllProblemCheckEventsInHiveTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+
+class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
+
+    @property
+    def table(self):
+        return 'latest_answer_info'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('part_id', 'STRING'),
+            ('grouping_key', 'STRING'),
+            ('variant', 'STRING'),
+            ('is_correct', 'STRING'),
+            ('time', 'STRING'),
+            ('answer_value', 'STRING'),
+            ('value_id', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT aat.course_id, aat.part_id, aat.grouping_key, aat.variant, aat.correct, aat.time,
+            IF(lpi.answer_uses_value_id='True' OR aat.uses_submission='True', aat.answer, aat.answer_value_id) as answer_value, 
+            IF(lpi.answer_uses_value_id='True' OR aat.uses_submission='True', aat.answer_value_id, aat.answer) as value_id
+        FROM all_answers aat
+        INNER JOIN (
+            SELECT max(time) as max_time, course_id, part_id, grouping_key
+                    FROM all_answers
+                    GROUP BY course_id, part_id, grouping_key
+            ) latest
+          ON (aat.course_id = latest.course_id
+            AND aat.part_id = latest.part_id
+            AND aat.grouping_key = latest.grouping_key
+            AND aat.time = latest.max_time)
+        INNER JOIN latest_problem_info lpi
+          ON (lpi.course_id = aat.course_id AND lpi.part_id = aat.part_id)
+        """
+
+    def requires(self):
+        # Also depends on all answers, but we know that LatestProblemInfo does as well.
+        return LatestProblemInfo(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+class LatestAnswers(HiveAnswerTableFromQueryTask):
+
+    @property
+    def table(self):
+        return 'latest_answers'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('part_id', 'STRING'),
+            ('user_id', 'STRING'),
+            ('grouping_key', 'STRING'),
+            ('time', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT aat.course_id, aat.part_id, aat.user_id, aat.grouping_key, aat.time
+        FROM all_answers aat
+        INNER JOIN (
+            SELECT max(time) as max_time, course_id, part_id, user_id
+                    FROM all_answers
+                    GROUP BY course_id, part_id, user_id
+            ) latest
+        ON (aat.course_id = latest.course_id
+            AND aat.part_id = latest.part_id
+            AND aat.user_id = latest.user_id
+            AND aat.time = latest.max_time)
+        """
+
+    def requires(self):
+        return AllProblemCheckEventsInHiveTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+class LatestAnswerDist(HiveAnswerTableFromQueryTask):
+
+    @property
+    def table(self):
+        return 'latest_answer_dist'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('part_id', 'STRING'),
+            ('variant', 'STRING'),
+            ('is_correct', 'STRING'),
+            ('answer_value', 'STRING'),
+            ('value_id', 'STRING'),
+            ('count', 'INT'),
+            ('problem_id', 'STRING'),
+            ('question', 'STRING'),
+            ('display_name', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT la.course_id, la.part_id,
+               lai.variant, lai.is_correct, lai.answer_value, lai.value_id,
+               count(la.user_id) as count, 
+               lpi.problem_id, lpi.question, lpi.problem_display_name
+        FROM latest_answers la
+        INNER JOIN latest_problem_info lpi
+            ON (lpi.course_id = la.course_id AND lpi.part_id = la.part_id)
+        INNER JOIN latest_answer_info lai
+            ON (lai.course_id = la.course_id AND lai.part_id = la.part_id 
+                AND lai.grouping_key = la.grouping_key)
+        GROUP BY la.course_id, la.part_id, la.grouping_key,
+                lai.variant, lai.is_correct, lai.answer_value, lai.value_id,
+                lpi.problem_id, lpi.question, lpi.problem_display_name
+        """
+
+    def requires(self):
+        yield LatestAnswerInfo(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+        yield LatestAnswers(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+class AnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutputMapReduceJobTask, WarehouseMixin):
+    """
+    Blah.
+    """
+
+    def requires(self):
+        return LatestAnswerDist(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+    def extra_modules(self):
+        import six
+        return [html5lib, six]
+
+    def mapper(self, line):
+        """
+        Groups inputs by course_id, writes all records with the same course_id to the same output file.
+
+        Each input line is expected to consist of two tab separated columns. The first column is expected to be the
+        course_id and is used to group the entries. The course_id is stripped from the output and the remaining column
+        is written to the appropriate output file in the same format it was read in (i.e. as an encoded JSON string).
+        """
+        # Ensure that the first column is interpreted as the grouping key by the hadoop streaming API.  Note that since
+        # Configuration values can change this behavior, the remaining tab separated columns are encoded in a python
+        # structure before returning to hadoop.  They are decoded in the reducer.
+        course_id, content = line.split('\t', 1)
+        yield course_id, content
+
+    def output_path_for_key(self, course_id):
+        """
+        Match the course folder hierarchy that is expected by the instructor dashboard.
+
+        The instructor dashboard expects the file to be stored in a folder named sha1(course_id).  All files in that
+        directory will be displayed on the instructor dashboard for that course.
+        """
+        hashed_course_id = hashlib.sha1(course_id).hexdigest()
+        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
+        filename = u'{course_id}_answer_distribution.csv'.format(course_id=filename_safe_course_id)
+        return url_path_join(self.output_root, hashed_course_id, filename)
+
+    CSV_FIELD_NAMES = [
+            'ModuleID',
+            'PartID',
+            'Correct Answer',
+            'Count',
+            'ValueID',
+            'AnswerValue',
+            'Variant',
+            'Problem Display Name',
+            'Question',
+        ]
+
+    HIVE_FIELD_NAMES = [
+            'PartID',
+            'Variant',
+            'Correct Answer',
+            'AnswerValue',
+            'ValueID',
+            'Count',
+            'ModuleID',
+            'Question',
+            'Problem Display Name',
+        ]
+
+    def multi_output_reducer(self, _course_id, values, output_file):
+        """
+        Each entry should be written to the output file in csv format.
+
+        This output is visible to instructors, so use an excel friendly format (csv).
+        """
+        field_names = self.CSV_FIELD_NAMES
+        writer = csv.DictWriter(output_file, field_names)
+        writer.writerow(dict(
+            (k, k) for k in field_names
+        ))
+
+        def load_into_dict(content):
+            content_values = content.split('\t')
+            return { val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values) }
+
+        # Collect in memory the list of dicts to be output.  Then sort
+        # the list of dicts by their field names before encoding.
+        row_data = [load_into_dict(content) for content in values]
+        row_data = sorted(row_data, key=itemgetter(*field_names))
+
+        for row_dict in row_data:
+            #encoded_dict = dict()
+            #for key, value in row_dict.iteritems():
+            #    encoded_dict[key] = unicode(value).encode('utf8')
+            #writer.writerow(encoded_dict)
+            writer.writerow(row_dict)
