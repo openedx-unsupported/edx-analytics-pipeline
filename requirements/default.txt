@@ -8,7 +8,7 @@ ecdsa==0.11 		# MIT
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT
 httplib2==0.9 		# MIT
-isoweek==1.3.0		# BSD
+#isoweek==1.3.0		# BSD
 mechanize==0.2.5	# BSD
 mysql-connector-python==1.2.2  	# GPL v2 with FOSS License Exception
 numpy==1.8.0 		# BSD
