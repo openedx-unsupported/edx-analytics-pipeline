@@ -3,6 +3,7 @@ Support executing map reduce tasks.
 """
 from __future__ import absolute_import
 
+import glob
 import gzip
 from hashlib import md5
 import os
@@ -183,16 +184,31 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
         job.init_mapper()
         map_output = StringIO.StringIO()
         input_targets = luigi.task.flatten(job.input_hadoop())
-        for input_target in input_targets:
-            with input_target.open('r') as input_file:
 
+        final_targets = []
+        for input_target in input_targets:
+            if os.path.isdir(input_target.path):
+                for filename in os.listdir(input_target.path):
+                    final_targets.append(get_target_from_url(os.path.join(input_target.path, filename)))
+                continue
+
+            if input_target.path.endswith('.manifest'):
+                with input_target.open('r') as input_file:
+                    for url in input_file:
+                        final_targets.append(get_target_from_url(url.strip()))
+                    continue
+
+            all_filenames = glob.glob(input_target.path)
+            if len(all_filenames) > 0:
+                for filename in all_filenames:
+                    final_targets.append(get_target_from_url(os.path.join(input_target.path, filename)))
+                continue
+
+        for input_target in final_targets:
+            with input_target.open('r') as input_file:
                 # S3 files not yet supported since they don't support tell() and seek()
                 if input_target.path.endswith('.gz'):
                     input_file = gzip.GzipFile(fileobj=input_file)
-                elif input_target.path.endswith('.manifest'):
-                    for url in input_file:
-                        input_targets.append(get_target_from_url(url.strip()))
-                    continue
 
                 os.environ['map_input_file'] = input_target.path
                 try:
