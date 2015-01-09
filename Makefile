@@ -40,7 +40,7 @@ test: test-requirements develop test-local
 test-acceptance: test-requirements
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
-coverage-local: test-local
+diff-coverage-local: test-local
 	python -m coverage html
 	python -m coverage xml -o coverage.xml
 	diff-cover coverage.xml --html-report diff_cover.html
@@ -49,12 +49,12 @@ coverage-local: test-local
 	diff-quality --violations=pep8 --html-report diff_quality_pep8.html
 	diff-quality --violations=pylint --html-report diff_quality_pylint.html
 
+coverage-local: diff-coverage-local
 	# Compute style violations
 	pep8 edx > pep8.report || echo "Not pep8 clean"
 	pylint -f parseable -s y edx > pylint.report || echo "Not pylint clean"
 
 coverage: test coverage-local
-
 
 todo:
 	pylint --disable=all --enable=W0511 edx
