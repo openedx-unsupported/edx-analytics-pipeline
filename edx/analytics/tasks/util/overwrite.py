@@ -51,6 +51,6 @@ class OverwriteOutputMixin(object):
         """
         if self.overwrite:
             self.attempted_removal = True
-            if self.output().exists():
+            if self.output().exists() and hasattr(self.output(), 'remove'):
                 log.info("Removing existing output for task %s", str(self))
                 self.output().remove()

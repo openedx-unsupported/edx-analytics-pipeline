@@ -5,6 +5,7 @@ ansible==1.4.5		# GPL v3 License
 argparse==1.2.1 	# Python Software Foundation License
 boto==2.22.1 		# MIT
 ciso8601==1.0.1         # MIT
+dogapi==1.11.1          # BSD
 ecdsa==0.11 		# MIT
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT

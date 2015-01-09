@@ -136,9 +136,11 @@ def get_event_time_string(event):
     try:
         # Get entry, and strip off time zone information.  Keep microseconds, if any.
         raw_timestamp = event['time']
+        if raw_timestamp[-1] == 'Z':
+            raw_timestamp = raw_timestamp[:-1]
         timestamp = raw_timestamp.split('+')[0]
         if '.' not in timestamp:
-            timestamp = '{datetime}.000000'.format(datetime=timestamp)
+            timestamp += '.000000'
         return timestamp
     except Exception:  # pylint: disable=broad-except
         return None

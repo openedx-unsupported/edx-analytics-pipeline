@@ -5,7 +5,7 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner
+from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
@@ -21,6 +21,10 @@ def hive_database_name():
     return get_config().get('hive', 'database', 'default')
 
 
+def hive_emr_version():
+    return get_config().get('hive', 'emr_version', None)
+
+
 class WarehouseMixin(object):
     """Task that is aware of the data warehouse."""
 
@@ -30,38 +34,32 @@ class WarehouseMixin(object):
 
 
 class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
-    """
-    Abstract class to import data into a Hive table.
 
-    Currently supports a single partition that represents the version of the table data. This allows us to use a
-    consistent location for the table and swap out the data in the tables by simply pointing at different partitions
-    within the folder that contain different "versions" of the table data. For example, if a snapshot is taken of an
-    RDBMS table, we might store that in a partition with today's date. Any subsequent jobs that need to join against
-    that table will continue to use the data snapshot from the beginning of the day (since that is the "live"
-    partition). However, the next time a snapshot is taken a new partition is created and loaded and becomes the "live"
-    partition that is used in all joins etc.
-
-    Important note: this code currently does *not* clean up old unused partitions, they will just continue to exist
-    until they are cleaned up by some external process.
-    """
+    table_override = luigi.Parameter(default=None)
+    columns_override = luigi.Parameter(default=None, is_list=True)
 
     def query(self):
         # TODO: Figure out how to clean up old data. This just cleans
         # out old metastore info, and doesn't actually remove the table
         # data.
 
-        # Ensure there is exactly one available partition in the table.
+        partition_recover_command = ''
+        if self.recover_partitions:
+            if hive_emr_version() is not None:
+                partition_recover_command = "ALTER TABLE {table} RECOVER PARTITIONS;"
+            else:
+                partition_recover_command = "MSCK REPAIR TABLE {table};"
+
         query_format = """
             USE {database_name};
             DROP TABLE IF EXISTS {table};
             CREATE EXTERNAL TABLE {table} (
                 {col_spec}
             )
-            PARTITIONED BY ({partition.key} STRING)
+            PARTITIONED BY ({partition_key} STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table} ADD PARTITION ({partition.query_spec});
-        """
+        """ + partition_recover_command
 
         query = query_format.format(
             database_name=hive_database_name(),
@@ -69,7 +67,8 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
             col_spec=','.join([' '.join(c) for c in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
-            partition=self.partition,
+            partition_key=self.partition_key,
+            recover_partitions=partition_recover_command,
         )
 
         query = textwrap.dedent(query)
@@ -77,21 +76,17 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return query
 
     @property
-    def partition(self):
+    def partition_key(self):
         """Provides name of Hive database table partition."""
-        raise NotImplementedError
-
-    @property
-    def partition_location(self):
-        """Provides location of Hive database table's partition data."""
-        # Make sure that input path ends with a slash, to indicate a directory.
-        # (This is necessary for S3 paths that are output from Hadoop jobs.)
-        return url_path_join(self.table_location, self.partition.path_spec + '/')
+        return 'dt'
 
     @property
     def table(self):
         """Provides name of Hive database table."""
-        raise NotImplementedError
+        if self.table_override is not None:
+            return self.table_override
+        else:
+            raise NotImplementedError
 
     @property
     def table_format(self):
@@ -104,6 +99,10 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return url_path_join(self.warehouse_path, self.table) + '/'
 
     @property
+    def recover_partitions(self):
+        return True
+
+    @property
     def columns(self):
         """
         Provides definition of columns in Hive.
@@ -113,11 +112,56 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         ('first_name', 'STRING').
 
         """
+        if self.columns_override is not None:
+            return self.columns_override
+        else:
+            raise NotImplementedError
+
+    def output(self):
+        return HiveTableTarget(
+            self.table, database=hive_database_name()
+        )
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+
+class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+
+    def query(self):
+        return "ALTER TABLE {table} ADD IF NOT EXISTS PARTITION ({partition.query_spec});".format(
+            table=self.hive_table_task.table,
+            partition=self.partition,
+        )
+
+    @property
+    def hive_table_task(self):
         raise NotImplementedError
+
+    def requires(self):
+        return self.hive_table_task
+
+    @property
+    def partition_value(self):
+        raise NotImplementedError
+
+    @property
+    def partition(self):
+        return HivePartition(self.hive_table_task.partition_key, self.partition_value)
+
+    @property
+    def partition_location(self):
+        """Provides location of Hive database table's partition data."""
+        # Make sure that input path ends with a slash, to indicate a directory.
+        # (This is necessary for S3 paths that are output from Hadoop jobs.)
+        return url_path_join(self.hive_table_task.table_location, self.partition.path_spec + '/')
 
     def output(self):
         return HivePartitionTarget(
-            self.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
+            self.hive_table_task.table,
+            self.partition.as_dict(),
+            database=hive_database_name(),
+            fail_missing_table=False
         )
 
     def job_runner(self):
@@ -178,11 +222,11 @@ class HivePartitionParameter(Parameter):
         return HivePartition(parts[0], parts[1])
 
 
-class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
+class HivePartitionFromQueryTask(HivePartitionTask):  # pylint: disable=abstract-method
     """Creates a hive table from the results of a hive query."""
 
     def query(self):
-        create_table_statements = super(HiveTableFromQueryTask, self).query()
+        create_table_statements = super(HivePartitionFromQueryTask, self).query()
         full_insert_query = """
             INSERT INTO TABLE {table}
             PARTITION ({partition.query_spec})
@@ -204,13 +248,21 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
         raise NotImplementedError
 
 
-class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disable=abstract-method
+class HivePartitionFromParameterQueryTask(HivePartitionFromQueryTask):  # pylint: disable=abstract-method
     """Creates a hive table from the results of a hive query, given parameters instead of properties."""
 
     insert_query = luigi.Parameter()
     table = luigi.Parameter()
     columns = luigi.Parameter(is_list=True)
-    partition = HivePartitionParameter()
+
+    @property
+    def hive_table_task(self):
+        return HiveTableTask(
+            table_override=self.table,
+            columns_override=self.columns,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite
+        )
 
 
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
@@ -232,12 +284,12 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
 
     @property
     def insert_source_task(self):
-        return HiveTableFromParameterQueryTask(
+        return HivePartitionFromParameterQueryTask(
             warehouse_path=self.warehouse_path,
             insert_query=self.query,
             table=self.table,
             columns=self.hive_columns,
-            partition=self.partition,
+            partition_value=self.partition_value,
             overwrite=self.hive_overwrite,
         )
 
@@ -262,7 +314,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
         raise NotImplementedError
 
     @property
-    def partition(self):
+    def partition_value(self):
         """HivePartition object specifying the partition to store the data in."""
         raise NotImplementedError
 
