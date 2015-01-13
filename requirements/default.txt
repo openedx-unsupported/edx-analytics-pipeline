@@ -15,6 +15,7 @@ numpy==1.8.0 		# BSD
 pandas==0.13.0 		# BSD
 paramiko==1.14.0 	# LGPL
 pbr==0.5.23 		# Apache
+pip==1.5.6		# MIT // AN-4322
 pycrypto==2.6.1 	# public domain
 pygeoip==0.3.1 		# LGPL
 pymongo==2.7.2		# Apache 2.0
