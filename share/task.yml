@@ -134,6 +134,16 @@
       copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644
       when: override_config is defined
 
+    - name: merge override.cfg into client.cfg
+      shell: >
+        {{ working_venv_dir }}/bin/python share/config_override.py override.cfg client.cfg > client_new.cfg &&
+        mv client_new.cfg client.cfg && rm override.cfg
+      sudo: True
+      sudo_user: hadoop
+      args:
+        chdir: "{{ working_repo_dir }}"
+      when: override_config is defined or secure_config is defined
+
     - name: show command to execute
       debug: msg=". /home/hadoop/.bashrc && {{ working_venv_dir }}/bin/launch-task {{ task_arguments }} >{{ log_dir }}/stdout 2>{{ log_dir }}/stderr"
 
