@@ -40,7 +40,7 @@
     - secure_config_branch: origin/release
     - secure_config_repo_dir: "{{ working_dir }}/config"
     # - secure_config: path/to/config.cfg which can be found in the secure config repo
-    - profile: False
+    - profiler: !!null
 
   tasks:
     - name: known_hosts file exists
@@ -155,7 +155,7 @@
       sudo: True
       sudo_user: hadoop
       environment:
-        ENABLE_PROFILING: "{{ profile }}"
+        PYTHON_PROFILER: "{{ profiler }}"
       when: not wait_for_task
 
     - name: task run (wait for completion)
@@ -167,7 +167,7 @@
       sudo_user: hadoop
       ignore_errors: yes
       environment:
-        ENABLE_PROFILING: "{{ profile }}"
+        PYTHON_PROFILER: "{{ profiler }}"
       register: task_result
       when: wait_for_task
 

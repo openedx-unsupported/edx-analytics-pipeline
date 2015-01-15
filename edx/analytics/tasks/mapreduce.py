@@ -140,8 +140,10 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
         else:
             job_confs = {}
 
-        if bool(os.getenv('ENABLE_PROFILING', False)):
-            job_confs['luigi.runner.profile'] = 'true'
+        profiler = os.getenv('PYTHON_PROFILER')
+        if profiler:
+            job_confs['luigi.runner.profiler'] = profiler
+            job_confs['luigi.runner.profiler.path'] = config.get('profiler', 'local_path', '/mnt/tmp/mrrunner_profiles')
 
         super(MapReduceJobRunner, self).__init__(
             streaming_jar,

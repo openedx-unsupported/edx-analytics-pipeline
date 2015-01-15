@@ -56,8 +56,22 @@ def main():
     # TODO: setup logging for tasks or configured logging mechanism
 
     # Launch Luigi using the default builder
-    if bool(os.getenv('ENABLE_PROFILING', False)):
-        cProfile.runctx('luigi.run()', globals(), locals(), 'edx-analytics-pipeline.{}.cprofile'.format(os.getpid()))
+    profiler = os.getenv('PYTHON_PROFILER')
+    if profiler:
+        profile_file_path = 'edx-analytics-pipeline.{pid}.{profiler}.profile'.format(pid=os.getpid(), profiler=profiler)
+        if profiler.lower() == 'cprofile':
+            cProfile.runctx('luigi.run()', globals(), locals(), profile_file_path)
+        elif profiler.lower() == 'pyinstrument':
+            import pyinstrument
+            luigi.hadoop.attach(pyinstrument)
+            profiler = pyinstrument.Profiler(use_signal=False)
+            profiler.start()
+            try:
+                luigi.run()
+            finally:
+                profiler.stop()
+                profiler.save(filename=profile_file_path)
+
     else:
         luigi.run()
 

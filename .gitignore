@@ -53,4 +53,4 @@ override.cfg
 
 .DS_Store
 
-*.cprofile
+*.profile
