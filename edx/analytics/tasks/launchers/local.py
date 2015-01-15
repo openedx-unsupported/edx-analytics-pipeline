@@ -7,7 +7,8 @@ Main method for running tasks on a local machine.
 
 """
 
-import os.path
+import cProfile
+import os
 import logging
 
 import boto
@@ -55,7 +56,10 @@ def main():
     # TODO: setup logging for tasks or configured logging mechanism
 
     # Launch Luigi using the default builder
-    luigi.run()
+    if bool(os.getenv('ENABLE_PROFILING', False)):
+        cProfile.runctx('luigi.run()', globals(), locals(), 'edx-analytics-pipeline.{}.cprofile'.format(os.getpid()))
+    else:
+        luigi.run()
 
 
 if __name__ == '__main__':

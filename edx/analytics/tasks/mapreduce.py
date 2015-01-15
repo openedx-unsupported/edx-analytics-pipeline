@@ -140,6 +140,9 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
         else:
             job_confs = {}
 
+        if bool(os.getenv('ENABLE_PROFILING', False)):
+            job_confs['luigi.runner.profile'] = 'true'
+
         super(MapReduceJobRunner, self).__init__(
             streaming_jar,
             input_format=input_format,

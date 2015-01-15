@@ -1,11 +1,15 @@
 """Execute tasks on a remote EMR cluster."""
 
 import argparse
+import glob
 import json
 import os
 import pipes
+import pstats
+import shutil
 from subprocess import Popen, PIPE
 import sys
+import tempfile
 import uuid
 
 
@@ -30,6 +34,10 @@ def main():
     parser.add_argument('--secure-config-repo', help='git repository to clone to find the secure config file', default=os.getenv('ANALYTICS_SECURE_REPO'))
     parser.add_argument('--shell', help='execute a shell command on the cluster and exit', default=None)
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default=None)
+    parser.add_argument('--profile', action='store_true')
+    parser.add_argument('--analyze', action='store_true')
+    parser.add_argument('--analyze-post-clean', action='store_true')
+    parser.add_argument('--analyze-dir', default=None)
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -39,7 +47,9 @@ def main():
     log('Remote name = {0}'.format(uid))
 
     inventory = get_ansible_inventory()
-    if arguments.shell:
+    if arguments.analyze:
+        return_code = run_performance_analysis(inventory, arguments, uid)
+    elif arguments.shell:
         return_code = run_remote_shell(inventory, arguments)
     else:
         return_code = run_task_playbook(arguments, uid)
@@ -92,6 +102,8 @@ def convert_args_to_extra_vars(arguments, uid):
         extra_vars['secure_config_branch'] = arguments.secure_config_branch
     if arguments.secure_config:
         extra_vars['secure_config'] = arguments.secure_config
+    if arguments.profile:
+        extra_vars['profile'] = arguments.profile
     return json.dumps(extra_vars)
 
 
@@ -183,6 +195,138 @@ def run_remote_shell(inventory, arguments):
     )
     proc.wait()
     return proc.returncode
+
+
+def run_performance_analysis(inventory, arguments, uid):
+    job_flow_name = arguments.job_flow_id or arguments.job_flow_name
+    task_nodes = inventory['mr_{}_task'.format(job_flow_name)]
+    core_nodes = inventory['mr_{}_core'.format(job_flow_name)]
+    master_node = inventory['mr_{}_master'.format(job_flow_name)][0]
+    user = 'hadoop'
+
+    is_temp_dir = False
+    if not arguments.analyze_dir:
+        working_dir = tempfile.mkdtemp()
+        is_temp_dir = True
+    else:
+        working_dir = arguments.analyze_dir
+
+    log('Working directory = {0}'.format(working_dir))
+    if os.path.exists(working_dir) and len(os.listdir(working_dir)) > 0:
+        log('Working directory not empty. Aborting.')
+        return 1
+
+    try:
+        node_file_path = os.path.join(working_dir, 'slaves.txt')
+        task_profiles_path = os.path.join(working_dir, 'task_profiles')
+        perf_log_path = os.path.join(working_dir, 'edx-perf-stats.log')
+        os.makedirs(task_profiles_path)
+
+        cprofile_path = os.path.join('/var/lib/analytics-tasks', uid, 'repo', '*.cprofile')
+        task_cprofile_path = '/mnt/tmp/mrrunner_profiles/job_*'
+        command = [
+            'scp',
+            '{user}@{host}:{path}'.format(user=user, host=master_node, path=cprofile_path),
+            working_dir
+        ]
+        log('Running command = {0}'.format(command))
+        proc = Popen(
+            command,
+            cwd=STATIC_FILES_PATH
+        )
+        proc.wait()
+        if proc.returncode != 0:
+            return proc.returncode
+
+        print 'Luigi process profile'
+        profile_files = glob.glob(os.path.join(working_dir, '*.cprofile'))
+        stats = pstats.Stats(*profile_files)
+        stats.sort_stats('cumtime').print_stats()
+
+        with open(node_file_path, 'w') as hosts_file:
+            for host in (task_nodes + core_nodes):
+                hosts_file.write(host)
+                hosts_file.write('\n')
+
+        pscp_command = [
+            'parallel-slurp',
+            '--recursive',
+            '--user', user,
+            '-h', node_file_path,
+            '-O', 'StrictHostKeyChecking=no',
+            '-O', 'UserKnownHostsFile=/dev/null',
+            '--localdir', task_profiles_path,
+            task_cprofile_path,
+            'profiles'
+        ]
+
+        log('Running command = {0}'.format(pscp_command))
+        proc = Popen(
+            pscp_command,
+            cwd=STATIC_FILES_PATH
+        )
+        proc.wait()
+        if proc.returncode != 0:
+            return proc.returncode
+
+        print 'Task process profiles'
+        task_profile_files = []
+        for host in (task_nodes + core_nodes):
+            task_profile_files += list(glob.glob(os.path.join(task_profiles_path, host, 'profiles', '*.cprofile')))
+        first_file = task_profile_files.pop()
+        task_profile_stats = pstats.Stats(first_file)
+        for profile_file in task_profile_files:
+            task_profile_stats.add(profile_file)
+        task_profile_stats.sort_stats('cumtime').print_stats()
+        task_profile_stats.dump_stats(os.path.join(working_dir, 'combined_mrrunner_stats.cprofile'))
+
+        pscp_command = [
+            'parallel-slurp',
+            '--recursive',
+            '--user', user,
+            '-h', node_file_path,
+            '-O', 'StrictHostKeyChecking=no',
+            '-O', 'UserKnownHostsFile=/dev/null',
+            '--localdir', working_dir,
+            '/var/log/edx-perf-stats.log',
+            'edx-perf-stats.log'
+        ]
+
+        log('Running command = {0}'.format(pscp_command))
+        proc = Popen(
+            pscp_command,
+            cwd=STATIC_FILES_PATH
+        )
+        proc.wait()
+        if proc.returncode != 0:
+            return proc.returncode
+
+        if arguments.analyze_post_clean:
+            pssh_command = [
+                'parallel-ssh',
+                '--user', user,
+                '-h', node_file_path,
+                '-H', master_node,
+                '-O', 'StrictHostKeyChecking=no',
+                '-O', 'UserKnownHostsFile=/dev/null',
+                'rm -rf {task_path} {core_path}'.format(
+                    core_path=cprofile_path,
+                    task_path=task_cprofile_path
+                )
+            ]
+            log('Running command = {0}'.format(pssh_command))
+            proc = Popen(
+                pssh_command,
+                cwd=STATIC_FILES_PATH
+            )
+            proc.wait()
+            if proc.returncode != 0:
+                return proc.returncode
+    finally:
+        if is_temp_dir:
+            shutil.rmtree(working_dir)
+
+    return 0
 
 
 def log(message):

@@ -26,5 +26,5 @@ six==1.6.1		# MIT
 stevedore==0.14.1 	# Apache 2.0
 tornado==3.1.1 		# Apache 2.0
 wsgiref==0.1.2 		# ZPL
--e git+https://github.com/edx/luigi.git@v1.0.17-fork.edx.1#egg=luigi 		# Apache License 2.0
+-e git+https://github.com/mulby/luigi.git@99fd1103fd5f26f08ea5d7328e65a5cfe39e369b#egg=luigi 	# Apache License 2.0
 -e git+https://github.com/edx/opaque-keys.git@33f2b099e92957046a866a9b6d48a71c484bb475#egg=opaque-keys
