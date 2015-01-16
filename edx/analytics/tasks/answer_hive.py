@@ -2,7 +2,6 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
-import math
 import csv
 import hashlib
 import html5lib
@@ -16,19 +15,19 @@ from luigi.configuration import get_config
 
 from edx.analytics.tasks.answer_dist import (
     get_text_from_html,
+    try_str_to_float,
 )
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import ExternalURL, IgnoredTarget
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
-# TODO: move these to util.hive
+# TODO: move MultipartitionHiveTableTask to util.hive, and clean these out...
 import textwrap
 from luigi.hive import HiveTableTarget
-from edx.analytics.tasks.util.hive import OverwriteAwareHiveQueryRunner, HiveTableTask, WarehouseMixin, HivePartition, hive_database_name
+from edx.analytics.tasks.util.hive import HiveTableTask, WarehouseMixin, HivePartition, hive_database_name
 
 import logging
 log = logging.getLogger(__name__)
@@ -42,9 +41,9 @@ UNKNOWN_ANSWER_VALUE = ''
 UNMAPPED_ANSWER_VALUE = ''
 PROBLEM_CHECK_EVENT = 'problem_check'
 
+
 class AllProblemCheckEventsParamMixin(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """Parameters for AllProblemCheckEventsTask."""
-
 
 
 class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -153,7 +152,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
         filename = u'{course_id}_answers.dat'.format(course_id=filename_safe_course_id)
         return url_path_join(self.output_root, date_directory, filename)
 
-    def multi_output_reducer(self, key, values, output_file):
+    def multi_output_reducer(self, _key, values, output_file):
         """
         Calculate a list of answers from the final response of a user to a problem in a course.
 
@@ -188,8 +187,6 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
         """
 
-        date_string, course_id = key
-
         for event_string in values:
             for answer in self._generate_answers(event_string):
                 self._output_answer(answer, output_file)
@@ -218,7 +215,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
     def _output_answer(self, answer, output_file):
         """
-        Outputs answer dict in JSON format for input to Hive.
+        Outputs answer dict in columnar format for input to Hive.
 
         An example answer dict:
         {'course_user_tags': {}, 'answer_value_id': u'4', 'uses_submission': False, 'user_id': 14,
@@ -272,7 +269,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
             answer['problem_id'] = problem_id
             answer['problem_display_name'] = problem_display_name
             answer['course_user_tags'] = course_user_tags
-            # Some should already be in the dict beforehand:  
+            # Some should already be in the dict beforehand:
             # i.e. question, variant, answer_value_id, answer, correct.
             # Some are added:  uses_submission, should_include_answer,
             # answer_uses_value_id, grouping_key.
@@ -292,7 +289,7 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
                 else:
                     return unicode(value)
 
-            clean_answer = {key : cleaned(answer[key]) for key in answer}
+            clean_answer = {key: cleaned(answer[key]) for key in answer}
             results.append(clean_answer)
 
         answers = event.get('answers')
@@ -469,8 +466,7 @@ def stringify_value(answer_value, contains_html=False):
 
 class MultipartitionHiveTableTask(HiveTableTask):
     """
-    Abstract class to import JSON data into a Hive table with multiple partitions.
-# TODO: switch names to non-JSON as well...
+    Abstract class to import data into a Hive table with multiple partitions.
     """
 
     def query(self):
@@ -497,7 +493,6 @@ class MultipartitionHiveTableTask(HiveTableTask):
         )
 
         query = textwrap.dedent(query)
-
         return query
 
     @property
@@ -530,7 +525,7 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
     @property
     def columns(self):
         return [
-            ('time', 'STRING'), 
+            ('time', 'STRING'),
             ('course_id', 'STRING'),
             ('problem_id', 'STRING'),
             ('part_id', 'STRING'),
@@ -557,6 +552,7 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
             pattern=self.pattern,
             output_root=self.table_location,  # this is the table, not the partition
         )
+
 
 class HiveAnswerTableFromQueryTask(AllProblemCheckEventsParamMixin, HiveTableTask):
 
@@ -651,7 +647,7 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
     def insert_query(self):
         return """
         SELECT aat.course_id, aat.part_id, aat.grouping_key, aat.variant, aat.correct, aat.time,
-            IF(lpi.answer_uses_value_id='True' OR aat.uses_submission='True', aat.answer, aat.answer_value_id) as answer_value, 
+            IF(lpi.answer_uses_value_id='True' OR aat.uses_submission='True', aat.answer, aat.answer_value_id) as answer_value,
             IF(lpi.answer_uses_value_id='True' OR aat.uses_submission='True', aat.answer_value_id, aat.answer) as value_id
         FROM all_answers aat
         INNER JOIN (
@@ -677,6 +673,7 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
         )
+
 
 class LatestAnswers(HiveAnswerTableFromQueryTask):
 
@@ -721,6 +718,7 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
             warehouse_path=self.warehouse_path,
         )
 
+
 class LatestAnswerDist(HiveAnswerTableFromQueryTask):
 
     @property
@@ -747,7 +745,7 @@ class LatestAnswerDist(HiveAnswerTableFromQueryTask):
         return """
         SELECT la.course_id, la.part_id,
                lai.variant, lai.is_correct, lai.answer_value, lai.value_id,
-               count(la.user_id) as count, 
+               count(la.user_id) as count,
                lpi.problem_id, lpi.question, lpi.problem_display_name
         FROM latest_answers la
         INNER JOIN latest_problem_info lpi
@@ -777,6 +775,7 @@ class LatestAnswerDist(HiveAnswerTableFromQueryTask):
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
         )
+
 
 class AnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutputMapReduceJobTask, WarehouseMixin):
     """
@@ -824,28 +823,28 @@ class AnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutpu
         return url_path_join(self.output_root, hashed_course_id, filename)
 
     CSV_FIELD_NAMES = [
-            'ModuleID',
-            'PartID',
-            'Correct Answer',
-            'Count',
-            'ValueID',
-            'AnswerValue',
-            'Variant',
-            'Problem Display Name',
-            'Question',
-        ]
+        'ModuleID',
+        'PartID',
+        'Correct Answer',
+        'Count',
+        'ValueID',
+        'AnswerValue',
+        'Variant',
+        'Problem Display Name',
+        'Question',
+    ]
 
     HIVE_FIELD_NAMES = [
-            'PartID',
-            'Variant',
-            'Correct Answer',
-            'AnswerValue',
-            'ValueID',
-            'Count',
-            'ModuleID',
-            'Question',
-            'Problem Display Name',
-        ]
+        'PartID',
+        'Variant',
+        'Correct Answer',
+        'AnswerValue',
+        'ValueID',
+        'Count',
+        'ModuleID',
+        'Question',
+        'Problem Display Name',
+    ]
 
     def multi_output_reducer(self, _course_id, values, output_file):
         """
@@ -861,7 +860,7 @@ class AnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutpu
 
         def load_into_dict(content):
             content_values = content.split('\t')
-            return { val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values) }
+            return {val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values)}
 
         # Collect in memory the list of dicts to be output.  Then sort
         # the list of dicts by their field names before encoding.
@@ -958,7 +957,9 @@ class LatestUserExperiment(AllProblemCheckEventsParamMixin, HiveTableTask):
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,  # this is the table, not the partition
+            warehouse_path=self.warehouse_path,
         )
+
 
 class LatestExperimentAnswerDist(HiveAnswerTableFromQueryTask):
 
@@ -1030,6 +1031,7 @@ class LatestExperimentAnswerDist(HiveAnswerTableFromQueryTask):
             warehouse_path=self.warehouse_path,
         )
 
+
 class ExperimentAnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutputMapReduceJobTask, WarehouseMixin):
     """
     Blah.
@@ -1076,32 +1078,32 @@ class ExperimentAnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, 
         return url_path_join(self.output_root, hashed_course_id, filename)
 
     CSV_FIELD_NAMES = [
-            'ModuleID',
-            'PartID',
-            'Correct Answer',
-            'Count',
-            'ValueID',
-            'AnswerValue',
-            'Variant',
-            'ExperimentID',
-            'GroupID',
-            'Problem Display Name',
-            'Question',
-        ]
+        'ModuleID',
+        'PartID',
+        'Correct Answer',
+        'Count',
+        'ValueID',
+        'AnswerValue',
+        'Variant',
+        'ExperimentID',
+        'GroupID',
+        'Problem Display Name',
+        'Question',
+    ]
 
     HIVE_FIELD_NAMES = [
-            'PartID',
-            'Variant',
-            'Correct Answer',
-            'AnswerValue',
-            'ValueID',
-            'Count',
-            'ModuleID',
-            'Question',
-            'Problem Display Name',
-            'ExperimentID',
-            'GroupID',
-        ]
+        'PartID',
+        'Variant',
+        'Correct Answer',
+        'AnswerValue',
+        'ValueID',
+        'Count',
+        'ModuleID',
+        'Question',
+        'Problem Display Name',
+        'ExperimentID',
+        'GroupID',
+    ]
 
     def multi_output_reducer(self, _course_id, values, output_file):
         """
@@ -1117,7 +1119,7 @@ class ExperimentAnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, 
 
         def load_into_dict(content):
             content_values = content.split('\t')
-            return { val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values) }
+            return {val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values)}
 
         # Collect in memory the list of dicts to be output.  Then sort
         # the list of dicts by their field names before encoding.
@@ -1125,8 +1127,131 @@ class ExperimentAnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, 
         row_data = sorted(row_data, key=itemgetter(*field_names))
 
         for row_dict in row_data:
-            #encoded_dict = dict()
-            #for key, value in row_dict.iteritems():
-            #    encoded_dict[key] = unicode(value).encode('utf8')
-            #writer.writerow(encoded_dict)
             writer.writerow(row_dict)
+
+
+class AnswerDistributionFromHiveToMySQLTaskWorkflow(AllProblemCheckEventsParamMixin, WarehouseMixin, MysqlInsertTask):
+    """
+    Define answer_distribution_from_hive table.
+    """
+    @property
+    def table(self):
+        return "answer_distribution_from_hive"
+
+    def rows(self):
+        """
+        Re-formats the output of AnswerDistributionPerCourse to something insert_rows can understand
+        """
+        with self.input()['insert_source'].open('r') as fobj:
+            for line in fobj:
+                (course_id, part_id, variant, is_correct, answer_value,
+                 value_id, count, problem_id, question, display_name) = line.strip('\n').split('\t')
+                # output is in a different order, and has extra value.
+                output_list = [
+                    course_id,
+                    problem_id,
+                    part_id,
+                    is_correct,
+                    count,
+                    value_id,
+                    answer_value,
+                    try_str_to_float(answer_value),
+                    variant,
+                    display_name,
+                    question,
+                ]
+                yield output_list
+
+    @property
+    def columns(self):
+        # Note that this does not align with the set of columns in Hive, so we cannot
+        # assume that they're the same.
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('module_id', 'VARCHAR(255) NOT NULL'),
+            ('part_id', 'VARCHAR(255) NOT NULL'),
+            ('correct', 'TINYINT(1) NOT NULL'),
+            ('count', 'INT(11) NOT NULL'),
+            ('value_id', 'VARCHAR(255)'),
+            ('answer_value_text', 'LONGTEXT'),
+            ('answer_value_numeric', 'DOUBLE'),
+            ('variant', 'INT(11)'),
+            ('problem_display_name', 'LONGTEXT'),
+            ('question_text', 'LONGTEXT'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            ('module_id',),
+            ('part_id',),
+        ]
+
+    def init_copy(self, connection):
+        """
+        Truncate the table before re-writing
+        """
+        # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+        # commit the currently open transaction before continuing with the copy.
+        query = "DELETE FROM {table}".format(table=self.table)
+        connection.cursor().execute(query)
+
+    @property
+    def insert_source_task(self):
+        """
+        Write to answer_distribution table from AnswerDistributionTSVTask.
+        """
+        return LatestAnswerDist(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+    def extra_modules(self):
+        import six
+        return [html5lib, six]
+
+
+class HiveAnswerDistributionWorkflow(
+        AllProblemCheckEventsParamMixin,
+        WarehouseMixin,
+        MysqlInsertTaskMixin,
+        luigi.WrapperTask):
+    """Calculate answer distribution and output to files and to database."""
+
+    # Add additional args for MultiOutputMapReduceJobTask.
+    output_root = luigi.Parameter()
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+
+        # Add additional args for MultiOutputMapReduceJobTask.
+        kwargs1 = {
+            'output_root': self.output_root,
+        }
+        kwargs1.update(kwargs)
+
+        # Add additional args for MysqlInsertTaskMixin.
+        kwargs2 = {
+            'database': self.database,
+            'credentials': self.credentials,
+            'insert_chunk_size': self.insert_chunk_size,
+        }
+        kwargs2.update(kwargs)
+
+        yield (
+            AnswerDistOneFilePerCourseTask(**kwargs1),
+            ExperimentAnswerDistOneFilePerCourseTask(**kwargs1),
+            AnswerDistributionFromHiveToMySQLTaskWorkflow(**kwargs2),
+        )
