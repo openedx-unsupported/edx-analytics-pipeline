@@ -1,0 +1,384 @@
+<html>
+<head>
+<!-- copied from http://bost.ocks.org/mike/treemap/ -->
+<style>
+body {
+    font-family: 'Consolas', 'Lucida Console', 'Monaco', monospace;
+}
+
+#chart {
+  width: 2000px;
+  height: 768px;
+  background: #ddd;
+}
+
+text {
+  pointer-events: none;
+  font: 10px monospace;
+}
+
+.grandparent text {
+  font-weight: bold;
+}
+
+rect {
+  fill: none;
+  stroke: #fff;
+}
+
+rect.parent,
+.grandparent rect {
+  stroke-width: 2px;
+}
+
+.grandparent rect {
+  fill: orange;
+}
+
+.grandparent:hover rect {
+  fill: #ee9700;
+}
+
+.children rect.parent,
+.grandparent rect {
+  cursor: pointer;
+}
+
+.children rect.parent {
+  fill: #bbb;
+  fill-opacity: .5;
+}
+
+.children:hover rect.child {
+  fill: #bbb;
+}
+</style>
+
+<style>
+.frame {
+    margin-left: 0;
+    font-size: 10pt;
+    border-left: 1px solid #eee;
+    padding-left: 15px;
+    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAwAAAALCAMAAAB8rpxtAAAARVBMVEUAAAD9/f5xe4R1fYZ1fIf////O0NWzs7OysrJ2fYh2fYh2fIf///+FjJaxtbv////n6Or///+VmqP///92fYh5gYyCiJLu0pBqAAAAFHRSTlMAghs7SSu2CgTirXMj/M9EnhHqZ/jLwbwAAABGSURBVAjXY0ABHOxQwAHkMIqJQAAnkMPKBuWwgNQJC4HZXGBNggKiIA4TxAh+PiCbG2YeI68IJwfMdB42EWaEXawsDJgAACnNA3xj5yn5AAAAAElFTkSuQmCC);
+    background-repeat: no-repeat;
+    cursor: default;
+    pointer-events: fill;
+    background-color: rgba(255,255,255,0.2);
+}
+.frame.collapse {
+    background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAsAAAAMCAMAAACDd7esAAAARVBMVEUAAAD9/f51fYZxe4R2fYjO0NX///+zs7OysrJ1fId2fYh2fIf///+xtbuFjJb////n6Or///+VmqP///92fYh5gYyCiJLiCCvVAAAAFHRSTlMAgjsb4rYrCgRJrXMjz/xEnhHqZ/fev68AAAA+SURBVAjXY8AJOFg44Wx2EREuZjgbCLg5EGwRFiYIGwI44Ww+VjYoW5SXkQeqRkiAH6pXjFVYEGYXIxuUBQDVJAN8ddpNUwAAAABJRU5ErkJggg==);
+}
+.frame.collapse > .frame-children {
+    display: none;
+}
+.frame.no_children {
+    background-image: none !important;
+}
+
+.frame:hover .frame {
+    color: #888;
+}
+.frame:hover {
+    color: black !important;
+    background-color: rgba(188,213,255,0.02);
+}
+.frame.last-hover {
+    border-left-color: #a66 !important;
+    color: black !important;
+}
+.frame.last-hover .frame {
+    color: black !important;
+}
+.function {
+    font-weight: bold;
+}
+.code-position {
+    opacity: 0.5;
+}
+.frame-info span {
+    margin-right: 10px;
+}
+.high-tier {
+    background-color: rgba(255,0,0,0.15);
+}
+.mid-tier {
+    background-color: rgba(255,255,0,0.15);
+}
+.low-tier {
+    background-color: rgba(0,255,0,0.05);
+}
+</style>
+</head>
+<body>
+<div>
+  Trace
+  <div id="tree"></div>
+<div>
+<hr />
+<div>
+  <div class="callgraph-label">Call Graph (Click to Toggle)</div>
+  <div id="callgraph" style="display: none;">$call_graph_svg</div>
+</div>
+<hr />
+<div>
+  <div class="treemap-label">Tree Map (Click to Toggle)</div>
+  <div id="chart" style="display: none;"></div>
+</div>
+<hr />
+<script src="http://d3js.org/d3.v3.min.js"></script>
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.3/jquery.min.js"></script>
+<script src=""></script>
+<script>
+// copied from http://bost.ocks.org/mike/treemap/
+
+var margin = {top: 20, right: 0, bottom: 0, left: 0},
+    width = 2000,
+    height = 768 - margin.top - margin.bottom,
+    formatNumber = d3.format(",d"),
+    transitioning;
+
+var x = d3.scale.linear()
+    .domain([0, width])
+    .range([0, width]);
+
+var y = d3.scale.linear()
+    .domain([0, height])
+    .range([0, height]);
+
+var treemap = d3.layout.treemap()
+    .children(function(d, depth) { return depth ? null : d._children; })
+    .sort(function(a, b) { return a.value - b.value; })
+    .ratio(height / width * 0.5 * (1 + Math.sqrt(5)))
+    .round(false);
+
+var svg = d3.select("#chart").append("svg")
+    .attr("width", width + margin.left + margin.right)
+    .attr("height", height + margin.bottom + margin.top)
+    .style("margin-left", -margin.left + "px")
+    .style("margin.right", -margin.right + "px")
+  .append("g")
+    .attr("transform", "translate(" + margin.left + "," + margin.top + ")")
+    .style("shape-rendering", "crispEdges");
+
+var grandparent = svg.append("g")
+    .attr("class", "grandparent");
+
+grandparent.append("rect")
+    .attr("y", -margin.top)
+    .attr("width", width)
+    .attr("height", margin.top);
+
+grandparent.append("text")
+    .attr("x", 6)
+    .attr("y", 6 - margin.top)
+    .attr("dy", ".75em");
+
+function renderTreemap(root) {
+  initialize(root);
+  accumulate(root);
+  layout(root);
+  display(root);
+
+  function initialize(root) {
+    root.x = root.y = 0;
+    root.dx = width;
+    root.dy = height;
+    root.depth = 0;
+  }
+
+  // Aggregate the values for internal nodes. This is normally done by the
+  // treemap layout, but not here because of our custom implementation.
+  // We also take a snapshot of the original children (_children) to avoid
+  // the children being overwritten when when layout is computed.
+  function accumulate(d) {
+    return (d._children = d.children)
+        ? d.value = d.children.reduce(function(p, v) { return p + accumulate(v); }, 0)
+        : d.value;
+  }
+
+  // Compute the treemap layout recursively such that each group of siblings
+  // uses the same size (1×1) rather than the dimensions of the parent cell.
+  // This optimizes the layout for the current zoom state. Note that a wrapper
+  // object is created for the parent node for each group of siblings so that
+  // the parent’s dimensions are not discarded as we recurse. Since each group
+  // of sibling was laid out in 1×1, we must rescale to fit using absolute
+  // coordinates. This lets us use a viewport to zoom.
+  function layout(d) {
+    if (d._children) {
+      treemap.nodes({_children: d._children});
+      d._children.forEach(function(c) {
+        c.x = d.x + c.x * d.dx;
+        c.y = d.y + c.y * d.dy;
+        c.dx *= d.dx;
+        c.dy *= d.dy;
+        c.parent = d;
+        layout(c);
+      });
+    }
+  }
+
+  function display(d) {
+    grandparent
+        .datum(d.parent)
+        .on("click", transition)
+      .select("text")
+        .text(name(d));
+
+    var g1 = svg.insert("g", ".grandparent")
+        .datum(d)
+        .attr("class", "depth");
+
+    var g = g1.selectAll("g")
+        .data(d._children)
+      .enter().append("g");
+
+    g.filter(function(d) { return d._children; })
+        .classed("children", true)
+        .on("click", transition);
+
+    g.selectAll(".child")
+        .data(function(d) { return d._children || [d]; })
+      .enter().append("rect")
+        .attr("class", "child")
+        .call(rect);
+
+    g.append("rect")
+        .attr("class", "parent")
+        .call(rect)
+      .append("title")
+        .text(function(d) { return formatNumber(d.value); });
+
+    g.append("text")
+        .attr("dy", ".75em")
+        .text(function(d) { return d.name })
+        .call(text);
+
+    function transition(d) {
+      if (transitioning || !d) return;
+      transitioning = true;
+
+      var g2 = display(d),
+          t1 = g1.transition().duration(750),
+          t2 = g2.transition().duration(750);
+
+      // Update the domain only after entering new elements.
+      x.domain([d.x, d.x + d.dx]);
+      y.domain([d.y, d.y + d.dy]);
+
+      // Enable anti-aliasing during the transition.
+      svg.style("shape-rendering", null);
+
+      // Draw child nodes on top of parent nodes.
+      svg.selectAll(".depth").sort(function(a, b) { return a.depth - b.depth; });
+
+      // Fade-in entering text.
+      g2.selectAll("text").style("fill-opacity", 0);
+
+      // Transition to the new view.
+      t1.selectAll("text").call(text).style("fill-opacity", 0);
+      t2.selectAll("text").call(text).style("fill-opacity", 1);
+      t1.selectAll("rect").call(rect);
+      t2.selectAll("rect").call(rect);
+
+      // Remove the old node when the transition is finished.
+      t1.remove().each("end", function() {
+        svg.style("shape-rendering", "crispEdges");
+        transitioning = false;
+      });
+    }
+
+    return g;
+  }
+
+  function text(text) {
+    text.attr("x", function(d) { return x(d.x) + 6; })
+        .attr("y", function(d) { return y(d.y) + 6; });
+  }
+
+  function rect(rect) {
+    rect.attr("x", function(d) { return x(d.x); })
+        .attr("y", function(d) { return y(d.y); })
+        .attr("width", function(d) { return x(d.x + d.dx) - x(d.x); })
+        .attr("height", function(d) { return y(d.y + d.dy) - y(d.y); });
+  }
+
+  function name(d) {
+    return d.parent
+        ? name(d.parent) + "." + d.name
+        : d.name;
+  }
+}
+</script>
+<script>
+var performanceData = $data;
+
+$(function() {
+    $('#tree').append(convertNode(performanceData));
+    $('.frame, body').mousemove(function (event) {
+        $('.frame.last-hover').removeClass('last-hover');
+        $(this).addClass('last-hover');
+        event.stopPropagation();
+    });
+
+    $('.callgraph-label').click(function() {
+      $('#callgraph').toggle()
+    });
+    $('.treemap-label').click(function() {
+      $('#chart').toggle()
+    });
+    renderTreemap(performanceData)
+
+    function convertNode(node) {
+        var classes = 'frame';
+        var numChildren = 0;
+        if ('children' in node) {
+            numChildren = node.children.length;
+        }
+        if (numChildren == 0) {
+            classes += ' no_children';
+        }
+        var container = $('<div></div>', {class: classes});
+        container.click(function (event) {
+            $(this).toggleClass('collapse');
+            event.stopPropagation();
+        });
+
+        var frame_info = $('<div></div>', {class: "frame-info"});
+        
+        percentage = node.percentage.toFixed(2);
+        if (node.bucket === "large") {
+            frame_info.addClass('high-tier');
+        } else if(node.bucket === "medium") {
+            frame_info.addClass('mid-tier');
+        } else if(node.bucket === "low") {
+            frame_info.addClass('low-tier');
+        } else {
+            container.addClass('collapse')
+        }
+
+        var time_span = $('<span></span>', {class: "time"});
+        time_span.text(node.time_delta);
+        frame_info.append(time_span);
+        var percent_span = $('<span></span>', {class: "total-percent"});
+        percent_span.text(percentage + '%');
+        frame_info.append(percent_span);
+        var function_span = $('<span></span>', {class: "function"});
+        function_span.text(node.name);
+        frame_info.append(function_span);
+
+        container.append(frame_info);
+
+        var child_container = $('<div></div>', {class: "frame-children"});
+        if ('children' in node) {
+            for (var i = 0; i < numChildren; i++) {
+                child_container.append(convertNode(node.children[i]));
+            }
+        }
+        container.append(child_container);
+        return container;
+    }
+});
+</script>
+</body>
+</html>

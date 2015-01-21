@@ -51,7 +51,7 @@ coverage-local: test-local
 
 	# Compute style violations
 	pep8 edx > pep8.report || echo "Not pep8 clean"
-	pylint -f parseable edx > pylint.report || echo "Not pylint clean"
+	pylint -f parseable -s y edx > pylint.report || echo "Not pylint clean"
 
 coverage: test coverage-local
 
