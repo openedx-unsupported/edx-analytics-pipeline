@@ -7,7 +7,7 @@ import sys
 
 from parser import LogFileParser
 from measure import Measurement
-from report import text_report, json_report
+from report import text_report, json_report, html_report
 
 
 MESSAGE_START_PATTERN = r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) (?P<level>\w+) (?P<pid>\d+) \[(?P<module>.*?)\] (?P<filename>.*?):(?P<line_no>\d+) - (?P<content>.*)'
@@ -19,7 +19,7 @@ SCHEDULING_TASK_THRESHOLD = 1
 def analyze_log_file():
     arg_parser = argparse.ArgumentParser(description='Analyze log files.')
     arg_parser.add_argument('-o', '--output', help='Save the results of the analysis to a file that can be read later.')
-    arg_parser.add_argument('-r', '--report', choices=['text', 'json'], help='Generate a report in the requested format and stream it to stdout.')
+    arg_parser.add_argument('-r', '--report', choices=['text', 'json', 'html'], help='Generate a report in the requested format and stream it to stdout.')
     group = arg_parser.add_argument_group('Input File')
     group_ex = group.add_mutually_exclusive_group()
     group_ex.add_argument('-l', '--log', default='edx_analytics.log', help='A log file to analyze. Defaults to "edx_analytics.log" in the current directory.')
@@ -45,6 +45,8 @@ def analyze_log_file():
         json_report(root)
     elif args.report == 'text':
         text_report(root)
+    elif args.report == 'html':
+        html_report(root)
 
 
 def create_log_message(matched_groups):
