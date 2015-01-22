@@ -204,6 +204,12 @@ def get_event_data(event):
     if isinstance(event_value, dict):
         # It's fine, just return.
         return event_value
+    elif isinstance(event_value, list):
+        # This is expected for some events but not currently handled gracefully.
+        return None
+    elif isinstance(event_value, basestring):
+        # This is expected for some events but not currently handled gracefully.
+        return None
     else:
         log.error("encountered event data with unrecognized type: %s", event)
         return None
