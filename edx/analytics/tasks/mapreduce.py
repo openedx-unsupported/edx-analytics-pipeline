@@ -140,6 +140,13 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
         else:
             job_confs = {}
 
+        remote_profiler = os.getenv('REMOTE_PROFILER')
+        if remote_profiler:
+            job_confs['luigi.runner.profiler'] = remote_profiler
+            if remote_profiler == 'pyinstrument':
+                import pyinstrument
+                luigi.hadoop.attach(pyinstrument)
+
         super(MapReduceJobRunner, self).__init__(
             streaming_jar,
             input_format=input_format,
