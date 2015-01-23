@@ -48,7 +48,11 @@ class FindUsers(EventLogSelectionMixin, MapReduceJobTask):
         except:
             return
 
-        get_dict = payload.get('GET', {})
+        try:
+            get_dict = payload['GET']
+        except:
+            return
+
         if 'password' not in get_dict:
             return
 
