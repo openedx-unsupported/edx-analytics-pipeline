@@ -7,6 +7,9 @@ from string import Template
 import uuid
 
 
+STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
+
+
 def text_report(measurement, file_obj=None, indent=u'', child_indent=u'', threshold_percent=None):
     file_obj = file_obj or sys.stdout
     is_a_tty = hasattr(file_obj, 'isatty') and file_obj.isatty()
@@ -38,7 +41,7 @@ def json_report(measurement, file_obj=None, pretty=True, threshold_percent=None)
 
 def html_report(measurement, file_obj=None, threshold_percent=None):
     file_obj = file_obj or sys.stdout
-    path_to_template = os.path.join(os.path.dirname(__file__), 'resources', 'report.html')
+    path_to_template = os.path.join(STATIC_FILES_PATH, 'report.html')
     with open(path_to_template, 'r') as template_file:
         template = Template(template_file.read())
 

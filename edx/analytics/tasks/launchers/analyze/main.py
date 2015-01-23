@@ -89,7 +89,10 @@ def analyze_scheduling(parser, threshold=1):
         if start_match:
             if start_scheduling_timestamp is None:
                 start_scheduling_timestamp = message.timestamp
-            all_scheduling.add_child(analyze_task_scheduling(message, start_match, parser))
+
+            measurement = analyze_task_scheduling(message, start_match, parser)
+            if measurement:
+                all_scheduling.add_child(measurement)
 
 
 def analyze_task_scheduling(start_message, start_match, parser):
@@ -106,7 +109,10 @@ def analyze_task_scheduling(start_message, start_match, parser):
 
         parser.next_message()
 
-    return Measurement('Scheduling {}'.format(task), message.timestamp - start_timestamp)
+    if not task.name == 'UncheckedExternalURL':
+        return Measurement('Scheduling {}'.format(task), message.timestamp - start_timestamp)
+    else:
+        return None
 
 
 def analyze_execution(parser):
