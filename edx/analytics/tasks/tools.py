@@ -39,9 +39,6 @@ class FindUsers(EventLogSelectionMixin, MapReduceJobTask):
             return
         event, date_string = value
 
-        if event.get('event_type', '') != '/account/login/':
-            return
-
         payload_str = event.get('event')
         if not payload_str:
             return
@@ -59,8 +56,14 @@ class FindUsers(EventLogSelectionMixin, MapReduceJobTask):
         if not emails:
             return
 
-        for email in emails:
-            yield (date_string, email)
+        try:
+            for email in emails:
+                yield (email, 1)
+        except:
+            yield(emails, 1)
+
+    def reducer(self, email, values):
+        yield (email,)
 
     def output(self):
         return get_target_from_url(self.output_root)
