@@ -199,7 +199,6 @@ class S3HdfsTarget(HdfsTarget):
 
     def __init__(self, path=None, format=Plain, is_tmp=False):
         super(S3HdfsTarget, self).__init__(path=path, format=format, is_tmp=is_tmp)
-        self.s3_client = ScalableS3Client()
 
     def open(self, mode='r'):
         if mode not in ('r', 'w'):
@@ -209,4 +208,6 @@ class S3HdfsTarget(HdfsTarget):
             return super(S3HdfsTarget, self).open(mode=mode)
         else:
             safe_path = self.path.replace('s3n://', 's3://')
+            if not hasattr(self, 's3_client'):
+                self.s3_client = ScalableS3Client()
             return AtomicS3File(safe_path, self.s3_client)

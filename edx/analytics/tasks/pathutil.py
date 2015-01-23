@@ -208,7 +208,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
                 break
 
         if not match:
-            log.debug('Excluding due to pattern mismatch: %s', url)
             return False
 
         # If the pattern contains a date group, use that to check if within the requested interval.
@@ -219,10 +218,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
 
-        if should_include:
-            log.debug('Including: %s', url)
-        else:
-            log.debug('Excluding due to date interval: %s', url)
         return should_include
 
     def output(self):
