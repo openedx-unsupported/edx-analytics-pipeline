@@ -62,7 +62,12 @@ def html_report(measurement, file_obj=None, threshold_percent=None):
         return serialized
 
     treemap_data = json.dumps(visit_measurement(measurement))
-    file_obj.write(template.safe_substitute(data=treemap_data, call_graph_svg=get_call_graph_svg(measurement, threshold_percent)))
+    file_obj.write(
+        template.safe_substitute(
+            data=treemap_data,
+            call_graph_svg=get_call_graph_svg(measurement, threshold_percent)
+        )
+    )
 
 
 def get_call_graph_svg(measurement, threshold_percent=None):

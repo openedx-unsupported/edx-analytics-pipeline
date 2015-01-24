@@ -6,7 +6,13 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url
 
 
-class StartupTimeTestTask(EventLogSelectionMixin, MapReduceJobTask):
+class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
+    """
+    This represents the smallest possible task that parses events for a particular date range.
+
+    Many of our tasks follow this pattern, so this represents the smallest amount of useful work. To maintain a short
+    development cycle we want to make this as fast as possible.
+    """
 
     output_root = luigi.Parameter()
 

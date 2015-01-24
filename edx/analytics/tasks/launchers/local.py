@@ -8,8 +8,8 @@ Main method for running tasks on a local machine.
 """
 
 from contextlib import contextmanager
-import os
 import logging
+import os
 
 import boto
 import filechunkio

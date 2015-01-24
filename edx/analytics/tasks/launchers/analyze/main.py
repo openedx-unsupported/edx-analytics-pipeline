@@ -5,9 +5,9 @@ import datetime
 import re
 import sys
 
-from parser import LogFileParser
-from measure import Measurement
-from report import text_report, json_report, html_report
+from edx.analytics.tasks.launchers.analyze.parser import LogFileParser
+from edx.analytics.tasks.launchers.analyze.measure import Measurement
+from edx.analytics.tasks.launchers.analyze.report import text_report, json_report, html_report
 
 
 MESSAGE_START_PATTERN = r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) (?P<level>\w+) (?P<pid>\d+) \[(?P<module>.*?)\] (?P<filename>.*?):(?P<line_no>\d+) - (?P<content>.*)'
@@ -16,16 +16,39 @@ LogMessage = namedtuple('LogMessage', 'timestamp level pid module filename line_
 SCHEDULING_TASK_THRESHOLD = 1
 
 
-def analyze_log_file():
+def analyze():
     arg_parser = argparse.ArgumentParser(description='Analyze log files.')
-    arg_parser.add_argument('-o', '--output', help='Save the results of the analysis to a file that can be read later.')
-    arg_parser.add_argument('-r', '--report', choices=['text', 'json', 'html'], help='Generate a report in the requested format and stream it to stdout.')
-    arg_parser.add_argument('--threshold-percent', type=float, default=None, help="Don't include entries that accounted for less than this amount of time relative to the total execution time in the report.")
+    arg_parser.add_argument(
+        '-o', '--output',
+        help='Save the results of the analysis to a file that can be read later.'
+    )
+    arg_parser.add_argument(
+        '-r', '--report',
+        choices=['text', 'json', 'html'],
+        help='Generate a report in the requested format and stream it to stdout.'
+    )
+    arg_parser.add_argument(
+        '--threshold-percent',
+        type=float,
+        default=None,
+        help="Don't include entries that accounted for less than this amount of time relative to the total execution"
+             " time in the report."
+    )
     group = arg_parser.add_argument_group('Input File')
     group_ex = group.add_mutually_exclusive_group()
-    group_ex.add_argument('-l', '--log', default='edx_analytics.log', help='A log file to analyze. Defaults to "edx_analytics.log" in the current directory.')
-    group_ex.add_argument('-i', '--input', help='Reads a previously saved result file.')
-    group_ex.add_argument('-t', '--trace', help='Path to an execution trace of the launch-task process captured by pyinstrument and saved as JSON.')
+    group_ex.add_argument(
+        '-l', '--log',
+        default='edx_analytics.log',
+        help='A log file to analyze. Defaults to "edx_analytics.log" in the current directory.'
+    )
+    group_ex.add_argument(
+        '-i', '--input',
+        help='Reads a previously saved result file.'
+    )
+    group_ex.add_argument(
+        '-t', '--trace',
+        help='Path to an execution trace of the launch-task process captured by pyinstrument and saved as JSON.'
+    )
 
     args = arg_parser.parse_args()
 
@@ -34,13 +57,7 @@ def analyze_log_file():
     elif args.trace:
         root = Measurement.from_pyinstrument_trace(args.trace)
     else:
-        with open(args.log, 'rb') as log_file:
-            parser = LogFileParser(log_file, message_pattern=MESSAGE_START_PATTERN, message_factory=create_log_message)
-            try:
-                root = analyze_log(parser)
-            except:
-                sys.stderr.write('Exception on line {0}\n'.format(parser.line_number))
-                raise
+        root = analyze_log_file(args.log)
 
     if args.output:
         json_report(root, args.output, pretty=False, threshold_percent=args.threshold_percent)
@@ -51,6 +68,16 @@ def analyze_log_file():
         text_report(root, threshold_percent=args.threshold_percent)
     elif args.report == 'html':
         html_report(root, threshold_percent=args.threshold_percent)
+
+
+def analyze_log_file(filename):
+    with open(filename, 'rb') as log_file:
+        parser = LogFileParser(log_file, message_pattern=MESSAGE_START_PATTERN, message_factory=create_log_message)
+        try:
+            return analyze_log(parser)
+        except:
+            sys.stderr.write('Exception on line {0}\n'.format(parser.line_number))
+            raise
 
 
 def create_log_message(matched_groups):
@@ -64,14 +91,14 @@ def create_log_message(matched_groups):
 
 def analyze_log(parser):
     root = Measurement('Luigi Worker')
-    scheduling_time = analyze_scheduling(parser, threshold=SCHEDULING_TASK_THRESHOLD)
+    scheduling_time = analyze_overall_scheduling(parser, threshold=SCHEDULING_TASK_THRESHOLD)
     root.add_child(scheduling_time)
-    execution_time = analyze_execution(parser)
+    execution_time = analyze_overall_execution(parser)
     root.add_child(execution_time)
     return root
 
 
-def analyze_scheduling(parser, threshold=1):
+def analyze_overall_scheduling(parser, threshold=1):
     all_scheduling = Measurement('Scheduling Tasks')
 
     start_scheduling_pattern = r'Checking if (?P<task_id>.*?) is complete'
@@ -104,7 +131,10 @@ def analyze_task_scheduling(start_message, start_match, parser):
     while message:
         message = parser.peek_message()
 
-        if message.content == 'Done scheduling tasks' or re.match(scheduled_pattern, message.content, (re.MULTILINE | re.DOTALL)):
+        if message.content == 'Done scheduling tasks':
+            break
+
+        if re.match(scheduled_pattern, message.content, (re.MULTILINE | re.DOTALL)):
             break
 
         parser.next_message()
@@ -115,7 +145,7 @@ def analyze_task_scheduling(start_message, start_match, parser):
         return None
 
 
-def analyze_execution(parser):
+def analyze_overall_execution(parser):
     all_execution = Measurement('Executing Tasks')
 
     pattern = r'.*? Worker Worker.* (?P<state>running|done|failed)\s+(?P<task_id>.*)'
@@ -188,9 +218,10 @@ class LuigiTaskDescription(object):
         self.params = params or {}
 
     def __str__(self):
+        param_string = ', '.join(['='.join((k, str(v)[:100])) for k, v in self.params.iteritems()])
         return '{name}{params}'.format(
             name=self.name,
-            params='(' + ', '.join(['='.join((k, str(v)[:100])) for k, v in self.params.iteritems()]) + ')' if len(self.params) > 0 else ''
+            params='(' + param_string + ')' if len(self.params) > 0 else ''
         )
 
     @staticmethod
@@ -214,15 +245,15 @@ def default_parameter_parser(raw_params):
 
 
 def hive_parameter_parser(raw_params):
-    m = re.search(r'table=(?P<name>[\w_]+)', raw_params)
-    if m:
-        return {'table': m.group('name')}
+    table_param_match = re.search(r'table=(?P<name>[\w_]+)', raw_params)
+    if table_param_match:
+        return {'table': table_param_match.group('name')}
 
 
 def sqoop_parameter_parser(raw_params):
-    m = re.search(r'table_name=(?P<name>[\w_]+)', raw_params)
-    if m:
-        return {'table': m.group('name')}
+    table_param_match = re.search(r'table_name=(?P<name>[\w_]+)', raw_params)
+    if table_param_match:
+        return {'table': table_param_match.group('name')}
 
 if __name__ == '__main__':
-    analyze_log_file()
+    analyze()

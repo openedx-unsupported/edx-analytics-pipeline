@@ -1,4 +1,4 @@
-Jinja2==2.7.3		# BSD License
+Jinja2==2.7.3		# BSD
 MarkupSafe==0.23	# BSD
 PyYAML==3.10		# MIT License
 ansible==1.4.5		# GPL v3 License
@@ -29,4 +29,4 @@ tornado==3.1.1 		# Apache 2.0
 wsgiref==0.1.2 		# ZPL
 git+https://github.com/edx/luigi.git@v1.0.17-fork.edx.1#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/opaque-keys.git@33f2b099e92957046a866a9b6d48a71c484bb475#egg=opaque-keys
-git+https://github.com/mulby/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
+git+https://github.com/mulby/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD

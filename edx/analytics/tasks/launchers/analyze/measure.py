@@ -5,6 +5,16 @@ from operator import methodcaller
 
 
 class Measurement(object):
+    """
+    Represents a node in a tree of measurements.
+
+    Note that a particular measurement may be the parent for several child measurements. Those child measurements
+    further breakdown the time spent in the parent. The time spent in the parent itself is referred to as "self_time".
+    The overall time spent in that activity is (self_time + time spent in all children).
+
+    Timing of multiple parallel processes is not captured here (yet). Although it could be extended to represent those
+    types of measurements as well.
+    """
 
     SERIALIZATION_VERSION = 1
     UNACCOUNTED_FOR_TIME_DESC = 'Other'
@@ -74,8 +84,9 @@ class Measurement(object):
             'description': self.description,
             'self_time': self.self_time.total_seconds(),
         }
-        if len(self.children) > 0:
-            serialized['children'] = [c.serializable() for c in self.sorted_filtered_children(threshold_percent=threshold_percent)]
+        filtered_children = self.sorted_filtered_children(threshold_percent=threshold_percent)
+        if len(filtered_children) > 0:
+            serialized['children'] = [c.serializable() for c in filtered_children]
 
         return serialized
 
