@@ -16,6 +16,12 @@ class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
 
+    def __init__(self, *args, **kwargs):
+        super(ParseEventLogPerformanceTask, self).__init__(*args, **kwargs)
+        target = self.output()
+        if target.exists():
+            target.remove()
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
