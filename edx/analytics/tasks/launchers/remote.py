@@ -44,6 +44,8 @@ def main():
         return_code = run_remote_shell(inventory, arguments)
     else:
         return_code = run_task_playbook(arguments, uid)
+        if arguments.wait:
+            wait_for_completion(inventory, arguments, uid)
 
     log('Exiting with status = {0}'.format(return_code))
     sys.exit(return_code)
@@ -81,8 +83,6 @@ def convert_args_to_extra_vars(arguments, uid):
     }
     if arguments.repo:
         extra_vars['repo'] = arguments.repo
-    if arguments.wait:
-        extra_vars['wait_for_task'] = True
     if arguments.log_path:
         extra_vars['local_log_dir'] = arguments.log_path
     if arguments.override_config:
@@ -159,13 +159,17 @@ def run_ansible(args, verbose, executable='ansible'):
     return proc.returncode
 
 
-def run_remote_shell(inventory, arguments):
+def run_remote_shell(inventory, arguments, shell_command=None, sudo_user=None):
     """Run a shell command on a hadoop cluster."""
     ansible_group_name = 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
     hostname = inventory[ansible_group_name][0]
-    shell_command = arguments.shell
-    if arguments.sudo_user:
-        shell_command = 'sudo -u hadoop /bin/sh -c {0}'.format(pipes.quote(arguments.shell))
+    shell_command = shell_command or arguments.shell
+    sudo_user = sudo_user or arguments.sudo_user
+    if sudo_user:
+        shell_command = 'sudo -u {sudo_user} /bin/sh -c {cmd}'.format(
+            sudo_user=sudo_user,
+            cmd=pipes.quote(shell_command)
+        )
     command = [
         'ssh',
         '-tt',
@@ -186,6 +190,15 @@ def run_remote_shell(inventory, arguments):
     )
     proc.wait()
     return proc.returncode
+
+
+def wait_for_completion(inventory, arguments, uid):
+    monitor_task_command = '/var/lib/analytics-tasks/{uid}/venv/bin/monitor-task'.format(uid=uid)
+    full_command = 'WORKFLOW_LOG_DIR={path} {monitor_task}'.format(
+        path='/var/log/analytics-tasks/{uid}/'.format(uid=uid),
+        monitor_task=monitor_task_command
+    )
+    return run_remote_shell(inventory, arguments, shell_command=full_command, sudo_user='hadoop')
 
 
 def log(message):

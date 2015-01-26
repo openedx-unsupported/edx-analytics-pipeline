@@ -157,6 +157,7 @@
       environment:
         WORKFLOW_PROFILER: "{{workflow_profiler}}"
         WORKFLOW_PROFILER_PATH: "{{ log_dir }}"
+        WORKFLOW_LOG_DIR: "{{ log_dir }}"
       when: not wait_for_task
 
     - name: task run (wait for completion)
@@ -170,6 +171,7 @@
       environment:
         WORKFLOW_PROFILER: "{{workflow_profiler}}"
         WORKFLOW_PROFILER_PATH: "{{ log_dir }}"
+        WORKFLOW_LOG_DIR: "{{ log_dir }}"
       register: task_result
       when: wait_for_task
 

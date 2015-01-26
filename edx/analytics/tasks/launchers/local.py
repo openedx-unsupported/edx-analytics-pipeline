@@ -58,6 +58,11 @@ def main():
 
     # Launch Luigi using the default builder
 
+    log_dir_path = os.getenv('WORKFLOW_LOG_DIR')
+    if log_dir_path:
+        with open(os.path.join(log_dir_path, 'launch-task.pid'), 'w') as pid_file:
+            pid_file.write(str(os.getpid()))
+
     with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
         luigi.run()
 
