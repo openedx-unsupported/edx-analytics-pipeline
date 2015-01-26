@@ -30,6 +30,7 @@ def main():
     parser.add_argument('--secure-config-repo', help='git repository to clone to find the secure config file', default=os.getenv('ANALYTICS_SECURE_REPO'))
     parser.add_argument('--shell', help='execute a shell command on the cluster and exit', default=None)
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default=None)
+    parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -92,6 +93,8 @@ def convert_args_to_extra_vars(arguments, uid):
         extra_vars['secure_config_branch'] = arguments.secure_config_branch
     if arguments.secure_config:
         extra_vars['secure_config'] = arguments.secure_config
+    if arguments.workflow_profiler:
+        extra_vars['workflow_profiler'] = arguments.workflow_profiler
     return json.dumps(extra_vars)
 
 

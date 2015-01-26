@@ -58,12 +58,12 @@ def main():
 
     # Launch Luigi using the default builder
 
-    with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', '')):
+    with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
         luigi.run()
 
 
 @contextmanager
-def profile_if_necessary(profiler_name):
+def profile_if_necessary(profiler_name, file_path):
     if profiler_name == 'pyinstrument':
         profiler = pyinstrument.Profiler(use_signal=False)
         profiler.start()
@@ -73,7 +73,7 @@ def profile_if_necessary(profiler_name):
     finally:
         if profiler_name == 'pyinstrument':
             profiler.stop()
-            profiler.save(filename='edx-analytics-pipeline-{pid}.pyinstr.trace'.format(pid=os.getpid()))
+            profiler.save(filename=os.path.join(file_path, 'launch-task.trace'))
 
 
 if __name__ == '__main__':
