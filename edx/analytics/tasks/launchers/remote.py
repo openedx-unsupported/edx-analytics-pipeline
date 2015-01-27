@@ -213,6 +213,7 @@ def run_remote_shell(inventory, arguments, shell_command):
         '-o', 'PasswordAuthentication=no',
         '-o', 'User=' + arguments.user,
         '-o', 'ConnectTimeout=10',
+        '-o', 'ServerAliveInterval=60',
         hostname,
         shell_command
     ]
