@@ -41,7 +41,7 @@ class MysqlInsertTaskMixin(OverwriteOutputMixin):
     credentials = luigi.Parameter(
         default_from_config={'section': 'database-export', 'name': 'credentials'}
     )
-    insert_chunk_size = luigi.IntParameter(default=100, significant=False)
+    insert_chunk_size = luigi.IntParameter(default=10000, significant=False)
 
 
 class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
@@ -309,6 +309,8 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
             self.init_copy(connection)
             cursor = connection.cursor()
+            cursor.execute('set foreign_key_checks=0')
+            cursor.execute('set unique_checks=0')
             self.insert_rows(cursor)
 
             # mark as complete in same transaction
