@@ -445,57 +445,6 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
         ]
 
 
-class EducationLevelCodeMappingTask(luigi.Task):
-    """A static table that maps the education level codes found in auth_userprofile to canonical codes."""
-
-    output_root = luigi.Parameter()
-
-    MAPPING = {
-        'none': 'none',
-        'other': 'other',
-        'el': 'primary',
-        'jhs': 'junior_secondary',
-        'hs': 'secondary',
-        'a': 'associates',
-        'b': 'bachelors',
-        'm': 'masters',
-        'p': 'doctorate',
-        'p_se': 'doctorate',
-        'p_oth': 'doctorate'
-    }
-
-    def run(self):
-        with self.output().open('w') as output_file:
-            for item in self.MAPPING.iteritems():
-                output_file.write('\t'.join(item))
-                output_file.write('\n')
-
-    def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'mapping.tsv'))
-
-
-class EducationLevelCodeMappingTableTask(HiveTableTask):
-    """A hive table for the code mapping."""
-
-    @property
-    def table(self):
-        return 'education_level'
-
-    @property
-    def columns(self):
-        return [
-            ('auth_userprofile_code', 'STRING'),
-            ('education_level_code', 'STRING')
-        ]
-
-    @property
-    def partition(self):
-        return HivePartition('version', '1')
-
-    def requires(self):
-        yield EducationLevelCodeMappingTask(output_root=self.partition_location)
-
-
 class EnrollmentByEducationLevelTask(EnrollmentTask):
     """Breakdown of enrollments by education level as reported by the user"""
 
@@ -505,16 +454,37 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
             SELECT
                 ce.date,
                 ce.course_id,
-                el.education_level_code,
+                CASE p.level_of_education
+                    WHEN 'el'    THEN 'primary'
+                    WHEN 'jhs'   THEN 'junior_secondary'
+                    WHEN 'hs'    THEN 'secondary'
+                    WHEN 'a'     THEN 'associates'
+                    WHEN 'b'     THEN 'bachelors'
+                    WHEN 'm'     THEN 'masters'
+                    WHEN 'p'     THEN 'doctorate'
+                    WHEN 'p_se'  THEN 'doctorate'
+                    WHEN 'p_oth' THEN 'doctorate'
+                    ELSE NULL
+                END,
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            LEFT OUTER JOIN education_level el ON el.auth_userprofile_code = p.level_of_education
             WHERE ce.at_end = 1
             GROUP BY
                 ce.date,
                 ce.course_id,
-                el.education_level_code
+                CASE p.level_of_education
+                    WHEN 'el'    THEN 'primary'
+                    WHEN 'jhs'   THEN 'junior_secondary'
+                    WHEN 'hs'    THEN 'secondary'
+                    WHEN 'a'     THEN 'associates'
+                    WHEN 'b'     THEN 'bachelors'
+                    WHEN 'm'     THEN 'masters'
+                    WHEN 'p'     THEN 'doctorate'
+                    WHEN 'p_se'  THEN 'doctorate'
+                    WHEN 'p_oth' THEN 'doctorate'
+                    ELSE NULL
+                END
         """
 
     @property
@@ -529,15 +499,6 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
             ('education_level', 'VARCHAR(16)'),
             ('count', 'INTEGER'),
         ]
-
-    @property
-    def required_table_tasks(self):
-        for table in luigi.task.flatten(super(EnrollmentByEducationLevelTask, self).required_table_tasks):
-            yield table
-
-        yield EducationLevelCodeMappingTableTask(
-            warehouse_path=self.warehouse_path
-        )
 
 
 class EnrollmentByModeTask(EnrollmentTask):
