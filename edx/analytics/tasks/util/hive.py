@@ -45,6 +45,16 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     until they are cleaned up by some external process.
     """
 
+    n_reduce_tasks = luigi.Parameter(default=None, significant=False)
+
+    def __init__(self, *args, **kwargs):
+        super(HiveTableTask, self).__init__(*args, **kwargs)
+
+        # Convert "n_reduce_tasks" to "reducers_max" since n_reduce_tasks forces hive to use that number of reducers
+        # which can be rather inefficient.
+        self.reducers_max = self.n_reduce_tasks
+        self.n_reduce_tasks = None
+
     def query(self):
         # TODO: Figure out how to clean up old data. This just cleans
         # out old metastore info, and doesn't actually remove the table
@@ -209,6 +219,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
 
     overwrite = luigi.BooleanParameter(default=True)  # Overwrite the MySQL data?
     hive_overwrite = luigi.BooleanParameter(default=False)
+    n_reduce_tasks = luigi.Parameter(default=None, significant=False)
 
     SQL_TO_HIVE_TYPE = {
         'varchar': 'STRING',
@@ -230,6 +241,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
             columns=self.hive_columns,
             partition=self.partition,
             overwrite=self.hive_overwrite,
+            n_reduce_tasks=self.n_reduce_tasks,
         )
 
     def requires(self):
