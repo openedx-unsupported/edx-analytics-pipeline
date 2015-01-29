@@ -45,15 +45,17 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     until they are cleaned up by some external process.
     """
 
-    n_reduce_tasks = luigi.Parameter(default=None, significant=False)
+    n_reduce_tasks = luigi.Parameter(default=25, significant=False)
 
-    def __init__(self, *args, **kwargs):
-        super(HiveTableTask, self).__init__(*args, **kwargs)
+    def hiveconfs(self):
+        jcs = super(HiveTableTask, self).hiveconfs()
 
-        # Convert "n_reduce_tasks" to "reducers_max" since n_reduce_tasks forces hive to use that number of reducers
-        # which can be rather inefficient.
-        self.reducers_max = self.n_reduce_tasks
-        self.n_reduce_tasks = None
+        # Don't force the number of reducer to a particular number, instead set a max number of reducers.
+        # For jobs with small numbers of input groups, this will perform better since it won't have to spin up a lot of
+        # reducers to do a small amount of work.
+        num_reduce_tasks = jcs.pop('mapred.reduce.tasks', self.n_reduce_tasks)
+        jcs.setdefault('hive.exec.reducers.max', num_reduce_tasks)
+        return jcs
 
     def query(self):
         # TODO: Figure out how to clean up old data. This just cleans
