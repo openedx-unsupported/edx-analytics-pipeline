@@ -142,16 +142,13 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
     def mapper(self, line):
         event = eventlog.parse_json_event(line)
         if not event:
-            self.incr_counter('Canonicalization', 'Unable to parse event', 1)
             return
 
         if 'event_type' not in event:
-            self.incr_counter('Canonicalization', 'Missing event_type field', 1)
             return
 
         standardized_time = eventlog.get_event_time_string(event)
         if not standardized_time:
-            self.incr_counter('Canonicalization', 'Missing time field', 1)
             return
 
         event['time'] = standardized_time
@@ -176,7 +173,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
                 event['event'] = cjson.decode(content)
             except Exception:
                 event['event'] = {}
-                self.incr_counter('Canonicalization', 'Invalid JSON in event field', 1)
 
         canonical_event = cjson.encode(event)
 
