@@ -3,6 +3,7 @@
 import datetime
 import gzip
 from hashlib import md5
+import logging
 from operator import attrgetter
 import os
 from tempfile import mkdtemp
@@ -18,6 +19,9 @@ from edx.analytics.tasks.s3_util import get_s3_bucket_key_names
 from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin
+
+
+log = logging.getLogger(__name__)
 
 
 class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
@@ -51,9 +55,13 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
 
         self.path_to_batch = {}
         try:
+            log.debug('Attempting to read metadata file %s', self.metadata_path)
             with self.metadata_target.open('r') as metadata_file:
+                log.debug('Metadata file opened, attempting to parse as YAML')
                 self.metadata = yaml.load(metadata_file)
+            log.debug('Initialized with metadata from file')
         except Exception:  # pylint: disable=broad-except
+            log.debug('Unable to read metadata file, initializing with empty metadata')
             self.min_batch_id = 0
             self.metadata = {}
         else:
@@ -63,7 +71,9 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
                     max_batch_id = batch_id
                 for path in batch['files']:
                     self.path_to_batch[path] = batch_id
+                log.debug('Read batch %d', batch_id)
             self.min_batch_id = max_batch_id + 1
+            log.debug('Min batch id to use for new batches: %d', self.min_batch_id)
 
         self.requirements = []
         for requirement in sorted(self._get_requirements(), key=attrgetter('url')):
@@ -73,6 +83,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
 
             batch_id = self.min_batch_id + (len(self.requirements) / self.files_per_batch)
             self.path_to_batch[path] = batch_id
+            log.debug('Assigned new file %s to batch %d', path, batch_id)
 
             batch = self.metadata.get(batch_id)
             if not batch:
@@ -134,13 +145,16 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
     def mapper(self, line):
         event = eventlog.parse_json_event(line)
         if not event:
+            self.incr_counter('Canonicalization', 'Unable to parse event', 1)
             return
 
         if 'event_type' not in event:
+            self.incr_counter('Canonicalization', 'Missing event_type field', 1)
             return
 
         standardized_time = eventlog.get_event_time_string(event)
         if not standardized_time:
+            self.incr_counter('Canonicalization', 'Missing time field', 1)
             return
 
         event['time'] = standardized_time
@@ -165,6 +179,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
                 event['event'] = cjson.decode(content)
             except Exception:
                 event['event'] = {}
+                self.incr_counter('Canonicalization', 'Invalid JSON in event field', 1)
 
         canonical_event = cjson.encode(event)
 
