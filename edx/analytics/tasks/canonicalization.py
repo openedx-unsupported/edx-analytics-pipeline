@@ -41,9 +41,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
 
     VERSION = "1"
 
-    def __init__(self, *args, **kwargs):
-        super(CanonicalizationTask, self).__init__(*args, **kwargs)
-
+    def initialize(self):
         self.output_root = url_path_join(self.warehouse_path, 'events')
         self.metadata_path = url_path_join(self.output_root, '_metadata.yml')
         self.current_time = datetime.datetime.utcnow().isoformat()
@@ -104,6 +102,10 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         return self.output_target
 
     def requires(self):
+        if hasattr(self, 'requirements'):
+            return self.requirements
+        else:
+            self.initialize()
         return self.requirements
 
     def requires_hadoop(self):
