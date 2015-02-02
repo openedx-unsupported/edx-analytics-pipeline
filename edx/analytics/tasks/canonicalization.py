@@ -106,9 +106,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             self.initialize()
         return self.requirements
 
-    def requires_hadoop(self):
-        return self.requires()
-
     def _get_requirements(self):
         url_gens = []
         for source in self.source:
