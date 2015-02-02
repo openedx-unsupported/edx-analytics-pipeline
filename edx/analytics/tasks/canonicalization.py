@@ -46,9 +46,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         self.metadata_path = url_path_join(self.output_root, '_metadata.yml')
         self.current_time = datetime.datetime.utcnow().isoformat()
 
-        tmp_dir = mkdtemp()
-        self.output_target = get_target_from_url(tmp_dir)
-
+        self.output_target = get_target_from_url(url_path_join(self.output_root, '_ignored'))
         self.metadata_target = get_target_from_url(self.metadata_path)
 
         self.path_to_batch = {}
@@ -224,10 +222,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         return iter(tuple())
 
     def run(self):
-        try:
-            super(CanonicalizationTask, self).run()
-            with self.metadata_target.open('w') as metadata_file:
-                yaml.dump(self.metadata, metadata_file)
-        finally:
-            if self.output_target.exists():
-                self.output_target.remove()
+        super(CanonicalizationTask, self).run()
+        with self.metadata_target.open('w') as metadata_file:
+            yaml.dump(self.metadata, metadata_file)
