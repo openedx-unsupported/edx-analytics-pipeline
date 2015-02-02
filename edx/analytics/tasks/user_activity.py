@@ -8,9 +8,9 @@ import luigi.date_interval
 
 from edx.analytics.tasks.calendar import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.canonicalization import EventIntervalMixin, EventIntervalDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url
-import edx.analytics.tasks.util.eventlog as eventlog
+from edx.analytics.tasks.util.event import Event
 from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
@@ -22,7 +22,7 @@ PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
 POST_FORUM_LABEL = "POSTED_FORUM"
 
 
-class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
+class UserActivityTask(EventIntervalMixin, MapReduceJobTask):
     """
     Categorize activity of users.
 
@@ -42,27 +42,16 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
     output_root = luigi.Parameter()
 
     def mapper(self, line):
-        value = self.get_event_and_date_string(line)
-        if value is None:
-            return
-        event, date_string = value
-
-        username = event.get('username', '').strip()
-        if not username:
-            return
-
-        course_id = eventlog.get_course_id(event)
-        if not course_id:
-            return
+        event = Event(line)
 
         for label in self.get_predicate_labels(event):
-            yield self._encode_tuple((course_id, username, date_string, label)), 1
+            yield self._encode_tuple((event.course_id or '', event.username, event.date, label)), 1
 
     def get_predicate_labels(self, event):
         """Creates labels by applying hardcoded predicates to a single event."""
         # We only want the explicit event, not the implicit form.
-        event_type = event.get('event_type')
-        event_source = event.get('event_source')
+        event_type = event.event_type
+        event_source = event.event_source
 
         # Ignore all background task events, since they don't count as a form of activity.
         if event_source == 'task':
@@ -122,7 +111,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
-class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+class UserActivityDownstreamMixin(EventIntervalDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
     pass
 
@@ -152,9 +141,7 @@ class UserActivityTableTask(UserActivityDownstreamMixin, HiveTableTask):
         return UserActivityTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
             interval=self.interval,
-            pattern=self.pattern,
             output_root=self.partition_location,
         )
 
@@ -183,9 +170,7 @@ class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryToMysqlTask):
             UserActivityTableTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
                 interval=self.interval,
-                pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
             ),
             CalendarTableTask(

@@ -8,62 +8,28 @@ import luigi.task
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.canonicalization import EventIntervalMixin, EventIntervalDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.event import EnrollmentEvent, InvalidEventError
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
 
 log = logging.getLogger(__name__)
-DEACTIVATED = 'edx.course.enrollment.deactivated'
-ACTIVATED = 'edx.course.enrollment.activated'
-MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
-class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
+class CourseEnrollmentTask(EventIntervalMixin, MapReduceJobTask):
     """Produce a data set that shows which days each user was enrolled in each course."""
 
     output_root = luigi.Parameter()
 
     def mapper(self, line):
-        value = self.get_event_and_date_string(line)
-        if value is None:
-            return
-        event, _date_string = value
-
-        event_type = event.get('event_type')
-        if event_type is None:
-            log.error("encountered event with no event_type: %s", event)
+        try:
+            event = EnrollmentEvent(line)
+        except InvalidEventError:
             return
 
-        if event_type not in (DEACTIVATED, ACTIVATED, MODE_CHANGED):
-            return
-
-        timestamp = eventlog.get_event_time_string(event)
-        if timestamp is None:
-            log.error("encountered event with bad timestamp: %s", event)
-            return
-
-        event_data = eventlog.get_event_data(event)
-        if event_data is None:
-            return
-
-        course_id = event_data.get('course_id')
-        if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
-            log.error("encountered explicit enrollment event with invalid course_id: %s", event)
-            return
-
-        user_id = event_data.get('user_id')
-        if user_id is None:
-            log.error("encountered explicit enrollment event with no user_id: %s", event)
-            return
-
-        mode = event_data.get('mode')
-        if mode is None:
-            log.error("encountered explicit enrollment event with no mode: %s", event)
-            return
-
-        yield (course_id, user_id), (timestamp, event_type, mode)
+        yield (event.target_course_id, event.target_user_id), (event.time, event.event_type, event.target_mode)
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
@@ -77,7 +43,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
-class EnrollmentEvent(object):
+class EnrollmentEventRecord(object):
     """The critical information necessary to process the event in the event stream."""
 
     def __init__(self, timestamp, event_type, mode):
@@ -154,22 +120,22 @@ class DaysEnrolledForEvents(object):
         self.sorted_events = sorted(events)
         # After sorting, we can discard time information since we only care about date transitions.
         self.sorted_events = [
-            EnrollmentEvent(timestamp, event_type, mode) for timestamp, event_type, mode in self.sorted_events
+            EnrollmentEventRecord(timestamp, event_type, mode) for timestamp, event_type, mode in self.sorted_events
         ]
         # Since each event looks ahead to see the time of the next event, insert a dummy event at then end that
         # indicates the end of the requested interval. If the user's last event is an enrollment activation event then
         # they are assumed to be enrolled up until the end of the requested interval. Note that the mapper ensures that
         # no events on or after date_b are included in the analyzed data set.
-        self.sorted_events.append(EnrollmentEvent(self.interval.date_b.isoformat(), None, None))  # pylint: disable=no-member
+        self.sorted_events.append(EnrollmentEventRecord(self.interval.date_b.isoformat(), None, None))  # pylint: disable=no-member
 
         self.first_event = self.sorted_events[0]
 
         # track the previous state in order to easily detect state changes between days.
-        if self.first_event.event_type == DEACTIVATED:
+        if self.first_event.event_type == EnrollmentEvent.DEACTIVATED:
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
             log.warning('First event is an unenrollment for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
-        elif self.first_event.event_type == MODE_CHANGED:
+        elif self.first_event.event_type == EnrollmentEvent.MODE_CHANGED:
             log.warning('First event is a mode change for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
 
@@ -253,11 +219,11 @@ class DaysEnrolledForEvents(object):
         """
         self.mode = self.event.mode
 
-        if self.state == self.ENROLLED and self.event.event_type == DEACTIVATED:
+        if self.state == self.ENROLLED and self.event.event_type == EnrollmentEvent.DEACTIVATED:
             self.state = self.UNENROLLED
-        elif self.state == self.UNENROLLED and self.event.event_type == ACTIVATED:
+        elif self.state == self.UNENROLLED and self.event.event_type == EnrollmentEvent.ACTIVATED:
             self.state = self.ENROLLED
-        elif self.event.event_type == MODE_CHANGED:
+        elif self.event.event_type == EnrollmentEvent.MODE_CHANGED:
             pass
         else:
             log.warning(
@@ -266,7 +232,7 @@ class DaysEnrolledForEvents(object):
             )
 
 
-class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+class CourseEnrollmentTableDownstreamMixin(EventIntervalDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the CourseEnrollmentTableTask task."""
     pass
 
@@ -297,9 +263,7 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
         return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
             interval=self.interval,
-            pattern=self.pattern,
             output_root=self.partition_location,
         )
 
@@ -365,9 +329,7 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
             CourseEnrollmentTableTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
                 interval=self.interval,
-                pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
             ),
             ImportAuthUserProfileTask(),

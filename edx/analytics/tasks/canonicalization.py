@@ -16,7 +16,7 @@ import yaml
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.s3_util import get_s3_bucket_key_names
-from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url
+from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url, ExternalURL
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
@@ -218,3 +218,42 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         super(CanonicalizationTask, self).run()
         with self.metadata_target.open('w') as metadata_file:
             yaml.dump(self.metadata, metadata_file)
+
+
+class Events(WarehouseMixin, ExternalURL):
+
+    url = None
+    date = luigi.DateParameter()
+
+    def __init__(self, *args, **kwargs):
+        super(Events, self).__init__(*args, **kwargs)
+        self.url = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat())
+
+
+class EventIntervalDownstreamMixin(WarehouseMixin):
+
+    interval = luigi.DateIntervalParameter()
+
+
+class EventInterval(EventIntervalDownstreamMixin, luigi.WrapperTask):
+
+    def requires(self):
+        return [
+            Events(
+                warehouse_path=self.warehouse_path,
+                date=date
+            )
+            for date in self.interval
+        ]
+
+    def output(self):
+        return [t.output() for t in self.requires()]
+
+
+class EventIntervalMixin(EventIntervalDownstreamMixin):
+
+    def requires(self):
+        return EventInterval(
+            warehouse_path=self.warehouse_path,
+            interval=self.interval
+        )
