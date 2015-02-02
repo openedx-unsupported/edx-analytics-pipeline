@@ -1,10 +1,10 @@
 """Group all events into a single file per day."""
 
 import datetime
+import gzip
 from hashlib import md5
 from operator import attrgetter
 import os
-import sys
 from tempfile import mkdtemp
 
 import boto
@@ -31,54 +31,68 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         is_list=True,
         default_from_config={'section': 'event-logs', 'name': 'source'}
     )
+    files_per_batch = luigi.Parameter(
+        default=10000
+    )
 
     VERSION = "1"
-    FILES_PER_BATCH = 1000
 
-    def complete(self):
-        return False
-
-    def output(self):
-        return self.output_target
-
-    def requires(self):
-        if hasattr(self, 'requirements'):
-            return self.requirements
+    def __init__(self, *args, **kwargs):
+        super(CanonicalizationTask, self).__init__(*args, **kwargs)
 
         self.output_root = url_path_join(self.warehouse_path, 'events')
-        self.metadata_path = url_path_join(self.output_root, '_manifest.yml')
+        self.metadata_path = url_path_join(self.output_root, '_metadata.yml')
         self.current_time = datetime.datetime.utcnow().isoformat()
 
         tmp_dir = mkdtemp()
         self.output_target = get_target_from_url(tmp_dir)
 
-        metadata_target = get_target_from_url(self.metadata_path)
+        self.metadata_target = get_target_from_url(self.metadata_path)
+
         self.path_to_batch = {}
         try:
-            with metadata_target.open('r') as metadata_file:
-                self.manifest = yaml.load(metadata_file)
-                max_batch_id = 0
-                for batch in self.manifest:
-                    self.previously_processed_files[batch['path']] = batch
-                    if batch['batch_id'] > max_batch_id:
-                        max_batch_id = batch['batch_id']
-                self.min_batch_id = max_batch_id + 1
+            with self.metadata_target.open('r') as metadata_file:
+                self.metadata = yaml.load(metadata_file)
         except Exception:  # pylint: disable=broad-except
             self.min_batch_id = 0
+            self.metadata = {}
+        else:
+            max_batch_id = 0
+            for batch_id, batch in self.metadata.iteritems():
+                if batch_id > max_batch_id:
+                    max_batch_id = batch_id
+                for path in batch['files']:
+                    self.path_to_batch[path] = batch_id
+            self.min_batch_id = max_batch_id + 1
 
-        self.requirements = self._get_requirements()
-        for idx, requirement in enumerate(sorted(self.requirements, key=attrgetter('url'))):
-            batch_id = self.min_batch_id + (idx / self.FILES_PER_BATCH)
+        self.requirements = []
+        for requirement in sorted(self._get_requirements(), key=attrgetter('url')):
             path = requirement.url
-            batch = self.path_to_batch.get(path)
+            if path in self.path_to_batch:
+                continue
+
+            batch_id = self.min_batch_id + (len(self.requirements) / self.files_per_batch)
+            self.path_to_batch[path] = batch_id
+
+            batch = self.metadata.get(batch_id)
             if not batch:
-                self.path_to_batch[path] = {
-                    'batch_id': batch_id,
+                batch = {
                     'files': [path]
                 }
+                self.metadata[batch_id] = batch
             else:
                 batch['files'].append(path)
+                self.metadata[batch_id]['files'].append(path)
 
+            self.requirements.append(requirement)
+
+    def complete(self):
+        return len(self.requires()) == 0
+
+    def output(self):
+        return self.output_target
+
+    def requires(self):
         return self.requirements
 
     def requires_hadoop(self):
@@ -142,6 +156,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         map_input_file = os.environ['map_input_file']
         metadata['original_file'] = map_input_file
         batch_id = self.get_batch_id(map_input_file)
+        metadata['batch_id'] = batch_id
 
         event.setdefault('context', {})
         content = event.get('event')
@@ -149,7 +164,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             try:
                 event['event'] = cjson.decode(content)
             except Exception:
-                self.incr_counter('Canonicalization', 'Malformed JSON content string', 1)
+                event['event'] = {}
 
         canonical_event = cjson.encode(event)
 
@@ -161,31 +176,32 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         return hasher.hexdigest()
 
     def get_batch_id(self, file_path):
-        return self.path_to_batch[file_path]['batch_id']
+        return self.path_to_batch[file_path]
 
     def reducer(self, key, values):
         date_string, batch_id = key
         output_path = url_path_join(
             self.output_root,
             'dt=' + date_string,
-            'batch_{0}.log'.format(batch_id)
+            'batch_{0}.gz'.format(batch_id)
         )
         output_file_target = get_target_from_url(output_path)
-        with output_file_target.open('w') as output_file:
-            bytes_written = 0
-            for idx, value in enumerate(values):
-                output_file.write(value.strip())
-                output_file.write('\n')
-                bytes_written += len(value) + 1
+        with output_file_target.open('w') as raw_output_file:
+            with gzip.GzipFile(mode='wb', fileobj=raw_output_file) as output_file:
+                bytes_written = 0
+                for value in values:
+                    output_file.write(value.strip())
+                    output_file.write('\n')
+                    bytes_written += len(value) + 1
 
-                if idx % 1000 == 0:
-                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
-                    # Do not remove it.
+                    if bytes_written > 1000000:
+                        # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+                        # Do not remove it.
+                        self.incr_counter('Canonicalization', 'Raw Bytes Written', bytes_written)
+                        bytes_written = 0
+
+                if bytes_written > 0:
                     self.incr_counter('Canonicalization', 'Raw Bytes Written', bytes_written)
-                    bytes_written = 0
-
-            if bytes_written > 0:
-                self.incr_counter('Canonicalization', 'Raw Bytes Written', bytes_written)
 
         # Luigi requires the reducer to return an iterable
         return iter(tuple())
@@ -193,6 +209,8 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
     def run(self):
         try:
             super(CanonicalizationTask, self).run()
+            with self.metadata_target.open('w') as metadata_file:
+                yaml.dump(self.metadata, metadata_file)
         finally:
             if self.output_target.exists():
                 self.output_target.remove()
