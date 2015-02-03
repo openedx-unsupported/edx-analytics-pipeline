@@ -24,6 +24,9 @@ class CourseEnrollmentTask(EventIntervalMixin, MapReduceJobTask):
     output_root = luigi.Parameter()
 
     def mapper(self, line):
+        if 'edx.course.enrollment' not in line:
+            return
+
         try:
             event = eventlog.decode_json(line)
         except Exception:
@@ -37,12 +40,12 @@ class CourseEnrollmentTask(EventIntervalMixin, MapReduceJobTask):
         if event_type not in (EnrollmentEvent.DEACTIVATED, EnrollmentEvent.ACTIVATED, EnrollmentEvent.MODE_CHANGED):
             return
 
-        timestamp = eventlog.get_event_time_string(event)
+        timestamp = event.get('time')
         if timestamp is None:
             log.error("encountered event with bad timestamp: %s", event)
             return
 
-        event_data = eventlog.get_event_data(event)
+        event_data = event.get('event')
         if event_data is None:
             return
 
