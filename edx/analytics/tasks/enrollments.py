@@ -603,9 +603,7 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
     def requires(self):
         kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
-            'source': self.source,
             'interval': self.interval,
-            'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
         }
         yield (
