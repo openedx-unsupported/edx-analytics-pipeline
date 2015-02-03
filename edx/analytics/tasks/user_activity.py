@@ -12,7 +12,7 @@ from edx.analytics.tasks.canonicalization import EventIntervalMixin, EventInterv
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util.event import Event
 from edx.analytics.tasks.util import Week
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
 log = logging.getLogger(__name__)
 

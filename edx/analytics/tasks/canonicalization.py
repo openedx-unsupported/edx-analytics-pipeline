@@ -6,7 +6,6 @@ from hashlib import md5
 import logging
 from operator import attrgetter
 import os
-from tempfile import mkdtemp
 
 import boto
 import cjson
@@ -16,7 +15,7 @@ import yaml
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.s3_util import get_s3_bucket_key_names
-from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url, ExternalURL
+from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
@@ -220,14 +219,14 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             yaml.dump(self.metadata, metadata_file)
 
 
-class Events(WarehouseMixin, ExternalURL):
+class Events(WarehouseMixin, UncheckedExternalURL):
 
     url = None
     date = luigi.DateParameter()
 
     def __init__(self, *args, **kwargs):
         super(Events, self).__init__(*args, **kwargs)
-        self.url = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat())
+        self.url = url_path_join(self.warehouse_path, 'events', 'dt={0}/*'.format(self.date.isoformat()))
 
 
 class EventIntervalDownstreamMixin(WarehouseMixin):
