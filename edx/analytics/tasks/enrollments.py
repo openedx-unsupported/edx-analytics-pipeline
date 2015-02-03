@@ -10,7 +10,7 @@ from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
 from edx.analytics.tasks.canonicalization import EventIntervalMixin, EventIntervalDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.event import EnrollmentEvent, InvalidEventError
 from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
@@ -25,11 +25,43 @@ class CourseEnrollmentTask(EventIntervalMixin, MapReduceJobTask):
 
     def mapper(self, line):
         try:
-            event = EnrollmentEvent(line)
-        except InvalidEventError:
+            event = eventlog.decode_json(line)
+        except Exception:
             return
 
-        yield (event.target_course_id, event.target_user_id), (event.time, event.event_type, event.target_mode)
+        event_type = event.get('event_type')
+        if event_type is None:
+            log.error("encountered event with no event_type: %s", event)
+            return
+
+        if event_type not in (EnrollmentEvent.DEACTIVATED, EnrollmentEvent.ACTIVATED, EnrollmentEvent.MODE_CHANGED):
+            return
+
+        timestamp = eventlog.get_event_time_string(event)
+        if timestamp is None:
+            log.error("encountered event with bad timestamp: %s", event)
+            return
+
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            return
+
+        course_id = event_data.get('course_id')
+        if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
+            log.error("encountered explicit enrollment event with invalid course_id: %s", event)
+            return
+
+        user_id = event_data.get('user_id')
+        if user_id is None:
+            log.error("encountered explicit enrollment event with no user_id: %s", event)
+            return
+
+        mode = event_data.get('mode')
+        if mode is None:
+            log.error("encountered explicit enrollment event with no mode: %s", event)
+            return
+
+        yield (course_id, user_id), (timestamp, event_type, mode)
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
