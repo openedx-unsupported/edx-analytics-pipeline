@@ -46,6 +46,8 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         self.current_time = datetime.datetime.utcnow().isoformat()
 
         self.output_target = get_target_from_url(url_path_join(self.output_root, '_ignored'))
+        if self.output_target.exists():
+            self.output_target.remove()
         self.metadata_target = get_target_from_url(self.metadata_path)
 
         self.path_to_batch = {}
