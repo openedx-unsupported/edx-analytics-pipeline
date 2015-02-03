@@ -6,7 +6,11 @@ from edx.analytics.tasks.util import eventlog, opaque_key_util
 class Event(object):
 
     def __init__(self, event_str):
+        self.validate_event(event_str)
         self.from_dict(eventlog.decode_json(event_str))
+
+    def validate_event(self, event_str):
+        pass
 
     def from_dict(self, root):
         for field_name in ('event_type', 'event_source', 'date', 'time'):
@@ -24,6 +28,7 @@ class Event(object):
 
 class EnrollmentEvent(Event):
 
+    PREFIX = 'edx.course.enrollment'
     DEACTIVATED = 'edx.course.enrollment.deactivated'
     ACTIVATED = 'edx.course.enrollment.activated'
     MODE_CHANGED = 'edx.course.enrollment.mode_changed'
@@ -39,6 +44,10 @@ class EnrollmentEvent(Event):
                 self.field_to_attr(self.event, field_name, 'target_')
             except KeyError:
                 raise InvalidEventError('Required field "{0}" not found in event payload.'.format(field_name))
+
+    def validate_event(self, event_str):
+        if self.PREFIX not in event_str:
+            raise InvalidEventError('Not an enrollment event.')
 
 
 class InvalidEventError(Exception):
