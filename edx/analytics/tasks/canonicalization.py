@@ -11,11 +11,10 @@ import boto
 import cjson
 import luigi
 import luigi.configuration
-import yaml
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.s3_util import get_s3_bucket_key_names
-from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url
+from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url, IgnoredTarget
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
@@ -42,63 +41,40 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
 
     def initialize(self):
         self.output_root = url_path_join(self.warehouse_path, 'events')
-        self.metadata_path = url_path_join(self.output_root, '_metadata.yml')
+        self.metadata_path = url_path_join(self.output_root, '_metadata.tsv')
         self.current_time = datetime.datetime.utcnow().isoformat()
 
-        self.output_target = get_target_from_url(url_path_join(self.output_root, '_ignored'))
-        if self.output_target.exists():
-            self.output_target.remove()
         self.metadata_target = get_target_from_url(self.metadata_path)
 
-        self.path_to_batch = {}
         try:
             log.debug('Attempting to read metadata file %s', self.metadata_path)
             with self.metadata_target.open('r') as metadata_file:
-                log.debug('Metadata file opened, attempting to parse as YAML')
-                self.metadata = yaml.load(metadata_file)
+                log.debug('Metadata file opened, attempting to parse')
+                self.metadata = Metadata.from_file(metadata_file)
             log.debug('Initialized with metadata from file')
         except Exception:  # pylint: disable=broad-except
-            log.debug('Unable to read metadata file, initializing with empty metadata')
-            self.min_batch_id = 0
-            self.metadata = {}
-        else:
-            max_batch_id = 0
-            for batch_id, batch in self.metadata.iteritems():
-                if batch_id > max_batch_id:
-                    max_batch_id = batch_id
-                for path in batch['files']:
-                    self.path_to_batch[path] = batch_id
-                log.debug('Read batch %d', batch_id)
-            self.min_batch_id = max_batch_id + 1
-            log.debug('Min batch id to use for new batches: %d', self.min_batch_id)
+            log.debug('Unable to read metadata file, using empty metadata')
+            self.metadata = Metadata()
+
+        min_batch_id = self.metadata.max_batch_id + 1
+        log.debug('Min batch id to use for new batches: %d', min_batch_id)
 
         self.requirements = []
         for requirement in sorted(self._get_requirements(), key=attrgetter('url')):
             path = requirement.url
-            if path in self.path_to_batch:
+            if self.metadata.includes_url(path):
                 continue
 
-            batch_id = self.min_batch_id + (len(self.requirements) / self.files_per_batch)
-            self.path_to_batch[path] = batch_id
+            batch_id = min_batch_id + (len(self.requirements) / self.files_per_batch)
+            self.metadata.register_url(batch_id, path)
             log.debug('Assigned new file %s to batch %d', path, batch_id)
-
-            batch = self.metadata.get(batch_id)
-            if not batch:
-                batch = {
-                    'files': [path]
-                }
-                self.metadata[batch_id] = batch
-            else:
-                batch['files'].append(path)
-                self.metadata[batch_id]['files'].append(path)
-
             self.requirements.append(requirement)
 
     def complete(self):
         return len(self.requires()) == 0
 
     def output(self):
-        return self.output_target
+        return IgnoredTarget()
 
     def requires(self):
         if hasattr(self, 'requirements'):
@@ -218,7 +194,41 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
     def run(self):
         super(CanonicalizationTask, self).run()
         with self.metadata_target.open('w') as metadata_file:
-            yaml.dump(self.metadata, metadata_file)
+            self.metadata.to_file(metadata_file)
+
+
+class Metadata(object):
+
+    def __init__(self):
+        self.url_to_batch_id = {}
+        self.max_batch_id = 0
+
+    @staticmethod
+    def from_file(metadata_file):
+        metadata = Metadata()
+
+        for line in metadata_file:
+            split_line = line.split('\t')
+
+            batch_id = int(split_line[0])
+            url = split_line[1]
+
+            metadata.register_url(batch_id, url)
+
+    def register_url(self, batch_id, url):
+        self.url_to_batch_id[url] = batch_id
+        if batch_id > self.max_batch_id:
+            self.max_batch_id = batch_id
+
+    def get_batch_id_for_url(self, url):
+        return self.url_to_batch_id[url]
+
+    def includes_url(self, url):
+        return url in self.url_to_batch_id
+
+    def to_file(self, output_file):
+        for url, batch_id in self.url_to_batch_id.iteritems():
+            output_file.write('{0}\t{1}\n'.format(batch_id, url))
 
 
 class Events(WarehouseMixin, UncheckedExternalURL):
