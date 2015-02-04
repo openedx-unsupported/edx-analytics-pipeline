@@ -41,6 +41,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ], config_override=config_override)
 
+        self.maxDiff = None
         self.validate_base()
         self.validate_gender()
         self.validate_birth_year()
