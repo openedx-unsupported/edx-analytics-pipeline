@@ -217,9 +217,6 @@ class S3HadoopTarget(S3HdfsTarget):
 
     def __init__(self, path=None, format=Plain, is_tmp=False):
         super(S3HadoopTarget, self).__init__(path=path, format=format, is_tmp=is_tmp)
-        if path[-1] != '/':
-            raise ValueError('Hadoop output must be a directory.')
-
         self.success_marker_path = path + '_SUCCESS'
         self.stage_output = False
 
