@@ -1,7 +1,9 @@
 
+import luigi
+
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import IgnoredTarget
+from edx.analytics.tasks.url import get_target_from_url
 
 
 class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -12,6 +14,14 @@ class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
     development cycle we want to make this as fast as possible.
     """
 
+    output_root = luigi.Parameter()
+
+    def __init__(self, *args, **kwargs):
+        super(ParseEventLogPerformanceTask, self).__init__(*args, **kwargs)
+        target = self.output()
+        if target.exists():
+            target.remove()
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
@@ -21,4 +31,4 @@ class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
         yield (date_string, line)
 
     def output(self):
-        return IgnoredTarget()
+        return get_target_from_url(self.output_root)
