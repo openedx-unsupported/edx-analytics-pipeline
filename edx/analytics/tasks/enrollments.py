@@ -330,30 +330,11 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
     """Base class for breakdowns of enrollments"""
 
     @property
-    def query(self):
-        return """
-            SELECT e.*
-            FROM
-            (
-                {enrollment_query}
-            ) e
-            LEFT OUTER JOIN course_enrollment_blacklist b ON (e.course_id = b.course_id)
-            WHERE b.course_id IS NULL;
-        """.format(
-            enrollment_query=self.enrollment_query
-        )
-
-    @property
     def indexes(self):
         return [
             ('course_id',),
             ('date', 'course_id'),
         ]
-
-    @property
-    def enrollment_query(self):
-        """Query an enrollment breakdown."""
-        raise NotImplementedError
 
     @property
     def partition(self):
@@ -381,7 +362,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
     """Breakdown of enrollments by gender as reported by the user"""
 
     @property
-    def enrollment_query(self):
+    def query(self):
         return """
             SELECT
                 ce.date,
@@ -415,7 +396,7 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
     """Breakdown of enrollments by age as reported by the user"""
 
     @property
-    def enrollment_query(self):
+    def query(self):
         return """
             SELECT
                 ce.date,
@@ -449,7 +430,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
     """Breakdown of enrollments by education level as reported by the user"""
 
     @property
-    def enrollment_query(self):
+    def query(self):
         return """
             SELECT
                 ce.date,
@@ -505,7 +486,7 @@ class EnrollmentByModeTask(EnrollmentTask):
     """Breakdown of enrollments by mode"""
 
     @property
-    def enrollment_query(self):
+    def query(self):
         return """
             SELECT
                 ce.date,
@@ -538,7 +519,7 @@ class EnrollmentDailyTask(EnrollmentTask):
     """A history of the number of students enrolled in each course at the end of each day"""
 
     @property
-    def enrollment_query(self):
+    def query(self):
         return """
             SELECT
                 course_id,

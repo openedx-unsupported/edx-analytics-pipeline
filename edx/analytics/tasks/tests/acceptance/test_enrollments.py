@@ -5,10 +5,7 @@ End to end test of demographic trends.
 import datetime
 import logging
 
-from luigi.s3 import S3Target
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join
 
 
 log = logging.getLogger(__name__)
@@ -23,25 +20,12 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 8, 1))
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
 
-        blacklist_date = '2014-08-29'
-        blacklist_url = url_path_join(
-            self.warehouse_path, 'course_enrollment_blacklist', 'dt=' + blacklist_date, 'blacklist.tsv')
-        with S3Target(blacklist_url).open('w') as s3_file:
-            s3_file.write('edX/Open_DemoX/edx_demo_course3')
-
-        config_override = {
-            'enrollments': {
-                'blacklist_date': blacklist_date,
-            }
-        }
-
         self.task.launch([
             'ImportEnrollmentsIntoMysql',
             '--interval', '2014-08-01-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-        ], config_override=config_override)
+        ])
 
-        self.maxDiff = None
         self.validate_base()
         self.validate_gender()
         self.validate_birth_year()
