@@ -62,9 +62,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         self.requirements = []
         for requirement in sorted(self._get_requirements(), key=attrgetter('url')):
             path = requirement.url
-            if self.metadata.includes_url(path):
-                continue
-
             batch_id = min_batch_id + (len(self.requirements) / self.files_per_batch)
             self.metadata.register_url(batch_id, path)
             log.debug('Assigned new file %s to batch %d', path, batch_id)
@@ -93,7 +90,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             else:
                 url_gens.append(self._get_local_urls(source))
 
-        return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
+        return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if not self.metadata.includes_url(url)]
 
     def _get_s3_urls(self, source):
         s3_conn = boto.connect_s3()
@@ -112,9 +109,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         for directory_path, _subdir_paths, filenames in os.walk(source):
             for filename in filenames:
                 yield os.path.join(directory_path, filename)
-
-    def should_include_url(self, url):
-        return url not in self.path_to_batch
 
     def mapper(self, line):
         event = eventlog.parse_json_event(line)
