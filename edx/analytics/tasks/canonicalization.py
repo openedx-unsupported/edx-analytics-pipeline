@@ -215,6 +215,8 @@ class Metadata(object):
 
             metadata.register_url(batch_id, url)
 
+        return metadata
+
     def register_url(self, batch_id, url):
         self.url_to_batch_id[url] = batch_id
         if batch_id > self.max_batch_id:
