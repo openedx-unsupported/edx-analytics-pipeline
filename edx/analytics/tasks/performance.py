@@ -2,11 +2,12 @@
 import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.canonicalization import EventIntervalMixin
+from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.url import get_target_from_url
 
 
-class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
+class ParseEventLogPerformanceTask(EventIntervalMixin, MapReduceJobTask):
     """
     This represents the smallest possible task that parses events for a particular date range.
 
@@ -23,12 +24,12 @@ class ParseEventLogPerformanceTask(EventLogSelectionMixin, MapReduceJobTask):
             target.remove()
 
     def mapper(self, line):
-        value = self.get_event_and_date_string(line)
-        if value is None:
+        try:
+            event = eventlog.decode_json(line)
+        except Exception:
             return
-        event, date_string = value
 
-        yield (date_string, line)
+        yield (event['date'], line)
 
     def output(self):
         return get_target_from_url(self.output_root)
