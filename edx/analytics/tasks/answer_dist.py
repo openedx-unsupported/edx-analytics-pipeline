@@ -34,8 +34,8 @@ UNKNOWN_ANSWER_VALUE = ''
 UNMAPPED_ANSWER_VALUE = ''
 
 
-class LastProblemCheckEventMixin(object):
-    """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
+class ProblemCheckEventMixin(object):
+    """Identifies first and last problem_check events for a user on a problem in a course, given raw event log input."""
 
     def mapper(self, line):
         """
@@ -66,7 +66,7 @@ class LastProblemCheckEventMixin(object):
 
     def reducer(self, _key, values):
         """
-        Calculate a list of answers from the final response of a user to a problem in a course.
+        Calculate a list of answers from the first and last responses of a user to a problem in a course.
 
         Args:
             key:  (problem_id, username)
@@ -95,27 +95,34 @@ class LastProblemCheckEventMixin(object):
               'variant': seed value
 
         """
-        # Sort input values (by timestamp) to easily detect the most
-        # recent answer to a problem by a particular user.  Note that
-        # this assumes the timestamp values (strings) are in ISO
-        # representation, so that the tuples will be ordered in
+        # Sort input values (by timestamp) to easily detect the first 
+        # and most recent answer to a problem by a particular user.  
+        # Note that this assumes the timestamp values (strings) are in
+        # ISO representation, so that the tuples will be ordered in
         # ascending time value.
         values = sorted(values)
         if not values:
             return
 
+        # Get the first entry.
+        _timestamp, first_event = values[0]
+
+        for answer in self._generate_answers(first_event, 'first'):
+            yield answer
+
         # Get the last entry.
         _timestamp, most_recent_event = values[-1]
 
-        for answer in self._generate_answers(most_recent_event):
+        for answer in self._generate_answers(most_recent_event, 'last'):
             yield answer
 
-    def _generate_answers(self, event_string):
+    def _generate_answers(self, event_string, attempt_category):
         """
         Generates a list of answers given a problem_check event.
 
         Args:
             event_string:  a json-encoded string version of an event's data.
+            attempt_category: a string that is 'first' for a user's first response to a question, 'last' otherwise
 
         Returns:
             list of answer data tuples.
@@ -137,6 +144,7 @@ class LastProblemCheckEventMixin(object):
             # not found in the submission:
             submission['problem_id'] = problem_id
             submission['problem_display_name'] = problem_display_name
+            submission['attempt_category'] = attempt_category
 
             # Add the timestamp so that all responses can be sorted in order.
             # We want to use the "latest" values for some fields.
@@ -340,11 +348,18 @@ class AnswerDistributionPerCourseMixin(object):
                     'Problem Display Name': problem_display_name or '',
                     'Question': question,
                     'Correct Answer': '1' if answer.get('correct') else '0',
-                    'Count': 0,
+                    'First Response Count': 0,
+                    'Last Response Count': 0,
                 }
 
             # For most cases, just increment a counter:
-            answer_dist[answer_grouping_key]['Count'] += 1
+            attempt_category = answer.get('attempt_category')
+            if attempt_category == 'first':
+                answer_dist[answer_grouping_key]['First Response Count'] += 1
+            elif attempt_category == 'last':
+                answer_dist[answer_grouping_key]['Last Response Count'] += 1
+            else:
+                raise RuntimeError('Unknown attempt category: {0}'.format(attempt_category))
 
         # Finally dispatch the answers, providing the course_id as a
         # key so that the answers belonging to a course will be
@@ -361,7 +376,8 @@ class AnswerDistributionPerCourseMixin(object):
             'ModuleID',
             'PartID',
             'Correct Answer',
-            'Count',
+            'First Response Count',
+            'Last Response Count',
             'ValueID',
             'AnswerValue',
             'Variant',
@@ -594,17 +610,17 @@ class BaseAnswerDistributionTask(MapReduceJobTask):
         return [html5lib, six]
 
 
-class LastProblemCheckEvent(
+class ProblemCheckEvent(
         BaseAnswerDistributionDownstreamMixin,
-        LastProblemCheckEventMixin,
+        ProblemCheckEventMixin,
         BaseAnswerDistributionTask):
-    """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
+    """Identifies first and last problem_check events for a user on a problem in a course, given raw event log input."""
 
     def requires(self):
         return PathSetTask(self.src, self.include, self.manifest)
 
     def output(self):
-        output_name = u'last_problem_check_events_{name}/'.format(name=self.name)
+        output_name = u'problem_check_events_{name}/'.format(name=self.name)
         return get_target_from_url(url_path_join(self.dest, output_name))
 
 
@@ -631,7 +647,7 @@ class AnswerDistributionPerCourse(
 
     def requires(self):
         results = {
-            'events': LastProblemCheckEvent(
+            'events': ProblemCheckEvent(
                 mapreduce_engine=self.mapreduce_engine,
                 input_format=self.base_input_format,
                 lib_jar=self.lib_jar,
@@ -765,7 +781,8 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
                     row_dict['ModuleID'],
                     row_dict['PartID'],
                     row_dict['Correct Answer'],
-                    row_dict['Count'],
+                    row_dict['First Response Count'],
+                    row_dict['Last Response Count'],
                     row_dict['ValueID'] if row_dict['ValueID'] else None,
                     row_dict['AnswerValue'] if row_dict['AnswerValue'] else None,
                     try_str_to_float(row_dict['AnswerValue']),
@@ -786,7 +803,8 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
             ('module_id', 'VARCHAR(255) NOT NULL'),
             ('part_id', 'VARCHAR(255) NOT NULL'),
             ('correct', 'TINYINT(1) NOT NULL'),
-            ('count', 'INT(11) NOT NULL'),
+            ('first_response_count', 'INT(11) NOT NULL'),
+            ('last_response_count', 'INT(11) NOT NULL'),
             ('value_id', 'VARCHAR(255)'),
             ('answer_value_text', 'LONGTEXT'),
             ('answer_value_numeric', 'DOUBLE'),
@@ -956,6 +974,9 @@ def get_problem_check_event(line):
     problem_id = problem_data.get('problem_id')
     if problem_id is None:
         log.error("encountered explicit problem_check event with bogus problem_id: %s", event)
+        return None
+
+    if len(event.get('event', {}).get('answers', [])) == 0:
         return None
 
     problem_data_json = json.dumps(problem_data)
