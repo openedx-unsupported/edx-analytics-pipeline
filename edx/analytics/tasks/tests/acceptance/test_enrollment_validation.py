@@ -123,7 +123,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
         expected_histogram = {
             ("edx.course.enrollment.activated", "start => validate(active)"): 4,
             ("edx.course.enrollment.mode_changed", "activate => deactivate (audit=>honor)"): 1,
-            ("edx.course.enrollment.deactivated", "activate => missing"): 3,
+            ("edx.course.enrollment.deactivated", "activate => missing"): 2,
             ("edx.course.enrollment.activated", "deactivate => validate(active)"): 2,
             ("edx.course.enrollment.mode_changed", "deactivate => validate(active) (honor=>verified)"): 1,
         }
