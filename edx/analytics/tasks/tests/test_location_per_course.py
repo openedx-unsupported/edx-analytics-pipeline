@@ -276,7 +276,7 @@ class QueryLastCountryPerCourseWorkflowTestCase(unittest.TestCase):
         task = QueryLastCountryPerCourseWorkflow(**self._get_kwargs())
         required_tasks = list(task.requires())
         self.assertEquals(len(required_tasks), 1)
-        self.assertEquals(len(required_tasks[0]), 3)
+        self.assertEquals(len(required_tasks[0]), 4)
 
 
 class InsertToMysqlCourseEnrollByCountryWorkflowTestCase(unittest.TestCase):
