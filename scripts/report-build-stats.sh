@@ -23,7 +23,7 @@ if [ -n "${DATADOG_API_KEY}" ];
 END
         python -m metrics.coverage unit_test_groups.json ../coverage.xml
 
-        cd..
+        cd ..
 
     else
         echo "Skipping sending stats to datadog. DATADOG_API_KEY not set."
