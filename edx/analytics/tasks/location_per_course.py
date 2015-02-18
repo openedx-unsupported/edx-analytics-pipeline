@@ -146,6 +146,36 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
         )
 
 
+class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
+    """
+    Copy the last_country_of_user table from Hive into MySQL.
+    """
+    @property
+    def table(self):
+        return "last_country_of_user"
+
+    @property
+    def columns(self):
+        return [
+            ('country_name', 'VARCHAR(255)'),
+            ('country_code', 'VARCHAR(10)'),
+            ('username', 'VARCHAR(255)'),
+        ]
+
+    @property
+    def insert_source_task(self):
+        return LastCountryOfUser(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            geolocation_data=self.geolocation_data,
+            overwrite=self.overwrite,
+            user_country_output=self.user_country_output,
+        )
+
+
 class QueryLastCountryPerCourseMixin(object):
     """
     Defines parameters for QueryLastCountryPerCourseTask
@@ -226,6 +256,16 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
         }
         yield (
             ImportLastCountryOfUserToHiveTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                geolocation_data=self.geolocation_data,
+                overwrite=self.overwrite,
+                user_country_output=self.user_country_output,
+            ),
+            InsertToMysqlLastCountryOfUserTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
