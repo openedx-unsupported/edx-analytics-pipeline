@@ -13,8 +13,8 @@ if [ -n "${DATADOG_API_KEY}" ];
         rm -rf test-metrics
         git clone https://github.com/wedaly/test-metrics
 
+        pip install -q -r test-metrics/requirements.txt
         cd test-metrics
-        pip install -q -r requirements.txt
 
         cat > unit_test_groups.json <<END
 {
@@ -34,7 +34,7 @@ fi
 if [ -n "${COVERALLS_REPO_TOKEN}" ];
     then
     echo "Sending coverage to Coveralls.io..."
-    pip install coveralls
+    pip install -q coveralls
     coveralls
 
 fi
