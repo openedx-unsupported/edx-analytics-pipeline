@@ -1,4 +1,4 @@
-edx-analytics-pipeline
+edx-analytics-pipeline [![CoverageStatus](https://img.shields.io/coveralls/edx/edx-analytics-pipeline.svg)](https://coveralls.io/r/edx/edx-analytics-pipeline?branch=master)
 ===============
 The Hadoop-based data pipeline.
 
