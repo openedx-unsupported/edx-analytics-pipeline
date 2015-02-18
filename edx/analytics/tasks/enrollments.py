@@ -304,28 +304,6 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
         )
 
 
-class EnrollmentCourseBlacklistTableTask(HiveTableTask):
-    """The set of courses to exclude from enrollment metrics due to incomplete input data."""
-
-    blacklist_date = luigi.Parameter(
-        default_from_config={'section': 'enrollments', 'name': 'blacklist_date'}
-    )
-
-    @property
-    def table(self):
-        return 'course_enrollment_blacklist'
-
-    @property
-    def columns(self):
-        return [
-            ('course_id', 'STRING'),
-        ]
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.blacklist_date)  # pylint: disable=no-member
-
-
 class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for breakdowns of enrollments"""
 
@@ -351,10 +329,7 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
             ),
-            ImportAuthUserProfileTask(),
-            EnrollmentCourseBlacklistTableTask(
-                warehouse_path=self.warehouse_path
-            )
+            ImportAuthUserProfileTask()
         )
 
 
@@ -445,6 +420,8 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     WHEN 'p'     THEN 'doctorate'
                     WHEN 'p_se'  THEN 'doctorate'
                     WHEN 'p_oth' THEN 'doctorate'
+                    WHEN 'none'  THEN 'none'
+                    WHEN 'other' THEN 'other'
                     ELSE NULL
                 END,
                 COUNT(ce.user_id)
@@ -464,6 +441,8 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     WHEN 'p'     THEN 'doctorate'
                     WHEN 'p_se'  THEN 'doctorate'
                     WHEN 'p_oth' THEN 'doctorate'
+                    WHEN 'none'  THEN 'none'
+                    WHEN 'other' THEN 'other'
                     ELSE NULL
                 END
         """
