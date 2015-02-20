@@ -285,6 +285,9 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                 self._execute_insert_query(cursor, value_list, column_names)
                 value_list = []
 
+        if self.overwrite and row_count == 0:
+            raise Exception('Cannot overwrite a table with an empty result set.')
+
         if len(value_list) > 0:
             self._execute_insert_query(cursor, value_list, column_names)
 

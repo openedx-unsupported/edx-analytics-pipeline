@@ -71,7 +71,7 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
         self.mock_mysql_connector = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def create_task(self, credentials=None, source=None, insert_chunk_size=100, cls=InsertToMysqlDummyTable):
+    def create_task(self, credentials=None, source=None, insert_chunk_size=100, overwrite=False, cls=InsertToMysqlDummyTable):
         """
          Emulate execution of a generic MysqlTask.
         """
@@ -80,7 +80,8 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
         luigi.task.Register.clear_instance_cache()
         task = cls(
             credentials=sentinel.ignored,
-            insert_chunk_size=insert_chunk_size
+            insert_chunk_size=insert_chunk_size,
+            overwrite=overwrite
         )
 
         if not credentials:
@@ -258,6 +259,11 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
             "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id),"
             "INDEX (course_id),INDEX (interval_start,interval_end))"
         )
+
+    def test_overwrite_with_emtpy_results(self):
+        task = self.create_task(source='', overwrite=True)
+        with self.assertRaises(Exception):
+            task.insert_rows(MagicMock())
 
 
 class MySQLLoadHelperFuncTests(unittest.TestCase):
