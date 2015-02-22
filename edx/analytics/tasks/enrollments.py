@@ -11,7 +11,9 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTas
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.util.hive import (
+        WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, HiveTableFromQueryTask
+)
 
 
 log = logging.getLogger(__name__)
@@ -304,6 +306,43 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
         )
 
 
+class CourseEnrollmentCurrentTask(CourseEnrollmentTableDownstreamMixin, HiveTableFromQueryTask):
+
+    @property
+    def date(self):
+        return (self.interval.date_b - datetime.timedelta(days=1)).isoformat()
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def course_enrollment_table_task(self):
+        return CourseEnrollmentTableTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def columns(self):
+        return self.course_enrollment_table_task.columns
+
+    @property
+    def table(self):
+        return 'course_enrollment_current'
+
+    @property
+    def required_table_tasks(self):
+        yield (
+            self.course_enrollment_table_task,
+            ImportAuthUserProfileTask()
+        )
+
+
 class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for breakdowns of enrollments"""
 
@@ -328,12 +367,37 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
                 interval=self.interval,
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
-            ),
-            ImportAuthUserProfileTask()
+            )
         )
 
 
-class EnrollmentByGenderTask(EnrollmentTask):
+class EnrollmentDemographicTask(EnrollmentTask):
+    """Base class for demographic breakdowns of enrollments"""
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            ('date', 'course_id'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def required_table_tasks(self):
+        yield CourseEnrollmentCurrentTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+
+class EnrollmentByGenderTask(EnrollmentDemographicTask):
     """Breakdown of enrollments by gender as reported by the user"""
 
     @property
@@ -344,7 +408,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
                 ce.course_id,
                 IF(p.gender != '', p.gender, NULL),
                 COUNT(ce.user_id)
-            FROM course_enrollment ce
+            FROM course_enrollment_current ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
             WHERE ce.at_end = 1
             GROUP BY
@@ -367,7 +431,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
         ]
 
 
-class EnrollmentByBirthYearTask(EnrollmentTask):
+class EnrollmentByBirthYearTask(EnrollmentDemographicTask):
     """Breakdown of enrollments by age as reported by the user"""
 
     @property
@@ -378,7 +442,7 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
                 ce.course_id,
                 p.year_of_birth,
                 COUNT(ce.user_id)
-            FROM course_enrollment ce
+            FROM course_enrollment_current ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
             WHERE ce.at_end = 1
             GROUP BY
@@ -401,7 +465,7 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
         ]
 
 
-class EnrollmentByEducationLevelTask(EnrollmentTask):
+class EnrollmentByEducationLevelTask(EnrollmentDemographicTask):
     """Breakdown of enrollments by education level as reported by the user"""
 
     @property
@@ -425,7 +489,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     ELSE NULL
                 END,
                 COUNT(ce.user_id)
-            FROM course_enrollment ce
+            FROM course_enrollment_current ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
             WHERE ce.at_end = 1
             GROUP BY
@@ -540,5 +604,4 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
             EnrollmentByBirthYearTask(**kwargs),
             EnrollmentByEducationLevelTask(**kwargs),
             EnrollmentByModeTask(**kwargs),
-            EnrollmentDailyTask(**kwargs),
         )

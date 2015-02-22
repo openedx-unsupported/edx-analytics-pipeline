@@ -26,7 +26,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
-        self.validate_base()
         self.validate_gender()
         self.validate_birth_year()
         self.validate_education_level()
@@ -42,14 +41,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 2),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'm', 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', None, 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 2),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'm', 1),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1),
         ]
@@ -65,14 +56,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 1975, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 2000, 2),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2000, 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 1975, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 2000, 2),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2000, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1984, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 2000, 1),
@@ -89,16 +72,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'associates', 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1),
@@ -132,19 +105,3 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'honor', 1),
         ]
         self.assertItemsEqual(expected, results)
-
-    def validate_base(self):
-        with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT date, course_id, count FROM course_enrollment_daily ORDER BY date, course_id ASC')
-            results = cursor.fetchall()
-
-        self.assertItemsEqual(results, [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 3),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 3),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2),
-            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 2),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1),
-        ])
