@@ -4,6 +4,8 @@ Support for loading data into a Mysql database.
 import json
 import logging
 from itertools import chain
+import time
+import uuid
 
 import luigi
 import luigi.configuration
@@ -41,7 +43,10 @@ class MysqlInsertTaskMixin(OverwriteOutputMixin):
     credentials = luigi.Parameter(
         default_from_config={'section': 'database-export', 'name': 'credentials'}
     )
-    insert_chunk_size = luigi.IntParameter(default=100, significant=False)
+    insert_chunk_size = luigi.IntParameter(default=1000, significant=False)
+    chunks_per_transaction = luigi.IntParameter(default=30, significant=False)
+    wait_between_transactions = luigi.IntParameter(default=5, significant=False)
+    suffix = luigi.Parameter(default=None)
 
 
 class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
@@ -69,6 +74,16 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     def table(self):
         """Provides name of database table."""
         raise NotImplementedError
+
+    @property
+    def unique_table_name(self):
+        if not self.suffix:
+            if self.overwrite:
+                self.suffix = str(uuid.uuid4()).replace('-', '_')[:8]
+            else:
+                self.suffix = 'default'
+
+        return self.table + '_' + self.suffix
 
     @property
     def columns(self):
@@ -130,7 +145,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
         )
         query = "CREATE TABLE IF NOT EXISTS {table} ({coldefs})".format(
-            table=self.table, coldefs=coldefs
+            table=self.unique_table_name, coldefs=coldefs
         )
         log.debug(query)
         connection.cursor().execute(query)
@@ -184,7 +199,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             self.output_target = CredentialFileMysqlTarget(
                 credentials_target=self.input()['credentials'],
                 database_name=self.database,
-                table=self.table,
+                table=self.unique_table_name,
                 update_id=self.update_id()
             )
 
@@ -206,7 +221,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             # first clear the appropriate rows from the luigi mysql marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                query = "DELETE FROM {marker_table} WHERE `target_table` LIKE '{target_table}_%'".format(
                     marker_table=marker_table,
                     target_table=self.table,
                 )
@@ -217,9 +232,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                 else:
                     raise
 
-            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
-            # commit the currently open transaction before continuing with the copy.
-            query = "DELETE FROM {table}".format(table=self.table)
+            query = "TRUNCATE TABLE {table}".format(table=self.unique_table_name)
             connection.cursor().execute(query)
 
     def _execute_insert_query(self, cursor, value_list, column_names):
@@ -261,13 +274,15 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         parameters = "(" + ",".join(["%s"] * num_cols) + ")"
         all_parameters = ",".join([parameters] * num_rows)
         query = "INSERT INTO {table} ({column_names}) VALUES {values}".format(
-            table=self.table, column_names=column_names, values=all_parameters
+            table=self.unique_table_name, column_names=column_names, values=all_parameters
         )
         cursor.execute(query, list(chain.from_iterable(value_list)))
         log.debug("Wrote %d rows to table %s", num_rows, self.table)
 
-    def insert_rows(self, cursor):
+    def insert_rows(self, connection):
         """Inserts row values from source into database table."""
+        cursor = connection.cursor()
+
         if isinstance(self.columns[0], basestring):
             column_names = ','.join([name for name in self.columns])
         elif len(self.columns[0]) == 2:
@@ -278,18 +293,28 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                             % (self.columns[0],))
 
         value_list = []
+        chunk_count = 0
+        row_count = 0
         for row_count, row in enumerate(self.rows()):
             entry = tuple([coerce_for_mysql_connect(elem) for elem in row])
             value_list.append(entry)
             if (row_count + 1) % self.insert_chunk_size == 0:
                 self._execute_insert_query(cursor, value_list, column_names)
                 value_list = []
+                chunk_count += 1
+
+                if self.overwrite and ((chunk_count % self.chunks_per_transaction) == 0):
+                    connection.commit()
+                    if self.wait_between_transactions > 0:
+                        time.sleep(self.wait_between_transactions)
 
         if self.overwrite and row_count == 0:
             raise Exception('Cannot overwrite a table with an empty result set.')
 
         if len(value_list) > 0:
             self._execute_insert_query(cursor, value_list, column_names)
+            if self.overwrite:
+                connection.commit()
 
     def run(self):
         """
@@ -309,21 +334,32 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         try:
             # create table only if necessary:
             self.create_table(connection)
-
             self.init_copy(connection)
-            cursor = connection.cursor()
-            self.insert_rows(cursor)
-
-            # mark as complete in same transaction
-            self.output().touch(connection)
-
-            # commit only if both operations completed successfully.
-            connection.commit()
+            self.insert_rows(connection)
+            self.commit(connection)
         except:
-            connection.rollback()
+            self.rollback(connection)
             raise
         finally:
             connection.close()
+
+    def commit(self, connection):
+        # mark as complete in same transaction
+        self.output().touch(connection)
+
+        # commit only if both operations completed successfully.
+        connection.commit()
+
+        connection.cursor().execute(
+            'CREATE OR REPLACE ALGORITHM = MERGE VIEW `{db}`.`{table}` AS SELECT * FROM `{db}`.`{unique_table}`'.format(
+                db=self.database,
+                table=self.table,
+                unique_table=self.unique_table_name
+            )
+        )
+
+    def rollback(self, connection):
+        connection.rollback()
 
     def check_mysql_availability(self):
         if not mysql_client_available:
