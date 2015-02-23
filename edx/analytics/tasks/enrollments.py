@@ -296,7 +296,7 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        return CourseEnrollmentTask(
+        yield CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
