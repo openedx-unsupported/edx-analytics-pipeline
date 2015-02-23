@@ -322,7 +322,7 @@ class CourseEnrollmentCurrentTask(CourseEnrollmentTableDownstreamMixin, HiveTabl
                 ce.at_end,
                 ce.change,
                 ce.mode
-            FROM course_enrollment_current ce
+            FROM course_enrollment ce
             WHERE ce.at_end = 1 AND ce.date = '{date}'
         """.format(date=self.date)
 
