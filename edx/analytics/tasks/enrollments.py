@@ -350,7 +350,7 @@ class CourseEnrollmentCurrentTask(CourseEnrollmentTableDownstreamMixin, HiveTabl
         return 'course_enrollment_current'
 
     @property
-    def required_table_tasks(self):
+    def requires(self):
         yield (
             self.course_enrollment_table_task,
             ImportAuthUserProfileTask()
