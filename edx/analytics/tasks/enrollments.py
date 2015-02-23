@@ -313,6 +313,20 @@ class CourseEnrollmentCurrentTask(CourseEnrollmentTableDownstreamMixin, HiveTabl
         return (self.interval.date_b - datetime.timedelta(days=1)).isoformat()
 
     @property
+    def insert_query(self):
+        return """
+            SELECT
+                ce.date,
+                ce.course_id,
+                ce.user_id,
+                ce.at_end,
+                ce.change,
+                ce.mode
+            FROM course_enrollment_current ce
+            WHERE ce.at_end = 1 AND ce.date = '{date}'
+        """.format(date=self.date)
+
+    @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
