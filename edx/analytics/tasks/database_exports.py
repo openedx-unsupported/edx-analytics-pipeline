@@ -9,7 +9,7 @@ import logging
 
 import luigi
 
-from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
+from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util import csv_util
@@ -107,6 +107,33 @@ class StudentModulePerCourseTask(MultiOutputMapReduceJobTask):
         )
 
         return url_path_join(self.output_root, filename)
+
+
+class StudentModuleSummary(MapReduceJobTask):
+
+    dump_root = luigi.Parameter()
+    output_root = luigi.Parameter()
+
+    def requires(self):
+        return PathSetTask(self.dump_root)
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+    def mapper(self, line):
+        values = csv_util.parse_line(line, dialect='mysqldump')
+        record = StudentModuleRecord(*values)
+
+        yield (record.course_id, record.student_id), record
+
+    def reducer(self, key, values):
+        count = 0
+        total_length = 0
+        for record in values:
+            count += 1
+            total_length += record.state
+
+        yield record.course_id, record.student_id, count, total_length
 
 
 class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
