@@ -1,5 +1,3 @@
-"""Group all events into a single file per day."""
-
 import datetime
 import gzip
 from hashlib import md5
