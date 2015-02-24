@@ -6,7 +6,6 @@ from hashlib import md5
 import logging
 from operator import attrgetter
 import os
-from tempfile import mkdtemp
 
 import boto
 import cjson
@@ -16,7 +15,7 @@ import yaml
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.s3_util import get_s3_bucket_key_names
-from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url
+from edx.analytics.tasks.url import UncheckedExternalURL, url_path_join, get_target_from_url, IgnoredTarget
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
@@ -25,11 +24,6 @@ log = logging.getLogger(__name__)
 
 
 class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
-    """
-    Group all events into a single file per day.
-
-    Standardize their format so that downstream tasks can make assumptions about their structure.
-    """
 
     source = luigi.Parameter(
         is_list=True,
@@ -42,16 +36,20 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
     VERSION = "1"
 
     def initialize(self):
+        # canonical events will be stored here
         self.output_root = url_path_join(self.warehouse_path, 'events')
-        self.metadata_path = url_path_join(self.output_root, '_metadata.yml')
+
+        # this metadata file keeps track of which input files have already been processed, could be stored in a DB
+        metadata_path = url_path_join(self.output_root, '_metadata.yml')
+        self.metadata_target = get_target_from_url(metadata_path)
+
         self.current_time = datetime.datetime.utcnow().isoformat()
 
-        self.output_target = get_target_from_url(url_path_join(self.output_root, '_ignored'))
-        self.metadata_target = get_target_from_url(self.metadata_path)
-
+        # maps file paths to the batch number that they belong to
         self.path_to_batch = {}
+
         try:
-            log.debug('Attempting to read metadata file %s', self.metadata_path)
+            log.debug('Attempting to read metadata file %s', metadata_path)
             with self.metadata_target.open('r') as metadata_file:
                 log.debug('Metadata file opened, attempting to parse as YAML')
                 self.metadata = yaml.load(metadata_file)
@@ -71,6 +69,8 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             self.min_batch_id = max_batch_id + 1
             log.debug('Min batch id to use for new batches: %d', self.min_batch_id)
 
+        # iterate over all possible input files and remove any files that have already been processed as part of a
+        # previous batch, the resulting list is the set of new files that should be processed during this run.
         self.requirements = []
         for requirement in sorted(self._get_requirements(), key=attrgetter('url')):
             path = requirement.url
@@ -97,7 +97,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         return len(self.requires()) == 0
 
     def output(self):
-        return self.output_target
+        return IgnoredTarget()
 
     def requires(self):
         if hasattr(self, 'requirements'):
@@ -116,7 +116,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
             else:
                 url_gens.append(self._get_local_urls(source))
 
-        return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
+        return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen]
 
     def _get_s3_urls(self, source):
         s3_conn = boto.connect_s3()
@@ -135,9 +135,6 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         for directory_path, _subdir_paths, filenames in os.walk(source):
             for filename in filenames:
                 yield os.path.join(directory_path, filename)
-
-    def should_include_url(self, url):
-        return url not in self.path_to_batch
 
     def mapper(self, line):
         event = eventlog.parse_json_event(line)
@@ -195,6 +192,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
         )
         output_file_target = get_target_from_url(output_path)
         with output_file_target.open('w') as raw_output_file:
+            # TODO: Use a splittable compression format instead of gzip
             with gzip.GzipFile(mode='wb', fileobj=raw_output_file) as output_file:
                 bytes_written = 0
                 for value in values:
@@ -216,5 +214,7 @@ class CanonicalizationTask(WarehouseMixin, MapReduceJobTask):
 
     def run(self):
         super(CanonicalizationTask, self).run()
+
+        # If everything succeeds, upload the modified metadata
         with self.metadata_target.open('w') as metadata_file:
             yaml.dump(self.metadata, metadata_file)
