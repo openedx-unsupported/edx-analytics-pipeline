@@ -13,7 +13,7 @@ from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduce
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util import csv_util
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalUrl
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 
@@ -115,7 +115,7 @@ class StudentModuleSummary(MapReduceJobTask):
     output_root = luigi.Parameter()
 
     def requires(self):
-        return PathSetTask(self.dump_root)
+        return ExternalUrl(self.dump_root)
 
     def output(self):
         return get_target_from_url(self.output_root)
