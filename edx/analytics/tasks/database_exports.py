@@ -133,7 +133,7 @@ class StudentModuleSummary(MapReduceJobTask):
         for row in values:
             record = StudentModuleRecord(*row)
             count += 1
-            total_length += record.state
+            total_length += len(record.state)
 
         yield course_id, student_id, count, total_length
 
