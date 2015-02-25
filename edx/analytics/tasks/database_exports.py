@@ -124,16 +124,18 @@ class StudentModuleSummary(MapReduceJobTask):
         values = csv_util.parse_line(line, dialect='mysqldump')
         record = StudentModuleRecord(*values)
 
-        yield (record.course_id, record.student_id), record
+        yield (record.course_id, record.student_id), values
 
     def reducer(self, key, values):
+        course_id, student_id = key
         count = 0
         total_length = 0
-        for record in values:
+        for row in values:
+            record = StudentModuleRecord(*row)
             count += 1
             total_length += record.state
 
-        yield record.course_id, record.student_id, count, total_length
+        yield course_id, student_id, count, total_length
 
 
 class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
