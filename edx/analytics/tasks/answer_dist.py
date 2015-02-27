@@ -809,14 +809,9 @@ class AnswerDistributionToMySQLTaskWorkflow(
     AnswerDistributionDownstreamMixin,
     MapReduceJobTaskMixin
 ):
-    def init_copy(self, connection):
-        """
-        Truncate the table before re-writing
-        """
-        # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
-        # commit the currently open transaction before continuing with the copy.
-        query = "DELETE FROM {table}".format(table=self.table)
-        connection.cursor().execute(query)
+
+    # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
+    overwrite = luigi.BooleanParameter(default=True)
 
     @property
     def insert_source_task(self):
