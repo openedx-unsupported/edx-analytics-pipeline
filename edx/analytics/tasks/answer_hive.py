@@ -3,6 +3,7 @@ Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
 import csv
+import datetime
 import hashlib
 import html5lib
 import json
@@ -498,7 +499,9 @@ class MultipartitionHiveTableTask(HiveTableTask):
 
     @property
     def recover_partitions(self):
-        # TODO: make this sensitive to the underlying client.
+        # TODO: make this sensitive to the underlying client.  At the moment, it only
+        # works on EMR, and not on analyticstack.
+        # On non-EMR hadoop, one must use:  'MSCK REPAIR TABLE {table};' 
         return 'ALTER TABLE {table} RECOVER PARTITIONS;'.format(table=self.table)
 
     def output(self):
@@ -571,8 +574,9 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
         # both are present, then assume that all data in between is present.
         # And if one or the other is not present, then assume that the interval is not present,
         # and trigger the entire task.
-        starting_partition = HivePartition('dt', self.interval.date_a.isoformat())  # pylint: disable=no-member
-        ending_partition = HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        starting_partition = HivePartition('dt', self.interval.date_a.isoformat()) # pylint: disable=no-member
+        ending_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+        ending_partition = HivePartition('dt', ending_date.isoformat())
 
         return [
             HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
