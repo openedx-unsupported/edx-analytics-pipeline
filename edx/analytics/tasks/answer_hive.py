@@ -26,7 +26,8 @@ import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 # TODO: move MultipartitionHiveTableTask to util.hive, and clean these out...
 import textwrap
-from luigi.hive import HiveTableTarget
+from luigi.hive import HiveTableTarget, HivePartitionTarget
+# from edx.analytics.tasks.util.datetime_util import all_dates_between
 from edx.analytics.tasks.util.hive import HiveTableTask, WarehouseMixin, HivePartition, hive_database_name
 
 import logging
@@ -507,6 +508,18 @@ class MultipartitionHiveTableTask(HiveTableTask):
         return HiveTableTarget(self.table, database=hive_database_name())
 
 
+# class HivePartitionInIntervalTarget(HivePartitionTarget):
+#     """
+#     This should see if all requested partitions in a specified
+#     interval are present.
+
+#     This is a short-cut for creating a separate list of HivePartitionTargets.
+#     """
+#     def __init__(self, table, partition, database='default', interval, fail_missing_table=False, client=default_client):
+#         super(HivePartitionInIntervalTarget).__init__(self, table, partition, database=database, fail_missing_table=fail_missing_table, client=client)
+#         self.interval = interval
+
+
 class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, MultipartitionHiveTableTask):
     """
     A task to load all problem-check events into Hive.
@@ -552,6 +565,23 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
             pattern=self.pattern,
             output_root=self.table_location,  # this is the table, not the partition
         )
+
+    def output(self):
+        # Approximate this by just looking for the first and last partition in the interval, and if
+        # both are present, then assume that all data in between is present.
+        # And if one or the other is not present, then assume that the interval is not present,
+        # and trigger the entire task.
+        starting_partition = HivePartition('dt', self.interval.date_a.isoformat())  # pylint: disable=no-member
+        ending_partition = HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+        return [
+            HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
+            HivePartitionTarget(self.table, ending_partition.as_dict(), database=hive_database_name()),
+        ]
+
+        # This should see if all requested partitions in a specified
+        # interval are present.
+        # return HivePartitionInIntervalTarget(self.table, self.partition, database=hive_database_name(), self.interval)
 
 
 class HiveAnswerTableFromQueryTask(AllProblemCheckEventsParamMixin, HiveTableTask):
