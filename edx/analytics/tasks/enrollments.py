@@ -311,7 +311,9 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
     def indexes(self):
         return [
             ('course_id',),
-            ('date', 'course_id'),
+            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
+            # then by date.
+            ('course_id', 'date'),
         ]
 
     @property
