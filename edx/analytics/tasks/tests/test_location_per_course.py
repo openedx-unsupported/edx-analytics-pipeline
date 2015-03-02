@@ -226,7 +226,8 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
                 date STRING,
                 course_id STRING,
                 country_code STRING,
-                count INT
+                count INT,
+                cumulative_count INT
             )
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
             LOCATION 's3://output/path';
@@ -236,11 +237,11 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
                 sce.dt,
                 sce.course_id,
                 uc.country_code,
+                sum(if(sce.is_active, 1, 0)),
                 count(sce.user_id)
             FROM student_courseenrollment sce
             LEFT OUTER JOIN auth_user au on sce.user_id = au.id
             LEFT OUTER JOIN last_country_of_user uc on au.username = uc.username
-            WHERE sce.is_active > 0
             GROUP BY sce.dt, sce.course_id, uc.country_code;
             """
         )

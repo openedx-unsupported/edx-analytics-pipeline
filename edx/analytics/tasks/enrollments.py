@@ -91,8 +91,9 @@ class DaysEnrolledForEvents(object):
     """
     Determine which days a user was enrolled in a course given a stream of enrollment events.
 
-    Produces a record for each date in which the user was enrolled in the course. Note that the user need not have been
-    enrolled in the course for the entire day. These records will have the following format:
+    Produces a record for each date from the date the user enrolled in the course for the first time to the end of the
+    interval. Note that the user need not have been enrolled in the course for the entire day. These records will have
+    the following format:
 
         datestamp (str): The date the user was enrolled in the course during.
         course_id (str): Identifies the course the user was enrolled in.
@@ -124,9 +125,10 @@ class DaysEnrolledForEvents(object):
         2014-01-02,1,0
         2014-01-03,1,0
         2014-01-04,0,-1
+        2014-01-05,0,0
 
     The above activity indicates that the user enrolled in the course on 2014-01-01 and unenrolled from the course on
-    2014-01-04.
+    2014-01-04. Records are created for every date after the date when they first enrolled.
 
     If a user enrolls and unenrolls from a course on the same day, a record will appear that looks like this::
 
@@ -196,27 +198,17 @@ class DaysEnrolledForEvents(object):
             if self.event.datestamp != self.next_event.datestamp:
                 change_since_last_day = self.state - self.previous_state
 
-                if self.state == self.ENROLLED:
-                    # There may be a very wide gap between this event and the next event. If the user is currently
-                    # enrolled, we can assume they continue to be enrolled at least until the next day we see an event.
-                    # Emit records for each of those intermediary days. Since the end of the interval is represented by
-                    # a dummy event at the end of the list of events, it will be represented by self.next_event when
-                    # processing the last real event in the stream. This allows the records to be produced up to the end
-                    # of the interval if the last known state was "ENROLLED".
-                    for datestamp in self.all_dates_between(self.event.datestamp, self.next_event.datestamp):
-                        yield self.enrollment_record(
-                            datestamp,
-                            self.ENROLLED,
-                            change_since_last_day if datestamp == self.event.datestamp else 0,
-                            self.mode
-                        )
-                else:
-                    # This indicates that the user was enrolled at some point on this day, but was not enrolled as of
-                    # 23:59:59.999999.
+                # There may be a very wide gap between this event and the next event. If the user is currently
+                # enrolled, we can assume they continue to be enrolled at least until the next day we see an event.
+                # Emit records for each of those intermediary days. Since the end of the interval is represented by
+                # a dummy event at the end of the list of events, it will be represented by self.next_event when
+                # processing the last real event in the stream. This allows the records to be produced up to the end
+                # of the interval if the last known state was "ENROLLED".
+                for datestamp in self.all_dates_between(self.event.datestamp, self.next_event.datestamp):
                     yield self.enrollment_record(
-                        self.event.datestamp,
-                        self.UNENROLLED,
-                        change_since_last_day,
+                        datestamp,
+                        self.state,
+                        change_since_last_day if datestamp == self.event.datestamp else 0,
                         self.mode
                     )
 
@@ -360,10 +352,10 @@ class EnrollmentByGenderTask(EnrollmentTask):
                 ce.date,
                 ce.course_id,
                 IF(p.gender != '', p.gender, NULL),
+                SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.at_end = 1
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -381,6 +373,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('gender', 'VARCHAR(6)'),
             ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
         ]
 
 
@@ -394,10 +387,10 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
                 ce.date,
                 ce.course_id,
                 p.year_of_birth,
+                SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.at_end = 1
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -415,6 +408,7 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('birth_year', 'INTEGER'),
             ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
         ]
 
 
@@ -441,10 +435,10 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     WHEN 'other' THEN 'other'
                     ELSE NULL
                 END,
+                SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.at_end = 1
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -475,6 +469,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('education_level', 'VARCHAR(16)'),
             ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
         ]
 
 
@@ -488,9 +483,9 @@ class EnrollmentByModeTask(EnrollmentTask):
                 ce.date,
                 ce.course_id,
                 ce.mode,
+                SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
-            WHERE ce.at_end = 1
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -508,6 +503,7 @@ class EnrollmentByModeTask(EnrollmentTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('mode', 'VARCHAR(255) NOT NULL'),
             ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
         ]
 
 
@@ -518,14 +514,14 @@ class EnrollmentDailyTask(EnrollmentTask):
     def query(self):
         return """
             SELECT
-                course_id,
-                date,
-                COUNT(user_id)
-            FROM course_enrollment
-            WHERE at_end = 1
+                ce.course_id,
+                ce.date,
+                SUM(ce.at_end),
+                COUNT(ce.user_id)
+            FROM course_enrollment ce
             GROUP BY
-                course_id,
-                date
+                ce.course_id,
+                ce.date
         """
 
     @property
@@ -538,6 +534,7 @@ class EnrollmentDailyTask(EnrollmentTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('date', 'DATE NOT NULL'),
             ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
         ]
 
 
