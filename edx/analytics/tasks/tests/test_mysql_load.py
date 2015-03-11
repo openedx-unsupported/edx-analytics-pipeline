@@ -260,9 +260,10 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
             "INDEX (course_id),INDEX (interval_start,interval_end))"
         )
 
-    def test_overwrite_with_emtpy_results(self):
-        task = self.create_task(source='', overwrite=True)
-        with self.assertRaises(Exception):
+    def test_overwrite_with_empty_results(self):
+        # A source of '' will result in a default source of one row, so add whitespace.
+        task = self.create_task(source='   ', overwrite=True)
+        with self.assertRaisesRegexp(Exception, 'Cannot overwrite a table with an empty result set.'):
             task.insert_rows(MagicMock())
 
 
