@@ -4,13 +4,13 @@ Support for loading data into a Mysql database.
 import json
 import logging
 from itertools import chain
-import urlparse
 
 import luigi
 import luigi.configuration
 from luigi.contrib.mysqldb import MySqlTarget
 
 from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.util.credentials import CredentialsUrl
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
@@ -56,37 +56,10 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
-                'insert_source': self.insert_source_task
+                'insert_source': self.insert_source_task,
+                'credentials': CredentialsUrl(url=self.credentials)
             }
-            if self.parse_credentials() is None:
-                self.required_tasks['credentials'] = ExternalURL(url=self.credentials)
         return self.required_tasks
-
-    def parse_credentials(self):
-        parsed_url = urlparse.urlparse(self.credentials)
-        if parsed_url.scheme != 'mysql':
-            return None
-        else:
-            split_netloc = parsed_url.netloc.split('@')
-            username = split_netloc[0]
-            password = None
-            if ':' in username:
-                username, password = username.split(':')
-            host = split_netloc[1]
-            port = None
-            if ':' in host:
-                host, port = host.split(':')
-                port = int(port)
-
-            credentials = {
-                'username': username,
-                'host': host
-            }
-            if port:
-                credentials['port'] = port
-            if password:
-                credentials['password'] = password
-            return credentials
 
     @property
     def insert_source_task(self):
@@ -210,7 +183,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         """
         if self.output_target is None:
             self.output_target = CredentialFileMysqlTarget(
-                credentials_target=(self.parse_credentials() or self.input()['credentials']),
+                credentials=self.input()['credentials'],
                 database_name=self.database,
                 table=self.table,
                 update_id=self.update_id()
@@ -382,8 +355,8 @@ class CredentialFileMysqlTarget(MySqlTarget):
     Represents a table in MySQL, is complete when the update_id is the same as a previous successful execution.
 
     Arguments:
-        credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
-            that will be used to connect to the database.
+        credentials (object): An object that exposes attributes for the host, port, username and password used
+            to connect to the database.
         database_name (str): The name of the database that the table exists in. Note this database need not exist.
         table (str): The name of the table in the database that is being modified.
         update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
@@ -391,19 +364,13 @@ class CredentialFileMysqlTarget(MySqlTarget):
 
     """
 
-    def __init__(self, credentials_target, database_name, table, update_id):
-        try:
-            with credentials_target.open('r') as credentials_file:
-                cred = json.load(credentials_file)
-        except AttributeError:
-            cred = credentials_target
-
+    def __init__(self, credentials, database_name, table, update_id):
         return super(CredentialFileMysqlTarget, self).__init__(
             # Annoying, but the port must be passed in with the host string...
-            host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 3306)),
+            host="{host}:{port}".format(host=credentials.host, port=credentials.port),
             database=database_name,
-            user=cred.get('username'),
-            password=cred.get('password'),
+            user=credentials.username,
+            password=credentials.password,
             table=table,
             update_id=update_id
         )
