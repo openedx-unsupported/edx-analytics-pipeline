@@ -36,6 +36,8 @@ def main():
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
     parser.add_argument('--wheel-url', help='url of the wheelhouse', default=os.getenv('WHEEL_URL'))
+    parser.add_argument('--luigi-hadoop-version', help='version of hadoop on the cluster', default='apache1')
+    parser.add_argument('--retry', action='store_true', help='skip setup of the environment, --remote-name also must be specified and point to a valid environment')
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -66,13 +68,14 @@ def run_task_playbook(inventory, arguments, uid):
         arguments (argparse.Namespace): The arguments that were passed in on the command line.
         uid (str): A unique identifier for this task execution.
     """
-    extra_vars = convert_args_to_extra_vars(arguments, uid)
-    args = ['task.yml', '-e', extra_vars]
-    if arguments.user:
-        args.extend(['-u', arguments.user])
-    prep_result = run_ansible(tuple(args), arguments.verbose, executable='ansible-playbook', host=arguments.host)
-    if prep_result != 0:
-        return prep_result
+    if not arguments.retry:
+        extra_vars = convert_args_to_extra_vars(arguments, uid)
+        args = ['task.yml', '-e', extra_vars]
+        if arguments.user:
+            args.extend(['-u', arguments.user])
+        prep_result = run_ansible(tuple(args), arguments.verbose, executable='ansible-playbook', host=arguments.host)
+        if prep_result != 0:
+            return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
     log_dir = os.path.join(REMOTE_LOG_DIR, uid)
@@ -147,6 +150,8 @@ def convert_args_to_extra_vars(arguments, uid):
             'WHEEL_URL': arguments.wheel_url,
             'WHEEL_PYVER': '2.7'
         }
+    if arguments.luigi_hadoop_version:
+        extra_vars['luigi_hadoop_version'] = arguments.luigi_hadoop_version
     return json.dumps(extra_vars)
 
 
