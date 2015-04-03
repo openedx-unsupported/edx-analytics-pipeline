@@ -92,6 +92,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
+        log.error('Starting reducer for %s with %d events', username, len(sorted_events))
         session = None
         for event in sorted_events:
             timestamp, event_type, encoded_module_id, old_time, current_time = event
@@ -113,6 +114,13 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_session(end_time):
+                if end_time is None or session.start_offset is None:
+                    log.error(
+                        'Invalid session ending, %s, %s, %f, %f',
+                        username, str(event), end_time, session.start_offset
+                    )
+                    return None
+
                 if (end_time - session.start_offset) < 0.5:
                     return None
                 else:
