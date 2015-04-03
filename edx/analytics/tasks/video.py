@@ -284,9 +284,9 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
     def columns(self):
         return [
             ('module_id', 'STRING'),
-            ('segment', 'INTEGER'),
-            ('num_users', 'INTEGER'),
-            ('num_views', 'INTEGER'),
+            ('segment', 'INT'),
+            ('num_users', 'INT'),
+            ('num_views', 'INT'),
         ]
 
     @property
