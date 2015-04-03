@@ -31,7 +31,7 @@ class CredentialsTarget(luigi.Target):
     def credentials(self):
         if not hasattr(self, '_credentials'):
             if self.is_external_file:
-                with self.open('r') as credentials_file:
+                with self.file_target.open('r') as credentials_file:
                     self._credentials = json.load(credentials_file)
             else:
                 split_netloc = self.parsed_url.netloc.split('@')
