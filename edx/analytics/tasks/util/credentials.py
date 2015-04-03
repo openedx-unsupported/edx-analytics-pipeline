@@ -17,6 +17,9 @@ class CredentialsUrl(ExternalURL):
         else:
             return True
 
+    def output(self):
+        return self
+
     @property
     def is_external_file(self):
         return self.parsed_url.scheme != 'mysql'
@@ -64,4 +67,4 @@ class CredentialsUrl(ExternalURL):
 
     @property
     def password(self):
-        return self.credentials['password']
+        return self.credentials.get('password', '')
