@@ -303,6 +303,9 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             warehouse_path=self.warehouse_path,
         )
 
+    def output(self):
+        return self.requires().output()
+
 
 class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
