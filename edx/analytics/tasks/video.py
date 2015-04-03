@@ -12,7 +12,7 @@ import luigi
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
@@ -37,6 +37,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     '/jsi18n/',
     '/logout',
 ])
+VIDEO_SESSION_THRESHOLD = 30 * 60 * 60
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -82,9 +83,10 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 current_time = event_data.get('new_time')
             else:
                 current_time = event_data.get('currentTime')
-
-        if encoded_module_id and encoded_module_id == 'i4x-HarvardX-CS50x3-video-26006008b43e46ddb64dff7d24fbab5c' and float(current_time) > 3180:
-            log.error('----EVENT: %s', line)
+        elif event_type in VIDEO_SESSION_END_INDICATORS:
+            pass
+        else:
+            return
 
         yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
 
@@ -96,8 +98,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
-
-            # yield [username] + list(event)
 
             def start_session():
                 m = hashlib.md5()
@@ -113,13 +113,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_session(end_time):
-                if end_time is None or session.start_offset is None:
-                    log.error(
-                        'Invalid session ending, %s, %s, %f, %f',
-                        username, str(event), end_time, session.start_offset
-                    )
-                    return None
-
                 if (end_time - session.start_offset) < 0.5:
                     return None
                 else:
@@ -165,6 +158,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             elif event_type in VIDEO_SESSION_END_INDICATORS:
                 if session:
                     session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
+                    session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
                     session_end = session.start_offset + session_length
                     record = end_session(session_end)
                     if record:
@@ -173,6 +167,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
         if session:
             session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
+            session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
             session_end = session.start_offset + session_length
             record = end_session(session_end)
             if record:
