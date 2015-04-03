@@ -3,6 +3,8 @@ from collections import namedtuple
 import hashlib
 import datetime
 import logging
+import math
+import json
 
 import ciso8601
 import luigi
@@ -12,6 +14,7 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelecti
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +110,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_session(end_time):
-                if not end_time or not session.start_offset:
+                if end_time is None or session.start_offset is None:
                     log.error(
                         'Invalid session ending, %s, %s, %f, %f',
                         username, str(event), end_time, session.start_offset
@@ -177,11 +180,11 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
-class UserVideoSessionTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     pass
 
 
-class UserVideoSessionTableTask(UserVideoSessionTableDownstreamMixin, HiveTableTask):
+class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
     @property
     def table(self):
@@ -213,99 +216,116 @@ class UserVideoSessionTableTask(UserVideoSessionTableDownstreamMixin, HiveTableT
         )
 
 
-class NaturalNumbersTask(luigi.Task):
+class VideoUsageTask(EventLogSelectionDownstreamMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
-    maximum = luigi.Parameter(default=10000)
+
+    def requires(self):
+        return UserVideoSessionTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.output_root.replace('video_usage', 'user_video_session'),
+        )
+
+    def mapper(self, line):
+        username, session_id, encoded_module_id, start_timestamp_str, start_offset, end_offset = line.split('\t')
+        yield (encoded_module_id, (username, start_offset, end_offset))
+
+    def reducer_backup(self, encoded_module_id, sessions):
+        usage_map = {}
+
+        for session in sessions:
+            username, start_offset, end_offset = session
+            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
+                stats = usage_map.setdefault(second, {})
+                users = stats.setdefault('users', set())
+                users.add(username)
+                stats['views'] = stats.get('views', 0) + 1
+
+        csv_data = []
+        for second in usage_map.keys():
+            stats = usage_map[second]
+            csv_data.append(','.join([str(x) for x in (second, len(stats['users']), stats['views'])]))
+
+        blob_data = '|'.join(csv_data)
+        log.warn(str(len(blob_data)))
+        yield encoded_module_id, blob_data
+
+    def reducer(self, encoded_module_id, sessions):
+        usage_map = {}
+
+        for session in sessions:
+            username, start_offset, end_offset = session
+            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
+                stats = usage_map.setdefault(second, {})
+                users = stats.setdefault('users', set())
+                users.add(username)
+                stats['views'] = stats.get('views', 0) + 1
+
+        for second in usage_map.keys():
+            stats = usage_map[second]
+            yield encoded_module_id, second, len(stats['users']), stats['views']
+            del usage_map[second]
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'data.tsv'))
-
-    def run(self):
-        with self.output().open('w') as output_file:
-            for i in xrange(self.maximum):
-                output_file.write(unicode(i).encode('utf8') + '\n')
+        return get_target_from_url(self.output_root)
 
 
-class NaturalNumbersTableTask(HiveTableTask):
-
-    maximum = luigi.Parameter(default=10000)
+class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
     @property
     def table(self):
-        return 'natural_numbers'
+        return 'video_usage'
 
     @property
     def columns(self):
         return [
-            ('num', 'INT'),
-        ]
-
-    @property
-    def partition(self):
-        return HivePartition('m', str(self.maximum))
-
-    def requires(self):
-        return NaturalNumbersTask(
-            output_root=self.partition_location,
-            maximum=self.maximum,
-        )
-
-
-class VideoHeatmapTableTask(UserVideoSessionTableDownstreamMixin, HiveQueryToMysqlTask):
-
-    @property
-    def indexes(self):
-        return [
-            ('module_id',),
+            ('module_id', 'STRING'),
+            ('segment', 'INTEGER'),
+            ('num_users', 'INTEGER'),
+            ('num_views', 'INTEGER'),
         ]
 
     @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
-    @property
-    def required_table_tasks(self):
-        yield (
-            UserVideoSessionTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                warehouse_path=self.warehouse_path,
-            ),
-            NaturalNumbersTableTask(
-                warehouse_path=self.warehouse_path,
-            )
+    def requires(self):
+        return UserVideoSessionTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.partition_location,
         )
 
-    @property
-    def query(self):
-        return """
-            SELECT
-                s.encoded_module_id as module_id,
-                second.num as segment,
-                COUNT(DISTINCT s.username) as num_users,
-                COUNT(1) as num_views
-            FROM user_video_session s
-            CROSS JOIN natural_numbers second
-            WHERE
-                FLOOR(s.start_offset) <= second.num AND second.num <= CEIL(s.end_offset)
-            GROUP BY
-                s.encoded_module_id,
-                second.num
-        """
+
+class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
     @property
     def table(self):
-        return 'video_heatmap'
+        return "video_usage"
 
     @property
     def columns(self):
         return [
-            ('module_id', 'VARCHAR(255) NOT NULL'),
+            ('module_id', 'VARCHAR(255)'),
             ('segment', 'INTEGER'),
             ('num_users', 'INTEGER'),
             ('num_views', 'INTEGER'),
         ]
+
+    @property
+    def insert_source_task(self):
+        return VideoUsageTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=url_path_join(self.warehouse_path, self.table, 'dt=' + self.interval.date_b.isoformat()) + '/',
+        )
