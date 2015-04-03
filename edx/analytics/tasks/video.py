@@ -306,6 +306,8 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
 class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
+    overwrite = luigi.BooleanParameter(default=True)
+
     @property
     def table(self):
         return "video_usage"
