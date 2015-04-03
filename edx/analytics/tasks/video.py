@@ -215,19 +215,22 @@ class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
             output_root=self.partition_location,
         )
 
+    def output(self):
+        return self.requires().output()
 
-class VideoUsageTask(EventLogSelectionDownstreamMixin, MapReduceJobTask):
+
+class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
 
     def requires(self):
-        return UserVideoSessionTask(
+        return UserVideoSessionTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=self.output_root.replace('video_usage', 'user_video_session'),
+            warehouse_path=self.warehouse_path
         )
 
     def mapper(self, line):
@@ -294,13 +297,14 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        return UserVideoSessionTableTask(
+        return VideoUsageTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            output_root=self.partition_location
         )
 
     def output(self):
