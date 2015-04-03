@@ -55,7 +55,7 @@ URL_SCHEME_TO_TARGET_CLASS = {
     's3': S3HdfsTarget,
     's3n': S3HdfsTarget,
     'file': luigi.LocalTarget,
-    's3+https': luigi.s3.S3Target,
+    's3+https': luigi.s3.S3Target
 }
 
 
