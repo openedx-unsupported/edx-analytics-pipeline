@@ -18,7 +18,10 @@ class CredentialsUrl(ExternalURL):
             return True
 
     def output(self):
-        return self
+        if self.is_external_file:
+            return super(CredentialsUrl, self).output()
+        else:
+            return self
 
     @property
     def is_external_file(self):
