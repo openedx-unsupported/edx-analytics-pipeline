@@ -83,6 +83,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             else:
                 current_time = event_data.get('currentTime')
 
+        if encoded_module_id and encoded_module_id == 'i4x-HarvardX-CS50x3-video-26006008b43e46ddb64dff7d24fbab5c' and float(current_time) > 3180:
+            log.error('----EVENT: %s', line)
+
         yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
 
     def reducer(self, username, events):
