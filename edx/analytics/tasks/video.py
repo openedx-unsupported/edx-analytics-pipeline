@@ -294,13 +294,13 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        return UserVideoSessionTask(
+        return UserVideoSessionTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=self.partition_location,
+            warehouse_path=self.warehouse_path,
         )
 
 
@@ -323,11 +323,11 @@ class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
     @property
     def insert_source_task(self):
-        return VideoUsageTask(
+        return VideoUsageTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=url_path_join(self.warehouse_path, self.table, 'dt=' + self.interval.date_b.isoformat()) + '/',
+            warehouse_path=self.warehouse_path,
         )
