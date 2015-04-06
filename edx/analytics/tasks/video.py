@@ -93,9 +93,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def _encode_tuple(self, values):
         if len(values) > 1:
-            return tuple([value.encode('utf8') for value in values])
+            return tuple([unicode(value).encode('utf8') for value in values])
         else:
-            return values[0].encode('utf8')
+            return unicode(values[0]).encode('utf8')
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
