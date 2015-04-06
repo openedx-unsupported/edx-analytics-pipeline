@@ -38,7 +38,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     '/logout',
 ])
 VIDEO_SESSION_THRESHOLD_MIN = 1
-VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60 * 60
+VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60
 
 
 VideoSession = namedtuple('VideoSession', [
