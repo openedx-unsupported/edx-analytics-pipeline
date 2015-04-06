@@ -103,8 +103,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             if current_time:
                 current_time = float(current_time)
 
-            yield event
-            continue
+            log.warn('\t'.join(event))
 
             def start_session():
                 m = hashlib.md5()
@@ -172,21 +171,21 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             elif event_type in VIDEO_SESSION_END_INDICATORS:
                 if session:
                     session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                    session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
-                    session_end = session.start_offset + session_length
-                    record = end_session(session_end)
-                    if record:
-                        yield record
-                    session = None
+                    if session_length < VIDEO_SESSION_THRESHOLD:
+                        session_end = session.start_offset + session_length
+                        record = end_session(session_end)
+                        if record:
+                            yield record
+                        session = None
 
         if session:
             session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-            session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
-            session_end = session.start_offset + session_length
-            record = end_session(session_end)
-            if record:
-                yield record
-            session = None
+            if session_length < VIDEO_SESSION_THRESHOLD:
+                session_end = session.start_offset + session_length
+                record = end_session(session_end)
+                if record:
+                    yield record
+                session = None
 
     def output(self):
         return get_target_from_url(self.output_root)
