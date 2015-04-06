@@ -88,6 +88,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         else:
             return
 
+        if encoded_module_id != 'i4x-HarvardX-CS50x3-video-26006008b43e46ddb64dff7d24fbab5c' or username != 'Pedro-rsm':
+            return
+
         yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
 
     def reducer(self, username, events):
@@ -99,6 +102,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
+
+            yield event
+            continue
 
             def start_session():
                 m = hashlib.md5()
