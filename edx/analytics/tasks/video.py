@@ -140,6 +140,25 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         end_time,
                     )
 
+            def end_implicit_session():
+                try:
+                    if session:
+                        session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
+                        if session_length < VIDEO_SESSION_DANGLING_THRESHOLD:
+                            session_end = session.start_offset + session_length
+                            return end_session(session_end)
+                except TypeError:
+                    log.exception(
+                        'Unable to end implicit session, start_time={0}, length={1}'.format(
+                            session.start_offset,
+                            session_length
+                        )
+                    )
+                    return None
+
+                return None
+
+
             if event_type == VIDEO_PLAYED:
                 if session:
                     time_diff = parsed_timestamp - session.start_timestamp
@@ -171,23 +190,15 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 session = start_session()
 
             elif event_type in VIDEO_SESSION_END_INDICATORS:
-                if session:
-                    session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                    if session_length < VIDEO_SESSION_DANGLING_THRESHOLD:
-                        session_end = session.start_offset + session_length
-                        record = end_session(session_end)
-                        if record:
-                            yield record
-                        session = None
-
-        if session:
-            session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-            if session_length < VIDEO_SESSION_DANGLING_THRESHOLD:
-                session_end = session.start_offset + session_length
-                record = end_session(session_end)
+                record = end_implicit_session()
                 if record:
                     yield record
                 session = None
+
+        record = end_implicit_session()
+        if record:
+            yield record
+        session = None
 
     def output(self):
         return get_target_from_url(self.output_root)
