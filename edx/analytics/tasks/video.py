@@ -91,6 +91,12 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
         yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
 
+    def _encode_tuple(self, values):
+        if len(values) > 1:
+            return tuple([value.encode('utf8') for value in values])
+        else:
+            return values[0].encode('utf8')
+
     def reducer(self, username, events):
         sorted_events = sorted(events)
         log.error('Starting reducer for %s with %d events', username, len(sorted_events))
@@ -131,14 +137,14 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 if session_length < VIDEO_SESSION_THRESHOLD_MIN:
                     return None
                 else:
-                    return (
+                    return self._encode_tuple((
                         username,
                         session.session_id,
                         session.encoded_module_id,
                         session.start_timestamp.isoformat(),
                         session.start_offset,
                         end_time,
-                    )
+                    ))
 
             def end_implicit_session():
                 try:
@@ -157,7 +163,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     return None
 
                 return None
-
 
             if event_type == VIDEO_PLAYED:
                 if session:
