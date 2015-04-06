@@ -90,9 +90,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         else:
             return
 
-        if username != 'Pedro-rsm':
-            return
-
         yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
 
     def reducer(self, username, events):
