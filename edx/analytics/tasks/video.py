@@ -126,6 +126,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                             session.start_offset
                         )
                     )
+                    return None
 
                 if session_length < VIDEO_SESSION_THRESHOLD_MIN:
                     return None
