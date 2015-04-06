@@ -105,9 +105,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
             def start_session():
                 m = hashlib.md5()
-                m.update(username)
-                m.update(encoded_module_id)
-                m.update(timestamp)
+                m.update(username.encode('utf-8'))
+                m.update(encoded_module_id.encode('utf-8'))
+                m.update(timestamp.encode('utf-8'))
 
                 return VideoSession(
                     session_id=m.hexdigest(),
