@@ -39,6 +39,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
 ])
 VIDEO_SESSION_THRESHOLD_MIN = 1
 VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60
+VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -262,7 +263,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             warehouse_path=self.warehouse_path
         )
 
-    def mapper(self, line):
+    def mapper_backup(self, line):
         username, session_id, encoded_module_id, start_timestamp_str, start_offset, end_offset = line.split('\t')
         yield (encoded_module_id, (username, start_offset, end_offset))
 
@@ -286,15 +287,15 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         log.warn(str(len(blob_data)))
         yield encoded_module_id, blob_data
 
-    def reducer(self, encoded_module_id, sessions):
+    def reducer_backup_2(self, encoded_module_id, sessions):
         usage_map = {}
 
         for session in sessions:
             username, start_offset, end_offset = session
             first_second = int(math.floor(float(start_offset)))
-            start_segment = (first_second / 5) * 5
+            start_segment = (first_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
             last_second = int(math.ceil(float(end_offset)))
-            for segment in xrange(start_segment, last_second, 5):
+            for segment in xrange(start_segment, last_second, VIDEO_SESSION_SECONDS_PER_SEGMENT):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
@@ -304,6 +305,23 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             stats = usage_map[segment]
             yield encoded_module_id, segment, len(stats['users']), stats['views']
             del usage_map[segment]
+
+    def mapper(self, line):
+        username, session_id, encoded_module_id, start_timestamp_str, start_offset, end_offset = line.split('\t')
+        first_second = int(math.floor(float(start_offset)))
+        start_segment = (first_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+        last_second = int(math.ceil(float(end_offset)))
+        for segment in xrange(start_segment, last_second, VIDEO_SESSION_SECONDS_PER_SEGMENT):
+            yield ((encoded_module_id, segment), username)
+
+    def reducer(self, key, usernames):
+        encoded_module_id, segment = key
+        num_views = 0
+        users = set()
+        for username in usernames:
+            num_views += 1
+            users.add(username)
+        yield encoded_module_id, segment, len(users), num_views
 
     def output(self):
         return get_target_from_url(self.output_root)
