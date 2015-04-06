@@ -39,7 +39,6 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
 ])
 VIDEO_SESSION_THRESHOLD_MIN = 1
 VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60
-VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -272,7 +271,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
         for session in sessions:
             username, start_offset, end_offset = session
-            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), VIDEO_SESSION_SECONDS_PER_SEGMENT):
+            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
                 stats = usage_map.setdefault(second, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
