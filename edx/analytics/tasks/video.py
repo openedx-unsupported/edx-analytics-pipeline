@@ -101,7 +101,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             if current_time:
                 current_time = float(current_time)
 
-            log.warn('\t'.join([str(x) for x in event]))
+            # log.warn('\t'.join([str(x) for x in event]))
 
             def start_session():
                 m = hashlib.md5()
