@@ -117,14 +117,17 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_session(end_time):
-                if end_time is None or session.start_offset is None:
-                    log.error(
-                        'Invalid session ending, %s, %s, %f, %f',
-                        username, str(event), end_time, session.start_offset
+                try:
+                    session_length = end_time - session.start_offset
+                except TypeError:
+                    log.exception(
+                        'Unable to determine session length, end_time={0}, start_time={1}'.format(
+                            end_time,
+                            session.start_offset
+                        )
                     )
-                    return None
 
-                if (end_time - session.start_offset) < VIDEO_SESSION_THRESHOLD_MIN:
+                if session_length < VIDEO_SESSION_THRESHOLD_MIN:
                     return None
                 else:
                     return (
