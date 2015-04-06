@@ -271,16 +271,19 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
         for session in sessions:
             username, start_offset, end_offset = session
-            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
-                stats = usage_map.setdefault(second, {})
+            first_second = int(math.floor(float(start_offset)))
+            start_segment = (first_second / 5) * 5
+            last_second = int(math.ceil(float(end_offset)))
+            for second in xrange(start_segment, last_second, 5):
+                stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
-        for second in usage_map.keys():
-            stats = usage_map[second]
-            yield encoded_module_id, second, len(stats['users']), stats['views']
-            del usage_map[second]
+        for segment in usage_map.keys():
+            stats = usage_map[segment]
+            yield encoded_module_id, segment, len(stats['users']), stats['views']
+            del usage_map[segment]
 
     def output(self):
         return get_target_from_url(self.output_root)
