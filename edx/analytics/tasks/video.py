@@ -37,7 +37,8 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     '/jsi18n/',
     '/logout',
 ])
-VIDEO_SESSION_THRESHOLD = 30 * 60 * 60
+VIDEO_SESSION_THRESHOLD_MIN = 1
+VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60 * 60
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -103,7 +104,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             if current_time:
                 current_time = float(current_time)
 
-            log.warn('\t'.join(event))
+            log.warn('\t'.join([str(x) for x in event]))
 
             def start_session():
                 m = hashlib.md5()
@@ -126,7 +127,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     )
                     return None
 
-                if (end_time - session.start_offset) < 0.5:
+                if (end_time - session.start_offset) < VIDEO_SESSION_THRESHOLD_MIN:
                     return None
                 else:
                     return (
@@ -171,7 +172,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             elif event_type in VIDEO_SESSION_END_INDICATORS:
                 if session:
                     session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                    if session_length < VIDEO_SESSION_THRESHOLD:
+                    if session_length < VIDEO_SESSION_DANGLING_THRESHOLD:
                         session_end = session.start_offset + session_length
                         record = end_session(session_end)
                         if record:
@@ -180,7 +181,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
         if session:
             session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-            if session_length < VIDEO_SESSION_THRESHOLD:
+            if session_length < VIDEO_SESSION_DANGLING_THRESHOLD:
                 session_end = session.start_offset + session_length
                 record = end_session(session_end)
                 if record:
