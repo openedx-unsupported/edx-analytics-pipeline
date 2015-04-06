@@ -39,6 +39,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
 ])
 VIDEO_SESSION_THRESHOLD_MIN = 1
 VIDEO_SESSION_DANGLING_THRESHOLD = 30 * 60
+VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -142,7 +143,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             if event_type == VIDEO_PLAYED:
                 if session:
                     time_diff = parsed_timestamp - session.start_timestamp
-                    if time_diff < datetime.timedelta(seconds=0.5):
+                    if time_diff < datetime.timedelta(VIDEO_SESSION_THRESHOLD_MIN):
                         # log.warn(
                         #     'Play video events detected %f seconds apart, second one is ignored.',
                         #     time_diff.total_seconds()
@@ -274,7 +275,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
         for session in sessions:
             username, start_offset, end_offset = session
-            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
+            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), VIDEO_SESSION_SECONDS_PER_SEGMENT):
                 stats = usage_map.setdefault(second, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
