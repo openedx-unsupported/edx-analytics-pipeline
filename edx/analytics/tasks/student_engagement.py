@@ -2,12 +2,13 @@
 from itertools import groupby
 from operator import itemgetter
 import re
+import gzip
 
 import luigi
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 
 
@@ -122,3 +123,51 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def output(self):
         return get_target_from_url(self.output_root)
+
+
+class SplitStudentEngagementTask(EventLogSelectionDownstreamMixin, MultiOutputMapReduceJobTask):
+
+    output_root = luigi.Parameter()
+
+    COLUMN_NAMES = (
+        'course_id',
+        'username',
+        'was_active',
+        'problems_attempted',
+        'problem_attempts',
+        'problems_correct',
+        'videos_played',
+        'forum_posts',
+        'forum_replies',
+        'forum_comments',
+        'textbook_pages_viewed',
+        'last_subsection_viewed'
+    )
+
+    def requires(self):
+        yield StudentEngagementTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=url_path_join(self.output_root, 'raw')
+        )
+
+    def mapper(self, line):
+        split_line = line.split('\t')
+        yield (split_line[0], tuple(split_line[1:]))
+
+    def multi_output_reducer(self, _date_string, values, output_file):
+        with gzip.GzipFile(mode='wb', fileobj=output_file) as compressed_output_file:
+            compressed_output_file.write('\t'.join(self.COLUMN_NAMES) + '\n')
+            for value in values:
+                compressed_output_file.write('\t'.join(value))
+                compressed_output_file.write('\n')
+
+    def output_path_for_key(self, date_string):
+        return url_path_join(
+            self.output_root,
+            'output',
+            date_string + '.tsv.gz'
+        )
