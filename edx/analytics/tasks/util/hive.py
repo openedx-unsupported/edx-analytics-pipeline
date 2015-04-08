@@ -181,11 +181,6 @@ class HivePartitionParameter(Parameter):
 class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
     """Creates a hive table from the results of a hive query."""
 
-    insert_query = luigi.Parameter()
-    table = luigi.Parameter()
-    columns = luigi.Parameter(is_list=True)
-    partition = HivePartitionParameter()
-
     def query(self):
         create_table_statements = super(HiveTableFromQueryTask, self).query()
         full_insert_query = """
@@ -202,6 +197,20 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
 
     def output(self):
         return get_target_from_url(self.partition_location)
+
+    @property
+    def insert_query(self):
+        """Hive query to run."""
+        raise NotImplementedError
+
+
+class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disable=abstract-method
+    """Creates a hive table from the results of a hive query, given parameters instead of properties."""
+
+    insert_query = luigi.Parameter()
+    table = luigi.Parameter()
+    columns = luigi.Parameter(is_list=True)
+    partition = HivePartitionParameter()
 
 
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
@@ -223,7 +232,7 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
 
     @property
     def insert_source_task(self):
-        return HiveTableFromQueryTask(
+        return HiveTableFromParameterQueryTask(
             warehouse_path=self.warehouse_path,
             insert_query=self.query,
             table=self.table,

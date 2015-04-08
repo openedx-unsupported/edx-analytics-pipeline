@@ -267,6 +267,38 @@ class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportCourseUserGroupTask(ImportMysqlToHiveTableTask):
+    """Imports course cohort information from an external LMS DB to a destination directory."""
+
+    @property
+    def table_name(self):
+        return 'course_groups_courseusergroup'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('course_id', 'STRING'),
+            ('group_type', 'STRING'),
+        ]
+
+
+class ImportCourseUserGroupUsersTask(ImportMysqlToHiveTableTask):
+    """Imports user cohort information from an external LMS DB to a destination directory."""
+
+    @property
+    def table_name(self):
+        return 'course_groups_courseusergroup_users'
+
+    @property
+    def columns(self):
+        return [
+            ('courseusergroup_id', 'INT'),
+            ('user_id', 'INT'),
+        ]
+
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
     def requires(self):
