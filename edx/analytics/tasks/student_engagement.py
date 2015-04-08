@@ -1,4 +1,5 @@
 
+import datetime
 from itertools import groupby
 from operator import itemgetter
 import re
@@ -10,11 +11,13 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduce
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util import Week
 
 
 class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
+    group_by_week = luigi.BooleanParameter(default=False)
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -68,10 +71,23 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             info['timestamp'] = timestamp
             event_type = 'marker:last_subsection_viewed'
 
-        yield ((date_string, course_id, username), (entity_id, event_type, info))
+        date_grouping_key = date_string
+        if self.group_by_week:
+            week_of_year = self.get_iso_week_containing_date(date_string)
+            start_date = week_of_year.monday()
+            end_date = week_of_year.sunday() + datetime.timedelta(days=1)
+            date_grouping_key = '{0}-{1}'.format(start_date.isoformat(), end_date.isoformat())
+
+        yield ((date_grouping_key, course_id, username), (entity_id, event_type, info))
+
+    def get_iso_week_containing_date(self, date_string):
+        split_date = date_string.split('-')
+        date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
+        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        return Week(iso_year, iso_weekofyear)
 
     def reducer(self, key, events):
-        date_string, course_id, username = key
+        date_grouping_key, course_id, username = key
         sort_key = itemgetter(0)
         sorted_events = sorted(events, key=sort_key)
 
@@ -119,7 +135,21 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             if is_correct:
                 num_problems_correct += 1
 
-        yield date_string, course_id, username, was_active, num_problems_attempted, num_problem_attempts, num_problems_correct, num_videos_played, num_forum_posts, num_forum_replies, num_forum_comments, num_textbook_pages, last_subsection_viewed
+        yield (
+            date_grouping_key,
+            course_id,
+            username,
+            was_active,
+            num_problems_attempted,
+            num_problem_attempts,
+            num_problems_correct,
+            num_videos_played,
+            num_forum_posts,
+            num_forum_replies,
+            num_forum_comments,
+            num_textbook_pages,
+            last_subsection_viewed
+        )
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -128,6 +158,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 class SplitStudentEngagementTask(EventLogSelectionDownstreamMixin, MultiOutputMapReduceJobTask):
 
     output_root = luigi.Parameter()
+    group_by_week = luigi.BooleanParameter(default=False)
 
     COLUMN_NAMES = (
         'course_id',
@@ -151,7 +182,8 @@ class SplitStudentEngagementTask(EventLogSelectionDownstreamMixin, MultiOutputMa
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=url_path_join(self.output_root, str(self.interval), 'raw')
+            output_root=url_path_join(self.output_root, str(self.interval), 'raw'),
+            group_by_week=self.group_by_week
         )
 
     def mapper(self, line):
