@@ -151,7 +151,7 @@ class SplitStudentEngagementTask(EventLogSelectionDownstreamMixin, MultiOutputMa
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=url_path_join(self.output_root, 'raw')
+            output_root=url_path_join(self.output_root, self.interval.date_b.isoformat(), 'raw')
         )
 
     def mapper(self, line):
@@ -168,6 +168,7 @@ class SplitStudentEngagementTask(EventLogSelectionDownstreamMixin, MultiOutputMa
     def output_path_for_key(self, date_string):
         return url_path_join(
             self.output_root,
+            self.interval.date_b.isoformat(),
             'output',
             date_string + '.tsv.gz'
         )
