@@ -184,6 +184,15 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
         map_output = StringIO.StringIO()
         input_targets = luigi.task.flatten(job.input_hadoop())
         for input_target in input_targets:
+            # if file is a directory, then assume that it's Hadoop output,
+            # and actually loop through its contents:
+            if os.path.isdir(input_target.path):
+                filenames = os.listdir(input_target.path)
+                for filename in filenames:
+                    url = url_path_join(input_target.path, filename)
+                    input_targets.append(get_target_from_url(url.strip()))
+                continue
+
             with input_target.open('r') as input_file:
 
                 # S3 files not yet supported since they don't support tell() and seek()
