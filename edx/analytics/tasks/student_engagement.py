@@ -7,6 +7,8 @@ import gzip
 
 import luigi
 
+from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
+
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
@@ -280,22 +282,33 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
     @property
     def insert_query(self):
         return """
-        SELECT ser.date, ser.course_id, ser.username, au.email, ser.was_active,
+        SELECT ser.date, ser.course_id, ser.username, au.email, cug.name, ser.was_active,
             ser.problems_attempted, ser.problem_attempts, ser.problems_correct,
             ser.videos_played, ser.forum_posts, ser.forum_replies, ser.forum_comments,
             ser textbook_pages_viewed, ser.last_subsection_viewed
         FROM student_engagement_raw ser
         INNER JOIN auth_user au
             ON (ser.username = au.username)
+        INNER JOIN course_groups_courseusergroup_users cugu
+            ON (au.id = cugu.user_id)
+        INNER JOIN course_groups_courseusergroup cug
+            ON (cugu.courseusergroup_id = cug.id)
+
         """;
 
     def requires(self):
-        return StudentEngagementTableTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            output_root=self.partition_location,
+        kwargs_for_db_import = {
+            'overwrite': self.overwrite,
+        }
+        yield (
+            StudentEngagementTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+            ),
+            ImportAuthUserTask(**kwargs_for_db_import),
+            ImportCourseUserGroupTask(**kwargs_for_db_import),
+            ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
         )
-
