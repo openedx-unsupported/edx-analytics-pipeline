@@ -1,14 +1,16 @@
 
+import logging
 import datetime
 from itertools import groupby
 from operator import itemgetter
 import re
 import gzip
+import textwrap
 
 import luigi
 
 from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
-
+from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
@@ -16,6 +18,8 @@ from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util import Week
 
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+
+log = logging.getLogger(__name__)
 
 
 class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -281,24 +285,29 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
 
     @property
     def insert_query(self):
+        # Note that the inner joins are wrong to be using on the cohort identification,
+        # because not every user_id will have a cohort assignment.  Using inner joins
+        # will limit all engagement to cohorted users (and the courses in which they are cohorted).
+        # So those should be left joins.  But we are doing an inner join with auth_user
+        # in order to even get an id.  So we may need a subquery.
         return """
         SELECT ser.date, ser.course_id, ser.username, au.email, cug.name, ser.was_active,
             ser.problems_attempted, ser.problem_attempts, ser.problems_correct,
             ser.videos_played, ser.forum_posts, ser.forum_replies, ser.forum_comments,
-            ser textbook_pages_viewed, ser.last_subsection_viewed
+            ser.textbook_pages_viewed, ser.last_subsection_viewed
         FROM student_engagement_raw ser
         INNER JOIN auth_user au
             ON (ser.username = au.username)
         INNER JOIN course_groups_courseusergroup_users cugu
             ON (au.id = cugu.user_id)
         INNER JOIN course_groups_courseusergroup cug
-            ON (cugu.courseusergroup_id = cug.id)
-
+            ON (cugu.courseusergroup_id = cug.id AND cugu.course_id = ser.course_id)
         """;
 
     def requires(self):
         kwargs_for_db_import = {
             'overwrite': self.overwrite,
+            'warehouse_path': self.warehouse_path,
         }
         yield (
             StudentEngagementTableTask(
@@ -311,4 +320,5 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
+            CourseEnrollmentTableTask(**kwargs_for_db_import),
         )
