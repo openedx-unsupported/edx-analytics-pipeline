@@ -308,16 +308,18 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
         kwargs_for_db_import = {
             'overwrite': self.overwrite,
         }
+        kwargs_for_logfiles = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'overwrite': self.overwrite,
+        }
         yield (
-            StudentEngagementTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-            ),
+            StudentEngagementTableTask(**kwargs_for_logfiles),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
-            CourseEnrollmentTableTask(**kwargs_for_db_import),
+            CourseEnrollmentTableTask(**kwargs_for_logfiles),
         )
