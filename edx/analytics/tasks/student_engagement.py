@@ -230,7 +230,7 @@ class MyHiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-metho
     def query(self):
         create_table_statements = super(MyHiveTableFromQueryTask, self).query()
         full_insert_query = """
-            INSERT INTO {table}
+            INSERT INTO TABLE {table}
             PARTITION ({partition.query_spec})
             {insert_query}
         """.format(
@@ -291,17 +291,22 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
         # So those should be left joins.  But we are doing an inner join with auth_user
         # in order to even get an id.  So we may need a subquery.
         return """
-        SELECT ser.date, ser.course_id, ser.username, au.email, cug.name, ser.was_active,
-            ser.problems_attempted, ser.problem_attempts, ser.problems_correct,
+        SELECT ce.date, ce.course_id, au.username, au.email,
+            cug.name, 
+            ser.was_active, ser.problems_attempted, ser.problem_attempts, ser.problems_correct,
             ser.videos_played, ser.forum_posts, ser.forum_replies, ser.forum_comments,
             ser.textbook_pages_viewed, ser.last_subsection_viewed
-        FROM student_engagement_raw ser
+        FROM course_enrollment ce
         INNER JOIN auth_user au
-            ON (ser.username = au.username)
-        INNER JOIN course_groups_courseusergroup_users cugu
+            ON (ce.user_id = au.id)
+        LEFT OUTER JOIN student_engagement_raw ser
+            ON (au.username = ser.username AND ce.date = ser.date)
+        LEFT OUTER JOIN course_groups_courseusergroup_users cugu
             ON (au.id = cugu.user_id)
-        INNER JOIN course_groups_courseusergroup cug
+        LEFT OUTER JOIN course_groups_courseusergroup cug
             ON (cugu.courseusergroup_id = cug.id AND cugu.course_id = ser.course_id)
+        WHERE ce.at_end = 1
+
         """;
 
     def requires(self):
