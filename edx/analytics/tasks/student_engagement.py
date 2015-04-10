@@ -305,7 +305,7 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
             ON (au.id = cugu.user_id)
         LEFT OUTER JOIN course_groups_courseusergroup cug
             ON (cugu.courseusergroup_id = cug.id AND ce.course_id = cug.course_id)
-        WHERE ce.at_end = 1 AND ce.date >= '{start}'' AND ce.date < '{end}'
+        WHERE ce.at_end = 1 AND ce.date >= '{start}' AND ce.date < '{end}'
 
         """.format(
             start=self.interval.date_a.isoformat(),
