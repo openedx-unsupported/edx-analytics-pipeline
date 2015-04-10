@@ -305,9 +305,12 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
             ON (au.id = cugu.user_id)
         LEFT OUTER JOIN course_groups_courseusergroup cug
             ON (cugu.courseusergroup_id = cug.id AND ce.course_id = cug.course_id)
-        WHERE ce.at_end = 1
+        WHERE ce.at_end = 1 AND ce.date >= {start} AND ce.date < {end}
 
-        """;
+        """.format(
+            start=self.interval.date_a.isoformat(),
+            end=self.interval.date_b.isoformat()
+        )
 
     def requires(self):
         kwargs_for_db_import = {
