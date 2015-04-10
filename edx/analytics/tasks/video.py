@@ -4,7 +4,8 @@ import hashlib
 import datetime
 import logging
 import math
-import json
+import xml.etree.cElementTree as ET
+import urllib
 
 import ciso8601
 import luigi
@@ -30,14 +31,13 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     'seq_prev',
     'seq_goto',
     'page_close',
-    '/jsi18n/',
-    '/logout',
 ])
 VIDEO_SESSION_THRESHOLD = 60
+VIDEO_SESSION_UNKNOWN_DURATION = -1
 
 
 VideoSession = namedtuple('VideoSession', [
-    'session_id', 'start_timestamp', 'encoded_module_id', 'start_offset'])
+    'session_id', 'start_timestamp', 'encoded_module_id', 'start_offset', 'video_duration'])
 
 
 class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -70,22 +70,28 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
         encoded_module_id = None
         current_time = None
+        youtube_id = None
         if event_type in VIDEO_EVENT_TYPES:
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
             current_time = event_data.get('currentTime')
+            if event_type == 'play_video':
+                code = event_data.get('code')
+                if code != 'html5' and code != 'mobile':
+                    youtube_id = code
         elif event_type in VIDEO_SESSION_END_INDICATORS:
             pass
         else:
             return
 
-        yield (username, (timestamp, event_type, encoded_module_id, current_time))
+        yield (username, (timestamp, event_type, encoded_module_id, current_time, youtube_id))
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
         session = None
+        video_durations = {}
         for event in sorted_events:
-            timestamp, event_type, encoded_module_id, current_time = event
+            timestamp, event_type, encoded_module_id, current_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
@@ -96,11 +102,19 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 m.update(encoded_module_id)
                 m.update(timestamp)
 
+                video_duration = VIDEO_SESSION_UNKNOWN_DURATION
+                if youtube_id:
+                    video_duration = video_durations.get(youtube_id)
+                    if not video_duration:
+                        video_duration = self.get_video_duration(youtube_id)
+                        video_durations[youtube_id] = video_duration
+
                 return VideoSession(
                     session_id=m.hexdigest(),
                     start_timestamp=parsed_timestamp,
                     encoded_module_id=encoded_module_id,
-                    start_offset=current_time
+                    start_offset=current_time,
+                    video_duration=video_duration
                 )
 
             def end_session(end_time):
@@ -111,6 +125,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     )
                     return None
 
+                if end_time > session.video_duration:
+                    return None
+
                 if (end_time - session.start_offset) < 0.5:
                     return None
                 else:
@@ -118,9 +135,11 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         username,
                         session.session_id,
                         session.encoded_module_id,
+                        session.video_duration,
                         session.start_timestamp.isoformat(),
                         session.start_offset,
                         end_time,
+                        event_type,
                     )
 
             if session:
@@ -159,6 +178,24 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def output(self):
         return get_target_from_url(self.output_root)
+
+    def get_video_duration(self, youtube_id):
+        duration = VIDEO_SESSION_UNKNOWN_DURATION
+        try:
+            f = urllib.urlopen("http://gdata.youtube.com/feeds/api/videos/{0}".format(youtube_id))
+            xml_string = f.read()
+            tree = ET.fromstring(xml_string)
+            for item in tree.iter('{http://gdata.youtube.com/schemas/2007}duration'):
+                if 'seconds' in item.attrib:
+                    duration = int(item.attrib['seconds'])
+        except IOError:
+            pass
+        except ET.ParseError:
+            pass
+        finally:
+            f.close()
+
+        return duration
 
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
