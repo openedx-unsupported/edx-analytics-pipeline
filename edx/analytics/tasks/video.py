@@ -11,7 +11,7 @@ import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
@@ -21,13 +21,9 @@ log = logging.getLogger(__name__)
 
 VIDEO_PLAYED = 'play_video'
 VIDEO_PAUSED = 'pause_video'
-VIDEO_POSITION_CHANGED = 'seek_video'
-VIDEO_STOPPED = 'stop_video'
 VIDEO_EVENT_TYPES = frozenset([
     VIDEO_PLAYED,
     VIDEO_PAUSED,
-    VIDEO_POSITION_CHANGED,
-    VIDEO_STOPPED
 ])
 VIDEO_SESSION_END_INDICATORS = frozenset([
     'seq_next',
@@ -37,7 +33,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     '/jsi18n/',
     '/logout',
 ])
-VIDEO_SESSION_THRESHOLD = 30 * 60 * 60
+VIDEO_SESSION_THRESHOLD = 60
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -73,29 +69,23 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             return
 
         encoded_module_id = None
-        old_time = None
         current_time = None
         if event_type in VIDEO_EVENT_TYPES:
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
-            if event_type == VIDEO_POSITION_CHANGED:
-                old_time = event_data.get('old_time')
-                current_time = event_data.get('new_time')
-            else:
-                current_time = event_data.get('currentTime')
+            current_time = event_data.get('currentTime')
         elif event_type in VIDEO_SESSION_END_INDICATORS:
             pass
         else:
             return
 
-        yield (username, (timestamp, event_type, encoded_module_id, old_time, current_time))
+        yield (username, (timestamp, event_type, encoded_module_id, current_time))
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
-        log.error('Starting reducer for %s with %d events', username, len(sorted_events))
         session = None
         for event in sorted_events:
-            timestamp, event_type, encoded_module_id, old_time, current_time = event
+            timestamp, event_type, encoded_module_id, current_time = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
@@ -133,8 +123,8 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         end_time,
                     )
 
-            if event_type == VIDEO_PLAYED:
-                if session:
+            if session:
+                if event_type == VIDEO_PLAYED:
                     time_diff = parsed_timestamp - session.start_timestamp
                     if time_diff < datetime.timedelta(seconds=0.5):
                         # log.warn(
@@ -147,24 +137,15 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         if record:
                             yield record
 
-                session = start_session()
+                    session = start_session()
 
-            elif event_type == VIDEO_PAUSED or event_type == VIDEO_STOPPED:
-                if session:
+                elif event_type == VIDEO_PAUSED:
                     record = end_session(current_time)
                     if record:
                         yield record
                     session = None
 
-            elif event_type == VIDEO_POSITION_CHANGED:
-                if session:
-                    record = end_session(old_time)
-                    if record:
-                        yield record
-                session = start_session()
-
-            elif event_type in VIDEO_SESSION_END_INDICATORS:
-                if session:
+                elif event_type in VIDEO_SESSION_END_INDICATORS:
                     session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
                     session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
                     session_end = session.start_offset + session_length
@@ -172,15 +153,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     if record:
                         yield record
                     session = None
-
-        if session:
-            session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-            session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
-            session_end = session.start_offset + session_length
-            record = end_session(session_end)
-            if record:
-                yield record
-            session = None
+            else:
+                if event_type == VIDEO_PLAYED:
+                    session = start_session()
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -228,16 +203,20 @@ class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
 class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
+    input_path = luigi.Parameter(default=None)
 
     def requires(self):
-        return UserVideoSessionTableTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path
-        )
+        if self.input_path:
+            return ExternalURL(self.input_path)
+        else:
+            return UserVideoSessionTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path
+            )
 
     def mapper(self, line):
         username, session_id, encoded_module_id, start_timestamp_str, start_offset, end_offset = line.split('\t')
