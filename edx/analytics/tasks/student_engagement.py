@@ -309,7 +309,7 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
             FROM course_groups_courseusergroup_users cugu
             INNER JOIN course_groups_courseusergroup cug
                 ON (cugu.courseusergroup_id = cug.id)
-        ) AS c
+        ) c
             ON (au.id = c.user_id AND ce.course_id = c.course_id)
         LEFT OUTER JOIN course_groups_courseusergroup_users cugu
             ON (au.id = cugu.user_id)
