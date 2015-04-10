@@ -78,7 +78,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 return
 
             entity_id = encoded_module_id
-        elif event_type[:9] == '/courses/' and re.match(r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/$', event_type):
+        elif event_type[:9] == '/courses/' and re.match(r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/\d*$', event_type):
             info['path'] = event_type
             info['timestamp'] = timestamp
             event_type = 'marker:last_subsection_viewed'
