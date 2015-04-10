@@ -292,7 +292,7 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
         # in order to even get an id.  So we may need a subquery.
         return """
         SELECT ce.date, ce.course_id, au.username, au.email,
-            cug.name, 
+            c.name,
             ser.was_active, ser.problems_attempted, ser.problem_attempts, ser.problems_correct,
             ser.videos_played, ser.forum_posts, ser.forum_replies, ser.forum_comments,
             ser.textbook_pages_viewed, ser.last_subsection_viewed
@@ -301,6 +301,16 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
             ON (ce.user_id = au.id)
         LEFT OUTER JOIN student_engagement_raw ser
             ON (au.username = ser.username AND ce.date = ser.date and ce.course_id = ser.course_id)
+        LEFT OUTER JOIN (
+            SELECT
+                cugu.user_id,
+                cug.course_id,
+                cug.name
+            FROM course_groups_courseusergroup_users cugu
+            INNER JOIN course_groups_courseusergroup cug
+                ON (cugu.courseusergroup_id = cug.id)
+        ) AS c
+            ON (au.id = c.user_id AND ce.course_id = c.course_id)
         LEFT OUTER JOIN course_groups_courseusergroup_users cugu
             ON (au.id = cugu.user_id)
         LEFT OUTER JOIN course_groups_courseusergroup cug
