@@ -307,7 +307,6 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
     def requires(self):
         kwargs_for_db_import = {
             'overwrite': self.overwrite,
-            'warehouse_path': self.warehouse_path,
         }
         yield (
             StudentEngagementTableTask(
