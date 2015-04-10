@@ -300,11 +300,11 @@ class AllStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, MyHiv
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
         LEFT OUTER JOIN student_engagement_raw ser
-            ON (au.username = ser.username AND ce.date = ser.date)
+            ON (au.username = ser.username AND ce.date = ser.date and ce.course_id = ser.course_id)
         LEFT OUTER JOIN course_groups_courseusergroup_users cugu
             ON (au.id = cugu.user_id)
         LEFT OUTER JOIN course_groups_courseusergroup cug
-            ON (cugu.courseusergroup_id = cug.id AND cugu.course_id = ser.course_id)
+            ON (cugu.courseusergroup_id = cug.id AND ce.course_id = cug.course_id)
         WHERE ce.at_end = 1
 
         """;
