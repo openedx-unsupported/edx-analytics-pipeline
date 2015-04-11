@@ -274,6 +274,11 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             first_second = int(math.floor(float(start_offset)))
             start_segment = (first_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
             last_second = int(math.ceil(float(end_offset)))
+            last_segment = (last_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+            stats = usage_map.setdefault(start_segment, {})
+            stats['starts'] = stats.get('starts', 0) + 1
+            stats = usage_map.setdefault(last_segment, {})
+            stats['stops'] = stats.get('stops', 0) + 1
             for segment in xrange(start_segment, last_second, VIDEO_SESSION_SECONDS_PER_SEGMENT):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
@@ -282,7 +287,16 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
         for segment in sorted(usage_map.keys()):
             stats = usage_map[segment]
-            yield course_id, encoded_module_id, video_duration, segment, len(stats['users']), stats['views']
+            yield (
+                course_id,
+                encoded_module_id,
+                video_duration,
+                segment,
+                len(stats.get('users', [])),
+                stats.get('views', 0),
+                stats.get('starts', 0),
+                stats.get('stops', 0)
+            )
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -303,6 +317,8 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             ('segment', 'INT'),
             ('num_users', 'INT'),
             ('num_views', 'INT'),
+            ('num_starts', 'INT'),
+            ('num_stops', 'INT')
         ]
 
     @property
@@ -341,6 +357,8 @@ class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
             ('segment', 'INTEGER'),
             ('num_users', 'INTEGER'),
             ('num_views', 'INTEGER'),
+            ('num_starts', 'INTEGER'),
+            ('num_stops', 'INTEGER'),
         ]
 
     @property
@@ -353,3 +371,9 @@ class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
         )
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'encoded_module_id'),
+        ]
