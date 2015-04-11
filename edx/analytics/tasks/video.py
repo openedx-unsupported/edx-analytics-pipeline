@@ -34,6 +34,7 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
 ])
 VIDEO_SESSION_THRESHOLD = 60
 VIDEO_SESSION_UNKNOWN_DURATION = -1
+VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
@@ -68,6 +69,10 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered event with bad timestamp: %s", event)
             return
 
+        course_id = eventlog.get_course_id(event)
+        if not course_id:
+            return
+
         encoded_module_id = None
         current_time = None
         youtube_id = None
@@ -84,14 +89,14 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         else:
             return
 
-        yield (username, (timestamp, event_type, encoded_module_id, current_time, youtube_id))
+        yield (username, (timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id))
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
         session = None
         video_durations = {}
         for event in sorted_events:
-            timestamp, event_type, encoded_module_id, current_time, youtube_id = event
+            timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
@@ -134,6 +139,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     return (
                         username,
                         session.session_id,
+                        course_id,
                         session.encoded_module_id,
                         session.video_duration,
                         session.start_timestamp.isoformat(),
@@ -256,44 +262,27 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             )
 
     def mapper(self, line):
-        username, session_id, encoded_module_id, start_timestamp_str, start_offset, end_offset = line.split('\t')
-        yield (encoded_module_id, (username, start_offset, end_offset))
+        username, session_id, course_id, encoded_module_id, video_duration, start_timestamp_str, start_offset, end_offset, reason = line.split('\t')
+        yield ((course_id, encoded_module_id, video_duration), (username, start_offset, end_offset))
 
-    def reducer_backup(self, encoded_module_id, sessions):
+    def reducer(self, key, sessions):
+        course_id, encoded_module_id, video_duration = key
         usage_map = {}
 
         for session in sessions:
             username, start_offset, end_offset = session
-            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
-                stats = usage_map.setdefault(second, {})
+            first_second = int(math.floor(float(start_offset)))
+            start_segment = (first_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+            last_second = int(math.ceil(float(end_offset)))
+            for segment in xrange(start_segment, last_second, VIDEO_SESSION_SECONDS_PER_SEGMENT):
+                stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
-        csv_data = []
-        for second in usage_map.keys():
-            stats = usage_map[second]
-            csv_data.append(','.join([str(x) for x in (second, len(stats['users']), stats['views'])]))
-
-        blob_data = '|'.join(csv_data)
-        log.warn(str(len(blob_data)))
-        yield encoded_module_id, blob_data
-
-    def reducer(self, encoded_module_id, sessions):
-        usage_map = {}
-
-        for session in sessions:
-            username, start_offset, end_offset = session
-            for second in xrange(int(math.floor(float(start_offset))), int(math.ceil(float(end_offset))), 1):
-                stats = usage_map.setdefault(second, {})
-                users = stats.setdefault('users', set())
-                users.add(username)
-                stats['views'] = stats.get('views', 0) + 1
-
-        for second in usage_map.keys():
-            stats = usage_map[second]
-            yield encoded_module_id, second, len(stats['users']), stats['views']
-            del usage_map[second]
+        for segment in sorted(usage_map.keys()):
+            stats = usage_map[segment]
+            yield course_id, encoded_module_id, video_duration, segment, len(stats['users']), stats['views']
 
     def output(self):
         return get_target_from_url(self.output_root)
