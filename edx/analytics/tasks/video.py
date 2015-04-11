@@ -297,7 +297,9 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
     @property
     def columns(self):
         return [
-            ('module_id', 'STRING'),
+            ('course_id', 'STRING'),
+            ('encoded_module_id', 'STRING'),
+            ('video_duration', 'INT'),
             ('segment', 'INT'),
             ('num_users', 'INT'),
             ('num_views', 'INT'),
@@ -333,7 +335,9 @@ class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
     @property
     def columns(self):
         return [
-            ('module_id', 'VARCHAR(255)'),
+            ('course_id', 'VARCHAR(255)'),
+            ('encoded_module_id', 'VARCHAR(255)'),
+            ('video_duration', 'INTEGER'),
             ('segment', 'INTEGER'),
             ('num_users', 'INTEGER'),
             ('num_views', 'INTEGER'),
