@@ -171,12 +171,18 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     session = None
 
                 elif event_type in VIDEO_SESSION_END_INDICATORS:
-                    session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                    session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
-                    session_end = session.start_offset + session_length
-                    record = end_session(session_end)
-                    if record:
-                        yield record
+                    if session.start_offset is None:
+                        log.error(
+                            'Invalid session, %s, %s, %f',
+                            username, str(event), session.start_offset
+                        )
+                    else:
+                        session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
+                        session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
+                        session_end = session.start_offset + session_length
+                        record = end_session(session_end)
+                        if record:
+                            yield record
                     session = None
             else:
                 if event_type == VIDEO_PLAYED:
