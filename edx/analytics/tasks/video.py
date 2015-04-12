@@ -38,7 +38,7 @@ VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
-    'session_id', 'start_timestamp', 'encoded_module_id', 'start_offset', 'video_duration'])
+    'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
 
 
 class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -70,8 +70,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             return
 
         course_id = eventlog.get_course_id(event)
-        if not course_id:
-            return
 
         encoded_module_id = None
         current_time = None
@@ -80,10 +78,14 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
             current_time = event_data.get('currentTime')
-            if event_type == 'play_video':
-                code = event_data.get('code')
-                if code != 'html5' and code != 'mobile':
-                    youtube_id = code
+            code = event_data.get('code')
+            if code in ('html5', 'mobile') or course_id is None:
+                return
+            if event_type == VIDEO_PLAYED:
+                youtube_id = code
+                if current_time is None:
+                    log.warn('Play video without valid currentTime: {0}'.format(line))
+                    return
         elif event_type in VIDEO_SESSION_END_INDICATORS:
             pass
         else:
@@ -102,11 +104,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 current_time = float(current_time)
 
             def start_session():
-                m = hashlib.md5()
-                m.update(username)
-                m.update(encoded_module_id)
-                m.update(timestamp)
-
                 video_duration = VIDEO_SESSION_UNKNOWN_DURATION
                 if youtube_id:
                     video_duration = video_durations.get(youtube_id)
@@ -115,8 +112,8 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         video_durations[youtube_id] = video_duration
 
                 return VideoSession(
-                    session_id=m.hexdigest(),
                     start_timestamp=parsed_timestamp,
+                    course_id=course_id,
                     encoded_module_id=encoded_module_id,
                     start_offset=current_time,
                     video_duration=video_duration
@@ -125,8 +122,12 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             def end_session(end_time):
                 if end_time is None or session.start_offset is None:
                     log.error(
-                        'Invalid session ending, %s, %s, %f, %f',
-                        username, str(event), end_time, session.start_offset
+                        'Invalid session ending, {0}, {1}, {2}, {3}'.format(
+                            username,
+                            str(event),
+                            session.start_offset,
+                            end_time
+                        )
                     )
                     return None
 
@@ -138,8 +139,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 else:
                     return (
                         username,
-                        session.session_id,
-                        course_id,
+                        session.course_id,
                         session.encoded_module_id,
                         session.video_duration,
                         session.start_timestamp.isoformat(),
@@ -173,8 +173,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 elif event_type in VIDEO_SESSION_END_INDICATORS:
                     if session.start_offset is None:
                         log.error(
-                            'Invalid session, %s, %s, %f',
-                            username, str(event), session.start_offset
+                            'Invalid session, {0}, {1}, {2}'.format(username, str(event), session.start_offset)
                         )
                     else:
                         session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
@@ -224,11 +223,12 @@ class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
     def columns(self):
         return [
             ('username', 'STRING'),
-            ('video_session_id', 'STRING'),
+            ('course_id', 'STRING'),
             ('encoded_module_id', 'STRING'),
             ('start_timestamp', 'STRING'),
             ('start_offset', 'FLOAT'),
             ('end_offset', 'FLOAT'),
+            ('end_reason', 'STRING'),
         ]
 
     @property
@@ -268,7 +268,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             )
 
     def mapper(self, line):
-        username, session_id, course_id, encoded_module_id, video_duration, start_timestamp_str, start_offset, end_offset, reason = line.split('\t')
+        username, course_id, encoded_module_id, video_duration, start_timestamp_str, start_offset, end_offset, reason = line.split('\t')
         yield ((course_id, encoded_module_id, video_duration), (username, start_offset, end_offset))
 
     def reducer(self, key, sessions):
