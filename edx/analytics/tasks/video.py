@@ -32,7 +32,6 @@ VIDEO_SESSION_END_INDICATORS = frozenset([
     'seq_goto',
     'page_close',
 ])
-VIDEO_SESSION_THRESHOLD = 60
 VIDEO_SESSION_UNKNOWN_DURATION = -1
 VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
@@ -177,7 +176,6 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         )
                     else:
                         session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                        session_length = min(session_length, VIDEO_SESSION_THRESHOLD)
                         session_end = session.start_offset + session_length
                         record = end_session(session_end)
                         if record:
