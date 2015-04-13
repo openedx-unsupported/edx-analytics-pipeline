@@ -76,7 +76,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         if event_type in VIDEO_EVENT_TYPES:
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
-            current_time = event_data.get('currentTime')
+            current_time = event_data.get('currentTime', 0)
             code = event_data.get('code')
             if code in ('html5', 'mobile') or course_id is None:
                 return
