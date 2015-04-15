@@ -208,18 +208,25 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
         )
         self.task.init_local()
 
+    def test_no_events(self):
+        output = self._get_reducer_output([])
+        self.assertEquals(len(output), 0)
+
+    def _get_reducer_output(self, inputs):
+        """Run the reducer and return the ouput"""
+        return tuple(self.task.reducer(self.REDUCE_KEY, inputs))
+
+    def test_any_activity(self):
+        inputs = [
+            ('', '/foo', {})
+        ]
+        self._check_output(inputs, self.WAS_ACTIVE_COLUMN_NUM, 1)
+
     def _check_output(self, inputs, column_num, expected_value):
         """Compare generated with expected output."""
         output = self._get_reducer_output(inputs)
         self.assertEquals(len(output), 1)
         self.assertEquals(output[0][column_num], expected_value)
-
-    def test_no_events(self):
-        self._check_output([], self.WAS_ACTIVE_COLUMN_NUM, 1)
-
-    def _get_reducer_output(self, inputs):
-        """Run the reducer and return the ouput"""
-        return tuple(self.task.reducer(self.REDUCE_KEY, inputs))
 
     def test_single_problem_attempted(self):
         inputs = [

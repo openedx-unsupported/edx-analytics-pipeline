@@ -106,6 +106,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     def reducer(self, key, events):
         """Calculate counts for events corresponding to user and course in a given time period."""
         date_grouping_key, course_id, username = key
+
+        if len(events) == 0:
+            return
+
         sort_key = itemgetter(0)
         sorted_events = sorted(events, key=sort_key)
 
