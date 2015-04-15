@@ -1,6 +1,6 @@
 
 from collections import namedtuple
-import hashlib
+import base64
 import datetime
 import logging
 import math
@@ -274,14 +274,15 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
     def reducer(self, key, sessions):
         course_id, encoded_module_id, video_duration = key
+        insights_video_id = base64.b32encode('{0}|{1}'.format(course_id, encoded_module_id))
         usage_map = {}
 
         for session in sessions:
             username, start_offset, end_offset = session
             first_second = int(math.floor(float(start_offset)))
-            start_segment = (first_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+            start_segment = self.snap_to_last_segment_boundary(first_second)
             last_second = int(math.ceil(float(end_offset)))
-            last_segment = (last_second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+            last_segment = self.snap_to_last_segment_boundary(last_second)
             stats = usage_map.setdefault(start_segment, {})
             stats['starts'] = stats.get('starts', 0) + 1
             stats = usage_map.setdefault(last_segment, {})
@@ -292,18 +293,28 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
+        final_segment = self.snap_to_last_segment_boundary(video_duration)
+        start_views = usage_map.get(0, {}).get('views', 0)
+        end_views = usage_map.get(final_segment, {}).get('views', 0)
+        partial_views = abs(start_views - end_views)
         for segment in sorted(usage_map.keys()):
             stats = usage_map[segment]
             yield (
+                insights_video_id,
                 course_id,
                 encoded_module_id,
                 video_duration,
+                VIDEO_SESSION_SECONDS_PER_SEGMENT,
+                start_views,
+                end_views,
+                partial_views,
                 segment,
                 len(stats.get('users', [])),
                 stats.get('views', 0),
-                stats.get('starts', 0),
-                stats.get('stops', 0)
             )
+
+    def snap_to_last_segment_boundary(self, second):
+        return (second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -318,14 +329,17 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
     @property
     def columns(self):
         return [
+            ('insights_video_id', 'STRING'),
             ('course_id', 'STRING'),
             ('encoded_module_id', 'STRING'),
-            ('video_duration', 'INT'),
+            ('duration', 'INT'),
+            ('segment_length', 'INT'),
+            ('start_views', 'INT'),
+            ('end_views', 'INT'),
+            ('partial_views', 'INT'),
             ('segment', 'INT'),
             ('num_users', 'INT'),
             ('num_views', 'INT'),
-            ('num_starts', 'INT'),
-            ('num_stops', 'INT')
         ]
 
     @property
@@ -347,29 +361,90 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return self.requires().output()
 
 
-class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
-
-    overwrite = luigi.BooleanParameter(default=True)
+class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
 
     @property
     def table(self):
-        return "video_usage"
+        return "video_timeline"
+
+    @property
+    def query(self):
+        return """
+            SELECT
+                insights_video_id,
+                segment,
+                num_users,
+                num_views
+            FROM video_usage
+        """
 
     @property
     def columns(self):
         return [
-            ('course_id', 'VARCHAR(255)'),
-            ('encoded_module_id', 'VARCHAR(255)'),
-            ('video_duration', 'INTEGER'),
+            ('insights_video_id', 'VARCHAR(255)'),
             ('segment', 'INTEGER'),
             ('num_users', 'INTEGER'),
             ('num_views', 'INTEGER'),
-            ('num_starts', 'INTEGER'),
-            ('num_stops', 'INTEGER'),
         ]
 
     @property
-    def insert_source_task(self):
+    def required_table_tasks(self):
+        return VideoUsageTableTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def indexes(self):
+        return [
+            ('insights_video_id'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+
+class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
+
+    @property
+    def table(self):
+        return "video"
+
+    @property
+    def query(self):
+        return """
+            SELECT DISTINCT
+                insights_video_id,
+                course_id,
+                encoded_module_id,
+                duration,
+                segment_length,
+                start_views,
+                end_views,
+                partial_views
+            FROM video_usage
+        """
+
+    @property
+    def columns(self):
+        return [
+            ('insights_video_id', 'VARCHAR(255)'),
+            ('course_id', 'VARCHAR(255)'),
+            ('encoded_module_id', 'VARCHAR(255)'),
+            ('duration', 'INTEGER'),
+            ('segment_length', 'INTEGER'),
+            ('start_views', 'INTEGER'),
+            ('end_views', 'INTEGER'),
+            ('partial_views', 'INTEGER'),
+        ]
+
+    @property
+    def required_table_tasks(self):
         return VideoUsageTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -384,3 +459,7 @@ class InsertToMysqlVideoUsageTask(VideoTableDownstreamMixin, MysqlInsertTask):
         return [
             ('course_id', 'encoded_module_id'),
         ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
