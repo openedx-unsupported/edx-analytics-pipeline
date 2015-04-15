@@ -1,6 +1,5 @@
 
 from collections import namedtuple
-import base64
 import datetime
 import logging
 import math
@@ -12,10 +11,9 @@ import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
-from edx.analytics.tasks.util import eventlog, opaque_key_util
+from edx.analytics.tasks.url import get_target_from_url, ExternalURL
+from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 log = logging.getLogger(__name__)
 
@@ -274,7 +272,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
     def reducer(self, key, sessions):
         course_id, encoded_module_id, video_duration = key
-        insights_video_id = base64.b32encode('{0}|{1}'.format(course_id, encoded_module_id))
+        insights_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
         for session in sessions:
@@ -293,7 +291,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
-        final_segment = self.snap_to_last_segment_boundary(video_duration)
+        final_segment = self.snap_to_last_segment_boundary(float(video_duration))
         start_views = usage_map.get(0, {}).get('views', 0)
         end_views = usage_map.get(final_segment, {}).get('views', 0)
         partial_views = abs(start_views - end_views)
@@ -463,3 +461,19 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
     @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+
+class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
+
+    def requires(self):
+        kwargs = {
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            InsertToMysqlVideoTimelineTask(**kwargs),
+            InsertToMysqlVideoTask(**kwargs),
+        )
