@@ -31,6 +31,8 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     the workflow.
     """
 
+    SUBSECTION_ACCESSED_PATTERN = r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/.*$'
+
     output_root = luigi.Parameter()
     group_by_week = luigi.BooleanParameter(default=False)
 
@@ -50,10 +52,6 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
         course_id = eventlog.get_course_id(event)
         if not course_id:
-            return
-
-        timestamp = eventlog.get_event_time_string(event)
-        if timestamp is None:
             return
 
         event_data = eventlog.get_event_data(event)
@@ -81,7 +79,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 return
 
             entity_id = encoded_module_id
-        elif event_type[:9] == '/courses/' and re.match(r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/$', event_type):
+        elif event_type[:9] == '/courses/' and re.match(self.SUBSECTION_ACCESSED_PATTERN, event_type):
+            timestamp = eventlog.get_event_time_string(event)
+            if timestamp is None:
+                return
             info['path'] = event_type
             info['timestamp'] = timestamp
             event_type = 'marker:last_subsection_viewed'
@@ -105,6 +106,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     def reducer(self, key, events):
         """Calculate counts for events corresponding to user and course in a given time period."""
         date_grouping_key, course_id, username = key
+
+        if len(events) == 0:
+            return
+
         sort_key = itemgetter(0)
         sorted_events = sorted(events, key=sort_key)
 
