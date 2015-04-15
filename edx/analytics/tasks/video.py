@@ -408,7 +408,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysql
     @property
     def indexes(self):
         return [
-            ('pipeline_video_id'),
+            ('pipeline_video_id',),
         ]
 
     @property
