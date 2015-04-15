@@ -272,7 +272,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
     def reducer(self, key, sessions):
         course_id, encoded_module_id, video_duration = key
-        insights_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
+        pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
         for session in sessions:
@@ -298,7 +298,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         for segment in sorted(usage_map.keys()):
             stats = usage_map[segment]
             yield (
-                insights_video_id,
+                pipeline_video_id,
                 course_id,
                 encoded_module_id,
                 video_duration,
@@ -327,7 +327,7 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
     @property
     def columns(self):
         return [
-            ('insights_video_id', 'STRING'),
+            ('pipeline_video_id', 'STRING'),
             ('course_id', 'STRING'),
             ('encoded_module_id', 'STRING'),
             ('duration', 'INT'),
@@ -369,7 +369,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysql
     def query(self):
         return """
             SELECT
-                insights_video_id,
+                pipeline_video_id,
                 segment,
                 num_users,
                 num_views
@@ -379,7 +379,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysql
     @property
     def columns(self):
         return [
-            ('insights_video_id', 'VARCHAR(255)'),
+            ('pipeline_video_id', 'VARCHAR(255)'),
             ('segment', 'INTEGER'),
             ('num_users', 'INTEGER'),
             ('num_views', 'INTEGER'),
@@ -399,7 +399,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysql
     @property
     def indexes(self):
         return [
-            ('insights_video_id'),
+            ('pipeline_video_id'),
         ]
 
     @property
@@ -417,7 +417,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
     def query(self):
         return """
             SELECT DISTINCT
-                insights_video_id,
+                pipeline_video_id,
                 course_id,
                 encoded_module_id,
                 duration,
@@ -431,7 +431,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
     @property
     def columns(self):
         return [
-            ('insights_video_id', 'VARCHAR(255)'),
+            ('pipeline_video_id', 'VARCHAR(255)'),
             ('course_id', 'VARCHAR(255)'),
             ('encoded_module_id', 'VARCHAR(255)'),
             ('duration', 'INTEGER'),
