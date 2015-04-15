@@ -37,8 +37,8 @@ class BaseStudentEngagementAcceptanceTest(AcceptanceTestCase):
        self.fail(src)
        #print "dest: " + dst
 
-        # Upload test data file
-        self.s3_client.put(src, dst)
+       #  Upload test data file
+       self.s3_client.put(src, dst)
 
     # def test_foo(self):
     #     src = os.path.join(self.data_dir, 'input', self.INPUT_FILE)
