@@ -91,7 +91,16 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         else:
             return
 
-        yield (username.encode('utf8'), (timestamp, event_type, course_id.encode('utf8'), encoded_module_id.encode('utf8'), current_time, youtube_id.encode('utf8')))
+        if course_id is not None:
+            course_id = course_id.encode('utf8')
+
+        if encoded_module_id is not None:
+            encoded_module_id = encoded_module_id.encode('utf8')
+
+        if youtube_id is not None:
+            youtube_id = youtube_id.encode('utf8')
+
+        yield (username.encode('utf8'), (timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id))
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
