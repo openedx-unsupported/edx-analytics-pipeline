@@ -172,9 +172,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 num_problems_correct += 1
 
         yield (
+            # Output to be read by Hive must be encoded as UTF-8.
             date_grouping_key,
-            course_id,
-            username,
+            course_id.encode('utf-8'),
+            username.encode('utf-8'),
             len(dates_active),
             num_problems_attempted,
             num_problem_attempts,
@@ -184,7 +185,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             num_forum_replies,
             num_forum_comments,
             num_textbook_pages,
-            last_subsection_viewed,
+            last_subsection_viewed.encode('utf-8'),
         )
 
     def output(self):
@@ -304,7 +305,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             )
         elif self.interval_type == "all":
             last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            date_where = "ce.date = '{last_valid_date}'".format(last_valid_date.isoformat())
+            date_where = "ce.date = '{last_valid_date}'".format(last_valid_date=last_valid_date.isoformat())
 
         return """
         SELECT

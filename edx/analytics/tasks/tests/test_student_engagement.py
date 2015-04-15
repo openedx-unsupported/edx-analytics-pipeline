@@ -10,8 +10,8 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
-    """Test analysis of detailed student engagement"""
+class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+    """Base class for test analysis of detailed student engagement"""
 
     DEFAULT_USER_ID = 10
     DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
@@ -19,14 +19,6 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
 
     def setUp(self):
         self.initialize_ids()
-
-        fake_param = luigi.DateIntervalParameter()
-        self.task = StudentEngagementTask(
-            interval=fake_param.parse(self.DEFAULT_DATE),
-            output_root='/fake/output'
-        )
-        self.task.init_local()
-
         self.video_id = 'i4x-foo-bar-baz'
         self.event_templates = {
             'play_video': {
@@ -66,6 +58,22 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
             }
         }
         self.default_key = (self.DEFAULT_DATE, self.course_id, 'test_user')
+
+    def create_task(self, interval_type=None):
+        self.task = StudentEngagementTask(
+            interval=luigi.DateIntervalParameter().parse(self.DEFAULT_DATE),
+            output_root='/fake/output',
+            interval_type=interval_type,
+        )
+        self.task.init_local()
+
+
+class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    def setUp(self):
+        super(StudentEngagementTaskMapTest, self).setUp()
+        self.create_task()
 
     def test_invalid_events(self):
         self.assert_no_map_output_for(self._create_event_log_line(time="2013-12-01T15:38:32.805444"))
@@ -184,7 +192,7 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
         self.assert_last_subsection_viewed_recognized('foo/bar/jquery.js')
 
 
-class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, unittest.TestCase):
+class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, StudentEngagementTaskMapTest):
     """Test analysis of detailed student engagement using legacy ID formats"""
     pass
 
