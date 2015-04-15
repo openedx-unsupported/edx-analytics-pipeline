@@ -71,22 +71,22 @@ class StudentEngagementAcceptanceTest(BaseStudentEngagementAcceptanceTest):
         outputs = self.s3_client.list(self.test_out)
         outputs = [url_path_join(self.test_out, p) for p in outputs]
 
-        self.fail(outputs)
+        #self.fail(outputs)
         #self.fail("foobarbaz")
 
 #
 #         # There are 3 courses in the test data
-#         self.assertEqual(len(outputs), 3)
-#
-#         # Check that the results have data
-#         for output in outputs:
-#             with S3Target(output).open() as f:
-#                 lines = [l for l in f][1:]  # Skip header
-#                 self.assertTrue(len(lines) > 0)
-#
-#                 # Check that at least one of the count columns is non zero
-#                 get_count = lambda line: int(line.split(',')[3])
-#                 self.assertTrue(any(get_count(l) > 0 for l in lines))
+        self.assertEqual(len(outputs), 3)
+
+        # Check that the results have data
+        for output in outputs:
+            with S3Target(output).open() as f:
+                lines = [l for l in f][1:]  # Skip header
+                self.assertTrue(len(lines) > 0)
+
+                # Check that at least one of the count columns is non zero
+                get_count = lambda line: int(line.split(',')[3])
+                self.assertTrue(any(get_count(l) > 0 for l in lines))
 
 
 # class AnswerDistributionMysqlAcceptanceTests(BaseStudentEngagementAcceptanceTest):
