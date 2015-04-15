@@ -76,7 +76,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         if event_type in VIDEO_EVENT_TYPES:
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
-            current_time = event_data.get('currentTime', 0)
+            current_time = event_data.get('currentTime')
             code = event_data.get('code')
             if code in ('html5', 'mobile') or course_id is None:
                 return
@@ -85,6 +85,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 if current_time is None:
                     log.warn('Play video without valid currentTime: {0}'.format(line))
                     return
+            elif event_type == VIDEO_PAUSED:
+                if current_time is None:
+                    current_time = 0
         elif event_type in VIDEO_SESSION_END_INDICATORS:
             pass
         else:
@@ -130,7 +133,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     )
                     return None
 
-                if end_time > session.video_duration:
+                if session.video_duration == VIDEO_SESSION_UNKNOWN_DURATION or end_time > session.video_duration:
                     return None
 
                 if (end_time - session.start_offset) < 0.5:
