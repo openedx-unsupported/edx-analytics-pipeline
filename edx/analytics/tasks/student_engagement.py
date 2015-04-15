@@ -10,6 +10,7 @@ import re
 
 import luigi
 
+from edx.analytics.tasks.calendar import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
     ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
 from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
@@ -17,7 +18,6 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
@@ -37,7 +37,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     SUBSECTION_ACCESSED_PATTERN = r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/.*$'
 
     output_root = luigi.Parameter()
-    group_by_week = luigi.BooleanParameter(default=False)
+    interval_type = luigi.Parameter(default="daily")
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -91,32 +91,39 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             event_type = SUBSECTION_VIEWED_MARKER
 
         date_grouping_key = date_string
-        if self.group_by_week:
-            week_of_year = self.get_iso_week_containing_date(date_string)
-            start_date = week_of_year.monday()
-            end_date = week_of_year.sunday() + datetime.timedelta(days=1)
-            date_grouping_key = '{0}-{1}'.format(start_date.isoformat(), end_date.isoformat())
 
-        yield ((date_grouping_key, course_id, username), (entity_id, event_type, info))
+        if self.interval_type == 'weekly':
+            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            last_weekday = last_valid_date.isoweekday()
 
-    def get_iso_week_containing_date(self, date_string):
-        """Returns Week object corresponding to give date string."""
-        split_date = date_string.split('-')
-        date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
-        iso_year, iso_weekofyear, _iso_weekday = date.isocalendar()
-        return Week(iso_year, iso_weekofyear)
+            split_date = date_string.split('-')
+            event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
+            event_weekday = event_date.isoweekday()
+
+            days_until_end = last_weekday - event_weekday
+            if days_until_end < 0:
+                days_until_end += 7
+
+            end_of_week_date = event_date + datetime.timedelta(days=days_until_end)
+            date_grouping_key = end_of_week_date.isoformat()
+
+        elif self.interval_type == 'all':
+            # If gathering all data for a given user, use the last valid day of the interval
+            # for joining with enrollment.
+            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            date_grouping_key = last_valid_date.isoformat()
+
+        yield ((date_grouping_key, course_id, username), (entity_id, event_type, info, date_string))
 
     def reducer(self, key, events):
         """Calculate counts for events corresponding to user and course in a given time period."""
         date_grouping_key, course_id, username = key
 
-        if len(events) == 0:
-            return
-
         sort_key = itemgetter(0)
         sorted_events = sorted(events, key=sort_key)
+        if len(sorted_events) == 0:
+            return
 
-        was_active = 1
         num_problems_attempted = 0
         num_problem_attempts = 0
         num_problems_correct = 0
@@ -125,13 +132,14 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         num_forum_replies = 0
         num_forum_posts = 0
         num_textbook_pages = 0
+        dates_active = set()
         max_timestamp = None
         last_subsection_viewed = ''
         for _entity_id, events in groupby(sorted_events, key=sort_key):
             is_first = True
             is_correct = False
 
-            for _, event_type, info in events:
+            for _, event_type, info, date_string in events:
                 if event_type == 'problem_check':
                     if is_first:
                         num_problems_attempted += 1
@@ -157,6 +165,9 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 if is_first:
                     is_first = False
 
+                if date_string not in dates_active:
+                    dates_active.add(date_string)
+
             if is_correct:
                 num_problems_correct += 1
 
@@ -164,7 +175,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             date_grouping_key,
             course_id,
             username,
-            was_active,
+            len(dates_active),
             num_problems_attempted,
             num_problem_attempts,
             num_problems_correct,
@@ -173,7 +184,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             num_forum_replies,
             num_forum_comments,
             num_textbook_pages,
-            last_subsection_viewed
+            last_subsection_viewed,
         )
 
     def output(self):
@@ -189,7 +200,8 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class StudentEngagementTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the StudentEngagementTableTask task."""
-    pass
+
+    interval_type = luigi.Parameter(default="daily")
 
 
 class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTableTask):
@@ -197,15 +209,15 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
 
     @property
     def table(self):
-        return 'student_engagement_raw'
+        return 'student_engagement_raw_{}'.format(self.interval_type)
 
     @property
     def columns(self):
         return [
-            ('date', 'STRING'),
+            ('end_date', 'STRING'),
             ('course_id', 'STRING'),
             ('username', 'STRING'),
-            ('was_active', 'TINYINT'),
+            ('days_active', 'INT'),
             ('problems_attempted', 'INT'),
             ('problem_attempts', 'INT'),
             ('problems_correct', 'INT'),
@@ -229,6 +241,7 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,
+            interval_type=self.interval_type,
         )
 
 
@@ -245,7 +258,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
 
     @property
     def table(self):
-        return 'student_engagement_joined'
+        return 'student_engagement_joined_{}'.format(self.interval_type)
 
     @property
     def partition(self):
@@ -254,12 +267,12 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
     @property
     def columns(self):
         return [
-            ('date', 'STRING'),
+            ('end_date', 'STRING'),
             ('course_id', 'STRING'),
             ('username', 'STRING'),
             ('email', 'STRING'),
             ('cohort', 'STRING'),
-            ('was_active', 'TINYINT'),
+            ('days_active', 'INT'),
             ('problems_attempted', 'INT'),
             ('problem_attempts', 'INT'),
             ('problems_correct', 'INT'),
@@ -273,6 +286,26 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
 
     @property
     def insert_query(self):
+        # Join with calendar data only if calculating weekly engagement.
+        calendar_join = ""
+        if self.interval_type == "daily":
+            date_where = "ce.date >= '{start}' AND ce.date < '{end}'".format(
+                start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
+                end=self.interval.date_b.isoformat()  # pylint: disable=no-member
+            )
+        elif self.interval_type == "weekly":
+            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            iso_weekday = last_valid_date.isoweekday()
+            calendar_join = "INNER JOIN calendar cal ON (ce.date = cal.date) "
+            date_where = "ce.date >= '{start}' AND ce.date < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
+                start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
+                end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
+                iso_weekday=iso_weekday,
+            )
+        elif self.interval_type == "all":
+            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            date_where = "ce.date = '{last_valid_date}'".format(last_valid_date.isoformat())
+
         return """
         SELECT
             ce.date,
@@ -280,7 +313,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             au.username,
             au.email,
             COALESCE(cohort.name, ''),
-            COALESCE(ser.was_active, 0),
+            COALESCE(ser.days_active, 0),
             COALESCE(ser.problems_attempted, 0),
             COALESCE(ser.problem_attempts, 0),
             COALESCE(ser.problems_correct, 0),
@@ -291,10 +324,11 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.textbook_pages_viewed, 0),
             COALESCE(ser.last_subsection_viewed, '')
         FROM course_enrollment ce
+        {calendar_join}
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
-        LEFT OUTER JOIN student_engagement_raw ser
-            ON (au.username = ser.username AND ce.date = ser.date and ce.course_id = ser.course_id)
+        LEFT OUTER JOIN student_engagement_raw_{interval_type} ser
+            ON (au.username = ser.username AND ce.date = ser.end_date and ce.course_id = ser.course_id)
         LEFT OUTER JOIN (
             SELECT
                 cugu.user_id,
@@ -305,10 +339,11 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                 ON (cugu.courseusergroup_id = cug.id)
         ) cohort
             ON (au.id = cohort.user_id AND ce.course_id = cohort.course_id)
-        WHERE ce.at_end = 1 AND ce.date >= '{start}' AND ce.date < '{end}'
+        WHERE ce.at_end = 1 AND {date_where}
         """.format(
-            start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
-            end=self.interval.date_b.isoformat()  # pylint: disable=no-member
+            calendar_join=calendar_join,
+            interval_type=self.interval_type,
+            date_where=date_where
         )
 
     def requires(self):
@@ -322,6 +357,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             'interval': self.interval,
             'pattern': self.pattern,
             'overwrite': self.overwrite,
+            'interval_type': self.interval_type,
         }
         # For enrollment, use the default start date and the current
         # interval's end date to calculate. Note that if it's already
@@ -341,9 +377,16 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
             CourseEnrollmentTableTask(**kwargs_for_enrollment),
         )
+        # TODO: If this doesn't work, then we can just always add it in above.
+        if self.interval_type == "weekly":
+            yield (
+                CalendarTableTask(
+                    warehouse_path=self.warehouse_path,
+                )
+            )
 
 
-class StudentEngagementDailyCsvFileTask(
+class StudentEngagementCsvFileTask(
         StudentEngagementTableDownstreamMixin,
         OverwriteOutputMixin,
         MultiOutputMapReduceJobTask):
@@ -359,6 +402,7 @@ class StudentEngagementDailyCsvFileTask(
             interval=self.interval,
             pattern=self.pattern,
             overwrite=self.overwrite,
+            interval_type=self.interval_type,
         )
 
     def mapper(self, line):
@@ -380,18 +424,22 @@ class StudentEngagementDailyCsvFileTask(
         """
         date, course_id = key
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
-        filename = u'student_engagement_daily_{date}.csv'.format(date=date)
+        filename = u'student_engagement_{interval_type}_{date}.csv'.format(date=date, interval_type=self.interval_type)
         return url_path_join(self.output_root, hashed_course_id, filename)
+
+    def _get_date_header(self):
+        """Gets column header for date, conditional on interval type."""
+        return 'date' if self.interval_type == "daily" else 'end_date'
 
     def get_column_names(self):
         """List names of columns as they should appear in the CSV, in order stored in Hive TSV output."""
         return [
-            'date',
+            self._get_date_header(),
             'course_id',
             'username',
             'email',
             'cohort',
-            'was_active',
+            'was_active' if self.interval_type == "daily" else 'days_active',
             'problems_attempted',
             'problem_attempts',
             'problems_correct',
@@ -409,7 +457,7 @@ class StudentEngagementDailyCsvFileTask(
 
         This output is visible to instructors, so use an excel friendly format (csv).
         """
-        date, course_id = key
+        end_date, course_id = key
         field_names = self.get_column_names()
 
         writer = csv.DictWriter(output_file, field_names)
@@ -424,7 +472,7 @@ class StudentEngagementDailyCsvFileTask(
             fields = content.split('\t')
             # skip the values from the key in field_names, and add values manually.
             row = {field_key: field_value for field_key, field_value in zip(field_names[2:], fields)}
-            row['date'] = date
+            row[self._get_date_header()] = end_date
             row['course_id'] = course_id
             row_data.append(row)
 
