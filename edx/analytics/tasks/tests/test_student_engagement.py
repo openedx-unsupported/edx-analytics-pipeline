@@ -10,22 +10,15 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
-    """Test analysis of detailed student engagement"""
+class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+    """Base class for test analysis of detailed student engagement"""
 
     DEFAULT_USER_ID = 10
     DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
+    DEFAULT_DATE = "2013-12-17"
 
     def setUp(self):
         self.initialize_ids()
-
-        fake_param = luigi.DateIntervalParameter()
-        self.task = StudentEngagementTask(
-            interval=fake_param.parse('2013-12-17'),
-            output_root='/fake/output'
-        )
-        self.task.init_local()
-
         self.video_id = 'i4x-foo-bar-baz'
         self.event_templates = {
             'play_video': {
@@ -64,44 +57,30 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
                 "page": None
             }
         }
-        self.default_key = ('2013-12-17', self.course_id, 'test_user')
+        self.default_key = (self.DEFAULT_DATE, self.course_id, 'test_user')
 
-    def test_invalid_events(self):
-        self.assert_no_map_output_for(self._create_event_log_line(time="2013-12-01T15:38:32.805444"))
-        self.assert_no_map_output_for(self._create_event_log_line(username=''))
-        self.assert_no_map_output_for(self._create_event_log_line(event_type=None))
-        self.assert_no_map_output_for(self._create_event_log_line(context={'course_id': 'lskdjfslkdj'}))
-        self.assert_no_map_output_for(self._create_event_log_line(event='sdfasdf'))
-
-    def assert_no_map_output_for(self, line):
-        """Assert that an input line generates no output."""
-
-        self.assertEquals(
-            tuple(self.task.mapper(line)),
-            tuple()
+    def create_task(self, interval=None, interval_type=None):
+        """Allow arguments to be passed to the task constructor."""
+        if not interval:
+            interval = self.DEFAULT_DATE
+        self.task = StudentEngagementTask(
+            interval=luigi.DateIntervalParameter().parse(interval),
+            output_root='/fake/output',
+            interval_type=interval_type,
         )
+        self.task.init_local()
 
-    def _create_event_log_line(self, **kwargs):
+    def create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
         return json.dumps(self._create_event_dict(**kwargs))
 
     def _create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
-        event_dict = kwargs.pop('template', self.event_templates['play_video']).copy()
+        # event_dict = kwargs.pop('template', self.event_templates['play_video']).copy()
+        event_dict = kwargs.pop('template', self.event_templates['problem_check']).copy()
         event_dict.update(**kwargs)
         return event_dict
-
-    def test_browser_problem_check_event(self):
-        template = self.event_templates['problem_check']
-        self.assert_no_map_output_for(self._create_event_log_line(template=template, event_source='browser'))
-
-    def test_incorrect_problem_check(self):
-        self.assert_single_map_output(
-            json.dumps(self.event_templates['problem_check']),
-            self.default_key,
-            (self.problem_id, 'problem_check', {})
-        )
 
     def assert_single_map_output(self, line, expected_key, expected_value):
         """Assert that an input line generates exactly one output record with the expected key and value"""
@@ -113,52 +92,93 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
         self.assertEquals(expected_key, actual_key)
         self.assertEquals(expected_value, actual_value)
 
+    def assert_no_map_output_for(self, line):
+        """Assert that an input line generates no output."""
+        self.assertEquals(
+            tuple(self.task.mapper(line)),
+            tuple()
+        )
+
+    def assert_date_mappings(self, expected_end_date, actual_event_date):
+        """Asserts that an event_date is mapped to the expected date in the key."""
+        self.assert_single_map_output(
+            self.create_event_log_line(time="{}T15:38:32.805444".format(actual_event_date)),
+            (expected_end_date, self.course_id, 'test_user'),
+            (self.problem_id, 'problem_check', {}, actual_event_date)
+        )
+
+
+class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    def setUp(self):
+        super(StudentEngagementTaskMapTest, self).setUp()
+        self.create_task()
+
+    def test_invalid_events(self):
+        self.assert_no_map_output_for(self.create_event_log_line(time="2013-12-01T15:38:32.805444"))
+        self.assert_no_map_output_for(self.create_event_log_line(username=''))
+        self.assert_no_map_output_for(self.create_event_log_line(event_type=None))
+        self.assert_no_map_output_for(self.create_event_log_line(context={'course_id': 'lskdjfslkdj'}))
+        self.assert_no_map_output_for(self.create_event_log_line(event='sdfasdf'))
+
+    def test_browser_problem_check_event(self):
+        template = self.event_templates['problem_check']
+        self.assert_no_map_output_for(self.create_event_log_line(template=template, event_source='browser'))
+
+    def test_incorrect_problem_check(self):
+        self.assert_single_map_output(
+            json.dumps(self.event_templates['problem_check']),
+            self.default_key,
+            (self.problem_id, 'problem_check', {}, self.DEFAULT_DATE)
+        )
+
     def test_correct_problem_check(self):
         template = self.event_templates['problem_check']
         template['event']['success'] = 'correct'
         self.assert_single_map_output(
             json.dumps(template),
             self.default_key,
-            (self.problem_id, 'problem_check', {'correct': True})
+            (self.problem_id, 'problem_check', {'correct': True}, self.DEFAULT_DATE)
         )
 
     def test_missing_problem_id(self):
         template = self.event_templates['problem_check']
         del template['event']['problem_id']
-        self.assert_no_map_output_for(self._create_event_log_line(template=template))
+        self.assert_no_map_output_for(self.create_event_log_line(template=template))
 
     def test_missing_video_id(self):
         template = self.event_templates['play_video']
         template['event'] = '{"currentTime": "23.4398", "code": "87389iouhdfh"}'
-        self.assert_no_map_output_for(self._create_event_log_line(template=template))
+        self.assert_no_map_output_for(self.create_event_log_line(template=template))
 
     def test_play_video(self):
         self.assert_single_map_output(
             json.dumps(self.event_templates['play_video']),
             self.default_key,
-            (self.video_id, 'play_video', {})
+            (self.video_id, 'play_video', {}, self.DEFAULT_DATE)
         )
 
     def test_implicit_event(self):
         self.assert_single_map_output(
-            self._create_event_log_line(event_type='/jsi18n/', event_source='server'),
+            self.create_event_log_line(event_type='/jsi18n/', event_source='server'),
             self.default_key,
-            ('', '/jsi18n/', {})
+            ('', '/jsi18n/', {}, self.DEFAULT_DATE)
         )
 
     def test_course_event(self):
         self.assert_single_map_output(
-            self._create_event_log_line(event_type='/courses/foo/bar/', event_source='server'),
+            self.create_event_log_line(event_type='/courses/foo/bar/', event_source='server'),
             self.default_key,
-            ('', '/courses/foo/bar/', {})
+            ('', '/courses/foo/bar/', {}, self.DEFAULT_DATE)
         )
 
     def test_section_view_event(self):
         event_type = '/courses/{0}/courseware/foo/'.format(self.course_id)
         self.assert_single_map_output(
-            self._create_event_log_line(event_type=event_type, event_source='server'),
+            self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,
-            ('', event_type, {})
+            ('', event_type, {}, self.DEFAULT_DATE)
         )
 
     def test_subsection_event(self):
@@ -168,12 +188,12 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
         """Assert that given a path ending the event is recognized as a subsection view"""
         event_type = '/courses/{0}/courseware/{1}'.format(self.course_id, end_of_path)
         self.assert_single_map_output(
-            self._create_event_log_line(event_type=event_type, event_source='server'),
+            self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,
             ('', 'marker:last_subsection_viewed', {
                 'path': event_type,
                 'timestamp': self.DEFAULT_TIMESTAMP,
-            })
+            }, self.DEFAULT_DATE)
         )
 
     def test_subsection_sequence_num_event(self):
@@ -183,7 +203,43 @@ class StudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase)
         self.assert_last_subsection_viewed_recognized('foo/bar/jquery.js')
 
 
-class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, unittest.TestCase):
+class WeeklyStudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    INTERVAL_START = "2013-11-01"
+    INTERVAL_END = "2014-01-02"
+
+    def setUp(self):
+        super(WeeklyStudentEngagementTaskMapTest, self).setUp()
+        interval = "{}-{}".format(self.INTERVAL_START, self.INTERVAL_END)
+        self.create_task(interval=interval, interval_type="weekly")
+
+    def test_date_mappings(self):
+        self.assert_date_mappings("2014-01-01", "2014-01-01")
+        self.assert_date_mappings("2013-12-25", "2013-12-25")
+        self.assert_date_mappings("2014-01-01", "2013-12-27")
+        self.assert_date_mappings("2013-12-25", "2013-12-23")
+
+
+class AllStudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    INTERVAL_START = "2013-11-01"
+    INTERVAL_END = "2014-01-02"
+
+    def setUp(self):
+        super(AllStudentEngagementTaskMapTest, self).setUp()
+        interval = "{}-{}".format(self.INTERVAL_START, self.INTERVAL_END)
+        self.create_task(interval=interval, interval_type="all")
+
+    def test_date_mappings(self):
+        self.assert_date_mappings("2014-01-01", "2014-01-01")
+        self.assert_date_mappings("2014-01-01", "2013-12-25")
+        self.assert_date_mappings("2014-01-01", "2013-12-27")
+        self.assert_date_mappings("2014-01-01", "2013-12-23")
+
+
+class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, StudentEngagementTaskMapTest):
     """Test analysis of detailed student engagement using legacy ID formats"""
     pass
 
@@ -228,7 +284,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_any_activity(self):
         inputs = [
-            ('', '/foo', {})
+            ('', '/foo', {}, self.DATE)
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -252,7 +308,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_single_problem_attempted(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {'correct': True})
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}, self.DATE)
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -263,7 +319,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_single_problem_attempted_incorrect(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {})
+            ('i4x://foo/bar/baz', 'problem_check', {}, self.DATE)
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -274,9 +330,9 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_single_problem_attempted_multiple_events(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
-            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
-            ('i4x://foo/bar/baz', 'problem_check', {})
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}, self.DATE),
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}, self.DATE),
+            ('i4x://foo/bar/baz', 'problem_check', {}, self.DATE)
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -287,9 +343,9 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_multiple_problems_attempted(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
-            ('i4x://foo/bar/baz2', 'problem_check', {'correct': True}),
-            ('i4x://foo/bar/baz', 'problem_check', {})
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}, self.DATE),
+            ('i4x://foo/bar/baz2', 'problem_check', {'correct': True}, self.DATE),
+            ('i4x://foo/bar/baz', 'problem_check', {}, self.DATE)
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -300,7 +356,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_single_video_played(self):
         inputs = [
-            ('foobarbaz', 'play_video', {}),
+            ('foobarbaz', 'play_video', {}, self.DATE),
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -309,9 +365,9 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_multiple_video_plays_same_video(self):
         inputs = [
-            ('foobarbaz', 'play_video', {}),
-            ('foobarbaz', 'play_video', {}),
-            ('foobarbaz', 'play_video', {}),
+            ('foobarbaz', 'play_video', {}, self.DATE),
+            ('foobarbaz', 'play_video', {}, self.DATE),
+            ('foobarbaz', 'play_video', {}, self.DATE),
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -320,8 +376,8 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_other_video_events(self):
         inputs = [
-            ('foobarbaz', 'pause_video', {}),
-            ('foobarbaz2', 'seek_video', {}),
+            ('foobarbaz', 'pause_video', {}, self.DATE),
+            ('foobarbaz2', 'seek_video', {}, self.DATE),
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -337,7 +393,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
     @unpack
     def test_count_events(self, event_type, column_num):
         inputs = [
-            ('', event_type, {})
+            ('', event_type, {}, self.DATE),
         ]
         self._check_output(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
@@ -353,8 +409,8 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
     @unpack
     def test_multiple_counted_events(self, event_type, column_num):
         inputs = [
-            ('', event_type, {}),
-            ('', event_type, {})
+            ('', event_type, {}, self.DATE),
+            ('', event_type, {}, self.DATE),
         ]
         self._check_output(inputs, {
             column_num: 2,
@@ -362,7 +418,7 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_last_subsection(self):
         inputs = [
-            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}, self.DATE),
         ]
         self._check_output(inputs, {
             self.LAST_SUBSECTION_COLUMN: 'foobar',
@@ -370,9 +426,9 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
 
     def test_multiple_subsection_views(self):
         inputs = [
-            ('', SUBSECTION_VIEWED_MARKER, {'path': 'finalpath', 'timestamp': '2014-12-01T00:00:04.000000'}),
-            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}),
-            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar1', 'timestamp': '2014-12-01T00:00:03.000000'}),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'finalpath', 'timestamp': '2014-12-01T00:00:04.000000'}, self.DATE),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}, self.DATE),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar1', 'timestamp': '2014-12-01T00:00:03.000000'}, self.DATE),
         ]
         self._check_output(inputs, {
             self.LAST_SUBSECTION_COLUMN: 'finalpath',
