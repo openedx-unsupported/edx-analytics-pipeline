@@ -3,8 +3,9 @@
 import json
 
 import luigi
+from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.student_engagement import StudentEngagementTask
+from edx.analytics.tasks.student_engagement import StudentEngagementTask, SUBSECTION_VIEWED_MARKER
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
@@ -187,6 +188,7 @@ class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, unittest.Tes
     pass
 
 
+@ddt
 class StudentEngagementTaskReducerTest(unittest.TestCase):
     """
     Tests to verify that engagement data is reduced properly
@@ -197,8 +199,16 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
     USERNAME = 'test_user'
     REDUCE_KEY = (DATE, COURSE_ID, USERNAME)
 
-    WAS_ACTIVE_COLUMN_NUM = 3
+    WAS_ACTIVE_COLUMN = 3
     PROBLEMS_ATTEMPTED_COLUMN = 4
+    PROBLEM_ATTEMPTS_COLUMN = 5
+    PROBLEMS_CORRECT_COLUMN = 6
+    VIDEOS_PLAYED_COLUMN = 7
+    FORUM_POSTS_COLUMN = 8
+    FORUM_REPLIES_COLUMN = 9
+    FORUM_COMMENTS_COLUMN = 10
+    TEXTBOOK_PAGES_COLUMN = 11
+    LAST_SUBSECTION_COLUMN = 12
 
     def setUp(self):
         fake_param = luigi.DateIntervalParameter()
@@ -220,32 +230,150 @@ class StudentEngagementTaskReducerTest(unittest.TestCase):
         inputs = [
             ('', '/foo', {})
         ]
-        self._check_output(inputs, self.WAS_ACTIVE_COLUMN_NUM, 1)
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.PROBLEMS_ATTEMPTED_COLUMN: 0,
+            self.PROBLEM_ATTEMPTS_COLUMN: 0,
+            self.PROBLEMS_CORRECT_COLUMN: 0,
+            self.VIDEOS_PLAYED_COLUMN: 0,
+            self.FORUM_POSTS_COLUMN: 0,
+            self.FORUM_REPLIES_COLUMN: 0,
+            self.FORUM_COMMENTS_COLUMN: 0,
+            self.TEXTBOOK_PAGES_COLUMN: 0,
+            self.LAST_SUBSECTION_COLUMN: '',
+        })
 
-    def _check_output(self, inputs, column_num, expected_value):
+    def _check_output(self, inputs, column_values):
         """Compare generated with expected output."""
         output = self._get_reducer_output(inputs)
         self.assertEquals(len(output), 1)
-        self.assertEquals(output[0][column_num], expected_value)
+        for column_num, expected_value in column_values.iteritems():
+            self.assertEquals(output[0][column_num], expected_value)
 
     def test_single_problem_attempted(self):
         inputs = [
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True})
+        ]
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.PROBLEMS_ATTEMPTED_COLUMN: 1,
+            self.PROBLEM_ATTEMPTS_COLUMN: 1,
+            self.PROBLEMS_CORRECT_COLUMN: 1,
+        })
+
+    def test_single_problem_attempted_incorrect(self):
+        inputs = [
             ('i4x://foo/bar/baz', 'problem_check', {})
         ]
-        self._check_output(inputs, self.PROBLEMS_ATTEMPTED_COLUMN, 1)
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.PROBLEMS_ATTEMPTED_COLUMN: 1,
+            self.PROBLEM_ATTEMPTS_COLUMN: 1,
+            self.PROBLEMS_CORRECT_COLUMN: 0,
+        })
 
     def test_single_problem_attempted_multiple_events(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {}),
-            ('i4x://foo/bar/baz', 'problem_check', {}),
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
             ('i4x://foo/bar/baz', 'problem_check', {})
         ]
-        self._check_output(inputs, self.PROBLEMS_ATTEMPTED_COLUMN, 1)
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.PROBLEMS_ATTEMPTED_COLUMN: 1,
+            self.PROBLEM_ATTEMPTS_COLUMN: 3,
+            self.PROBLEMS_CORRECT_COLUMN: 1,
+        })
 
-    def test_multiple_problems(self):
+    def test_multiple_problems_attempted(self):
         inputs = [
-            ('i4x://foo/bar/baz', 'problem_check', {}),
-            ('i4x://foo/bar/baz2', 'problem_check', {}),
+            ('i4x://foo/bar/baz', 'problem_check', {'correct': True}),
+            ('i4x://foo/bar/baz2', 'problem_check', {'correct': True}),
             ('i4x://foo/bar/baz', 'problem_check', {})
         ]
-        self._check_output(inputs, self.PROBLEMS_ATTEMPTED_COLUMN, 2)
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.PROBLEMS_ATTEMPTED_COLUMN: 2,
+            self.PROBLEM_ATTEMPTS_COLUMN: 3,
+            self.PROBLEMS_CORRECT_COLUMN: 2,
+        })
+
+    def test_single_video_played(self):
+        inputs = [
+            ('foobarbaz', 'play_video', {}),
+        ]
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.VIDEOS_PLAYED_COLUMN: 1,
+        })
+
+    def test_multiple_video_plays_same_video(self):
+        inputs = [
+            ('foobarbaz', 'play_video', {}),
+            ('foobarbaz', 'play_video', {}),
+            ('foobarbaz', 'play_video', {}),
+        ]
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.VIDEOS_PLAYED_COLUMN: 1,
+        })
+
+    def test_other_video_events(self):
+        inputs = [
+            ('foobarbaz', 'pause_video', {}),
+            ('foobarbaz2', 'seek_video', {}),
+        ]
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            self.VIDEOS_PLAYED_COLUMN: 0,
+        })
+
+    @data(
+        ('edx.forum.thread.created', FORUM_POSTS_COLUMN),
+        ('edx.forum.response.created', FORUM_REPLIES_COLUMN),
+        ('edx.forum.comment.created', FORUM_COMMENTS_COLUMN),
+        ('book', TEXTBOOK_PAGES_COLUMN),
+    )
+    @unpack
+    def test_count_events(self, event_type, column_num):
+        inputs = [
+            ('', event_type, {})
+        ]
+        self._check_output(inputs, {
+            self.WAS_ACTIVE_COLUMN: 1,
+            column_num: 1,
+        })
+
+    @data(
+        ('edx.forum.thread.created', FORUM_POSTS_COLUMN),
+        ('edx.forum.response.created', FORUM_REPLIES_COLUMN),
+        ('edx.forum.comment.created', FORUM_COMMENTS_COLUMN),
+        ('book', TEXTBOOK_PAGES_COLUMN),
+    )
+    @unpack
+    def test_multiple_counted_events(self, event_type, column_num):
+        inputs = [
+            ('', event_type, {}),
+            ('', event_type, {})
+        ]
+        self._check_output(inputs, {
+            column_num: 2,
+        })
+
+    def test_last_subsection(self):
+        inputs = [
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}),
+        ]
+        self._check_output(inputs, {
+            self.LAST_SUBSECTION_COLUMN: 'foobar',
+        })
+
+    def test_multiple_subsection_views(self):
+        inputs = [
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'finalpath', 'timestamp': '2014-12-01T00:00:04.000000'}),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar', 'timestamp': '2014-12-01T00:00:00.000000'}),
+            ('', SUBSECTION_VIEWED_MARKER, {'path': 'foobar1', 'timestamp': '2014-12-01T00:00:03.000000'}),
+        ]
+        self._check_output(inputs, {
+            self.LAST_SUBSECTION_COLUMN: 'finalpath',
+        })

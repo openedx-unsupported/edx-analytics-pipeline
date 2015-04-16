@@ -25,6 +25,9 @@ from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePar
 log = logging.getLogger(__name__)
 
 
+SUBSECTION_VIEWED_MARKER = 'marker:last_subsection_viewed'
+
+
 class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     """
     This is a spiked version of the basic task, used as a starting point for developing
@@ -85,7 +88,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 return
             info['path'] = event_type
             info['timestamp'] = timestamp
-            event_type = 'marker:last_subsection_viewed'
+            event_type = SUBSECTION_VIEWED_MARKER
 
         date_grouping_key = date_string
         if self.group_by_week:
@@ -146,7 +149,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                     num_forum_posts += 1
                 elif event_type == 'book':
                     num_textbook_pages += 1
-                elif event_type == 'marker:last_subsection_viewed':
+                elif event_type == SUBSECTION_VIEWED_MARKER:
                     if not max_timestamp or info['timestamp'] > max_timestamp:
                         last_subsection_viewed = info['path']
                         max_timestamp = info['timestamp']
