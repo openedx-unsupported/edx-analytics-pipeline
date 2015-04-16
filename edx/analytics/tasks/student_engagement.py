@@ -1,9 +1,10 @@
 """Calculates per-student engagement reports per course."""
 
 import csv
-import logging
 import datetime
 import hashlib
+import json
+import logging
 from itertools import groupby
 from operator import itemgetter
 import re
@@ -93,8 +94,8 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         date_grouping_key = date_string
 
         if self.interval_type == 'weekly':
-            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            last_weekday = last_valid_date.isoweekday()
+            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            last_weekday = last_complete_date.isoweekday()
 
             split_date = date_string.split('-')
             event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
@@ -108,12 +109,12 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             date_grouping_key = end_of_week_date.isoformat()
 
         elif self.interval_type == 'all':
-            # If gathering all data for a given user, use the last valid day of the interval
+            # If gathering all data for a given user, use the last complete day of the interval
             # for joining with enrollment.
-            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            date_grouping_key = last_valid_date.isoformat()
+            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            date_grouping_key = last_complete_date.isoformat()
 
-        yield ((date_grouping_key, course_id, username), (entity_id, event_type, info, date_string))
+        yield ((date_grouping_key, course_id, username), (entity_id, event_type, json.dumps(info), date_string))
 
     def reducer(self, key, events):
         """Calculate counts for events corresponding to user and course in a given time period."""
@@ -139,7 +140,8 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             is_first = True
             is_correct = False
 
-            for _, event_type, info, date_string in events:
+            for _, event_type, info_json, date_string in events:
+                info = json.loads(info_json)
                 if event_type == 'problem_check':
                     if is_first:
                         num_problems_attempted += 1
@@ -295,8 +297,8 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                 end=self.interval.date_b.isoformat()  # pylint: disable=no-member
             )
         elif self.interval_type == "weekly":
-            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            iso_weekday = last_valid_date.isoweekday()
+            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            iso_weekday = last_complete_date.isoweekday()
             calendar_join = "INNER JOIN calendar cal ON (ce.date = cal.date) "
             date_where = "ce.date >= '{start}' AND ce.date < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
                 start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
@@ -304,8 +306,8 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                 iso_weekday=iso_weekday,
             )
         elif self.interval_type == "all":
-            last_valid_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            date_where = "ce.date = '{last_valid_date}'".format(last_valid_date=last_valid_date.isoformat())
+            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+            date_where = "ce.date = '{last_complete_date}'".format(last_complete_date=last_complete_date.isoformat())
 
         return """
         SELECT
@@ -378,7 +380,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
             CourseEnrollmentTableTask(**kwargs_for_enrollment),
         )
-        # TODO: If this doesn't work, then we can just always add it in above.
+        # Only the weekly requires use of the calendar.
         if self.interval_type == "weekly":
             yield (
                 CalendarTableTask(
