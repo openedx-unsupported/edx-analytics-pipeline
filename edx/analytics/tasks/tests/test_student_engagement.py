@@ -59,58 +59,28 @@ class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestC
         }
         self.default_key = (self.DEFAULT_DATE, self.course_id, 'test_user')
 
-    def create_task(self, interval_type=None):
+    def create_task(self, interval=None, interval_type=None):
+        """Allow arguments to be passed to the task constructor."""
+        if not interval:
+            interval = self.DEFAULT_DATE
         self.task = StudentEngagementTask(
-            interval=luigi.DateIntervalParameter().parse(self.DEFAULT_DATE),
+            interval=luigi.DateIntervalParameter().parse(interval),
             output_root='/fake/output',
             interval_type=interval_type,
         )
         self.task.init_local()
 
-
-class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
-    """Test analysis of detailed student engagement"""
-
-    def setUp(self):
-        super(StudentEngagementTaskMapTest, self).setUp()
-        self.create_task()
-
-    def test_invalid_events(self):
-        self.assert_no_map_output_for(self._create_event_log_line(time="2013-12-01T15:38:32.805444"))
-        self.assert_no_map_output_for(self._create_event_log_line(username=''))
-        self.assert_no_map_output_for(self._create_event_log_line(event_type=None))
-        self.assert_no_map_output_for(self._create_event_log_line(context={'course_id': 'lskdjfslkdj'}))
-        self.assert_no_map_output_for(self._create_event_log_line(event='sdfasdf'))
-
-    def assert_no_map_output_for(self, line):
-        """Assert that an input line generates no output."""
-
-        self.assertEquals(
-            tuple(self.task.mapper(line)),
-            tuple()
-        )
-
-    def _create_event_log_line(self, **kwargs):
+    def create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
         return json.dumps(self._create_event_dict(**kwargs))
 
     def _create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
-        event_dict = kwargs.pop('template', self.event_templates['play_video']).copy()
+        # event_dict = kwargs.pop('template', self.event_templates['play_video']).copy()
+        event_dict = kwargs.pop('template', self.event_templates['problem_check']).copy()
         event_dict.update(**kwargs)
         return event_dict
-
-    def test_browser_problem_check_event(self):
-        template = self.event_templates['problem_check']
-        self.assert_no_map_output_for(self._create_event_log_line(template=template, event_source='browser'))
-
-    def test_incorrect_problem_check(self):
-        self.assert_single_map_output(
-            json.dumps(self.event_templates['problem_check']),
-            self.default_key,
-            (self.problem_id, 'problem_check', {}, self.DEFAULT_DATE)
-        )
 
     def assert_single_map_output(self, line, expected_key, expected_value):
         """Assert that an input line generates exactly one output record with the expected key and value"""
@@ -121,6 +91,47 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
         actual_key, actual_value = row
         self.assertEquals(expected_key, actual_key)
         self.assertEquals(expected_value, actual_value)
+
+    def assert_no_map_output_for(self, line):
+        """Assert that an input line generates no output."""
+        self.assertEquals(
+            tuple(self.task.mapper(line)),
+            tuple()
+        )
+
+    def assert_date_mappings(self, expected_end_date, actual_event_date):
+        """Asserts that an event_date is mapped to the expected date in the key."""
+        self.assert_single_map_output(
+            self.create_event_log_line(time="{}T15:38:32.805444".format(actual_event_date)),
+            (expected_end_date, self.course_id, 'test_user'),
+            (self.problem_id, 'problem_check', {}, actual_event_date)
+        )
+
+
+class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    def setUp(self):
+        super(StudentEngagementTaskMapTest, self).setUp()
+        self.create_task()
+
+    def test_invalid_events(self):
+        self.assert_no_map_output_for(self.create_event_log_line(time="2013-12-01T15:38:32.805444"))
+        self.assert_no_map_output_for(self.create_event_log_line(username=''))
+        self.assert_no_map_output_for(self.create_event_log_line(event_type=None))
+        self.assert_no_map_output_for(self.create_event_log_line(context={'course_id': 'lskdjfslkdj'}))
+        self.assert_no_map_output_for(self.create_event_log_line(event='sdfasdf'))
+
+    def test_browser_problem_check_event(self):
+        template = self.event_templates['problem_check']
+        self.assert_no_map_output_for(self.create_event_log_line(template=template, event_source='browser'))
+
+    def test_incorrect_problem_check(self):
+        self.assert_single_map_output(
+            json.dumps(self.event_templates['problem_check']),
+            self.default_key,
+            (self.problem_id, 'problem_check', {}, self.DEFAULT_DATE)
+        )
 
     def test_correct_problem_check(self):
         template = self.event_templates['problem_check']
@@ -134,12 +145,12 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
     def test_missing_problem_id(self):
         template = self.event_templates['problem_check']
         del template['event']['problem_id']
-        self.assert_no_map_output_for(self._create_event_log_line(template=template))
+        self.assert_no_map_output_for(self.create_event_log_line(template=template))
 
     def test_missing_video_id(self):
         template = self.event_templates['play_video']
         template['event'] = '{"currentTime": "23.4398", "code": "87389iouhdfh"}'
-        self.assert_no_map_output_for(self._create_event_log_line(template=template))
+        self.assert_no_map_output_for(self.create_event_log_line(template=template))
 
     def test_play_video(self):
         self.assert_single_map_output(
@@ -150,14 +161,14 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
 
     def test_implicit_event(self):
         self.assert_single_map_output(
-            self._create_event_log_line(event_type='/jsi18n/', event_source='server'),
+            self.create_event_log_line(event_type='/jsi18n/', event_source='server'),
             self.default_key,
             ('', '/jsi18n/', {}, self.DEFAULT_DATE)
         )
 
     def test_course_event(self):
         self.assert_single_map_output(
-            self._create_event_log_line(event_type='/courses/foo/bar/', event_source='server'),
+            self.create_event_log_line(event_type='/courses/foo/bar/', event_source='server'),
             self.default_key,
             ('', '/courses/foo/bar/', {}, self.DEFAULT_DATE)
         )
@@ -165,7 +176,7 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
     def test_section_view_event(self):
         event_type = '/courses/{0}/courseware/foo/'.format(self.course_id)
         self.assert_single_map_output(
-            self._create_event_log_line(event_type=event_type, event_source='server'),
+            self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,
             ('', event_type, {}, self.DEFAULT_DATE)
         )
@@ -177,7 +188,7 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
         """Assert that given a path ending the event is recognized as a subsection view"""
         event_type = '/courses/{0}/courseware/{1}'.format(self.course_id, end_of_path)
         self.assert_single_map_output(
-            self._create_event_log_line(event_type=event_type, event_source='server'),
+            self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,
             ('', 'marker:last_subsection_viewed', {
                 'path': event_type,
@@ -190,6 +201,42 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
 
     def test_subsection_jquery_event(self):
         self.assert_last_subsection_viewed_recognized('foo/bar/jquery.js')
+
+
+class WeeklyStudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    INTERVAL_START = "2013-11-01"
+    INTERVAL_END = "2014-01-02"
+
+    def setUp(self):
+        super(WeeklyStudentEngagementTaskMapTest, self).setUp()
+        interval = "{}-{}".format(self.INTERVAL_START, self.INTERVAL_END)
+        self.create_task(interval=interval, interval_type="weekly")
+
+    def test_date_mappings(self):
+        self.assert_date_mappings("2014-01-01", "2014-01-01")
+        self.assert_date_mappings("2013-12-25", "2013-12-25")
+        self.assert_date_mappings("2014-01-01", "2013-12-27")
+        self.assert_date_mappings("2013-12-25", "2013-12-23")
+
+
+class AllStudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
+    """Test analysis of detailed student engagement"""
+
+    INTERVAL_START = "2013-11-01"
+    INTERVAL_END = "2014-01-02"
+
+    def setUp(self):
+        super(AllStudentEngagementTaskMapTest, self).setUp()
+        interval = "{}-{}".format(self.INTERVAL_START, self.INTERVAL_END)
+        self.create_task(interval=interval, interval_type="all")
+
+    def test_date_mappings(self):
+        self.assert_date_mappings("2014-01-01", "2014-01-01")
+        self.assert_date_mappings("2014-01-01", "2013-12-25")
+        self.assert_date_mappings("2014-01-01", "2013-12-27")
+        self.assert_date_mappings("2014-01-01", "2013-12-23")
 
 
 class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, StudentEngagementTaskMapTest):
