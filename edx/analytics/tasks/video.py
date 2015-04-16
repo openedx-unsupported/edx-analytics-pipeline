@@ -277,14 +277,25 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
 
     def mapper(self, line):
         username, course_id, encoded_module_id, video_duration, start_timestamp_str, start_offset, end_offset, reason = line.split('\t')
-        yield ((course_id, encoded_module_id, video_duration), (username, start_offset, end_offset))
+        yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
 
     def reducer(self, key, sessions):
-        course_id, encoded_module_id, video_duration = key
+        course_id, encoded_module_id = key
         pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
+        sessions_by_duration = {}
         for session in sessions:
+            username, start_offset, end_offset, video_duration = session
+            sessions_by_duration.setdefault(video_duration, []).append((username, start_offset, end_offset))
+
+        video_duration = 0
+        max_count = -1
+        for duration, indexed_sessions in sessions_by_duration.iteritems():
+            if len(indexed_sessions) > max_count:
+                video_duration = duration
+
+        for session in sessions_by_duration[video_duration]:
             username, start_offset, end_offset = session
             first_second = int(math.floor(float(start_offset)))
             start_segment = self.snap_to_last_segment_boundary(first_second)
