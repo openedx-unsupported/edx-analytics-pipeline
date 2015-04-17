@@ -108,6 +108,7 @@ class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestC
         )
 
 
+@ddt
 class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
     """Test analysis of detailed student engagement"""
 
@@ -115,12 +116,15 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
         super(StudentEngagementTaskMapTest, self).setUp()
         self.create_task()
 
-    def test_invalid_events(self):
-        self.assert_no_map_output_for(self.create_event_log_line(time="2013-12-01T15:38:32.805444"))
-        self.assert_no_map_output_for(self.create_event_log_line(username=''))
-        self.assert_no_map_output_for(self.create_event_log_line(event_type=None))
-        self.assert_no_map_output_for(self.create_event_log_line(context={'course_id': 'lskdjfslkdj'}))
-        self.assert_no_map_output_for(self.create_event_log_line(event='sdfasdf'))
+    @data(
+        {'time': "2013-12-01T15:38:32.805444"},
+        {'username': ''},
+        {'event_type': None},
+        {'context': {'course_id': 'lskdjfslkdj'}},
+        {'event': 'sdfasdf'}
+    )
+    def test_invalid_events(self, kwargs):
+        self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
 
     def test_browser_problem_check_event(self):
         template = self.event_templates['problem_check']
