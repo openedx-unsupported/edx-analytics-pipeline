@@ -245,10 +245,10 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, MultiOutputMa
             for value in values:
                 output_file.write(value.strip())
                 output_file.write('\n')
-                bytes_written += len(value) + 1
+                bytes_written += len(value)
                 event_count += 1
 
-                if bytes_written > 1e6:
+                if bytes_written > 1e6:  # pragma: no cover
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
                     # Do not remove it.
                     self.increment_counter('analytics.c14n.bytes_written', bytes_written)

@@ -1,4 +1,6 @@
 
+from cStringIO import StringIO
+import gzip
 import json
 import os
 
@@ -120,3 +122,33 @@ class CanonicalizationMapperTest(unittest.TestCase):
 
     def test_invalid_json_string_content(self):
         self.assert_event_contains(self.call_mapper(event='{"foo": "ba'), event={})
+
+
+class CanonicalizationReducerTest(unittest.TestCase):
+
+    def setUp(self):
+        self.task = CanonicalizationTask(
+            interval=date_interval.Date.parse('2015-01-01')
+        )
+        self.task.init_local()
+        increment_patcher = patch.object(self.task, 'increment_counter')
+        self.mock_increment = increment_patcher.start()
+        self.addCleanup(increment_patcher.stop)
+
+    def test_output_path_for_key(self):
+        pass
+
+    def test_writing_gzip_data(self):
+        output_file = StringIO()
+        input_values = [
+            {'event_type': 'play_video'},
+            {'event_type': 'stop_video'}
+        ]
+        input_values = [json.dumps(e) for e in input_values]
+        self.task.multi_output_reducer(('2015-01-01', 1), input_values, output_file)
+        output_file.seek(0)
+        expected_output = '\n'.join(input_values) + '\n'
+        with gzip.GzipFile(mode='rb', fileobj=output_file) as gzip_output_file:
+            actual_output = gzip_output_file.read()
+        self.assertEqual(expected_output, actual_output)
+        self.mock_increment.assert_called_with('analytics.c14n.events', value=2)
