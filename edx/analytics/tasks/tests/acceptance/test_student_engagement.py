@@ -28,12 +28,33 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 4, 05))
         self.execute_sql_fixture_file('load_student_engagement.sql')
 
+        self.test_daily = url_path_join(self.test_out, 'daily')
         self.task.launch([
             'StudentEngagementCsvFileTask',
             '--source', self.test_src,
-            '--output-root', self.test_out,
+            '--output-root', self.test_daily,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--interval', '2015-04-05-2015-04-20',
+            '--interval', '2015-04-06-2015-04-20',
+        ])
+
+        self.test_weekly = url_path_join(self.test_out, 'weekly')
+        self.task.launch([
+            'StudentEngagementCsvFileTask',
+            '--source', self.test_src,
+            '--output-root', self.test_weekly,
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--interval', '2015-04-06-2015-04-20',
+            '--interval-type', 'all',
+        ])
+
+        self.test_all = url_path_join(self.test_out, 'daily')
+        self.task.launch([
+            'StudentEngagementCsvFileTask',
+            '--source', self.test_src,
+            '--output-root', self.test_all,
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--interval', '2015-04-06-2015-04-20',
+            '--interval-type', 'all',
         ])
 
         #
@@ -41,11 +62,11 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
         # Eg:
         # s3://.../StudentEngagementAcceptanceTest/out/.../student_engagement_daily_2015-04-05.csv
         #
-        outputs = self.s3_client.list(self.test_out)
-        outputs = [url_path_join(self.test_out, p) for p in outputs]
+        outputs = self.s3_client.list(self.test_daily)
+        outputs = [url_path_join(self.test_daily, p) for p in outputs]
 
         # There are 15 student_engagement files in the test data directory
-        self.assertEqual(len(outputs), 15)
+        self.assertEqual(len(outputs), 45)
 
         # Check that the results have data
         for output in outputs:
