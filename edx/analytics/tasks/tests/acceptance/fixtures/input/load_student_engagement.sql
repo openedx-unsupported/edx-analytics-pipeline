@@ -28,7 +28,7 @@ CREATE TABLE `course_groups_courseusergroup` (`id` int(11) NOT NULL AUTO_INCREME
 --
 
 LOCK TABLES `course_groups_courseusergroup` WRITE;
-INSERT INTO `course_groups_courseusergroup` VALUES (1, 'best-cohort', 'edX/DemoX/Demo_Course', 'cohort'), (2, 'other-cohort', 'edX/DemoX/Demo_Course', 'cohort');
+INSERT INTO `course_groups_courseusergroup` VALUES (1, 'best-cohort', 'edX/DemoX/Demo_Course', 'cohort'), (2, 'other-cohort', 'edX/DemoX/Demo_Course', 'cohort'), (3, 'new-cohort', 'course-v1:edX+DemoX+Demo_Course_2015', 'cohort'), (4, 'additional-cohort', 'course-v1:edX+DemoX+Demo_Course_2015', 'cohort');
 
 UNLOCK TABLES;
 
@@ -37,12 +37,12 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `course_groups_courseusergroup_users`;
-CREATE TABLE `course_groups_courseusergroup_users` (`id`      INT(11) NOT NULL AUTO_INCREMENT, `courseusergroup_id` INT(11) NOT NULL, `user_id` INT(11) NOT NULL, PRIMARY KEY (`id`), UNIQUE KEY `courseusergroup_id` (`courseusergroup_id`, `user_id`), KEY `course_groups_courseusergroup_users_caee1c64` (`courseusergroup_id`), KEY `course_groups_courseusergroup_users_fbfc09f1` (`user_id`), CONSTRAINT `courseusergroup_id_refs_id_d26180aa` FOREIGN KEY (`courseusergroup_id`) REFERENCES `course_groups_courseusergroup` (`id`), CONSTRAINT `user_id_refs_id_bf33b47a` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+CREATE TABLE `course_groups_courseusergroup_users` (`id` INT(11) NOT NULL AUTO_INCREMENT, `courseusergroup_id` INT(11) NOT NULL, `user_id` INT(11) NOT NULL, PRIMARY KEY (`id`), UNIQUE KEY `courseusergroup_id` (`courseusergroup_id`, `user_id`), KEY `course_groups_courseusergroup_users_caee1c64` (`courseusergroup_id`), KEY `course_groups_courseusergroup_users_fbfc09f1` (`user_id`), CONSTRAINT `courseusergroup_id_refs_id_d26180aa` FOREIGN KEY (`courseusergroup_id`) REFERENCES `course_groups_courseusergroup` (`id`), CONSTRAINT `user_id_refs_id_bf33b47a` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
 --
 -- Dumping data for table `course_groups_courseusergroup_users`
 --
 
 LOCK TABLES `course_groups_courseusergroup_users` WRITE;
-INSERT INTO `course_groups_courseusergroup_users` VALUES (1, 1, 2), (2, 2, 4);
+INSERT INTO `course_groups_courseusergroup_users` VALUES (1, 1, 1), (2, 1, 2), (3, 2, 4), (4, 3, 2), (5, 4, 3);
 UNLOCK TABLES;
