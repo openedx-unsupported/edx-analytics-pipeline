@@ -31,8 +31,9 @@ SUBSECTION_VIEWED_MARKER = 'marker:last_subsection_viewed'
 
 class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     """
-    This is a spiked version of the basic task, used as a starting point for developing
-    the workflow.
+    Calculate student engagement for a given interval and interval type.
+
+    Calculates separately for each user in each course.
     """
 
     SUBSECTION_ACCESSED_PATTERN = r'/courses/[^/+]+(/|\+)[^/+]+(/|\+)[^/]+/courseware/[^/]+/[^/]+/.*$'
@@ -426,6 +427,8 @@ class StudentEngagementCsvFileTask(
         will be displayed on the instructor dashboard for that course.
         """
         date, course_id = key
+        if self.interval_type == "all":
+            date = str(self.interval)
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
         filename = u'student_engagement_{interval_type}_{date}.csv'.format(date=date, interval_type=self.interval_type)
         return url_path_join(self.output_root, hashed_course_id, filename)
