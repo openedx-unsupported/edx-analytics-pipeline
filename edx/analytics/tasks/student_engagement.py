@@ -460,7 +460,7 @@ class StudentEngagementCsvFileTask(
             'Email',
             'Cohort',
             self._get_active_header(),
-            'Unique Problems_Attempted',
+            'Unique Problems Attempted',
             'Total Problem Attempts',
             'Unique Problems Correct',
             'Unique Videos Played',
