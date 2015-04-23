@@ -19,7 +19,7 @@ import pandas as pd
 log = logging.getLogger(__name__)
 
 
-class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
+class StudentEngagementAcceptanceTest(AcceptanceTestCase):
     """Acceptance test for the CSV-generating Student Engagement Task."""
 
     INPUT_FILE = 'student_engagement_acceptance_tracking.log'
@@ -92,7 +92,7 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
         #
         for interval_type in ['daily', 'weekly', 'all']:
 
-            date_column_name = "date" if interval_type == 'daily' else "end_date"
+            date_column_name = "Date" if interval_type == 'daily' else "End Date"
 
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
@@ -131,13 +131,13 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
                     for date in dataframe[date_column_name]:
                         self.validate_date_cell_format(date)
 
-                    for user_name in dataframe["username"]:
+                    for user_name in dataframe["Username"]:
                         self.validate_username_string_format(user_name)
 
-                    for email in dataframe["email"]:
+                    for email in dataframe["Email"]:
                         self.validate_email_string_format(email)
 
-                    for cohort in dataframe["cohort"]:
+                    for cohort in dataframe["Cohort"]:
                         self.validate_cohort_format(cohort)
 
                     for column_name in dataframe.ix[:, 5:14]:
@@ -150,7 +150,7 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
                     for date in dataframe[date_column_name]:
                         self.assertEquals(date, expected_date)
 
-                    for row_course_id in dataframe["course_id"]:
+                    for row_course_id in dataframe["Course ID"]:
                         self.assertEquals(row_course_id, course_id)
 
                     if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
@@ -165,10 +165,10 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
         for column_name in dataframe.columns[5:14]:
             for column_value in dataframe[column_name]:
                 self.assertEquals(column_value, 0)
-        for column_value in dataframe['last_subsection_viewed']:
+        for column_value in dataframe['URL of Last Subsection Viewed']:
             self.assertEquals(len(column_value), 0)
 
-    def validate_number_of_columns(self,num_columns):
+    def validate_number_of_columns(self, num_columns):
         """Ensure each student engagement file has the correct number of columns (15)"""
         self.assertTrue(num_columns == 15, msg="Number of columns not equal to 15")
 
@@ -194,13 +194,13 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
             self.assertRegexpMatches(str(cohort), '^.*$')
 
     def validate_problems_videos_forums_textbook_values(self, value):
-        """Ensure problems,videos,forum and texbook column values are greater than or equal to 0"""
-        self.assertTrue(int(value) >= 0, msg="Problems,Videos,Forums or Textbook fields are not greater or equal to 0.")
+        """Ensure problems, videos, forum and texbook column values are greater than or equal to 0"""
+        self.assertTrue(int(value) >= 0, msg="Problems, Videos, Forums or Textbook fields are not greater or equal to 0.")
 
     def validate_within_rows(self, dataframe):
         # Validate various comparisons within a given row. Eg:
         # 1. problems correct gte to problems_attempted
         for index, row in dataframe.iterrows():
             # Number of correct problems should be equal to or lower than problems_attempted
-            self.assertTrue(row["problems_correct"] <= row["problems_attempted"],
-                            msg="Greater number of problems_correct than problems_attempted.")
+            self.assertTrue(row["Unique Problems Correct"] <= row["Unique Problems Attempted"],
+                            msg="Greater number of problems correct than problems attempted.")
