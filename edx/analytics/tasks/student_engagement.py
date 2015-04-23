@@ -435,26 +435,40 @@ class StudentEngagementCsvFileTask(
 
     def _get_date_header(self):
         """Gets column header for date, conditional on interval type."""
-        return 'date' if self.interval_type == "daily" else 'end_date'
+        return 'Date' if self.interval_type == "daily" else 'End Date'
+
+    def _get_active_header(self):
+        """Gets column header for days active, conditional on interval type."""
+        if self.interval_type == "daily":
+            return 'Was Active'
+        elif self.interval_type == "weekly":
+            return "Days Active This Week"
+        else:
+            return 'Days Active'
 
     def get_column_names(self):
-        """List names of columns as they should appear in the CSV, in order stored in Hive TSV output."""
+        """
+        List names of columns as they should appear in the CSV.
+
+        Apart from the first two entries, these must also be the order
+        they are stored in the Hive TSV output.
+        """
         return [
+            'Course ID',
             self._get_date_header(),
-            'course_id',
-            'username',
-            'email',
-            'cohort',
-            'was_active' if self.interval_type == "daily" else 'days_active',
-            'problems_attempted',
-            'problem_attempts',
-            'problems_correct',
-            'videos_played',
-            'forum_posts',
-            'forum_replies',
-            'forum_comments',
-            'textbook_pages_viewed',
-            'last_subsection_viewed',
+            'Username',
+            'Email',
+            'Cohort',
+            self._get_active_header(),
+            'Unique Problems_Attempted',
+            'Total Problem Attempts',
+            'Unique Problems Correct',
+            'Unique Videos Played',
+            'Discussion Posts',
+            'Discussion Replies',
+            'Discussion Comments',
+            'Textbook Pages Viewed',
+            'URL of Last Subsection Viewed',
         ]
 
     def multi_output_reducer(self, key, values, output_file):
@@ -479,7 +493,7 @@ class StudentEngagementCsvFileTask(
             # skip the values from the key in field_names, and add values manually.
             row = {field_key: field_value for field_key, field_value in zip(field_names[2:], fields)}
             row[self._get_date_header()] = end_date
-            row['course_id'] = course_id
+            row['Course ID'] = course_id
             row_data.append(row)
 
         row_data = sorted(row_data, key=itemgetter(*field_names))
