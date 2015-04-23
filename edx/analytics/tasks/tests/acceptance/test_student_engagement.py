@@ -35,6 +35,7 @@ class DailyStudentEngagementAcceptanceTest(AcceptanceTestCase):
     NONZERO_OUTPUT = [
         (COURSE_1, '2015-04-13', 'daily'),
         (COURSE_1, '2015-04-16', 'daily'),
+        (COURSE_2, '2015-04-13', 'daily'),
         (COURSE_2, '2015-04-16', 'daily'),
         (COURSE_3, '2015-04-09', 'daily'),
         (COURSE_3, '2015-04-12', 'daily'),
