@@ -92,7 +92,7 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         #
         for interval_type in ['daily', 'weekly', 'all']:
 
-            date_column_name = "date" if interval_type == 'daily' else "end_date"
+            date_column_name = "Date" if interval_type == 'daily' else "End Date"
 
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
