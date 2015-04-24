@@ -2,7 +2,6 @@
 End to end test of student engagement.
 """
 
-
 import datetime
 import hashlib
 import logging
@@ -86,11 +85,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             '--interval-type', 'all',
         ])
 
-        #
-        # Produce student_engagement file list
-        # Eg:
-        # s3://.../StudentEngagementAcceptanceTest/out/.../student_engagement_daily_2015-04-05.csv
-        #
         for interval_type in ['daily', 'weekly', 'all']:
 
             date_column_name = "Date" if interval_type == 'daily' else "End Date"
@@ -99,57 +93,47 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
                 csv_files = self.s3_client.list(course_dir)
-                csv_files = [url_path_join(course_dir, p) for p in csv_files if p.endswith(".csv")]
-
-
-                #course_dir = path + interval_type + '/' + hashed_course_id
-
 
                 # There are 14 student_engagement files in the test data directory, and 3 courses.
                 if interval_type == 'daily':
-                    self.assertEqual(len(outputs), 14)
+                    self.assertEqual(len(csv_files), 14)
                 elif interval_type == 'weekly':
-                    self.assertEqual(len(outputs), 2)
+                    self.assertEqual(len(csv_files), 2)
                 elif interval_type == 'all':
-                    self.assertEqual(len(outputs), 1)
+                    self.assertEqual(len(csv_files), 1)
 
                 # Check that the results have data
-                for csvfile in csv_files:
-                    #output = course_dir + '/' + csv_file
+                for csv_filename in csv_files:
+                    output = url_path_join(course_dir, csv_filename)
 
                     # parse expected date from output.
                     if interval_type == 'all':
                         expected_date = '2015-04-19'
                     else:
                         csv_pattern = '.*student_engagement_.*_(\\d\\d\\d\\d-\\d\\d-\\d\\d)\\.csv'
-                        match = re.match(csv_pattern, csvfile)
+                        match = re.match(csv_pattern, output)
                         expected_date = match.group(1)
-
 
                     """ Build dataframe from csv file generated from events """
                     generate_file_dataframe = []
-                    with S3Target(csvfile).open() as csvfile:
+                    with S3Target(output).open() as csvfile:
                         # Construct dataframe from file to create more intuitive column handling
-                        #dataframe = pd.read_csv(csvfile)
-                        #dataframe.fillna('', inplace=True)
-
                         generate_file_dataframe = pd.read_csv(csvfile)
                         generate_file_dataframe.fillna('', inplace=True)
 
-
                     """ Validate specific values: """
-                    for date in dataframe[date_column_name]:
+                    for date in generate_file_dataframe[date_column_name]:
                         self.assertEquals(date, expected_date)
 
-                    for row_course_id in dataframe["Course ID"]:
+                    for row_course_id in generate_file_dataframe["Course ID"]:
                         self.assertEquals(row_course_id, course_id)
 
                     if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
-                        """ Compare auto-generated student engagement files with associated fixture files """
+                        # Compare auto-generated student engagement files with associated fixture files
 
-                        """ Build fixture file dataframe """
+                        # Build fixture file dataframe
                         fixture_file = self.data_dir + "/output/student_engagement/expected/" + interval_type + \
-                                       '/' + hashed_course_id + '/' + csv_file
+                                       '/' + hashed_course_id + '/' + csv_filename
                         fixture_dataframe = pd.read_csv(fixture_file)
                         fixture_dataframe.fillna('', inplace=True)
 
@@ -157,11 +141,8 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                         self.assertFrameEqual(fixture_dataframe, generate_file_dataframe)
 
                     else:
-                        self.assert_zero_engagement(dataframe)
+                        self.assert_zero_engagement(generate_file_dataframe)
                         # TODO: check username, email, and cohort names (if any).
-
-
-
 
     def assert_zero_engagement(self, dataframe):
         """Asserts that all counts are zero."""
@@ -175,40 +156,3 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         """ Assert that two dataframes are equal, ignoring ordering of columns"""
         from pandas.util.testing import assert_frame_equal
         return assert_frame_equal(df1.sort(axis=1), df2.sort(axis=1), check_names=True, **kwds)
-
-    def validate_number_of_columns(self, num_columns):
-        """Ensure each student engagement file has the correct number of columns (15)"""
-        self.assertTrue(num_columns == 15, msg="Number of columns not equal to 15")
-
-    def validate_date_cell_format(self, date):
-        """Ensure date on each row is of the format yyyy-mm-dd"""
-        self.assertRegexpMatches(date, '^\d\d\d\d-\d\d-\d\d$')
-
-    def validate_course_id_string_format(self, course_id):
-        """Ensure course_id on each row matches a course_id string"""
-        self.assertTrue(opaque_key_util.is_valid_course_id(course_id))
-
-    def validate_username_string_format(self, user_name):
-        """Ensure user_name on each row matches a user_name string"""
-        self.assertRegexpMatches(user_name, '^.{1,}$')
-
-    def validate_email_string_format(self, email):
-        """Ensure email address on each row matches an email address"""
-        self.assertRegexpMatches(email, '^([^@|\s]+@[^@]+\.[^@|\s]+)$')
-
-    def validate_cohort_format(self, cohort):
-        """Cohort is present or not"""
-        if cohort:
-            self.assertRegexpMatches(str(cohort), '^.*$')
-
-    def validate_problems_videos_forums_textbook_values(self, value):
-        """Ensure problems, videos, forum and texbook column values are greater than or equal to 0"""
-        self.assertTrue(int(value) >= 0, msg="Problems, Videos, Forums or Textbook fields are not greater or equal to 0.")
-
-    def validate_within_rows(self, dataframe):
-        # Validate various comparisons within a given row. Eg:
-        # 1. problems correct gte to problems_attempted
-        for index, row in dataframe.iterrows():
-            # Number of correct problems should be equal to or lower than problems_attempted
-            self.assertTrue(row["Unique Problems Correct"] <= row["Unique Problems Attempted"],
-                            msg="Greater number of problems correct than problems attempted.")
