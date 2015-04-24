@@ -75,8 +75,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
 
             self.run_task(interval_type)
 
-            date_column_name = "Date" if interval_type == 'daily' else "End Date"
-
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
@@ -84,11 +82,11 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
 
                 # Check expected number of CSV files.
                 if interval_type == 'daily':
-                    self.assertEqual(len(csv_files), 14)
+                    self.assertEqual(len(csv_filenames), 14)
                 elif interval_type == 'weekly':
-                    self.assertEqual(len(csv_files), 2)
+                    self.assertEqual(len(csv_filenames), 2)
                 elif interval_type == 'all':
-                    self.assertEqual(len(csv_files), 1)
+                    self.assertEqual(len(csv_filenames), 1)
 
                 # Check that the CSV files contain the expected data.
                 for csv_filename in csv_filenames:
@@ -103,16 +101,15 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
 
                     # Build dataframe from csv file generated from events.
                     actual_dataframe = []
-                    output = url_path_join(course_dir, csv_filename)
-                    with S3Target(output).open() as csvfile:
+                    with S3Target(url_path_join(course_dir, csv_filename)).open() as csvfile:
                         actual_dataframe = read_csv(csvfile)
                         actual_dataframe.fillna('', inplace=True)
 
                     # Validate specific values:
                     if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
-                        self.check_nonzero_engagement_dataframe(actual_dataframe, interval_type, hashed_course_id, csv_filename):
+                        self.check_nonzero_engagement_dataframe(actual_dataframe, interval_type, hashed_course_id, csv_filename)
                     else:
-                        self.check_zero_engagement_dataframe(actual_dataframe, course_id, expected_date)
+                        self.check_zero_engagement_dataframe(actual_dataframe, interval_type, course_id, expected_date)
 
     def run_task(self, interval_type):
         """Run the CSV-generating task."""
@@ -136,9 +133,12 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         )
         expected_dataframe = read_csv(fixture_file)
         expected_dataframe.fillna('', inplace=True)
-        self.assertFrameEqual(actual_dataframe, expected_dataframe)
+        assert_frame_equal(actual_dataframe, expected_dataframe, check_names=True)
 
-    def check_zero_engagement_dataframe(self, dataframe, course_id, expected_date):
+    def check_zero_engagement_dataframe(self, dataframe, interval_type, course_id, expected_date):
+        """Check values in student engagement data that should have zero engagement counts."""
+
+        date_column_name = "Date" if interval_type == 'daily' else "End Date"
         for date in dataframe[date_column_name]:
             self.assertEquals(date, expected_date)
 
@@ -156,10 +156,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                 self.assertEquals(column_value, 0)
         for column_value in dataframe['URL of Last Subsection Viewed']:
             self.assertEquals(len(column_value), 0)
-
-    def assertFrameEqual(self, df1, df2, **kwds):
-        """ Assert that two dataframes are equal, ignoring ordering of columns"""
-        return assert_frame_equal(df1.sort(axis=1), df2.sort(axis=1), check_names=True, **kwds)
 
     def assert_enrollment(self, dataframe, course_id, date):
         """Asserts that enrollments are as expected, given the course and date."""

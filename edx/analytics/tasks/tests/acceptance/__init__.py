@@ -26,7 +26,6 @@ class AcceptanceTestCase(unittest.TestCase):
         self.s3_client = S3Client()
 
         config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
-
         try:
             with open(config_json, 'r') as config_json_file:
                 self.config = json.load(config_json_file)
@@ -132,6 +131,3 @@ class AcceptanceTestCase(unittest.TestCase):
 
     def execute_sql_fixture_file(self, sql_file_name):
         self.import_db.execute_sql_file(os.path.join(self.data_dir, 'input', sql_file_name))
-
-    def get_fixture_file(self,file_name):
-        return open(os.path.join(self.data_dir, file_name))
