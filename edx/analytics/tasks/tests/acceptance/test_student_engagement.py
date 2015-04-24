@@ -78,7 +78,7 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
-                csv_filenames = self.s3_client.list(course_dir)
+                csv_filenames = list(self.s3_client.list(course_dir))
 
                 # Check expected number of CSV files.
                 if interval_type == 'daily':
