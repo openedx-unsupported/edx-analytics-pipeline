@@ -2,6 +2,7 @@
 End to end test of student engagement.
 """
 
+
 import datetime
 import hashlib
 import logging
@@ -97,8 +98,12 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
-                outputs = self.s3_client.list(course_dir)
-                outputs = [url_path_join(course_dir, p) for p in outputs if p.endswith(".csv")]
+                csv_files = self.s3_client.list(course_dir)
+                csv_files = [url_path_join(course_dir, p) for p in csv_files if p.endswith(".csv")]
+
+
+                #course_dir = path + interval_type + '/' + hashed_course_id
+
 
                 # There are 14 student_engagement files in the test data directory, and 3 courses.
                 if interval_type == 'daily':
@@ -109,44 +114,30 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                     self.assertEqual(len(outputs), 1)
 
                 # Check that the results have data
-                for output in outputs:
+                for csvfile in csv_files:
+                    #output = course_dir + '/' + csv_file
 
                     # parse expected date from output.
                     if interval_type == 'all':
                         expected_date = '2015-04-19'
                     else:
                         csv_pattern = '.*student_engagement_.*_(\\d\\d\\d\\d-\\d\\d-\\d\\d)\\.csv'
-                        match = re.match(csv_pattern, output)
+                        match = re.match(csv_pattern, csvfile)
                         expected_date = match.group(1)
 
-                    dataframe = []
-                    with S3Target(output).open() as csvfile:
+
+                    """ Build dataframe from csv file generated from events """
+                    generate_file_dataframe = []
+                    with S3Target(csvfile).open() as csvfile:
                         # Construct dataframe from file to create more intuitive column handling
-                        dataframe = pd.read_csv(csvfile)
-                        dataframe.fillna('', inplace=True)
+                        #dataframe = pd.read_csv(csvfile)
+                        #dataframe.fillna('', inplace=True)
 
-                    # General validation:
-                    self.validate_number_of_columns(len(dataframe.columns))
+                        generate_file_dataframe = pd.read_csv(csvfile)
+                        generate_file_dataframe.fillna('', inplace=True)
 
-                    for date in dataframe[date_column_name]:
-                        self.validate_date_cell_format(date)
 
-                    for user_name in dataframe["Username"]:
-                        self.validate_username_string_format(user_name)
-
-                    for email in dataframe["Email"]:
-                        self.validate_email_string_format(email)
-
-                    for cohort in dataframe["Cohort"]:
-                        self.validate_cohort_format(cohort)
-
-                    for column_name in dataframe.ix[:, 5:14]:
-                        for column_value in dataframe[column_name]:
-                            self.validate_problems_videos_forums_textbook_values(column_value)
-
-                    self.validate_within_rows(dataframe)
-
-                    # Validate specific values:
+                    """ Validate specific values: """
                     for date in dataframe[date_column_name]:
                         self.assertEquals(date, expected_date)
 
@@ -154,11 +145,23 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                         self.assertEquals(row_course_id, course_id)
 
                     if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
-                        # TODO: read expected values from fixture and compare:
-                        pass
+                        """ Compare auto-generated student engagement files with associated fixture files """
+
+                        """ Build fixture file dataframe """
+                        fixture_file = self.data_dir + "/output/student_engagement/expected/" + interval_type + \
+                                       '/' + hashed_course_id + '/' + csv_file
+                        fixture_dataframe = pd.read_csv(fixture_file)
+                        fixture_dataframe.fillna('', inplace=True)
+
+                        """ Compare dataframes """
+                        self.assertFrameEqual(fixture_dataframe, generate_file_dataframe)
+
                     else:
                         self.assert_zero_engagement(dataframe)
                         # TODO: check username, email, and cohort names (if any).
+
+
+
 
     def assert_zero_engagement(self, dataframe):
         """Asserts that all counts are zero."""
@@ -167,6 +170,11 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                 self.assertEquals(column_value, 0)
         for column_value in dataframe['URL of Last Subsection Viewed']:
             self.assertEquals(len(column_value), 0)
+
+    def assertFrameEqual(self, df1, df2, **kwds):
+        """ Assert that two dataframes are equal, ignoring ordering of columns"""
+        from pandas.util.testing import assert_frame_equal
+        return assert_frame_equal(df1.sort(axis=1), df2.sort(axis=1), check_names=True, **kwds)
 
     def validate_number_of_columns(self, num_columns):
         """Ensure each student engagement file has the correct number of columns (15)"""

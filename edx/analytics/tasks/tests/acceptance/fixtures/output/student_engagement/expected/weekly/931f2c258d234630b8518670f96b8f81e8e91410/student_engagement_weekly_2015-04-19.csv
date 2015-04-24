@@ -1,0 +1,5 @@
+end_date,course_id,username,email,cohort,days_active,problems_attempted,problem_attempts,problems_correct,videos_played,forum_posts,forum_replies,forum_comments,textbook_pages_viewed,last_subsection_viewed
+2015-04-19,edX/DemoX/Demo_Course,audit,audit@example.com,best-cohort,0,0,0,0,0,0,0,0,0,
+2015-04-19,edX/DemoX/Demo_Course,honor,honor@example.com,best-cohort,2,3,6,2,2,1,2,3,2,/courses/edX/DemoX/Demo_Course/courseware/graded_interactions/simulations/
+2015-04-19,edX/DemoX/Demo_Course,staff,staff@example.com,other-cohort,1,0,0,0,0,0,0,0,0,/courses/edX/DemoX/Demo_Course/courseware/d8a6192ade314473a78242dfeedfbf5b/edx_introduction/1
+2015-04-19,edX/DemoX/Demo_Course,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,

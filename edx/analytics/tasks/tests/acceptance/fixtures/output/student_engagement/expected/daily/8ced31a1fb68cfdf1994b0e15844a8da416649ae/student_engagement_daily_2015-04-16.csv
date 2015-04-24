@@ -1,0 +1,5 @@
+date,course_id,username,email,cohort,was_active,problems_attempted,problem_attempts,problems_correct,videos_played,forum_posts,forum_replies,forum_comments,textbook_pages_viewed,last_subsection_viewed
+2015-04-16,edX/DemoX/Demo_Course_2,audit,audit@example.com,,0,0,0,0,0,0,0,0,0,
+2015-04-16,edX/DemoX/Demo_Course_2,honor,honor@example.com,,1,1,1,0,0,1,1,1,1,/courses/edX/DemoX/Demo_Course_2/courseware/d8a6192ade314473a78242dfeedfbf5b/edx_introduction/1
+2015-04-16,edX/DemoX/Demo_Course_2,staff,staff@example.com,,0,0,0,0,0,0,0,0,0,
+2015-04-16,edX/DemoX/Demo_Course_2,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,
