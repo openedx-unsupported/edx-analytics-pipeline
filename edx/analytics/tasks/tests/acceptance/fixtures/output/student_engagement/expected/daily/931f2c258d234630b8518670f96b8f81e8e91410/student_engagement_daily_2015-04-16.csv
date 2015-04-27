@@ -1,0 +1,5 @@
+Course ID,Date,Username,Email,Cohort,Was Active,Unique Problems Attempted,Total Problem Attempts,Unique Problems Correct,Unique Videos Played,Discussion Posts,Discussion Responses,Discussion Comments,Textbook Pages Viewed,URL of Last Subsection Viewed
+edX/DemoX/Demo_Course,2015-04-16,audit,audit@example.com,best-cohort,0,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course,2015-04-16,honor,honor@example.com,best-cohort,1,3,6,2,2,1,2,3,2,/courses/edX/DemoX/Demo_Course/courseware/graded_interactions/simulations/
+edX/DemoX/Demo_Course,2015-04-16,staff,staff@example.com,other-cohort,0,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course,2015-04-16,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,

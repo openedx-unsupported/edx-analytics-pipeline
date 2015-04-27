@@ -283,13 +283,12 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         """Returns expected answer data returned by the reducer, given the event's data."""
 
         answer_data = {}
-        
         first_submission = problem_data[0]['submission']
         last_submission = problem_data[-1]['submission']
 
         def insert_answer_data(submission, attempt_category):
-            """ 
-            Inserts each response included in submission into the expected answer data dictionary. 
+            """
+            Inserts each response included in submission into the expected answer data dictionary.
 
             Args:
                 submission: dictionary of all responses submitted at once for a user
@@ -341,7 +340,9 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         answer_data = self._get_answer_data()
         first, last = self._augment_single_submission_data(answer_data)
 
-        self._check_output([input_data], {
+        self._check_output(
+            [input_data],
+            {
                 self._get_submission_data_key(self.answer_id, 'first'): first,
                 self._get_submission_data_key(self.answer_id, 'last'): last,
             }
@@ -355,11 +356,14 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         answer_data = self._get_answer_data(correct=True)
         first, last = self._augment_single_submission_data(answer_data)
 
-        self._check_output([input_data], {
+        self._check_output(
+            [input_data],
+            {
                 self._get_submission_data_key(self.answer_id, 'first'): first,
                 self._get_submission_data_key(self.answer_id, 'last'): last,
             }
         )
+
     def test_one_submission_event(self):
         problem_data = self._create_submission_problem_data_dict()
         input_data = (self.timestamp, json.dumps(problem_data))
@@ -390,7 +394,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         first_answer_2, last_answer_2 = self._augment_single_submission_data(answer_data_2)
 
         self._check_output([input_data], {
-            self._get_submission_data_key(self.answer_id, 'first'): first_answer, 
+            self._get_submission_data_key(self.answer_id, 'first'): first_answer,
             self._get_submission_data_key(self.second_answer_id, 'first'): first_answer_2,
             self._get_submission_data_key(self.answer_id, 'last'): last_answer,
             self._get_submission_data_key(self.second_answer_id, 'last'): last_answer_2,
@@ -462,7 +466,9 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
 
         first, last = self._augment_single_submission_data(answer_data)
 
-        self._check_output([input_data], {
+        self._check_output(
+            [input_data],
+            {
                 self._get_submission_data_key(self.answer_id, 'first'): first,
                 self._get_submission_data_key(self.answer_id, 'last'): last,
             }
@@ -696,14 +702,14 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         answer_data = self._get_answer_data()
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data))
         input_data_2 = (self.timestamp, json.dumps(answer_data))
-        expected_output = self._get_expected_output(answer_data, **{'Last Response Count' : 2})
+        expected_output = self._get_expected_output(answer_data, **{'Last Response Count': 2})
         self._check_output([input_data_1, input_data_2], (expected_output,))
 
     def test_two_answer_event_same_reversed(self):
         answer_data = self._get_answer_data()
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data))
         input_data_2 = (self.timestamp, json.dumps(answer_data))
-        expected_output = self._get_expected_output(answer_data, **{'Last Response Count' : 2})
+        expected_output = self._get_expected_output(answer_data, **{'Last Response Count': 2})
         self._check_output([input_data_2, input_data_1], (expected_output,))
 
     def test_two_answer_event_same_old_and_new(self):
@@ -711,7 +717,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         answer_data_2 = self._get_answer_data()
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
         input_data_2 = (self.timestamp, json.dumps(answer_data_2))
-        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count' : 2})
+        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count': 2})
         self._check_output([input_data_1, input_data_2], (expected_output,))
 
     def test_same_old_and_new_with_variant(self):
@@ -719,7 +725,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         answer_data_2 = self._get_answer_data(variant=123)
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
         input_data_2 = (self.timestamp, json.dumps(answer_data_2))
-        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count' : 2})
+        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count': 2})
         self._check_output([input_data_1, input_data_2], (expected_output,))
 
     def test_two_answer_event_different_answer(self):
@@ -736,7 +742,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         answer_data_2 = self._get_answer_data(answer="first")
         input_data_1 = (self.earlier_timestamp, json.dumps(answer_data_1))
         input_data_2 = (self.timestamp, json.dumps(answer_data_2))
-        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count' : 2})
+        expected_output = self._get_expected_output(answer_data_2, **{'Last Response Count': 2})
         self._check_output([input_data_1, input_data_2], (expected_output,))
 
     def test_two_answer_event_different_old_and_new(self):

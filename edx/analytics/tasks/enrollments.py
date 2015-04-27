@@ -268,7 +268,22 @@ class DaysEnrolledForEvents(object):
 
 class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the CourseEnrollmentTableTask task."""
-    pass
+
+    # Make the interval be optional:
+    interval = luigi.DateIntervalParameter(default=None)
+
+    # Define optional parameters, to be used if 'interval' is not defined.
+    interval_start = luigi.DateParameter(
+        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+    )
+    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
+
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentTableDownstreamMixin, self).__init__(*args, **kwargs)
+
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
 class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableTask):
