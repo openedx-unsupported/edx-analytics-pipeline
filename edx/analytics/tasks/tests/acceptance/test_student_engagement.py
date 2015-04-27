@@ -5,6 +5,7 @@ End to end test of student engagement.
 import datetime
 import hashlib
 import logging
+import os.path
 import re
 
 from luigi.s3 import S3Target
@@ -29,25 +30,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
     COURSE_3 = "course-v1:edX+DemoX+Demo_Course_2015"
 
     ALL_COURSES = [COURSE_1, COURSE_2, COURSE_3]
-
-    # We only expect some of the generated files to have any counts at all, so enumerate them.
-    NONZERO_OUTPUT = [
-        (COURSE_1, '2015-04-13', 'daily'),
-        (COURSE_1, '2015-04-16', 'daily'),
-        (COURSE_2, '2015-04-13', 'daily'),
-        (COURSE_2, '2015-04-16', 'daily'),
-        (COURSE_3, '2015-04-09', 'daily'),
-        (COURSE_3, '2015-04-12', 'daily'),
-        (COURSE_3, '2015-04-13', 'daily'),
-        (COURSE_3, '2015-04-16', 'daily'),
-        (COURSE_1, '2015-04-19', 'weekly'),
-        (COURSE_2, '2015-04-19', 'weekly'),
-        (COURSE_3, '2015-04-12', 'weekly'),
-        (COURSE_3, '2015-04-19', 'weekly'),
-        (COURSE_1, '2015-04-19', 'all'),
-        (COURSE_2, '2015-04-19', 'all'),
-        (COURSE_3, '2015-04-19', 'all'),
-    ]
 
     # Cohort mappings are static properties of course and username.
     # Users not present in this map are assumed to have no cohort assignment.
@@ -105,11 +87,14 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
                         actual_dataframe = read_csv(csvfile)
                         actual_dataframe.fillna('', inplace=True)
 
+                    self.check_engagement_dataframe(actual_dataframe, interval_type, course_id, expected_date)
+
                     # Validate specific values:
-                    if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
-                        self.check_nonzero_engagement_dataframe(actual_dataframe, interval_type, hashed_course_id, csv_filename)
+                    expected_dataframe = self.get_expected_engagement(interval_type, hashed_course_id, csv_filename)
+                    if expected_dataframe is not None:
+                        assert_frame_equal(actual_dataframe, expected_dataframe, check_names=True)
                     else:
-                        self.check_zero_engagement_dataframe(actual_dataframe, interval_type, course_id, expected_date)
+                        self.assert_zero_engagement(actual_dataframe)
 
     def run_task(self, interval_type):
         """Run the CSV-generating task."""
@@ -122,7 +107,7 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             '--interval-type', interval_type,
         ])
 
-    def check_nonzero_engagement_dataframe(self, actual_dataframe, interval_type, hashed_course_id, csv_filename):
+    def get_expected_engagement(self, interval_type, hashed_course_id, csv_filename):
         """Compare auto-generated student engagement files with associated fixture files."""
         fixture_file = url_path_join(
             self.data_dir,
@@ -131,12 +116,15 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             hashed_course_id,
             csv_filename,
         )
+        if not os.path.exists(fixture_file):
+            return None
+
         expected_dataframe = read_csv(fixture_file)
         expected_dataframe.fillna('', inplace=True)
-        assert_frame_equal(actual_dataframe, expected_dataframe, check_names=True)
+        return expected_dataframe
 
-    def check_zero_engagement_dataframe(self, dataframe, interval_type, course_id, expected_date):
-        """Check values in student engagement data that should have zero engagement counts."""
+    def check_engagement_dataframe(self, dataframe, interval_type, course_id, expected_date):
+        """Check values in student engagement data that should be present in all dataframes."""
 
         date_column_name = "Date" if interval_type == 'daily' else "End Date"
         for date in dataframe[date_column_name]:
@@ -147,7 +135,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
 
         self.assert_enrollment(dataframe, course_id, expected_date)
         self.assert_username_properties(dataframe, course_id)
-        self.assert_zero_engagement(dataframe)
 
     def assert_zero_engagement(self, dataframe):
         """Asserts that all counts are zero."""
