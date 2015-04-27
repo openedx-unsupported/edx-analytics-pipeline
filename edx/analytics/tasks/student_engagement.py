@@ -131,7 +131,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         num_problems_correct = 0
         num_videos_played = 0
         num_forum_comments = 0
-        num_forum_replies = 0
+        num_forum_responses = 0
         num_forum_posts = 0
         num_textbook_pages = 0
         dates_active = set()
@@ -155,7 +155,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                 elif event_type == 'edx.forum.comment.created':
                     num_forum_comments += 1
                 elif event_type == 'edx.forum.response.created':
-                    num_forum_replies += 1
+                    num_forum_responses += 1
                 elif event_type == 'edx.forum.thread.created':
                     num_forum_posts += 1
                 elif event_type == 'book':
@@ -185,7 +185,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             num_problems_correct,
             num_videos_played,
             num_forum_posts,
-            num_forum_replies,
+            num_forum_responses,
             num_forum_comments,
             num_textbook_pages,
             last_subsection_viewed.encode('utf-8'),
@@ -227,7 +227,7 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
             ('problems_correct', 'INT'),
             ('videos_played', 'INT'),
             ('forum_posts', 'INT'),
-            ('forum_replies', 'INT'),
+            ('forum_responses', 'INT'),
             ('forum_comments', 'INT'),
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'STRING'),
@@ -282,7 +282,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ('problems_correct', 'INT'),
             ('videos_played', 'INT'),
             ('forum_posts', 'INT'),
-            ('forum_replies', 'INT'),
+            ('forum_responses', 'INT'),
             ('forum_comments', 'INT'),
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'STRING'),
@@ -323,7 +323,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.problems_correct, 0),
             COALESCE(ser.videos_played, 0),
             COALESCE(ser.forum_posts, 0),
-            COALESCE(ser.forum_replies, 0),
+            COALESCE(ser.forum_responses, 0),
             COALESCE(ser.forum_comments, 0),
             COALESCE(ser.textbook_pages_viewed, 0),
             COALESCE(ser.last_subsection_viewed, '')
@@ -465,7 +465,7 @@ class StudentEngagementCsvFileTask(
             'Unique Problems Correct',
             'Unique Videos Played',
             'Discussion Posts',
-            'Discussion Replies',
+            'Discussion Responses',
             'Discussion Comments',
             'Textbook Pages Viewed',
             'URL of Last Subsection Viewed',
