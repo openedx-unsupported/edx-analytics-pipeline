@@ -95,8 +95,8 @@ class ProblemCheckEventMixin(object):
               'variant': seed value
 
         """
-        # Sort input values (by timestamp) to easily detect the first 
-        # and most recent answer to a problem by a particular user.  
+        # Sort input values (by timestamp) to easily detect the first
+        # and most recent answer to a problem by a particular user.
         # Note that this assumes the timestamp values (strings) are in
         # ISO representation, so that the tuples will be ordered in
         # ascending time value.
