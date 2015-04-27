@@ -103,7 +103,7 @@ class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTes
             # the fetchall above returns a list of singleton tuples, so we use course_id[0] below
             for course_id in uniq_course_ids:
                 cursor.execute(
-                    'SELECT COUNT(*) FROM answer_distribution where `course_id`="{}" and `count`>0'.format(course_id[0])
+                    'SELECT COUNT(*) FROM answer_distribution where `course_id`="{}" and `last_response_count`>0'.format(course_id[0])
                 )
                 count = cursor.fetchone()[0]
                 # Check that at least one of the count columns is non zero
