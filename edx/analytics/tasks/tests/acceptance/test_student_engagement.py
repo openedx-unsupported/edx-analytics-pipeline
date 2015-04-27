@@ -9,12 +9,11 @@ import re
 
 from luigi.s3 import S3Target
 
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.url import url_path_join
 
-import pandas as pd
-
+from pandas import read_csv
+from pandas.util.testing import assert_frame_equal
 
 log = logging.getLogger(__name__)
 
@@ -50,99 +49,105 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         (COURSE_3, '2015-04-19', 'all'),
     ]
 
+    # Cohort mappings are static properties of course and username.
+    # Users not present in this map are assumed to have no cohort assignment.
+    EXPECTED_COHORT_MAP = {
+        COURSE_1: {
+            'audit': 'best-cohort',
+            'honor': 'best-cohort',
+            'staff': 'other-cohort',
+        },
+        COURSE_2: {
+        },
+        COURSE_3: {
+            'audit': 'new-cohort',
+            'verified': 'additional-cohort',
+        },
+    }
+
     def test_student_engagement(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 4, 10))
         self.execute_sql_fixture_file('load_student_engagement.sql')
 
         self.interval = '2015-04-06-2015-04-20'  # run for exactly two weeks
 
-        self.test_daily = url_path_join(self.test_out, 'daily')
-        self.task.launch([
-            'StudentEngagementCsvFileTask',
-            '--source', self.test_src,
-            '--output-root', self.test_daily,
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--interval', self.interval,
-        ])
-
-        self.test_weekly = url_path_join(self.test_out, 'weekly')
-        self.task.launch([
-            'StudentEngagementCsvFileTask',
-            '--source', self.test_src,
-            '--output-root', self.test_weekly,
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--interval', self.interval,
-            '--interval-type', 'weekly',
-        ])
-
-        self.test_all = url_path_join(self.test_out, 'all')
-        self.task.launch([
-            'StudentEngagementCsvFileTask',
-            '--source', self.test_src,
-            '--output-root', self.test_all,
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--interval', self.interval,
-            '--interval-type', 'all',
-        ])
-
         for interval_type in ['daily', 'weekly', 'all']:
 
-            date_column_name = "Date" if interval_type == 'daily' else "End Date"
+            self.run_task(interval_type)
 
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
-                csv_files = self.s3_client.list(course_dir)
+                csv_filenames = list(self.s3_client.list(course_dir))
 
-                # There are 14 student_engagement files in the test data directory, and 3 courses.
+                # Check expected number of CSV files.
                 if interval_type == 'daily':
-                    self.assertEqual(len(csv_files), 14)
+                    self.assertEqual(len(csv_filenames), 14)
                 elif interval_type == 'weekly':
-                    self.assertEqual(len(csv_files), 2)
+                    self.assertEqual(len(csv_filenames), 2)
                 elif interval_type == 'all':
-                    self.assertEqual(len(csv_files), 1)
+                    self.assertEqual(len(csv_filenames), 1)
 
-                # Check that the results have data
-                for csv_filename in csv_files:
-                    output = url_path_join(course_dir, csv_filename)
+                # Check that the CSV files contain the expected data.
+                for csv_filename in csv_filenames:
 
-                    # parse expected date from output.
+                    # Parse expected date from filename.
                     if interval_type == 'all':
                         expected_date = '2015-04-19'
                     else:
                         csv_pattern = '.*student_engagement_.*_(\\d\\d\\d\\d-\\d\\d-\\d\\d)\\.csv'
-                        match = re.match(csv_pattern, output)
+                        match = re.match(csv_pattern, csv_filename)
                         expected_date = match.group(1)
 
-                    """ Build dataframe from csv file generated from events """
-                    generate_file_dataframe = []
-                    with S3Target(output).open() as csvfile:
-                        # Construct dataframe from file to create more intuitive column handling
-                        generate_file_dataframe = pd.read_csv(csvfile)
-                        generate_file_dataframe.fillna('', inplace=True)
+                    # Build dataframe from csv file generated from events.
+                    actual_dataframe = []
+                    with S3Target(url_path_join(course_dir, csv_filename)).open() as csvfile:
+                        actual_dataframe = read_csv(csvfile)
+                        actual_dataframe.fillna('', inplace=True)
 
-                    """ Validate specific values: """
-                    for date in generate_file_dataframe[date_column_name]:
-                        self.assertEquals(date, expected_date)
-
-                    for row_course_id in generate_file_dataframe["Course ID"]:
-                        self.assertEquals(row_course_id, course_id)
-
+                    # Validate specific values:
                     if (course_id, expected_date, interval_type) in self.NONZERO_OUTPUT:
-                        # Compare auto-generated student engagement files with associated fixture files
-
-                        # Build fixture file dataframe
-                        fixture_file = self.data_dir + "/output/student_engagement/expected/" + interval_type + \
-                                       '/' + hashed_course_id + '/' + csv_filename
-                        fixture_dataframe = pd.read_csv(fixture_file)
-                        fixture_dataframe.fillna('', inplace=True)
-
-                        """ Compare dataframes """
-                        self.assertFrameEqual(fixture_dataframe, generate_file_dataframe)
-
+                        self.check_nonzero_engagement_dataframe(actual_dataframe, interval_type, hashed_course_id, csv_filename)
                     else:
-                        self.assert_zero_engagement(generate_file_dataframe)
-                        # TODO: check username, email, and cohort names (if any).
+                        self.check_zero_engagement_dataframe(actual_dataframe, interval_type, course_id, expected_date)
+
+    def run_task(self, interval_type):
+        """Run the CSV-generating task."""
+        self.task.launch([
+            'StudentEngagementCsvFileTask',
+            '--source', self.test_src,
+            '--output-root', url_path_join(self.test_out, interval_type),
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--interval', self.interval,
+            '--interval-type', interval_type,
+        ])
+
+    def check_nonzero_engagement_dataframe(self, actual_dataframe, interval_type, hashed_course_id, csv_filename):
+        """Compare auto-generated student engagement files with associated fixture files."""
+        fixture_file = url_path_join(
+            self.data_dir,
+            "output/student_engagement/expected",
+            interval_type,
+            hashed_course_id,
+            csv_filename,
+        )
+        expected_dataframe = read_csv(fixture_file)
+        expected_dataframe.fillna('', inplace=True)
+        assert_frame_equal(actual_dataframe, expected_dataframe, check_names=True)
+
+    def check_zero_engagement_dataframe(self, dataframe, interval_type, course_id, expected_date):
+        """Check values in student engagement data that should have zero engagement counts."""
+
+        date_column_name = "Date" if interval_type == 'daily' else "End Date"
+        for date in dataframe[date_column_name]:
+            self.assertEquals(date, expected_date)
+
+        for row_course_id in dataframe["Course ID"]:
+            self.assertEquals(row_course_id, course_id)
+
+        self.assert_enrollment(dataframe, course_id, expected_date)
+        self.assert_username_properties(dataframe, course_id)
+        self.assert_zero_engagement(dataframe)
 
     def assert_zero_engagement(self, dataframe):
         """Asserts that all counts are zero."""
@@ -152,7 +157,30 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         for column_value in dataframe['URL of Last Subsection Viewed']:
             self.assertEquals(len(column_value), 0)
 
-    def assertFrameEqual(self, df1, df2, **kwds):
-        """ Assert that two dataframes are equal, ignoring ordering of columns"""
-        from pandas.util.testing import assert_frame_equal
-        return assert_frame_equal(df1.sort(axis=1), df2.sort(axis=1), check_names=True, **kwds)
+    def assert_enrollment(self, dataframe, course_id, date):
+        """Asserts that enrollments are as expected, given the course and date."""
+        actual = [value for value in dataframe['Username']]
+        expected = ['audit', 'honor']
+        if course_id == self.COURSE_1:
+            if date >= '2015-04-14':
+                expected.append('staff')
+            if date >= '2015-04-08':
+                expected.append('verified')
+        elif course_id == self.COURSE_2:
+            if (date >= '2015-04-12' and date < '2015-04-14') or date >= '2015-04-16':
+                expected.append('staff')
+            expected.append('verified')
+        elif course_id == self.COURSE_3:
+            if date >= '2015-04-14':
+                expected.append('staff')
+            expected.append('verified')
+        self.assertEquals(expected, actual)
+
+    def assert_username_properties(self, dataframe, course_id):
+        """Asserts that email and cohort values match username's expectations."""
+        for _, row in dataframe.iterrows():
+            username = row['Username']
+            email = row['Email']
+            cohort = row['Cohort']
+            self.assertEquals(email, "{}@example.com".format(username))
+            self.assertEquals(cohort, self.EXPECTED_COHORT_MAP[course_id].get(username, ''))
