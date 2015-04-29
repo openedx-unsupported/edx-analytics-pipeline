@@ -819,6 +819,7 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
             ('course_id',),
             ('module_id',),
             ('part_id',),
+            ('course_id', 'module_id'),
         ]
 
 
