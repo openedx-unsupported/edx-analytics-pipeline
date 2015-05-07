@@ -72,8 +72,14 @@ def analyze():
 def analyze_log_file(filename):
     with open(filename, 'rb') as log_file:
         parser = LogFileParser(log_file, message_pattern=MESSAGE_START_PATTERN, message_factory=create_log_message)
+
+        root = Measurement('Root')
+
         try:
-            return analyze_log(parser)
+            while parser.peek_message() is not None:
+                task_call = analyze_log(parser)
+                root.add_child(task_call)
+            return root
         except:
             sys.stderr.write('Exception on line {0}\n'.format(parser.line_number))
             raise
@@ -90,10 +96,11 @@ def create_log_message(matched_groups):
 
 def analyze_log(parser):
     root = Measurement('Luigi Worker')
-    scheduling_time = analyze_overall_scheduling(parser)
-    root.add_child(scheduling_time)
+    #scheduling_time = analyze_overall_scheduling(parser)
+    #root.add_child(scheduling_time)
     execution_time = analyze_overall_execution(parser)
-    root.add_child(execution_time)
+    if execution_time:
+        root.add_child(execution_time)
     return root
 
 
@@ -107,7 +114,7 @@ def analyze_overall_scheduling(parser):
     while message:
         message = parser.next_message()
 
-        if message.content == 'Done scheduling tasks':
+        if message.content == 'Done scheduling tasks' and start_scheduling_timestamp:
             all_scheduling.set_time_from_range(message.timestamp, start_scheduling_timestamp)
             return all_scheduling
 
@@ -115,7 +122,6 @@ def analyze_overall_scheduling(parser):
         if start_match:
             if start_scheduling_timestamp is None:
                 start_scheduling_timestamp = message.timestamp
-
             measurement = analyze_task_scheduling(message, start_match, parser)
             if measurement:
                 all_scheduling.add_child(measurement)
@@ -154,6 +160,8 @@ def analyze_overall_execution(parser):
 
     while message:
         message = parser.next_message()
+        if not message:
+            return None
 
         if message.content == 'Done':
             if overall_start_timestamp:
@@ -230,7 +238,7 @@ class LuigiTaskDescription(object):
             task_name = match.group('name')
             raw_params = match.group('params')
             param_parser = default_parameter_parser
-            if task_name == 'HiveTableFromQueryTask':
+            if task_name == 'HiveTableFromParameterQueryTask':
                 param_parser = hive_parameter_parser
             if task_name == 'SqoopImportFromMysql':
                 param_parser = sqoop_parameter_parser
