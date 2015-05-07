@@ -20,9 +20,13 @@ log = logging.getLogger(__name__)
 
 VIDEO_PLAYED = 'play_video'
 VIDEO_PAUSED = 'pause_video'
+VIDEO_SEEK = 'seek_video'
+VIDEO_STOPPED = 'stop_video'
 VIDEO_EVENT_TYPES = frozenset([
     VIDEO_PLAYED,
     VIDEO_PAUSED,
+    VIDEO_SEEK,
+    VIDEO_STOPPED,
 ])
 VIDEO_SESSION_END_INDICATORS = frozenset([
     'seq_next',
@@ -70,6 +74,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
         encoded_module_id = None
         current_time = None
+        old_time = None
         youtube_id = None
         if event_type in VIDEO_EVENT_TYPES:
             event_data = eventlog.get_event_data(event)
@@ -86,6 +91,12 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
             elif event_type == VIDEO_PAUSED:
                 if current_time is None:
                     current_time = 0
+            elif event_type == VIDEO_SEEK:
+                current_time = event_data.get('new_time')
+                old_time = event_data.get('old_time')
+                if current_time is None or old_time is None:
+                    log.warn('Seek event without valid old and new times: {0}'.format(line))
+                    return
         elif event_type in VIDEO_SESSION_END_INDICATORS:
             pass
         else:
@@ -100,14 +111,14 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         if youtube_id is not None:
             youtube_id = youtube_id.encode('utf8')
 
-        yield (username.encode('utf8'), (timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id))
+        yield (username.encode('utf8'), (timestamp, event_type, course_id, encoded_module_id, current_time, old_time, youtube_id))
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
         session = None
         video_durations = {}
         for event in sorted_events:
-            timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id = event
+            timestamp, event_type, course_id, encoded_module_id, current_time, old_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time:
                 current_time = float(current_time)
@@ -173,8 +184,14 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
                     session = start_session()
 
-                elif event_type == VIDEO_PAUSED:
+                elif event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
                     record = end_session(current_time)
+                    if record:
+                        yield record
+                    session = None
+
+                elif event_type == VIDEO_SEEK:
+                    record = end_session(old_time)
                     if record:
                         yield record
                     session = None
