@@ -14,6 +14,7 @@ import os
 import boto
 import filechunkio
 import cjson
+import ciso8601
 import opaque_keys
 import bson
 import pyinstrument
@@ -52,7 +53,7 @@ def main():
     # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
     #   - dependencies of opaque_keys:  bson, stevedore
-    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore)
+    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601)
 
     # TODO: setup logging for tasks or configured logging mechanism
 
