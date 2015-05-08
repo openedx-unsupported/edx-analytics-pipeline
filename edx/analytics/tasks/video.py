@@ -29,15 +29,15 @@ VIDEO_EVENT_TYPES = frozenset([
     VIDEO_SEEK,
     VIDEO_STOPPED,
 ])
-VIDEO_SESSION_UNKNOWN_DURATION = -1
-VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
+VIDEO_VIEWING_UNKNOWN_DURATION = -1
+VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
 
 
-VideoSession = namedtuple('VideoSession', [
+VideoViewing = namedtuple('VideoViewing', [
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
 
 
-class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
+class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
 
@@ -113,15 +113,15 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         video_durations = {}
 
         last_event = None
-        session = None
+        viewing = None
         for event in sorted_events:
             timestamp, event_type, current_time, old_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time is not None:
                 current_time = float(current_time)
 
-            def start_session():
-                video_duration = VIDEO_SESSION_UNKNOWN_DURATION
+            def start_viewing():
+                video_duration = VIDEO_VIEWING_UNKNOWN_DURATION
                 if youtube_id:
                     video_duration = video_durations.get(youtube_id)
                     if not video_duration:
@@ -133,7 +133,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 else:
                     start_offset = current_time
 
-                return VideoSession(
+                return VideoViewing(
                     start_timestamp=parsed_timestamp,
                     course_id=course_id,
                     encoded_module_id=encoded_module_id,
@@ -141,62 +141,62 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     video_duration=video_duration
                 )
 
-            def end_session(end_time):
-                if session.video_duration == VIDEO_SESSION_UNKNOWN_DURATION:
-                    # log.error('Unknown video duration at end of session.\nSession Start: %r\nEvent: %r', session, event)
+            def end_viewing(end_time):
+                if viewing.video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+                    # log.error('Unknown video duration at end of viewing.\nViewing Start: %r\nEvent: %r', viewing, event)
                     return None
 
-                if end_time > session.video_duration:
-                    log.error('End time of session past end of video.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
+                if end_time > viewing.video_duration:
+                    log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
                     return None
 
-                if (end_time - session.start_offset) < 0.250:
-                    # log.error('Session too short and discarded.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
+                if (end_time - viewing.start_offset) < 0.250:
+                    # log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
                     return None
 
-                if end_time < session.start_offset:
-                    log.error('End time is before the start time.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
+                if end_time < viewing.start_offset:
+                    log.error('End time is before the start time.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
                     return None
 
                 return (
                     username,
-                    session.course_id,
-                    session.encoded_module_id,
-                    session.video_duration,
-                    session.start_timestamp.isoformat(),
-                    session.start_offset,
+                    viewing.course_id,
+                    viewing.encoded_module_id,
+                    viewing.video_duration,
+                    viewing.start_timestamp.isoformat(),
+                    viewing.start_offset,
                     end_time,
                     event_type,
                 )
 
             if event_type == VIDEO_PLAYED:
-                session = start_session()
-            elif session:
-                session_end_time = None
+                viewing = start_viewing()
+            elif viewing:
+                viewing_end_time = None
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
                     # play -> pause
                     # play -> stop
-                    session_end_time = current_time
+                    viewing_end_time = current_time
 
                 elif event_type == VIDEO_SEEK:
                     # play -> seek
-                    session_end_time = old_time
+                    viewing_end_time = old_time
 
-                elif event_type in VIDEO_SESSION_END_INDICATORS:
+                elif event_type in VIDEO_VIEWING_END_INDICATORS:
                     # play -> navigate away
-                    session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                    session_end_time = session.start_offset + session_length
+                    viewing_length = (parsed_timestamp - viewing.start_timestamp).total_seconds()
+                    viewing_end_time = viewing.start_offset + viewing_length
 
                 else:
-                    log.error('Unexpected event in session.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
+                    log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
 
-                if session_end_time is not None:
-                    record = end_session(session_end_time)
+                if viewing_end_time is not None:
+                    record = end_viewing(viewing_end_time)
                     if record:
                         yield record
-                session = None
+                viewing = None
             else:
-                # this is a non-play event outside of a session
+                # this is a non-play event outside of a viewing
                 pass
 
             last_event = event
@@ -205,7 +205,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
-        duration = VIDEO_SESSION_UNKNOWN_DURATION
+        duration = VIDEO_VIEWING_UNKNOWN_DURATION
         f = None
         try:
             f = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, self.api_key))
@@ -235,11 +235,11 @@ class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin
     pass
 
 
-class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
+class UserVideoViewingTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
     @property
     def table(self):
-        return 'user_video_session'
+        return 'user_video_viewing'
 
     @property
     def columns(self):
@@ -258,7 +258,7 @@ class UserVideoSessionTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        return UserVideoSessionTask(
+        return UserVideoViewingTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -280,7 +280,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         if self.input_path:
             return ExternalURL(self.input_path)
         else:
-            return UserVideoSessionTableTask(
+            return UserVideoViewingTableTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
@@ -293,26 +293,27 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         username, course_id, encoded_module_id, video_duration, start_timestamp_str, start_offset, end_offset, reason = line.split('\t')
         yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
 
-    def reducer(self, key, sessions):
+    def reducer(self, key, viewings):
         course_id, encoded_module_id = key
         pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
-        sessions_by_duration = {}
-        for session in sessions:
-            username, start_offset, end_offset, video_duration = session
-            sessions_by_duration.setdefault(video_duration, []).append((username, start_offset, end_offset))
+        # Partition viewing information by video_duration.
+        viewings_by_duration = {}
+        for viewing in viewings:
+            username, start_offset, end_offset, video_duration = viewing
+            viewings_by_duration.setdefault(video_duration, []).append((username, start_offset, end_offset))
 
         video_duration = 0
         max_count = -1
-        for duration, indexed_sessions in sessions_by_duration.iteritems():
-            current_video_session_count = len(indexed_sessions)
-            if current_video_session_count > max_count:
+        for duration, indexed_viewings in viewings_by_duration.iteritems():
+            current_video_viewing_count = len(indexed_viewings)
+            if current_video_viewing_count > max_count:
                 video_duration = duration
-                max_count = current_video_session_count
+                max_count = current_video_viewing_count
 
-        for session in sessions_by_duration[video_duration]:
-            username, start_offset, end_offset = session
+        for viewing in viewings_by_duration[video_duration]:
+            username, start_offset, end_offset = viewing
             first_second = int(math.floor(float(start_offset)))
             start_segment = self.snap_to_last_segment_boundary(first_second)
             last_second = int(math.ceil(float(end_offset)))
@@ -321,13 +322,13 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             stats['starts'] = stats.get('starts', 0) + 1
             stats = usage_map.setdefault(last_segment, {})
             stats['stops'] = stats.get('stops', 0) + 1
-            for segment in xrange(start_segment, last_second, VIDEO_SESSION_SECONDS_PER_SEGMENT):
+            for segment in xrange(start_segment, last_second, VIDEO_VIEWING_SECONDS_PER_SEGMENT):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
-        final_segment = self.snap_to_last_segment_boundary(float(video_duration))
+        final_segment = self.snap_to_last_segment_boundary(int(math.ceil(float(video_duration))))
         start_views = usage_map.get(0, {}).get('views', 0)
         end_views = usage_map.get(final_segment, {}).get('views', 0)
         partial_views = abs(start_views - end_views)
@@ -338,7 +339,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
                 course_id,
                 encoded_module_id,
                 video_duration,
-                VIDEO_SESSION_SECONDS_PER_SEGMENT,
+                VIDEO_VIEWING_SECONDS_PER_SEGMENT,
                 start_views,
                 end_views,
                 partial_views,
@@ -348,7 +349,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
             )
 
     def snap_to_last_segment_boundary(self, second):
-        return (second / VIDEO_SESSION_SECONDS_PER_SEGMENT) * VIDEO_SESSION_SECONDS_PER_SEGMENT
+        return (second / VIDEO_VIEWING_SECONDS_PER_SEGMENT) * VIDEO_VIEWING_SECONDS_PER_SEGMENT
 
     def output(self):
         return get_target_from_url(self.output_root)
