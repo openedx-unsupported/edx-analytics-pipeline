@@ -1,13 +1,14 @@
 
 from collections import namedtuple
-import datetime
 import logging
 import math
-import xml.etree.cElementTree as ET
 import urllib
+import json
+import re
 
 import ciso8601
 import luigi
+from luigi import configuration
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
@@ -29,10 +30,10 @@ VIDEO_EVENT_TYPES = frozenset([
     VIDEO_STOPPED,
 ])
 VIDEO_SESSION_END_INDICATORS = frozenset([
-    'seq_next',
-    'seq_prev',
-    'seq_goto',
-    'page_close',
+    # 'seq_next',
+    # 'seq_prev',
+    # 'seq_goto',
+    # 'page_close',
 ])
 VIDEO_SESSION_UNKNOWN_DURATION = -1
 VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
@@ -40,6 +41,8 @@ VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 VideoSession = namedtuple('VideoSession', [
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
+
+PipelineVideoId = namedtuple('PipelineVideoId', ['course_id', 'encoded_module_id'])
 
 
 class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -115,13 +118,18 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def reducer(self, username, events):
         sorted_events = sorted(events)
-        session = None
         video_durations = {}
+
+        active_sessions = {}
+        last_event = None
         for event in sorted_events:
             timestamp, event_type, course_id, encoded_module_id, current_time, old_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
+            pipeline_video_id = PipelineVideoId(course_id, encoded_module_id)
             if current_time:
                 current_time = float(current_time)
+
+            session = active_sessions.get(pipeline_video_id)
 
             def start_session():
                 video_duration = VIDEO_SESSION_UNKNOWN_DURATION
@@ -131,107 +139,120 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         video_duration = self.get_video_duration(youtube_id)
                         video_durations[youtube_id] = video_duration
 
-                return VideoSession(
+                if last_event is not None and last_event[1] == VIDEO_SEEK:
+                    start_offset = last_event[4]
+                else:
+                    start_offset = current_time
+
+                active_sessions[pipeline_video_id] = VideoSession(
                     start_timestamp=parsed_timestamp,
                     course_id=course_id,
                     encoded_module_id=encoded_module_id,
-                    start_offset=current_time,
+                    start_offset=start_offset,
                     video_duration=video_duration
                 )
 
             def end_session(end_time):
-                if end_time is None or session.start_offset is None:
-                    log.error(
-                        'Invalid session ending, {0}, {1}, {2}, {3}'.format(
-                            username,
-                            str(event),
-                            session.start_offset,
-                            end_time
-                        )
-                    )
+                del active_sessions[pipeline_video_id]
+
+                if session.video_duration == VIDEO_SESSION_UNKNOWN_DURATION:
+                    # log.error('Unknown video duration at end of session.\nSession Start: %r\nEvent: %r', session, event)
                     return None
 
-                if session.video_duration == VIDEO_SESSION_UNKNOWN_DURATION or end_time > session.video_duration:
+                if end_time > session.video_duration:
+                    log.error('End time of session past end of video.\nSession Start: %r\nEvent: %r', session, event)
                     return None
 
-                if (end_time - session.start_offset) < 0.5:
+                if (end_time - session.start_offset) < 0.250:
+                    log.error('Session too short and discarded.\nSession Start: %r\nEvent: %r', session, event)
                     return None
+
+                if end_time < session.start_offset:
+                    log.error('End time is before the start time.\nSession Start: %r\nEvent: %r', session, event)
+                    return None
+
+                if course_id != session.course_id or encoded_module_id != session.encoded_module_id:
+                    log.error('Session terminated by a different video.\nSession Start: %r\nEvent: %r', session, event)
+
+                return (
+                    username,
+                    session.course_id,
+                    session.encoded_module_id,
+                    session.video_duration,
+                    session.start_timestamp.isoformat(),
+                    session.start_offset,
+                    end_time,
+                    event_type,
+                )
+
+            if event_type == VIDEO_PLAYED:
+                if session:
+                    # play -> play is invalid so just discard it and start a new one
+                    del active_sessions[pipeline_video_id]
                 else:
-                    return (
-                        username,
-                        session.course_id,
-                        session.encoded_module_id,
-                        session.video_duration,
-                        session.start_timestamp.isoformat(),
-                        session.start_offset,
-                        end_time,
-                        event_type,
-                    )
+                    # if there is no active session, start a new one
+                    pass
 
-            if session:
-                if event_type == VIDEO_PLAYED:
-                    time_diff = parsed_timestamp - session.start_timestamp
-                    if time_diff < datetime.timedelta(seconds=0.5):
-                        # log.warn(
-                        #     'Play video events detected %f seconds apart, second one is ignored.',
-                        #     time_diff.total_seconds()
-                        # )
-                        continue
-                    else:
-                        record = end_session(current_time)
-                        if record:
-                            yield record
-
-                    session = start_session()
-
-                elif event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
-                    record = end_session(current_time)
-                    if record:
-                        yield record
-                    session = None
+                start_session()
+            elif session:
+                session_end_time = None
+                if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
+                    # play -> pause
+                    # play -> stop
+                    session_end_time = current_time
 
                 elif event_type == VIDEO_SEEK:
-                    record = end_session(old_time)
-                    if record:
-                        yield record
-                    session = None
+                    # play -> seek
+                    session_end_time = old_time
 
                 elif event_type in VIDEO_SESSION_END_INDICATORS:
-                    if session.start_offset is None:
-                        log.error(
-                            'Invalid session, {0}, {1}, {2}'.format(username, str(event), session.start_offset)
-                        )
-                    else:
-                        session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
-                        session_end = session.start_offset + session_length
-                        record = end_session(session_end)
-                        if record:
-                            yield record
-                    session = None
+                    # play -> navigate away
+                    session_length = (parsed_timestamp - session.start_timestamp).total_seconds()
+                    session_end_time = session.start_offset + session_length
+
+                else:
+                    log.error('Unexpected event in session.\nSession Start: %r\nEvent: %r', session, event)
+
+                if session_end_time is not None:
+                    record = end_session(session_end_time)
+                    if record:
+                        yield record
+                session = None
             else:
-                if event_type == VIDEO_PLAYED:
-                    session = start_session()
+                # this is a non-play event outside of a session
+                pass
+
+            last_event = event
 
     def output(self):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
+        api_key = configuration.get_config().get('google', 'api_key')
         duration = VIDEO_SESSION_UNKNOWN_DURATION
+        f = None
         try:
-            f = urllib.urlopen("http://gdata.youtube.com/feeds/api/videos/{0}".format(youtube_id))
-            xml_string = f.read()
-            tree = ET.fromstring(xml_string)
-            for item in tree.iter('{http://gdata.youtube.com/schemas/2007}duration'):
-                if 'seconds' in item.attrib:
-                    duration = int(item.attrib['seconds'])
+            f = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, api_key))
+            content = json.load(f)
+            items = content['items']
+            if len(items) > 0:
+                duration_str = items[0]['contentDetails']['duration']
+                m = re.match(r'PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?', duration_str)
+                if not m:
+                    log.error('Unable to parse duration: %s', duration)
+                else:
+                    duration_secs = int(m.group('hours') or 0) * 3600
+                    duration_secs += int(m.group('minutes') or 0) * 60
+                    duration_secs += int(m.group('seconds') or 0)
+                    duration = duration_secs
         except IOError:
             pass
-        except ET.ParseError:
-            pass
         finally:
-            f.close()
+            if f is not None:
+                f.close()
 
         return duration
+
 
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -309,8 +330,10 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         video_duration = 0
         max_count = -1
         for duration, indexed_sessions in sessions_by_duration.iteritems():
-            if len(indexed_sessions) > max_count:
+            current_video_session_count = len(indexed_sessions)
+            if current_video_session_count > max_count:
                 video_duration = duration
+                max_count = current_video_session_count
 
         for session in sessions_by_duration[video_duration]:
             username, start_offset, end_offset = session
