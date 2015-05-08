@@ -29,20 +29,12 @@ VIDEO_EVENT_TYPES = frozenset([
     VIDEO_SEEK,
     VIDEO_STOPPED,
 ])
-VIDEO_SESSION_END_INDICATORS = frozenset([
-    # 'seq_next',
-    # 'seq_prev',
-    # 'seq_goto',
-    # 'page_close',
-])
 VIDEO_SESSION_UNKNOWN_DURATION = -1
 VIDEO_SESSION_SECONDS_PER_SEGMENT = 5
 
 
 VideoSession = namedtuple('VideoSession', [
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
-
-PipelineVideoId = namedtuple('PipelineVideoId', ['course_id', 'encoded_module_id'])
 
 
 class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -100,36 +92,30 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 if current_time is None or old_time is None:
                     log.warn('Seek event without valid old and new times: {0}'.format(line))
                     return
-        elif event_type in VIDEO_SESSION_END_INDICATORS:
-            pass
         else:
             return
-
-        if course_id is not None:
-            course_id = course_id.encode('utf8')
-
-        if encoded_module_id is not None:
-            encoded_module_id = encoded_module_id.encode('utf8')
 
         if youtube_id is not None:
             youtube_id = youtube_id.encode('utf8')
 
-        yield (username.encode('utf8'), (timestamp, event_type, course_id, encoded_module_id, current_time, old_time, youtube_id))
+        yield (
+            (username.encode('utf8'), course_id.encode('utf8'), encoded_module_id.encode('utf8')),
+            (timestamp, event_type, current_time, old_time, youtube_id)
+        )
 
-    def reducer(self, username, events):
+    def reducer(self, key, events):
+        username, course_id, encoded_module_id = key
+
         sorted_events = sorted(events)
         video_durations = {}
 
-        active_sessions = {}
         last_event = None
+        session = None
         for event in sorted_events:
-            timestamp, event_type, course_id, encoded_module_id, current_time, old_time, youtube_id = event
+            timestamp, event_type, current_time, old_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
-            pipeline_video_id = PipelineVideoId(course_id, encoded_module_id)
-            if current_time:
+            if current_time is not None:
                 current_time = float(current_time)
-
-            session = active_sessions.get(pipeline_video_id)
 
             def start_session():
                 video_duration = VIDEO_SESSION_UNKNOWN_DURATION
@@ -140,11 +126,11 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                         video_durations[youtube_id] = video_duration
 
                 if last_event is not None and last_event[1] == VIDEO_SEEK:
-                    start_offset = last_event[4]
+                    start_offset = last_event[2]
                 else:
                     start_offset = current_time
 
-                active_sessions[pipeline_video_id] = VideoSession(
+                return VideoSession(
                     start_timestamp=parsed_timestamp,
                     course_id=course_id,
                     encoded_module_id=encoded_module_id,
@@ -153,26 +139,21 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_session(end_time):
-                del active_sessions[pipeline_video_id]
-
                 if session.video_duration == VIDEO_SESSION_UNKNOWN_DURATION:
                     # log.error('Unknown video duration at end of session.\nSession Start: %r\nEvent: %r', session, event)
                     return None
 
                 if end_time > session.video_duration:
-                    log.error('End time of session past end of video.\nSession Start: %r\nEvent: %r', session, event)
+                    log.error('End time of session past end of video.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
                     return None
 
                 if (end_time - session.start_offset) < 0.250:
-                    log.error('Session too short and discarded.\nSession Start: %r\nEvent: %r', session, event)
+                    # log.error('Session too short and discarded.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
                     return None
 
                 if end_time < session.start_offset:
-                    log.error('End time is before the start time.\nSession Start: %r\nEvent: %r', session, event)
+                    log.error('End time is before the start time.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
                     return None
-
-                if course_id != session.course_id or encoded_module_id != session.encoded_module_id:
-                    log.error('Session terminated by a different video.\nSession Start: %r\nEvent: %r', session, event)
 
                 return (
                     username,
@@ -186,14 +167,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             if event_type == VIDEO_PLAYED:
-                if session:
-                    # play -> play is invalid so just discard it and start a new one
-                    del active_sessions[pipeline_video_id]
-                else:
-                    # if there is no active session, start a new one
-                    pass
-
-                start_session()
+                session = start_session()
             elif session:
                 session_end_time = None
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
@@ -211,7 +185,7 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                     session_end_time = session.start_offset + session_length
 
                 else:
-                    log.error('Unexpected event in session.\nSession Start: %r\nEvent: %r', session, event)
+                    log.error('Unexpected event in session.\nSession Start: %r\nEvent: %r\nKey:%r', session, event, key)
 
                 if session_end_time is not None:
                     record = end_session(session_end_time)
