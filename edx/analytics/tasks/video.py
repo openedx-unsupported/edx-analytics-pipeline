@@ -42,6 +42,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
     output_root = luigi.Parameter()
 
     def init_local(self):
+        super(UserVideoSessionTask, self).init_local()
         self.api_key = configuration.get_config().get('google', 'api_key')
 
     def mapper(self, line):
