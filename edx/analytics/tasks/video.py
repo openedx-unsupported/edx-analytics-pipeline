@@ -41,6 +41,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
 
+    def init_local(self):
+        self.api_key = configuration.get_config().get('google', 'api_key')
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
@@ -202,11 +205,10 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
-        api_key = configuration.get_config().get('google', 'api_key')
         duration = VIDEO_SESSION_UNKNOWN_DURATION
         f = None
         try:
-            f = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, api_key))
+            f = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, self.api_key))
             content = json.load(f)
             items = content['items']
             if len(items) > 0:
