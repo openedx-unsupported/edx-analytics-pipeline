@@ -3,6 +3,7 @@ import luigi
 import luigi.format
 import luigi.hdfs
 import luigi.s3
+from mock import patch
 
 from edx.analytics.tasks import url
 from edx.analytics.tasks.tests import unittest
@@ -29,7 +30,8 @@ class TargetFromUrlTestCase(unittest.TestCase):
             self.assertIsInstance(target, luigi.LocalTarget)
             self.assertEquals(target.path, path)
 
-    def test_s3_https_scheme(self):
+    @patch('luigi.s3.boto')
+    def test_s3_https_scheme(self, _mock_boto):
         test_url = 's3+https://foo/bar'
         target = url.get_target_from_url(test_url)
         self.assertIsInstance(target, luigi.s3.S3Target)
