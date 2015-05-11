@@ -30,7 +30,7 @@ VIDEO_EVENT_TYPES = frozenset([
 ])
 VIDEO_VIEWING_UNKNOWN_DURATION = -1
 VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
-VIDEO_VIEWING_END_INDICATORS = []
+VIDEO_VIEWING_MINIMUM_LENGTH = 0.25  # seconds
 
 VideoViewing = namedtuple('VideoViewing', [
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
@@ -152,7 +152,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                               viewing, event, key)
                     return None
 
-                if (end_time - viewing.start_offset) < 0.250:
+                if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
                     # log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
                     #           viewing, event, key)
                     return None
@@ -185,11 +185,6 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 elif event_type == VIDEO_SEEK:
                     # play -> seek
                     viewing_end_time = old_time
-
-                elif event_type in VIDEO_VIEWING_END_INDICATORS:
-                    # play -> navigate away
-                    viewing_length = (parsed_timestamp - viewing.start_timestamp).total_seconds()
-                    viewing_end_time = viewing.start_offset + viewing_length
 
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
@@ -301,22 +296,13 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
-        # Partition viewing information by video_duration.
-        viewings_by_duration = {}
-        for viewing in viewings:
-            username, start_offset, end_offset, video_duration = viewing
-            viewings_by_duration.setdefault(video_duration, []).append((username, start_offset, end_offset))
-
         video_duration = 0
-        max_count = -1
-        for duration, indexed_viewings in viewings_by_duration.iteritems():
-            current_video_viewing_count = len(indexed_viewings)
-            if current_video_viewing_count > max_count:
-                video_duration = duration
-                max_count = current_video_viewing_count
+        for viewing in viewings:
+            username, start_offset, end_offset, duration = viewing
 
-        for viewing in viewings_by_duration[video_duration]:
-            username, start_offset, end_offset = viewing
+            if duration > video_duration:
+                video_duration = duration
+
             first_second = int(math.floor(float(start_offset)))
             first_segment = self.snap_to_last_segment_boundary(first_second)
             last_second = int(math.ceil(float(end_offset)))
