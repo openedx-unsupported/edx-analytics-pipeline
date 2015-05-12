@@ -182,6 +182,8 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
         ]
         expected = (
             ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 0, 0, 'honor'),
         )
         self._check_output(inputs, expected)
 
@@ -209,6 +211,7 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
             ('2013-01-02', self.course_id, self.user_id, 1, 0, 'honor'),
             ('2013-01-03', self.course_id, self.user_id, 1, 0, 'honor'),
             ('2013-01-04', self.course_id, self.user_id, 0, -1, 'honor'),
+            ('2013-01-05', self.course_id, self.user_id, 0, 0, 'honor'),
             ('2013-01-06', self.course_id, self.user_id, 1, 1, 'honor'),
         )
         self._check_output(inputs, expected)
@@ -301,9 +304,26 @@ class CourseEnrollmentTaskReducerTest(unittest.TestCase):
         ]
         expected = (
             ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 0, 0, 'honor'),
             ('2013-01-03', self.course_id, self.user_id, 1, 1, 'honor'),
             ('2013-01-04', self.course_id, self.user_id, 1, 0, 'honor'),
             ('2013-01-05', self.course_id, self.user_id, 1, 0, 'honor'),
+        )
+        self._check_output(inputs, expected)
+
+    def test_oversized_interval_both_sides_unenrolled_at_end(self):
+        self.create_task('2012-12-30-2013-01-06')
+        inputs = [
+            ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
+            ('2013-01-03T00:00:01', ACTIVATED, 'honor'),
+            ('2013-01-04T00:00:01', DEACTIVATED, 'honor'),
+        ]
+        expected = (
+            ('2013-01-01', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-02', self.course_id, self.user_id, 0, 0, 'honor'),
+            ('2013-01-03', self.course_id, self.user_id, 1, 1, 'honor'),
+            ('2013-01-04', self.course_id, self.user_id, 0, -1, 'honor'),
+            ('2013-01-05', self.course_id, self.user_id, 0, 0, 'honor'),
         )
         self._check_output(inputs, expected)
 

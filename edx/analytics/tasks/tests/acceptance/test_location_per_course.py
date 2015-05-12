@@ -46,12 +46,13 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         today = datetime.utcnow().date()
 
         self.assertItemsEqual([
-            row[1:5] for row in results
+            row[1:6] for row in results
         ], [
-            (today, self.COURSE_ID, '', 1),
-            (today, self.COURSE_ID, 'IE', 1),
-            (today, self.COURSE_ID2, 'TH', 1),
-            (today, self.COURSE_ID, 'TH', 1),
+            (today, self.COURSE_ID, '', 1, 1),
+            (today, self.COURSE_ID, 'UNKNOWN', 0, 1),
+            (today, self.COURSE_ID, 'IE', 1, 1),
+            (today, self.COURSE_ID2, 'TH', 1, 1),
+            (today, self.COURSE_ID, 'TH', 1, 1),
         ])
         with self.export_db.cursor() as cursor:
             cursor.execute('SELECT username, country_name, country_code FROM last_country_of_user ORDER BY username, country_code')

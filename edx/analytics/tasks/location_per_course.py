@@ -203,7 +203,8 @@ class QueryLastCountryPerCourseTask(
                 date STRING,
                 course_id STRING,
                 country_code STRING,
-                count INT
+                count INT,
+                cumulative_count INT
             )
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
             LOCATION '{location}';
@@ -213,11 +214,11 @@ class QueryLastCountryPerCourseTask(
                 sce.dt,
                 sce.course_id,
                 uc.country_code,
+                sum(if(sce.is_active, 1, 0)),
                 count(sce.user_id)
             FROM student_courseenrollment sce
             LEFT OUTER JOIN auth_user au on sce.user_id = au.id
             LEFT OUTER JOIN last_country_of_user uc on au.username = uc.username
-            WHERE sce.is_active > 0
             GROUP BY sce.dt, sce.course_id, uc.country_code;
         """)
 
@@ -298,6 +299,7 @@ class InsertToMysqlCourseEnrollByCountryTaskBase(MysqlInsertTask):
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('country_code', 'VARCHAR(10) NOT NULL'),
             ('count', 'INT(11) NOT NULL'),
+            ('cumulative_count', 'INT(11) NOT NULL'),
         ]
 
     @property
