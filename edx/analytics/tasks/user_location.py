@@ -124,7 +124,7 @@ class BaseGeolocation(object):
             code = UNKNOWN_CODE
 
         # Add the username for debugging purposes.  (Not needed for counts.)
-        yield (country, code), username
+        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
 
     def final_reducer(self):
         """Clean up after the reducer is done."""
