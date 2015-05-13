@@ -28,6 +28,9 @@ VIDEO_EVENT_TYPES = frozenset([
     VIDEO_SEEK,
     VIDEO_STOPPED,
 ])
+# Any event that contains the events above must also contain this string.
+VIDEO_EVENT_MINIMUM_STRING = '_video'
+
 VIDEO_VIEWING_MAXIMUM_DURATION = 3600 * 10.0  # 10 hours, converted to seconds
 VIDEO_VIEWING_UNKNOWN_DURATION = -1
 VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
@@ -47,10 +50,23 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         self.api_key = configuration.get_config().get('google', 'api_key', None)
 
     def mapper(self, line):
+        # Add a filter here to permit quicker rejection of unrelated events.
+        if VIDEO_EVENT_MINIMUM_STRING not in line:
+            return
+
         value = self.get_event_and_date_string(line)
         if value is None:
             return
         event, _date_string = value
+
+        event_type = event.get('event_type')
+        if event_type is None:
+            log.error("encountered event with no event_type: %s", event)
+            return
+
+        # Just skip non-video events early.
+        if event_type not in VIDEO_EVENT_TYPES:
+            return
 
         username = event.get('username')
         if username is None:
@@ -60,61 +76,49 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         if len(username) == 0:
             return
 
-        event_type = event.get('event_type')
-        if event_type is None:
-            log.error("encountered event with no event_type: %s", event)
-            return
-
         timestamp = eventlog.get_event_time_string(event)
         if timestamp is None:
             log.error("encountered event with bad timestamp: %s", event)
             return
 
         course_id = eventlog.get_course_id(event)
+        if course_id is None:
+            log.warn('Video event without valid course_id: {0}'.format(line))
+            return
 
-        encoded_module_id = None
-        current_time = None
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            # This should already have been logged.
+            return
+
+        encoded_module_id = event_data.get('id')
+        if encoded_module_id is None:
+            log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
+            return
+
+        current_time = event_data.get('currentTime')
         old_time = None
         youtube_id = None
-        if event_type in VIDEO_EVENT_TYPES:
-            if course_id is None:
-                log.warn('Video event without valid course_id: {0}'.format(line))
+        if event_type == VIDEO_PLAYED:
+            code = event_data.get('code')
+            if code not in ('html5', 'mobile'):
+                youtube_id = code
+            if current_time is None:
+                log.warn('Play video without valid currentTime: {0}'.format(line))
+                return
+        elif event_type == VIDEO_PAUSED:
+            if current_time is None:
+                current_time = 0
+        elif event_type == VIDEO_SEEK:
+            current_time = event_data.get('new_time')
+            old_time = event_data.get('old_time')
+            if current_time is None or old_time is None:
+                log.warn('Seek event without valid old and new times: {0}'.format(line))
                 return
 
-            event_data = eventlog.get_event_data(event)
-            if event_data is None:
-                # This should already have been logged.
-                return
-
-            encoded_module_id = event_data.get('id')
-            if encoded_module_id is None:
-                log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
-                return
-
-            current_time = event_data.get('currentTime')
-            if event_type == VIDEO_PLAYED:
-                code = event_data.get('code')
-                if code not in ('html5', 'mobile'):
-                    youtube_id = code
-                if current_time is None:
-                    log.warn('Play video without valid currentTime: {0}'.format(line))
-                    return
-            elif event_type == VIDEO_PAUSED:
-                if current_time is None:
-                    current_time = 0
-            elif event_type == VIDEO_SEEK:
-                current_time = event_data.get('new_time')
-                old_time = event_data.get('old_time')
-                if current_time is None or old_time is None:
-                    log.warn('Seek event without valid old and new times: {0}'.format(line))
-                    return
-
-            # Some events have ridiculous (and dangerous) values for time.
-            if current_time and float(current_time) > VIDEO_VIEWING_MAXIMUM_DURATION:
-                log.warn('Video event with huge current_time value: {0}'.format(line))
-                return
-
-        else:
+        # Some events have ridiculous (and dangerous) values for time.
+        if current_time and float(current_time) > VIDEO_VIEWING_MAXIMUM_DURATION:
+            log.warn('Video event with huge current_time value: {0}'.format(line))
             return
 
         if youtube_id is not None:
@@ -216,7 +220,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             last_event = event
 
-        # This happens too often!
+        # This happens too often!  Comment out for now...
         # if viewing is not None:
         #     log.error('Unexpected viewing started with no matching end.\nViewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_event, key)
 
