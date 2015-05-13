@@ -82,7 +82,15 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 return
 
             event_data = eventlog.get_event_data(event)
+            if event_data is None:
+                # This should already have been logged.
+                return
+
             encoded_module_id = event_data.get('id')
+            if encoded_module_id is None:
+                log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
+                return
+
             current_time = event_data.get('currentTime')
             if event_type == VIDEO_PLAYED:
                 code = event_data.get('code')
