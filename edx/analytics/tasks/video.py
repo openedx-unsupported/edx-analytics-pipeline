@@ -11,7 +11,7 @@ from luigi import configuration
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, ExternalURL
+from edx.analytics.tasks.url import get_target_from_url, ExternalURL, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
 
@@ -28,9 +28,10 @@ VIDEO_EVENT_TYPES = frozenset([
     VIDEO_SEEK,
     VIDEO_STOPPED,
 ])
+VIDEO_VIEWING_MAXIMUM_DURATION = 3600 * 10.0  # 10 hours, converted to seconds
 VIDEO_VIEWING_UNKNOWN_DURATION = -1
 VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
-VIDEO_VIEWING_END_INDICATORS = []
+VIDEO_VIEWING_MINIMUM_LENGTH = 0.25  # seconds
 
 VideoViewing = namedtuple('VideoViewing', [
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
@@ -42,7 +43,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def init_local(self):
         super(UserVideoViewingTask, self).init_local()
-        self.api_key = configuration.get_config().get('google', 'api_key')
+        # Providing an api_key is optional.
+        self.api_key = configuration.get_config().get('google', 'api_key', None)
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -75,14 +77,17 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         old_time = None
         youtube_id = None
         if event_type in VIDEO_EVENT_TYPES:
+            if course_id is None:
+                log.warn('Video event without valid course_id: {0}'.format(line))
+                return
+
             event_data = eventlog.get_event_data(event)
             encoded_module_id = event_data.get('id')
             current_time = event_data.get('currentTime')
-            code = event_data.get('code')
-            if code in ('html5', 'mobile') or course_id is None:
-                return
             if event_type == VIDEO_PLAYED:
-                youtube_id = code
+                code = event_data.get('code')
+                if code not in ('html5', 'mobile'):
+                    youtube_id = code
                 if current_time is None:
                     log.warn('Play video without valid currentTime: {0}'.format(line))
                     return
@@ -95,6 +100,12 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 if current_time is None or old_time is None:
                     log.warn('Seek event without valid old and new times: {0}'.format(line))
                     return
+
+            # Some events have ridiculous (and dangerous) values for time.
+            if current_time and float(current_time) > VIDEO_VIEWING_MAXIMUM_DURATION:
+                log.warn('Video event with huge current_time value: {0}'.format(line))
+                return
+
         else:
             return
 
@@ -126,6 +137,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     video_duration = video_durations.get(youtube_id)
                     if not video_duration:
                         video_duration = self.get_video_duration(youtube_id)
+                        # Duration might still be unknown, but just store it.
                         video_durations[youtube_id] = video_duration
 
                 if last_event is not None and last_event[1] == VIDEO_SEEK:
@@ -142,17 +154,13 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_viewing(end_time):
-                if viewing.video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
-                    # log.error('Unknown video duration at end of viewing.\nViewing Start: %r\nEvent: %r',
-                    #           viewing, event)
-                    return None
 
-                if end_time > viewing.video_duration:
+                if viewing.video_duration != VIDEO_VIEWING_UNKNOWN_DURATION and end_time > viewing.video_duration:
                     log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
                     return None
 
-                if (end_time - viewing.start_offset) < 0.250:
+                if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
                     # log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
                     #           viewing, event, key)
                     return None
@@ -186,11 +194,6 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     # play -> seek
                     viewing_end_time = old_time
 
-                elif event_type in VIDEO_VIEWING_END_INDICATORS:
-                    # play -> navigate away
-                    viewing_length = (parsed_timestamp - viewing.start_timestamp).total_seconds()
-                    viewing_end_time = viewing.start_offset + viewing_length
-
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
 
@@ -205,11 +208,18 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             last_event = event
 
+        # This happens too often!
+        # if viewing is not None:
+        #     log.error('Unexpected viewing started with no matching end.\nViewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_event, key)
+
     def output(self):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
         duration = VIDEO_VIEWING_UNKNOWN_DURATION
+        if self.api_key is None:
+            return duration
+
         video_file = None
         try:
             video_file = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, self.api_key))
@@ -238,62 +248,35 @@ class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin
     pass
 
 
-class UserVideoViewingTableTask(VideoTableDownstreamMixin, HiveTableTask):
+class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
-    @property
-    def table(self):
-        return 'user_video_viewing'
-
-    @property
-    def columns(self):
-        return [
-            ('username', 'STRING'),
-            ('course_id', 'STRING'),
-            ('encoded_module_id', 'STRING'),
-            ('start_timestamp', 'STRING'),
-            ('start_offset', 'FLOAT'),
-            ('end_offset', 'FLOAT'),
-            ('end_reason', 'STRING'),
-        ]
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+    output_root = luigi.Parameter()
 
     def requires(self):
+        # Define path so that data could be loaded into Hive, without actually requiring the load to be performed.
+        table_name = 'user_video_viewing'
+        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
+        input_path = url_path_join(self.warehouse_path, table_name, partition_path_spec + '/')
         return UserVideoViewingTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=self.partition_location,
+            output_root=input_path,
         )
 
-    def output(self):
-        return self.requires().output()
-
-
-class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduceJobTask):
-
-    output_root = luigi.Parameter()
-    input_path = luigi.Parameter(default=None)
-
-    def requires(self):
-        if self.input_path:
-            return ExternalURL(self.input_path)
-        else:
-            return UserVideoViewingTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                warehouse_path=self.warehouse_path
-            )
-
     def mapper(self, line):
-        username, course_id, encoded_module_id, video_duration, _start_timestamp_str, start_offset, end_offset, _reason = line.split('\t')
+        (
+            username,
+            course_id,
+            encoded_module_id,
+            video_duration,
+            _start_timestamp_str,
+            start_offset,
+            end_offset,
+            _reason
+        ) = line.split('\t')
         yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
 
     def reducer(self, key, viewings):
@@ -301,37 +284,40 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
         pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
 
-        # Partition viewing information by video_duration.
-        viewings_by_duration = {}
-        for viewing in viewings:
-            username, start_offset, end_offset, video_duration = viewing
-            viewings_by_duration.setdefault(video_duration, []).append((username, start_offset, end_offset))
-
         video_duration = 0
-        max_count = -1
-        for duration, indexed_viewings in viewings_by_duration.iteritems():
-            current_video_viewing_count = len(indexed_viewings)
-            if current_video_viewing_count > max_count:
-                video_duration = duration
-                max_count = current_video_viewing_count
+        for viewing in viewings:
+            username, start_offset, end_offset, duration = viewing
 
-        for viewing in viewings_by_duration[video_duration]:
-            username, start_offset, end_offset = viewing
+            # Find the maximum actual video duration, but indicate that
+            # it's unknown if any viewing was of a video with unknown duration.
+            duration = float(duration)
+            if video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+                pass
+            elif duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+                video_duration = VIDEO_VIEWING_UNKNOWN_DURATION
+            elif duration > video_duration:
+                video_duration = duration
+
             first_second = int(math.floor(float(start_offset)))
             first_segment = self.snap_to_last_segment_boundary(first_second)
             last_second = int(math.ceil(float(end_offset)))
             last_segment = self.snap_to_last_segment_boundary(last_second)
-            stats = usage_map.setdefault(first_segment, {})
-            stats['starts'] = stats.get('starts', 0) + 1
-            stats = usage_map.setdefault(last_segment, {})
-            stats['stops'] = stats.get('stops', 0) + 1
             for segment in xrange(first_segment, last_segment + 1):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(username)
                 stats['views'] = stats.get('views', 0) + 1
 
-        final_segment = self.snap_to_last_segment_boundary(int(math.ceil(float(video_duration))))
+        # If we don't know the duration of the video, just use the final segment that was
+        # actually viewed to determine end_views.
+        # TODO: decide if we should we also update video_duration, or leave it as unknown.
+        # For now, leave as unknown, and allow the client to determine how to show it.
+        if video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+            final_segment = max(usage_map.keys())
+        else:
+            final_segment = self.snap_to_last_segment_boundary(int(math.ceil(float(video_duration))))
+
+        # Output stats.
         start_views = usage_map.get(0, {}).get('views', 0)
         end_views = usage_map.get(final_segment, {}).get('views', 0)
         partial_views = abs(start_views - end_views)
@@ -341,7 +327,7 @@ class VideoUsageTask(EventLogSelectionDownstreamMixin, WarehouseMixin, MapReduce
                 pipeline_video_id,
                 course_id,
                 encoded_module_id,
-                video_duration,
+                int(video_duration) if video_duration != VIDEO_VIEWING_UNKNOWN_DURATION else '\\N',
                 VIDEO_VIEWING_SECONDS_PER_SEGMENT,
                 start_views,
                 end_views,
