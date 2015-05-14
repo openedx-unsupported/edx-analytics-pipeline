@@ -31,8 +31,8 @@ VIDEO_EVENT_TYPES = frozenset([
 # Any event that contains the events above must also contain this string.
 VIDEO_EVENT_MINIMUM_STRING = '_video'
 
-VIDEO_VIEWING_MAXIMUM_DURATION = 3600 * 10.0  # 10 hours, converted to seconds
-VIDEO_VIEWING_UNKNOWN_DURATION = -1
+VIDEO_MAXIMUM_DURATION = 3600 * 10.0  # 10 hours, converted to seconds
+VIDEO_UNKNOWN_DURATION = -1
 VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
 VIDEO_VIEWING_MINIMUM_LENGTH = 0.25  # seconds
 
@@ -64,7 +64,6 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered event with no event_type: %s", event)
             return
 
-        # Just skip non-video events early.
         if event_type not in VIDEO_EVENT_TYPES:
             return
 
@@ -116,10 +115,17 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 log.warn('Seek event without valid old and new times: {0}'.format(line))
                 return
 
-        # Some events have ridiculous (and dangerous) values for time.
-        if current_time and float(current_time) > VIDEO_VIEWING_MAXIMUM_DURATION:
-            log.warn('Video event with huge current_time value: {0}'.format(line))
-            return
+        if current_time:
+            try:
+                current_time = float(current_time)
+            except TypeError:
+                log.warn('Video event with invalid currentTime type: {0}'.format(line))
+                return
+
+            # Some events have ridiculous (and dangerous) values for time.
+            if current_time > VIDEO_MAXIMUM_DURATION:
+                log.warn('Video event with huge current_time value: {0}'.format(line))
+                return
 
         if youtube_id is not None:
             youtube_id = youtube_id.encode('utf8')
@@ -144,7 +150,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 current_time = float(current_time)
 
             def start_viewing():
-                video_duration = VIDEO_VIEWING_UNKNOWN_DURATION
+                video_duration = VIDEO_UNKNOWN_DURATION
                 if youtube_id:
                     video_duration = video_durations.get(youtube_id)
                     if not video_duration:
@@ -167,7 +173,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             def end_viewing(end_time):
 
-                if viewing.video_duration != VIDEO_VIEWING_UNKNOWN_DURATION and end_time > viewing.video_duration:
+                if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > viewing.video_duration:
                     log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
                     return None
@@ -228,7 +234,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
-        duration = VIDEO_VIEWING_UNKNOWN_DURATION
+        duration = VIDEO_UNKNOWN_DURATION
         if self.api_key is None:
             return duration
 
@@ -303,10 +309,10 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             # Find the maximum actual video duration, but indicate that
             # it's unknown if any viewing was of a video with unknown duration.
             duration = float(duration)
-            if video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+            if video_duration == VIDEO_UNKNOWN_DURATION:
                 pass
-            elif duration == VIDEO_VIEWING_UNKNOWN_DURATION:
-                video_duration = VIDEO_VIEWING_UNKNOWN_DURATION
+            elif duration == VIDEO_UNKNOWN_DURATION:
+                video_duration = VIDEO_UNKNOWN_DURATION
             elif duration > video_duration:
                 video_duration = duration
 
@@ -324,7 +330,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         # actually viewed to determine end_views.
         # TODO: decide if we should we also update video_duration, or leave it as unknown.
         # For now, leave as unknown, and allow the client to determine how to show it.
-        if video_duration == VIDEO_VIEWING_UNKNOWN_DURATION:
+        if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = max(usage_map.keys())
         else:
             final_segment = self.snap_to_last_segment_boundary(int(math.ceil(float(video_duration))))
@@ -339,7 +345,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 pipeline_video_id,
                 course_id,
                 encoded_module_id,
-                int(video_duration) if video_duration != VIDEO_VIEWING_UNKNOWN_DURATION else '\\N',
+                int(video_duration) if video_duration != VIDEO_UNKNOWN_DURATION else '\\N',
                 VIDEO_VIEWING_SECONDS_PER_SEGMENT,
                 start_views,
                 end_views,
