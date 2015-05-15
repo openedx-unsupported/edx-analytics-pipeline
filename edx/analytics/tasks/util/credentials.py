@@ -2,30 +2,36 @@
 import json
 import urlparse
 
-from edx.analytics.tasks.url import ExternalURL
+import luigi
+
+from edx.analytics.tasks.url import get_target_from_url, ExternalURL
 
 
-class CredentialsUrl(ExternalURL):
+class CredentialsTarget(luigi.Target):
 
-    def __init__(self, *args, **kwargs):
-        super(CredentialsUrl, self).__init__(*args, **kwargs)
+    def __init__(self, url):
+        self.url = url
         self.parsed_url = urlparse.urlparse(self.url)
+        if self.parsed_url.scheme != 'mysql':
+            self.file_target = get_target_from_url(url)
+        else:
+            self.file_target = None
 
-    def complete(self):
+    def exists(self):
         if self.is_external_file:
-            return super(CredentialsUrl, self).complete()
+            return self.file_target.exists()
         else:
             return True
 
     @property
     def is_external_file(self):
-        return self.parsed_url.scheme != 'mysql'
+        return self.file_target is not None
 
     @property
     def credentials(self):
         if not hasattr(self, '_credentials'):
             if self.is_external_file:
-                with self.open('r') as credentials_file:
+                with self.file_target.open('r') as credentials_file:
                     self._credentials = json.load(credentials_file)
             else:
                 split_netloc = self.parsed_url.netloc.split('@')
@@ -64,4 +70,10 @@ class CredentialsUrl(ExternalURL):
 
     @property
     def password(self):
-        return self.credentials['password']
+        return self.credentials.get('password', '')
+
+
+class CredentialsUrl(ExternalURL):
+
+    def output(self):
+        return CredentialsTarget(self.url)
