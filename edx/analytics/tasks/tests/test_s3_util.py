@@ -1,5 +1,5 @@
 """Tests for S3--related utility functionality."""
-from mock import MagicMock
+from mock import MagicMock, patch
 
 from edx.analytics.tasks import s3_util
 from edx.analytics.tasks.tests import unittest
@@ -101,6 +101,10 @@ class ScalableS3ClientTestCase(unittest.TestCase):
     """Tests for ScalableS3Client class."""
 
     def setUp(self):
+        patcher = patch('luigi.s3.boto')
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
         self.client = s3_util.ScalableS3Client()
 
     def _assert_get_chunk_specs(self, source_size_bytes, expected_num_chunks, expected_chunk_size):

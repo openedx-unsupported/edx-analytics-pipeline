@@ -11,7 +11,7 @@ from luigi import configuration
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, ExternalURL, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
 
@@ -95,36 +95,34 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
             return
 
-        current_time = event_data.get('currentTime')
+        current_time = None
         old_time = None
         youtube_id = None
         if event_type == VIDEO_PLAYED:
             code = event_data.get('code')
             if code not in ('html5', 'mobile'):
                 youtube_id = code
+            current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
                 log.warn('Play video without valid currentTime: {0}'.format(line))
                 return
         elif event_type == VIDEO_PAUSED:
+            # Pause events may have a missing currentTime value if video is paused at the beginning,
+            # so provide a default of zero.
+            current_time = self._check_time_offset(event_data.get('currentTime', 0), line)
             if current_time is None:
-                current_time = 0
+                log.warn('Pause video without valid currentTime: {0}'.format(line))
+                return
         elif event_type == VIDEO_SEEK:
-            current_time = event_data.get('new_time')
-            old_time = event_data.get('old_time')
+            current_time = self._check_time_offset(event_data.get('new_time'), line)
+            old_time = self._check_time_offset(event_data.get('old_time'), line)
             if current_time is None or old_time is None:
                 log.warn('Seek event without valid old and new times: {0}'.format(line))
                 return
-
-        if current_time:
-            try:
-                current_time = float(current_time)
-            except TypeError:
-                log.warn('Video event with invalid currentTime type: {0}'.format(line))
-                return
-
-            # Some events have ridiculous (and dangerous) values for time.
-            if current_time > VIDEO_MAXIMUM_DURATION:
-                log.warn('Video event with huge current_time value: {0}'.format(line))
+        elif event_type == VIDEO_STOPPED:
+            current_time = self._check_time_offset(event_data.get('currentTime'), line)
+            if current_time is None:
+                log.warn('Stop video without valid currentTime: {0}'.format(line))
                 return
 
         if youtube_id is not None:
@@ -135,19 +133,43 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             (timestamp, event_type, current_time, old_time, youtube_id)
         )
 
+    def _check_time_offset(self, time_value, line):
+        """Check that time can be converted to a float, and has a reasonable value."""
+        if time_value:
+            try:
+                time_value = float(time_value)
+            except TypeError:
+                log.warn('Video event with invalid time-offset type: {0}'.format(line))
+                return None
+
+            # Some events have ridiculous (and dangerous) values for time.
+            if time_value > VIDEO_MAXIMUM_DURATION:
+                log.warn('Video event with huge time-offset value: {0}'.format(line))
+                return None
+
+        return time_value
+
     def reducer(self, key, events):
         username, course_id, encoded_module_id = key
 
         sorted_events = sorted(events)
         video_durations = {}
 
-        last_event = None
+        # When a user seeks forward while the video is playing, it is common to see an incorrect value for currentTime
+        # in the play event emitted after the seek. The expected behavior here is play->seek->play with the second
+        # play event being emitted almost immediately after the seek. This second play event should record the
+        # currentTime after the seek is complete, not the currentTime before the seek started, however it often
+        # records the time before the seek started. We choose to trust the seek_video event in these cases and the time
+        # it claims to have moved the position to.
+        last_viewing_end_event = None
         viewing = None
         for event in sorted_events:
             timestamp, event_type, current_time, old_time, youtube_id = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time is not None:
                 current_time = float(current_time)
+            if old_time is not None:
+                old_time = float(old_time)
 
             def start_viewing():
                 video_duration = VIDEO_UNKNOWN_DURATION
@@ -158,8 +180,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                         # Duration might still be unknown, but just store it.
                         video_durations[youtube_id] = video_duration
 
-                if last_event is not None and last_event[1] == VIDEO_SEEK:
-                    start_offset = last_event[2]
+                if last_viewing_end_event is not None and last_viewing_end_event[1] == VIDEO_SEEK:
+                    start_offset = last_viewing_end_event[2]
                 else:
                     start_offset = current_time
 
@@ -173,18 +195,21 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             def end_viewing(end_time):
 
-                if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > viewing.video_duration:
+                # Check that end_time is within the bounds of the duration.
+                # Note that duration may be an int, and end_time may be a float,
+                # so just add +1 to avoid these round-off errors (instead of actually checking types).
+                if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > (viewing.video_duration + 1):
                     log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
                     return None
 
-                if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
-                    # log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
-                    #           viewing, event, key)
-                    return None
-
                 if end_time < viewing.start_offset:
                     log.error('End time is before the start time.\nViewing Start: %r\nEvent: %r\nKey:%r',
+                              viewing, event, key)
+                    return None
+
+                if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
+                    log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
                     return None
 
@@ -201,6 +226,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             if event_type == VIDEO_PLAYED:
                 viewing = start_viewing()
+                last_viewing_end_event = None
             elif viewing:
                 viewing_end_time = None
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
@@ -219,16 +245,17 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     record = end_viewing(viewing_end_time)
                     if record:
                         yield record
-                viewing = None
+                    # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
+                    # data and untrustworthy.
+                    viewing = None
+                    last_viewing_end_event = event
             else:
                 # this is a non-play event outside of a viewing
                 pass
 
-            last_event = event
-
         # This happens too often!  Comment out for now...
         # if viewing is not None:
-        #     log.error('Unexpected viewing started with no matching end.\nViewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_event, key)
+        #     log.error('Unexpected viewing started with no matching end.\nViewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -242,19 +269,21 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         try:
             video_file = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, self.api_key))
             content = json.load(video_file)
-            items = content['items']
+            items = content.get('items', [])
             if len(items) > 0:
-                duration_str = items[0]['contentDetails']['duration']
+                duration_str = items[0].get('contentDetails', {'duration': 'MISSING_CONTENTDETAILS'}).get('duration','MISSING_DURATION')
                 matcher = re.match(r'PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?', duration_str)
                 if not matcher:
-                    log.error('Unable to parse duration: %s', duration)
+                    log.error('Unable to parse duration returned for video %s: %s', youtube_id, duration_str)
                 else:
                     duration_secs = int(matcher.group('hours') or 0) * 3600
                     duration_secs += int(matcher.group('minutes') or 0) * 60
                     duration_secs += int(matcher.group('seconds') or 0)
                     duration = duration_secs
-        except IOError:
-            pass
+            else:
+                log.error('Unable to find items in response to duration request for youtube video: %s', youtube_id)
+        except Exception:
+            log.exception("Unrecognized response from Youtube API")
         finally:
             if video_file is not None:
                 video_file.close()
