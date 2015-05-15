@@ -1,0 +1,356 @@
+<?xml version="1.0" encoding="UTF-8"?><testsuite name="nosetests" tests="1" errors="1" failures="0" skip="0"><testcase classname="edx.analytics.tasks.tests.acceptance.test_student_engagement.DailyStudentEngagementAcceptanceTest" name="test_student_engagement" time="7.126"><error type="subprocess.CalledProcessError" message="Command '['/Users/johnbaker/.venvs/edx-analytics-pipeline/bin/remote-task', '--job-flow-name', u'AcceptanceTestCluster', '--branch', u'jabStudentEngagementAcceptanceTests', '--repo', u'git@github.com:edx/edx-analytics-pipeline.git', '--remote-name', '93c61ab6a10264656e6bcce0fc4265d2', '--wait', '--log-path', u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2', '--user', u'edx-analytics-automation', '--override-config', '/var/folders/nz/9_lf2f3n5dzcmddrvmtp0lnw0000gp/T/tmpP3MqkG', '--user', u'edx-analytics-automation', '--sudo-user', u'hadoop', '--job-flow-name', u'AcceptanceTestCluster', '--shell', '. /home/hadoop/.bashrc &amp;&amp; hive --service cli -e &quot;DROP DATABASE IF EXISTS test_93c61ab6a10264656e6bcce0fc4265d2 CASCADE; CREATE DATABASE test_93c61ab6a10264656e6bcce0fc4265d2&quot;', '--local-scheduler']' returned non-zero exit status 1&#10;-------------------- &gt;&gt; begin captured logging &lt;&lt; --------------------&#10;luigi-interface: INFO: Loaded ['client.cfg', 'config/test.cfg']&#10;boto: DEBUG: Using access key found in environment variable.&#10;boto: DEBUG: Using secret key found in environment variable.&#10;edx.analytics.tasks.tests.acceptance: INFO: Running test: edx.analytics.tasks.tests.acceptance.test_student_engagement.DailyStudentEngagementAcceptanceTest.test_student_engagement&#10;edx.analytics.tasks.tests.acceptance: INFO: Using executor: jab5569&#10;edx.analytics.tasks.tests.acceptance: INFO: Generated Test Identifier: 93c61ab6a10264656e6bcce0fc4265d2&#10;boto: DEBUG: path=/&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/&#10;boto: DEBUG: path=/?max-keys=0&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/?max-keys=0&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /?max-keys=0&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-output.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:17 GMT&#10;/edx-analytics-test-output/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:blefRdHUmmBgnAgX97GIOXak1+M=&#10;boto: DEBUG: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;ListBucketResult xmlns=&quot;http://s3.amazonaws.com/doc/2006-03-01/&quot;&gt;&lt;Name&gt;edx-analytics-test-output&lt;/Name&gt;&lt;Prefix&gt;&lt;/Prefix&gt;&lt;Marker&gt;&lt;/Marker&gt;&lt;MaxKeys&gt;0&lt;/MaxKeys&gt;&lt;IsTruncated&gt;false&lt;/IsTruncated&gt;&lt;/ListBucketResult&gt;&#10;boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest&#10;boto: DEBUG: Method: HEAD&#10;boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;HEAD&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:tSx54XdeqKZCGxAiguxqDktapYo=&#10;boto: DEBUG: path=/&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/&#10;boto: DEBUG: path=/?max-keys=0&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/?max-keys=0&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /?max-keys=0&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-output/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:4oWVaXnByrTKJ9o6UHg4DTTGRZU=&#10;boto: DEBUG: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;ListBucketResult xmlns=&quot;http://s3.amazonaws.com/doc/2006-03-01/&quot;&gt;&lt;Name&gt;edx-analytics-test-output&lt;/Name&gt;&lt;Prefix&gt;&lt;/Prefix&gt;&lt;Marker&gt;&lt;/Marker&gt;&lt;MaxKeys&gt;0&lt;/MaxKeys&gt;&lt;IsTruncated&gt;false&lt;/IsTruncated&gt;&lt;/ListBucketResult&gt;&#10;boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24&#10;boto: DEBUG: Method: HEAD&#10;boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;HEAD&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:MMJdDCuIoqDRW40szy7Lk5aVLdE=&#10;boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: Method: HEAD&#10;boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;HEAD&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:5Cady+ckXL8ze7wxmIRfNx4VMQU=&#10;boto: DEBUG: path=/&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/&#10;boto: DEBUG: path=/?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: auth_path=/edx-analytics-test-output/?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-output/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:4oWVaXnByrTKJ9o6UHg4DTTGRZU=&#10;boto: DEBUG: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;ListBucketResult xmlns=&quot;http://s3.amazonaws.com/doc/2006-03-01/&quot;&gt;&lt;Name&gt;edx-analytics-test-output&lt;/Name&gt;&lt;Prefix&gt;automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/&lt;/Prefix&gt;&lt;Marker&gt;&lt;/Marker&gt;&lt;MaxKeys&gt;1000&lt;/MaxKeys&gt;&lt;IsTruncated&gt;false&lt;/IsTruncated&gt;&lt;/ListBucketResult&gt;&#10;luigi-interface: DEBUG: Path s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest does not exist&#10;luigi-interface: DEBUG: Could not delete s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest; path does not exist&#10;boto: DEBUG: Using access key found in environment variable.&#10;boto: DEBUG: Using secret key found in environment variable.&#10;boto: DEBUG: path=/&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/&#10;boto: DEBUG: path=/?max-keys=0&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/?max-keys=0&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /?max-keys=0&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-data.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-data/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:e89Gw7gqMPcVcCLEvKgHtudWnaM=&#10;boto: DEBUG: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;ListBucketResult xmlns=&quot;http://s3.amazonaws.com/doc/2006-03-01/&quot;&gt;&lt;Name&gt;edx-analytics-test-data&lt;/Name&gt;&lt;Prefix&gt;&lt;/Prefix&gt;&lt;Marker&gt;&lt;/Marker&gt;&lt;MaxKeys&gt;0&lt;/MaxKeys&gt;&lt;IsTruncated&gt;false&lt;/IsTruncated&gt;&lt;/ListBucketResult&gt;&#10;boto: DEBUG: path=/credentials/acceptance.json&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Method: HEAD&#10;boto: DEBUG: Path: /credentials/acceptance.json&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;HEAD&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:hPQCq/6N3HS5YRkEQZYQyskSm70=&#10;boto: DEBUG: path=/credentials/acceptance.json&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /credentials/acceptance.json&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:22 GMT&#10;/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:bhughBJyHxRlKn0CyKwmO02svwk=&#10;boto: DEBUG: Using access key found in environment variable.&#10;boto: DEBUG: Using secret key found in environment variable.&#10;boto: DEBUG: path=/&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/&#10;boto: DEBUG: path=/?max-keys=0&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/?max-keys=0&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /?max-keys=0&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-data.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:23 GMT&#10;/edx-analytics-test-data/&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:iD+CI8AOXXA+L4dpQJ0CBOPVVQM=&#10;boto: DEBUG: &lt;?xml version=&quot;1.0&quot; encoding=&quot;UTF-8&quot;?&gt;&#10;&lt;ListBucketResult xmlns=&quot;http://s3.amazonaws.com/doc/2006-03-01/&quot;&gt;&lt;Name&gt;edx-analytics-test-data&lt;/Name&gt;&lt;Prefix&gt;&lt;/Prefix&gt;&lt;Marker&gt;&lt;/Marker&gt;&lt;MaxKeys&gt;0&lt;/MaxKeys&gt;&lt;IsTruncated&gt;false&lt;/IsTruncated&gt;&lt;/ListBucketResult&gt;&#10;boto: DEBUG: path=/credentials/acceptance.json&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Method: HEAD&#10;boto: DEBUG: Path: /credentials/acceptance.json&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;HEAD&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:23 GMT&#10;/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:rl9ZsNVgLMHfs5RJ15K1QS8ZAJk=&#10;boto: DEBUG: path=/credentials/acceptance.json&#10;boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Method: GET&#10;boto: DEBUG: Path: /credentials/acceptance.json&#10;boto: DEBUG: Data: &#10;boto: DEBUG: Headers: {}&#10;boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com&#10;boto: DEBUG: Port: 443&#10;boto: DEBUG: Params: {}&#10;boto: DEBUG: Token: None&#10;boto: DEBUG: StringToSign:&#10;GET&#10;&#10;&#10;Mon, 20 Apr 2015 21:29:23 GMT&#10;/edx-analytics-test-data/credentials/acceptance.json&#10;boto: DEBUG: Signature:&#10;AWS AKIAIYVWXRFNOHZOFEBA:hlQPuzpPR4aGIMNT2uSQfYrTDho=&#10;edx.analytics.tasks.tests.acceptance.services.task: INFO: Task Configuration&#10;edx.analytics.tasks.tests.acceptance.services.task: INFO: [hive]&#10;release = apache&#10;database = test_93c61ab6a10264656e6bcce0fc4265d2&#10;warehouse_path = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/warehouse&#10;&#10;[database-export]&#10;database = export_test_93c61ab6a10264656e6bcce0fc4265d2&#10;credentials = s3+https://edx-analytics-test-data/credentials/acceptance.json&#10;&#10;[database-import]&#10;database = import_test_93c61ab6a10264656e6bcce0fc4265d2&#10;credentials = s3+https://edx-analytics-test-data/credentials/acceptance.json&#10;destination = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/warehouse&#10;&#10;[map-reduce]&#10;engine = hadoop&#10;marker = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/marker&#10;remote_log_level = DEBUG&#10;&#10;[event-logs]&#10;pattern = .*tracking.log-(?P&lt;date&gt;\d{8}).*\.gz&#10;&#9;.*tracking.notalog-(?P&lt;date&gt;\d{8}).*\.gz&#10;expand_interval = 2 days&#10;source = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/src&#10;&#10;[event-export]&#10;output_root = s3://fake/&#10;environment = unittest&#10;config = s3://fake/event_export/config.yaml&#10;gpg_key_dir = s3://fake/event_export/gpg-keys/&#10;gpg_master_key = master@key.org&#10;required_path_text = FakeServerGroup&#10;&#10;[manifest]&#10;threshold = 500&#10;input_format = oddjob.ManifestTextInputFormat&#10;lib_jar = s3://edx-analytics-packages/oddjob-1.0.1-standalone.jar&#10;path = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/manifest&#10;&#10;[user-activity]&#10;output_root = s3://fake/activity/&#10;&#10;[enrollments]&#10;interval_start = 2013-11-01&#10;&#10;[enrollment-reports]&#10;src = s3://fake/input/&#10;destination = s3://fake/enrollment_reports/output/&#10;offsets = s3://fake/enrollment_reports/offsets.tsv&#10;blacklist = s3://fake/enrollment_reports/course_blacklist.tsv&#10;history = s3://fake/enrollment_reports/enrollment_history.tsv&#10;&#10;[geolocation]&#10;geolocation_data = s3://edx-analytics-data/GeoLiteCountry-20140428.dat&#10;&#10;[calendar]&#10;interval = 2012-01-01-2020-01-01&#10;&#10;&#10;edx.analytics.tasks.tests.acceptance.services.shell: INFO: Running subprocess /Users/johnbaker/.venvs/edx-analytics-pipeline/bin/remote-task --job-flow-name AcceptanceTestCluster --branch jabStudentEngagementAcceptanceTests --repo git@github.com:edx/edx-analytics-pipeline.git --remote-name 93c61ab6a10264656e6bcce0fc4265d2 --wait --log-path /tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2 --user edx-analytics-automation --override-config /var/folders/nz/9_lf2f3n5dzcmddrvmtp0lnw0000gp/T/tmpP3MqkG --user edx-analytics-automation --sudo-user hadoop --job-flow-name AcceptanceTestCluster --shell &quot;. /home/hadoop/.bashrc &amp;&amp; hive --service cli -e \&quot;DROP DATABASE IF EXISTS test_93c61ab6a10264656e6bcce0fc4265d2 CASCADE; CREATE DATABASE test_93c61ab6a10264656e6bcce0fc4265d2\&quot;&quot; --local-scheduler&#10;edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.&#10;Traceback (most recent call last):&#10;  File &quot;/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py&quot;, line 81, in write_logs_to_standard_streams&#10;    with open(os.path.join(self.log_path, filename), 'r') as src_file:&#10;IOError: [Errno 2] No such file or directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/edx_analytics.log'&#10;edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.&#10;Traceback (most recent call last):&#10;  File &quot;/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py&quot;, line 81, in write_logs_to_standard_streams&#10;    with open(os.path.join(self.log_path, filename), 'r') as src_file:&#10;IOError: [Errno 2] No such file or directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/stderr'&#10;edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.&#10;Traceback (most recent call last):&#10;  File &quot;/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py&quot;, line 81, in write_logs_to_standard_streams&#10;    with open(os.path.join(self.log_path, filename), 'r') as src_file:&#10;IOError: [Errno 21] Is a directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/stdout'&#10;--------------------- &gt;&gt; end captured logging &lt;&lt; ---------------------"><![CDATA[  File "/System/Library/Frameworks/Python.framework/Versions/2.7/lib/python2.7/unittest/case.py", line 322, in run
+    self.setUp()
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/__init__.py", line 114, in setUp
+    self.reset_external_state()
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/__init__.py", line 120, in reset_external_state
+    self.hive.reset()
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/hive.py", line 12, in reset
+    explicit_db=False
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/hive.py", line 24, in execute
+    stmt=statement
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py", line 60, in launch
+    output = shell.run(command)
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/shell.py", line 32, in run
+    raise subprocess.CalledProcessError(proc.returncode, command, None)
+Command '['/Users/johnbaker/.venvs/edx-analytics-pipeline/bin/remote-task', '--job-flow-name', u'AcceptanceTestCluster', '--branch', u'jabStudentEngagementAcceptanceTests', '--repo', u'git@github.com:edx/edx-analytics-pipeline.git', '--remote-name', '93c61ab6a10264656e6bcce0fc4265d2', '--wait', '--log-path', u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2', '--user', u'edx-analytics-automation', '--override-config', '/var/folders/nz/9_lf2f3n5dzcmddrvmtp0lnw0000gp/T/tmpP3MqkG', '--user', u'edx-analytics-automation', '--sudo-user', u'hadoop', '--job-flow-name', u'AcceptanceTestCluster', '--shell', '. /home/hadoop/.bashrc && hive --service cli -e "DROP DATABASE IF EXISTS test_93c61ab6a10264656e6bcce0fc4265d2 CASCADE; CREATE DATABASE test_93c61ab6a10264656e6bcce0fc4265d2"', '--local-scheduler']' returned non-zero exit status 1
+-------------------- >> begin captured logging << --------------------
+luigi-interface: INFO: Loaded ['client.cfg', 'config/test.cfg']
+boto: DEBUG: Using access key found in environment variable.
+boto: DEBUG: Using secret key found in environment variable.
+edx.analytics.tasks.tests.acceptance: INFO: Running test: edx.analytics.tasks.tests.acceptance.test_student_engagement.DailyStudentEngagementAcceptanceTest.test_student_engagement
+edx.analytics.tasks.tests.acceptance: INFO: Using executor: jab5569
+edx.analytics.tasks.tests.acceptance: INFO: Generated Test Identifier: 93c61ab6a10264656e6bcce0fc4265d2
+boto: DEBUG: path=/
+boto: DEBUG: auth_path=/edx-analytics-test-output/
+boto: DEBUG: path=/?max-keys=0
+boto: DEBUG: auth_path=/edx-analytics-test-output/?max-keys=0
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /?max-keys=0
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-output.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:17 GMT
+/edx-analytics-test-output/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:blefRdHUmmBgnAgX97GIOXak1+M=
+boto: DEBUG: <?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>edx-analytics-test-output</Name><Prefix></Prefix><Marker></Marker><MaxKeys>0</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>
+boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest
+boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest
+boto: DEBUG: Method: HEAD
+boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+HEAD
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:tSx54XdeqKZCGxAiguxqDktapYo=
+boto: DEBUG: path=/
+boto: DEBUG: auth_path=/edx-analytics-test-output/
+boto: DEBUG: path=/?max-keys=0
+boto: DEBUG: auth_path=/edx-analytics-test-output/?max-keys=0
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /?max-keys=0
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-output/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:4oWVaXnByrTKJ9o6UHg4DTTGRZU=
+boto: DEBUG: <?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>edx-analytics-test-output</Name><Prefix></Prefix><Marker></Marker><MaxKeys>0</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>
+boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24
+boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24
+boto: DEBUG: Method: HEAD
+boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+HEAD
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest_%24folder%24
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:MMJdDCuIoqDRW40szy7Lk5aVLdE=
+boto: DEBUG: path=/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: auth_path=/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: Method: HEAD
+boto: DEBUG: Path: /automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+HEAD
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:5Cady+ckXL8ze7wxmIRfNx4VMQU=
+boto: DEBUG: path=/
+boto: DEBUG: auth_path=/edx-analytics-test-output/
+boto: DEBUG: path=/?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: auth_path=/edx-analytics-test-output/?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /?prefix=automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-output.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-output/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:4oWVaXnByrTKJ9o6UHg4DTTGRZU=
+boto: DEBUG: <?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>edx-analytics-test-output</Name><Prefix>automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/</Prefix><Marker></Marker><MaxKeys>1000</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>
+luigi-interface: DEBUG: Path s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest does not exist
+luigi-interface: DEBUG: Could not delete s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest; path does not exist
+boto: DEBUG: Using access key found in environment variable.
+boto: DEBUG: Using secret key found in environment variable.
+boto: DEBUG: path=/
+boto: DEBUG: auth_path=/edx-analytics-test-data/
+boto: DEBUG: path=/?max-keys=0
+boto: DEBUG: auth_path=/edx-analytics-test-data/?max-keys=0
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /?max-keys=0
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-data.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-data/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:e89Gw7gqMPcVcCLEvKgHtudWnaM=
+boto: DEBUG: <?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>edx-analytics-test-data</Name><Prefix></Prefix><Marker></Marker><MaxKeys>0</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>
+boto: DEBUG: path=/credentials/acceptance.json
+boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Method: HEAD
+boto: DEBUG: Path: /credentials/acceptance.json
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+HEAD
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:hPQCq/6N3HS5YRkEQZYQyskSm70=
+boto: DEBUG: path=/credentials/acceptance.json
+boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /credentials/acceptance.json
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:22 GMT
+/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:bhughBJyHxRlKn0CyKwmO02svwk=
+boto: DEBUG: Using access key found in environment variable.
+boto: DEBUG: Using secret key found in environment variable.
+boto: DEBUG: path=/
+boto: DEBUG: auth_path=/edx-analytics-test-data/
+boto: DEBUG: path=/?max-keys=0
+boto: DEBUG: auth_path=/edx-analytics-test-data/?max-keys=0
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /?max-keys=0
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: establishing HTTPS connection: host=edx-analytics-test-data.s3.amazonaws.com, kwargs={'port': 443, 'timeout': 70}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:23 GMT
+/edx-analytics-test-data/
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:iD+CI8AOXXA+L4dpQJ0CBOPVVQM=
+boto: DEBUG: <?xml version="1.0" encoding="UTF-8"?>
+<ListBucketResult xmlns="http://s3.amazonaws.com/doc/2006-03-01/"><Name>edx-analytics-test-data</Name><Prefix></Prefix><Marker></Marker><MaxKeys>0</MaxKeys><IsTruncated>false</IsTruncated></ListBucketResult>
+boto: DEBUG: path=/credentials/acceptance.json
+boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Method: HEAD
+boto: DEBUG: Path: /credentials/acceptance.json
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+HEAD
+
+
+Mon, 20 Apr 2015 21:29:23 GMT
+/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:rl9ZsNVgLMHfs5RJ15K1QS8ZAJk=
+boto: DEBUG: path=/credentials/acceptance.json
+boto: DEBUG: auth_path=/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Method: GET
+boto: DEBUG: Path: /credentials/acceptance.json
+boto: DEBUG: Data: 
+boto: DEBUG: Headers: {}
+boto: DEBUG: Host: edx-analytics-test-data.s3.amazonaws.com
+boto: DEBUG: Port: 443
+boto: DEBUG: Params: {}
+boto: DEBUG: Token: None
+boto: DEBUG: StringToSign:
+GET
+
+
+Mon, 20 Apr 2015 21:29:23 GMT
+/edx-analytics-test-data/credentials/acceptance.json
+boto: DEBUG: Signature:
+AWS AKIAIYVWXRFNOHZOFEBA:hlQPuzpPR4aGIMNT2uSQfYrTDho=
+edx.analytics.tasks.tests.acceptance.services.task: INFO: Task Configuration
+edx.analytics.tasks.tests.acceptance.services.task: INFO: [hive]
+release = apache
+database = test_93c61ab6a10264656e6bcce0fc4265d2
+warehouse_path = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/warehouse
+
+[database-export]
+database = export_test_93c61ab6a10264656e6bcce0fc4265d2
+credentials = s3+https://edx-analytics-test-data/credentials/acceptance.json
+
+[database-import]
+database = import_test_93c61ab6a10264656e6bcce0fc4265d2
+credentials = s3+https://edx-analytics-test-data/credentials/acceptance.json
+destination = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/warehouse
+
+[map-reduce]
+engine = hadoop
+marker = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/marker
+remote_log_level = DEBUG
+
+[event-logs]
+pattern = .*tracking.log-(?P<date>\d{8}).*\.gz
+	.*tracking.notalog-(?P<date>\d{8}).*\.gz
+expand_interval = 2 days
+source = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/src
+
+[event-export]
+output_root = s3://fake/
+environment = unittest
+config = s3://fake/event_export/config.yaml
+gpg_key_dir = s3://fake/event_export/gpg-keys/
+gpg_master_key = master@key.org
+required_path_text = FakeServerGroup
+
+[manifest]
+threshold = 500
+input_format = oddjob.ManifestTextInputFormat
+lib_jar = s3://edx-analytics-packages/oddjob-1.0.1-standalone.jar
+path = s3://edx-analytics-test-output/automation/93c61ab6a10264656e6bcce0fc4265d2/DailyStudentEngagementAcceptanceTest/manifest
+
+[user-activity]
+output_root = s3://fake/activity/
+
+[enrollments]
+interval_start = 2013-11-01
+
+[enrollment-reports]
+src = s3://fake/input/
+destination = s3://fake/enrollment_reports/output/
+offsets = s3://fake/enrollment_reports/offsets.tsv
+blacklist = s3://fake/enrollment_reports/course_blacklist.tsv
+history = s3://fake/enrollment_reports/enrollment_history.tsv
+
+[geolocation]
+geolocation_data = s3://edx-analytics-data/GeoLiteCountry-20140428.dat
+
+[calendar]
+interval = 2012-01-01-2020-01-01
+
+
+edx.analytics.tasks.tests.acceptance.services.shell: INFO: Running subprocess /Users/johnbaker/.venvs/edx-analytics-pipeline/bin/remote-task --job-flow-name AcceptanceTestCluster --branch jabStudentEngagementAcceptanceTests --repo git@github.com:edx/edx-analytics-pipeline.git --remote-name 93c61ab6a10264656e6bcce0fc4265d2 --wait --log-path /tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2 --user edx-analytics-automation --override-config /var/folders/nz/9_lf2f3n5dzcmddrvmtp0lnw0000gp/T/tmpP3MqkG --user edx-analytics-automation --sudo-user hadoop --job-flow-name AcceptanceTestCluster --shell ". /home/hadoop/.bashrc && hive --service cli -e \"DROP DATABASE IF EXISTS test_93c61ab6a10264656e6bcce0fc4265d2 CASCADE; CREATE DATABASE test_93c61ab6a10264656e6bcce0fc4265d2\"" --local-scheduler
+edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.
+Traceback (most recent call last):
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py", line 81, in write_logs_to_standard_streams
+    with open(os.path.join(self.log_path, filename), 'r') as src_file:
+IOError: [Errno 2] No such file or directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/edx_analytics.log'
+edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.
+Traceback (most recent call last):
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py", line 81, in write_logs_to_standard_streams
+    with open(os.path.join(self.log_path, filename), 'r') as src_file:
+IOError: [Errno 2] No such file or directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/stderr'
+edx.analytics.tasks.tests.acceptance.services.task: ERROR: Unable to retrieve logged output.
+Traceback (most recent call last):
+  File "/Users/johnbaker/code/edx-analytics-pipeline/edx/analytics/tasks/tests/acceptance/services/task.py", line 81, in write_logs_to_standard_streams
+    with open(os.path.join(self.log_path, filename), 'r') as src_file:
+IOError: [Errno 21] Is a directory: u'/tmp/acceptance/93c61ab6a10264656e6bcce0fc4265d2/stdout'
+--------------------- >> end captured logging << ---------------------]]></error><system-out><![CDATA[Traceback (most recent call last):
+  File "/Users/johnbaker/.venvs/edx-analytics-pipeline/bin/remote-task", line 5, in <module>
+    from pkg_resources import load_entry_point
+  File "/Users/johnbaker/.venvs/edx-analytics-pipeline/lib/python2.7/site-packages/pkg_resources/__init__.py", line 3018, in <module>
+    working_set = WorkingSet._build_master()
+  File "/Users/johnbaker/.venvs/edx-analytics-pipeline/lib/python2.7/site-packages/pkg_resources/__init__.py", line 614, in _build_master
+    return cls._build_from_requirements(__requires__)
+  File "/Users/johnbaker/.venvs/edx-analytics-pipeline/lib/python2.7/site-packages/pkg_resources/__init__.py", line 627, in _build_from_requirements
+    dists = ws.resolve(reqs, Environment())
+  File "/Users/johnbaker/.venvs/edx-analytics-pipeline/lib/python2.7/site-packages/pkg_resources/__init__.py", line 805, in resolve
+    raise DistributionNotFound(req)
+pkg_resources.DistributionNotFound: edx.analytics.tasks===0.3.5.18.ga9c486a
+]]></system-out></testcase></testsuite>

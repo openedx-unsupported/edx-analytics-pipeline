@@ -1,0 +1,5 @@
+date,course_id,username,email,cohort,was_active,problems_attempted,problem_attempts,problems_correct,videos_played,forum_posts,forum_replies,forum_comments,textbook_pages_viewed,last_subsection_viewed
+2015-04-12,edX/DemoX/Demo_Course_2,audit,audit@example.com,,0,0,0,0,0,0,0,0,0,
+2015-04-12,edX/DemoX/Demo_Course_2,honor,honor@example.com,,0,0,0,0,0,0,0,0,0,
+2015-04-12,edX/DemoX/Demo_Course_2,staff,staff@example.com,,0,0,0,0,0,0,0,0,0,
+2015-04-12,edX/DemoX/Demo_Course_2,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,

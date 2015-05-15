@@ -100,6 +100,8 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
         if youtube_id is not None:
             youtube_id = youtube_id.encode('utf8')
 
+        print "OUT: ", username.encode('utf8'), timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id
+
         yield (username.encode('utf8'), (timestamp, event_type, course_id, encoded_module_id, current_time, youtube_id))
 
     def reducer(self, username, events):
@@ -146,6 +148,9 @@ class UserVideoSessionTask(EventLogSelectionMixin, MapReduceJobTask):
                 if (end_time - session.start_offset) < 0.5:
                     return None
                 else:
+
+                    print "OUTT: ", username,session.course_id,session.encoded_module_id,session.video_duration,session.start_timestamp.isoformat(),session.start_offset,end_time,event_type
+
                     return (
                         username,
                         session.course_id,

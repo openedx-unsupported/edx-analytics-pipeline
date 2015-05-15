@@ -1,0 +1,344 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# (c) 2012, David "DaviXX" CHANIAL <david.chanial@gmail.com>
+#
+# This file is part of Ansible
+#
+# Ansible is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# Ansible is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with Ansible.  If not, see <http://www.gnu.org/licenses/>.
+#
+
+DOCUMENTATION = '''
+---
+module: sysctl
+short_description: Manage entries in sysctl.conf.
+description:
+    - This module manipulates sysctl entries and optionally performs a C(/sbin/sysctl -p) after changing them.
+version_added: "1.0"
+options:
+    name:
+        description:
+            - The dot-separated path (aka I(key)) specifying the sysctl variable.
+        required: true
+        default: null
+        aliases: [ 'key' ]
+    value:
+        description:
+            - Desired value of the sysctl key.
+        required: false
+        default: null
+        aliases: [ 'val' ]
+    state:
+        description:
+            - Whether the entry should be present or absent.
+        choices: [ "present", "absent" ]
+        default: present
+    checks:
+        description:
+            - If C(none), no smart/facultative checks will be made. If
+              C(before), some checks are performed before any update (i.e. is
+              the sysctl key writable?). If C(after), some checks are performed
+              after an update (i.e. does kernel return the set value?). If
+              C(both), all of the smart checks (C(before) and C(after)) are
+              performed.
+        choices: [ "none", "before", "after", "both" ]
+        default: both
+    reload:
+        description:
+            - If C(yes), performs a I(/sbin/sysctl -p) if the C(sysctl_file) is
+              updated. If C(no), does not reload I(sysctl) even if the
+              C(sysctl_file) is updated.
+        choices: [ "yes", "no" ]
+        default: "yes"
+    sysctl_file:
+        description:
+            - Specifies the absolute path to C(sysctl.conf), if not C(/etc/sysctl.conf).
+        required: false
+        default: /etc/sysctl.conf
+notes: []
+requirements: []
+author: David "DaviXX" CHANIAL <david.chanial@gmail.com>
+'''
+
+EXAMPLES = '''
+# Set vm.swappiness to 5 in /etc/sysctl.conf
+- sysctl: name=vm.swappiness value=5 state=present
+
+# Remove kernel.panic entry from /etc/sysctl.conf
+- sysctl: name=kernel.panic state=absent sysctl_file=/etc/sysctl.conf
+
+# Set kernel.panic to 3 in /tmp/test_sysctl.conf, check if the sysctl key
+# seems writable, but do not reload sysctl, and do not check kernel value
+# after (not needed, because the real /etc/sysctl.conf was not updated)
+- sysctl: name=kernel.panic value=3 sysctl_file=/tmp/test_sysctl.conf check=before reload=no
+'''
+
+# ==============================================================
+
+import os
+import tempfile
+import re
+
+# ==============================================================
+
+def reload_sysctl(module, **sysctl_args):
+    # update needed ?
+    if not sysctl_args['reload']:
+        return 0, ''
+
+    # do it
+    if get_platform().lower() == 'freebsd':
+        # freebsd doesn't support -p, so reload the sysctl service
+        rc,out,err = module.run_command('/etc/rc.d/sysctl reload')
+    else:
+        # system supports reloading via the -p flag to sysctl, so we'll use that 
+        sysctl_cmd = module.get_bin_path('sysctl', required=True)
+        rc,out,err = module.run_command([sysctl_cmd, '-p', sysctl_args['sysctl_file']])
+        
+    return rc,out+err
+
+# ==============================================================
+
+def write_sysctl(module, lines, **sysctl_args):
+    # open a tmp file
+    fd, tmp_path = tempfile.mkstemp('.conf', '.ansible_m_sysctl_', os.path.dirname(sysctl_args['sysctl_file']))
+    f = open(tmp_path,"w")
+    try:
+        for l in lines:
+            f.write(l)
+    except IOError, e:
+        module.fail_json(msg="Failed to write to file %s: %s" % (tmp_path, str(e)))
+    f.flush()
+    f.close()
+
+    # replace the real one
+    module.atomic_move(tmp_path, sysctl_args['sysctl_file']) 
+
+    # end
+    return sysctl_args
+
+# ==============================================================
+
+def sysctl_args_expand(**sysctl_args):
+    if get_platform().lower() == 'freebsd':
+        # FreeBSD does not use the /proc file system, and instead
+        # just uses the sysctl command to set the values
+        sysctl_args['key_path'] = None
+    else:
+        sysctl_args['key_path'] = sysctl_args['name'].replace('.' ,'/')
+        sysctl_args['key_path'] = '/proc/sys/' + sysctl_args['key_path']
+    return sysctl_args
+
+# ==============================================================
+
+def sysctl_args_collapse(**sysctl_args):
+    # go ahead
+    if sysctl_args.get('key_path') is not None:
+        del sysctl_args['key_path']
+    if sysctl_args['state'] == 'absent' and 'value' in sysctl_args:
+        del sysctl_args['value']
+    
+    # end
+    return sysctl_args
+
+# ==============================================================
+
+def sysctl_check(module, current_step, **sysctl_args):
+    
+    # no smart checks at this step ?
+    if sysctl_args['checks'] == 'none':
+        return 0, ''
+    if current_step == 'before' and sysctl_args['checks'] not in ['before', 'both']:
+        return 0, ''
+    if current_step == 'after' and sysctl_args['checks'] not in ['after', 'both']:
+        return 0, ''
+
+    # checking coherence
+    if sysctl_args['state'] == 'absent' and sysctl_args['value'] is not None:
+        return 1, 'value=x must not be supplied when state=absent'
+    
+    if sysctl_args['state'] == 'present' and sysctl_args['value'] is None:
+        return 1, 'value=x must be supplied when state=present'
+    
+    if not sysctl_args['reload'] and sysctl_args['checks'] in ['after', 'both']:
+        return 1, 'checks cannot be set to after or both if reload=no'
+
+    if sysctl_args['key_path'] is not None:
+        # getting file stat
+        if not os.access(sysctl_args['key_path'], os.F_OK):
+            return 1, 'key_path is not an existing file, key %s seems invalid' % sysctl_args['key_path']
+        if not os.access(sysctl_args['key_path'], os.R_OK):
+            return 1, 'key_path is not a readable file, key seems to be uncheckable'
+
+    # checks before
+    if current_step == 'before' and sysctl_args['checks'] in ['before', 'both']:
+        if sysctl_args['key_path'] is not None and not os.access(sysctl_args['key_path'], os.W_OK):
+            return 1, 'key_path is not a writable file, key seems to be read only'
+        return 0, ''
+
+    # checks after
+    if current_step == 'after' and sysctl_args['checks'] in ['after', 'both']:
+        if sysctl_args['value'] is not None:
+            if sysctl_args['key_path'] is not None:
+                # reading the virtual file
+                f = open(sysctl_args['key_path'],'r')
+                output = f.read()
+                f.close()
+            else:
+                # we're on a system without /proc (ie. freebsd), so just
+                # use the sysctl command to get the currently set value
+                sysctl_cmd = module.get_bin_path('sysctl', required=True)
+                rc,output,stderr = module.run_command("%s -n %s" % (sysctl_cmd, sysctl_args['name']))
+                if rc != 0:
+                    return 1, 'failed to lookup the value via the sysctl command'
+
+            output = output.strip(' \t\n\r')
+            output = re.sub(r'\s+', ' ', output)
+
+            # normal case, found value must be equal to the submitted value, and 
+            # we compare the exploded values to handle any whitepsace differences
+            if output.split() != sysctl_args['value'].split():
+                return 1, 'key seems not set to value even after update/sysctl, founded : <%s>, wanted : <%s>' % (output, sysctl_args['value'])
+
+            return 0, ''
+        else:
+            # no value was supplied, so we're checking to make sure
+            # the associated name is absent. We just fudge this since 
+            # the sysctl isn't really gone, just removed from the conf 
+            # file meaning it will be whatever the system default is
+            return 0, ''
+
+    # weird end
+    return 1, 'unexpected position reached'
+
+# ==============================================================
+# main
+
+def main():
+
+    # defining module
+    module = AnsibleModule(
+        argument_spec = dict(
+            name = dict(aliases=['key'], required=True),
+            value = dict(aliases=['val'], required=False),
+            state = dict(default='present', choices=['present', 'absent']),
+            checks = dict(default='both', choices=['none', 'before', 'after', 'both']),
+            reload = dict(default=True, type='bool'),
+            sysctl_file = dict(default='/etc/sysctl.conf')
+        )
+    )
+
+    # defaults
+    sysctl_args = {
+        'changed': False,
+        'name': module.params['name'],
+        'state': module.params['state'],
+        'checks': module.params['checks'],
+        'reload': module.params['reload'],
+        'value': module.params.get('value'),
+        'sysctl_file': module.params['sysctl_file']
+    }
+    
+    # prepare vars
+    sysctl_args = sysctl_args_expand(**sysctl_args)
+    if get_platform().lower() == 'freebsd':
+        # freebsd does not like spaces around the equal sign
+        pattern = "%s=%s\n"
+    else:
+        pattern = "%s = %s\n" 
+    new_line = pattern % (sysctl_args['name'], sysctl_args['value'])
+    to_write = []
+    founded = False
+   
+    # make checks before act
+    res,msg = sysctl_check(module, 'before', **sysctl_args)
+    if res != 0:
+        module.fail_json(msg='checks_before failed with: ' + msg)
+
+    if not os.access(sysctl_args['sysctl_file'], os.W_OK):
+        try:
+            f = open(sysctl_args['sysctl_file'],'w')
+            f.close()
+        except IOError, e:
+            module.fail_json(msg='unable to create supplied sysctl file (destination directory probably missing)')
+
+    # reading the file
+    for line in open(sysctl_args['sysctl_file'], 'r').readlines():
+        if not line.strip():
+            to_write.append(line)
+            continue
+        if line.strip().startswith('#'):
+            to_write.append(line)
+            continue
+
+        # write line if not the one searched
+        ld = {}
+        ld['name'], ld['val'] = line.split('=',1)
+        ld['name'] = ld['name'].strip()
+
+        if ld['name'] != sysctl_args['name']:
+            to_write.append(line)
+            continue
+
+        # should be absent ?
+        if sysctl_args['state'] == 'absent':
+            # not writing the founded line
+            # mark as changed
+            sysctl_args['changed'] = True
+                
+        # should be present
+        if sysctl_args['state'] == 'present':
+            # is the founded line equal to the wanted one ?
+            ld['val'] = ld['val'].strip()
+            if ld['val'] == sysctl_args['value']:
+                # line is equal, writing it without update (but cancel repeats)
+                if sysctl_args['changed'] == False and founded == False:
+                    to_write.append(line)
+                    founded = True
+            else:
+                # update the line (but cancel repeats)
+                if sysctl_args['changed'] == False and founded == False:
+                    to_write.append(new_line)
+                    sysctl_args['changed'] = True
+                continue
+
+    # if not changed, but should be present, so we have to add it
+    if sysctl_args['state'] == 'present' and sysctl_args['changed'] == False and founded == False:
+        to_write.append(new_line)
+        sysctl_args['changed'] = True
+
+    # has changed ?
+    res = 0
+    if sysctl_args['changed'] == True:
+        sysctl_args = write_sysctl(module, to_write, **sysctl_args)
+        res,msg = reload_sysctl(module, **sysctl_args)
+        
+        # make checks after act
+        res,msg = sysctl_check(module, 'after', **sysctl_args)
+        if res != 0:
+            module.fail_json(msg='checks_after failed with: ' + msg)
+
+    # look at the next link to avoid this workaround
+    # https://groups.google.com/forum/?fromgroups=#!topic/ansible-project/LMY-dwF6SQk
+    changed = sysctl_args['changed']
+    del sysctl_args['changed']
+
+    # end
+    sysctl_args = sysctl_args_collapse(**sysctl_args)
+    module.exit_json(changed=changed, **sysctl_args)
+    sys.exit(0)
+
+# this is magic, see lib/ansible/module_common.py
+#<<INCLUDE_ANSIBLE_MODULE_COMMON>>
+main()
