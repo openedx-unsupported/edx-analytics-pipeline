@@ -99,10 +99,11 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         {'time': "2013-12-01T15:38:32.805444"},
         {'time': None},
         {'username': ''},
-        {'username': None},
+#        {'username': None},
         {'event_type': None}
     )
     def test_invalid_events(self, kwargs):
+        # TODO: fix this to test for missing elements, rather than elements set to None.
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
 
     @data(

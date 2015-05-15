@@ -1,9 +1,9 @@
 from collections import namedtuple
+import json
 import logging
 import math
-import urllib
-import json
 import re
+import urllib
 
 import ciso8601
 import luigi
@@ -44,6 +44,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
     output_root = luigi.Parameter()
 
+    # Cache for storing duration values fetched from Youtube.
+    # Persist this across calls to the reducer.
+    video_durations = {}
+
     def init_local(self):
         super(UserVideoViewingTask, self).init_local()
         # Providing an api_key is optional.
@@ -67,17 +71,15 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         if event_type not in VIDEO_EVENT_TYPES:
             return
 
-        username = event.get('username')
-        if username is None:
-            log.error("encountered event with no username: %s", event)
-            return
-
-        if len(username) == 0:
-            return
-
         timestamp = eventlog.get_event_time_string(event)
         if timestamp is None:
             log.error("encountered event with bad timestamp: %s", event)
+            return
+
+        # Strip username to remove trailing newlines that mess up Luigi.
+        username = event.get('username', '').strip()
+        if not username:
+            log.error("Video event without username: %s", event)
             return
 
         course_id = eventlog.get_course_id(event)
@@ -132,7 +134,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
     def _check_time_offset(self, time_value, line):
         """Check that time can be converted to a float, and has a reasonable value."""
         if time_value is None:
-            log.warn('Video without valid time: {0}'.format(line))
+            log.warn('Video with missing time_offset value: {0}'.format(line))
             return time_value
 
         try:
@@ -146,13 +148,23 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             log.warn('Video event with huge time-offset value: {0}'.format(line))
             return None
 
+        if time_value < 0.0:
+            log.warn('Video event with negative time-offset value: {0}'.format(line))
+            return None
+
+        # We must screen out 'nan' and 'inf' values, as they do not "round-trip".
+        # In Luigi, the mapper calls repr() and the reducer calls eval(), but
+        # eval(repr(float('nan'))) throws a NameError rather than returning float('nan').
+        if math.isnan(time_value) or math.isinf(time_value):
+            log.warn('Video event with nan or inf time-offset value: {0}'.format(line))
+            return None
+
         return time_value
 
     def reducer(self, key, events):
         username, course_id, encoded_module_id = key
 
         sorted_events = sorted(events)
-        video_durations = {}
 
         # When a user seeks forward while the video is playing, it is common to see an incorrect value for currentTime
         # in the play event emitted after the seek. The expected behavior here is play->seek->play with the second
@@ -173,11 +185,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             def start_viewing():
                 video_duration = VIDEO_UNKNOWN_DURATION
                 if youtube_id:
-                    video_duration = video_durations.get(youtube_id)
+                    video_duration = self.video_durations.get(youtube_id)
                     if not video_duration:
                         video_duration = self.get_video_duration(youtube_id)
                         # Duration might still be unknown, but just store it.
-                        video_durations[youtube_id] = video_duration
+                        self.video_durations[youtube_id] = video_duration
 
                 if last_viewing_end_event is not None and last_viewing_end_event[1] == VIDEO_SEEK:
                     start_offset = last_viewing_end_event[2]
@@ -270,7 +282,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             content = json.load(video_file)
             items = content.get('items', [])
             if len(items) > 0:
-                duration_str = items[0].get('contentDetails', {'duration': 'MISSING_CONTENTDETAILS'}).get('duration','MISSING_DURATION')
+                duration_str = items[0].get('contentDetails', {'duration': 'MISSING_CONTENTDETAILS'}).get('duration', 'MISSING_DURATION')
                 matcher = re.match(r'PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?', duration_str)
                 if not matcher:
                     log.error('Unable to parse duration returned for video %s: %s', youtube_id, duration_str)
@@ -354,8 +366,6 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
         # If we don't know the duration of the video, just use the final segment that was
         # actually viewed to determine end_views.
-        # TODO: decide if we should we also update video_duration, or leave it as unknown.
-        # For now, leave as unknown, and allow the client to determine how to show it.
         if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = max(usage_map.keys())
         else:
