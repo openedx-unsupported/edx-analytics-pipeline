@@ -3,10 +3,11 @@
 import json
 
 from mock import patch, MagicMock
-from ddt import ddt, data
+from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.tests.config import with_luigi_config
-from edx.analytics.tasks.video import UserVideoViewingTask
+from edx.analytics.tasks.video import (
+    UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION
+)
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -14,11 +15,8 @@ from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, Reducer
 
 @ddt
 class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
-    """Base class for test analysis of detailed student engagement"""
+    """Test video viewing mapper"""
 
-    DEFAULT_USER_ID = 10
-    DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
-    DEFAULT_DATE = "2013-12-17"
     UTF8_BYTE_STRING = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3'
 
     task_class = UserVideoViewingTask
@@ -183,9 +181,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         event = json.dumps(payload)
         self.assert_no_map_output_for(self.create_event_log_line(template_name='pause_video', event=event))
 
-    @data(
-        'old_time', 'new_time'
-    )
+    @data('old_time', 'new_time')
     def test_seek_video_invalid_time(self, field_to_remove):
         payload = {
             "id": self.video_id,
@@ -250,13 +246,98 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, self.UTF8_BYTE_STRING)
         self.assert_single_map_output(self.create_event_log_line(event=event), self.default_key, expected_value)
 
+    @data(
+        ('play_video', 922337203685.4775),
+        ('pause_video', 922337203685.4775),
+        ('stop_video', 922337203685.4775),
+        ('play_video', 'lskdjflskdj'),
+        ('pause_video', 'lskdjflskdj'),
+        ('stop_video', 'lskdjflskdj'),
+        ('play_video', None),
+        ('pause_video', None),
+        ('stop_video', None),
+        ('play_video', ''),
+        ('pause_video', ''),
+        ('stop_video', ''),
+    )
+    @unpack
+    def test_invalid_time(self, template_name, time_value):
+        payload = {
+            "id": self.video_id,
+            "currentTime": time_value,
+            "code": 'html5'
+        }
+        event = json.dumps(payload)
+        self.assert_no_map_output_for(self.create_event_log_line(template_name=template_name, event=event))
+
+    @data(
+        'play_video',
+        'stop_video',
+    )
+    def test_missing_current_time(self, template_name):
+        payload = {
+            "id": self.video_id,
+            # NO currentTime
+            "code": 'html5'
+        }
+        event = json.dumps(payload)
+        self.assert_no_map_output_for(self.create_event_log_line(template_name=template_name, event=event))
+
+    def test_pause_missing_current_time(self):
+        payload = {
+            "id": self.video_id,
+            # NO currentTime
+            "code": 'html5'
+        }
+        event = json.dumps(payload)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 0, None, None)
+        self.assert_single_map_output(
+            self.create_event_log_line(template_name='pause_video', event=event), self.default_key, expected_value)
+
+    @data(
+        'old_time',
+        'new_time',
+    )
+    def test_seek_missing_current_time(self, field_name):
+        payload = {
+            "id": self.video_id,
+            "old_time": 5,
+            "new_time": 10,
+            "code": 'html5'
+        }
+        del payload[field_name]
+        event = json.dumps(payload)
+        self.assert_no_map_output_for(self.create_event_log_line(template_name='seek_video', event=event))
+
+    @data(
+        ('old_time', 922337203685.4775),
+        ('new_time', 922337203685.4775),
+        ('old_time', 'lskdjflskdj'),
+        ('new_time', 'lskdjflskdj'),
+        ('old_time', None),
+        ('new_time', None),
+        ('old_time', ''),
+        ('new_time', ''),
+    )
+    @unpack
+    def test_seek_invalid_time(self, field_name, time_value):
+        payload = {
+            "id": self.video_id,
+            "old_time": 5,
+            "new_time": 10,
+            "code": 'html5'
+        }
+        payload[field_name] = time_value
+        event = json.dumps(payload)
+        self.assert_no_map_output_for(self.create_event_log_line(template_name='seek_video', event=event))
+
 
 class UserVideoViewingTaskLegacyMapTest(InitializeLegacyKeysMixin, UserVideoViewingTaskMapTest):
     """Test analysis of detailed video viewing analysis using legacy ID formats"""
     pass
 
 
-class Columns(object):
+class ViewingColumns(object):
 
     USERNAME = 0
     COURSE_ID = 1
@@ -267,6 +348,7 @@ class Columns(object):
     END_OFFSET = 6
     REASON = 7
 
+@ddt
 class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
@@ -286,14 +368,14 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
         self._check_output(inputs, {
-            Columns.USERNAME: self.USERNAME,
-            Columns.COURSE_ID: self.COURSE_ID,
-            Columns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
-            Columns.VIDEO_DURATION: -1,
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
-            Columns.REASON: 'pause_video'
+            ViewingColumns.USERNAME: self.USERNAME,
+            ViewingColumns.COURSE_ID: self.COURSE_ID,
+            ViewingColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
+            ViewingColumns.VIDEO_DURATION: -1,
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.REASON: 'pause_video'
         })
 
     def test_ordering(self):
@@ -302,10 +384,10 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
-            Columns.REASON: 'pause_video'
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.REASON: 'pause_video'
         })
 
     def test_viewing_with_sci_notation(self):  # REMOVE ME?
@@ -314,7 +396,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.00000Z', 'pause_video', eval('1.2e+2'), None, None),
         ]
         self._check_output(inputs, {
-            Columns.END_OFFSET: 120
+            ViewingColumns.END_OFFSET: 120
         })
 
     def test_multiple_viewings(self):
@@ -326,16 +408,16 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         ]
         self._check_output(inputs, [
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-                Columns.START_OFFSET: 0,
-                Columns.END_OFFSET: 3,
-                Columns.REASON: 'pause_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+                ViewingColumns.START_OFFSET: 0,
+                ViewingColumns.END_OFFSET: 3,
+                ViewingColumns.REASON: 'pause_video'
             },
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:07+00:00',
-                Columns.START_OFFSET: 0,
-                Columns.END_OFFSET: 5,
-                Columns.REASON: 'stop_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:07+00:00',
+                ViewingColumns.START_OFFSET: 0,
+                ViewingColumns.END_OFFSET: 5,
+                ViewingColumns.REASON: 'stop_video'
             }
         ])
 
@@ -348,16 +430,16 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         ]
         self._check_output(inputs, [
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-                Columns.START_OFFSET: 0,
-                Columns.END_OFFSET: 3,
-                Columns.REASON: 'seek_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+                ViewingColumns.START_OFFSET: 0,
+                ViewingColumns.END_OFFSET: 3,
+                ViewingColumns.REASON: 'seek_video'
             },
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:03.100000+00:00',
-                Columns.START_OFFSET: 2,
-                Columns.END_OFFSET: 5,
-                Columns.REASON: 'pause_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03.100000+00:00',
+                ViewingColumns.START_OFFSET: 2,
+                ViewingColumns.END_OFFSET: 5,
+                ViewingColumns.REASON: 'pause_video'
             }
         ])
 
@@ -376,16 +458,16 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         ]
         self._check_output(inputs, [
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-                Columns.START_OFFSET: 0,
-                Columns.END_OFFSET: 3,
-                Columns.REASON: 'seek_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+                ViewingColumns.START_OFFSET: 0,
+                ViewingColumns.END_OFFSET: 3,
+                ViewingColumns.REASON: 'seek_video'
             },
             {
-                Columns.START_TIMESTAMP: '2013-12-17T00:00:03.100000+00:00',
-                Columns.START_OFFSET: 8,
-                Columns.END_OFFSET: 11,
-                Columns.REASON: 'pause_video'
+                ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03.100000+00:00',
+                ViewingColumns.START_OFFSET: 8,
+                ViewingColumns.END_OFFSET: 11,
+                ViewingColumns.REASON: 'pause_video'
             }
         ])
 
@@ -402,9 +484,9 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 9, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:00.600000+00:00',
-            Columns.START_OFFSET: 6,
-            Columns.END_OFFSET: 9,
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00.600000+00:00',
+            ViewingColumns.START_OFFSET: 6,
+            ViewingColumns.END_OFFSET: 9,
         })
 
     def test_ignored_events(self):
@@ -416,9 +498,9 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
         })
 
     def test_first_event_seek(self):
@@ -429,9 +511,9 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
         })
 
     def test_missing_end_event(self):
@@ -447,9 +529,9 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
         })
 
     def test_very_short_viewing(self):
@@ -467,23 +549,20 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self.assert_no_output(inputs)
 
     def test_get_duration(self):
-        self.task.api_key = 'foobar'
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 3,
-            Columns.VIDEO_DURATION: 62,
-            Columns.REASON: 'pause_video'
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.VIDEO_DURATION: 62,
+            ViewingColumns.REASON: 'pause_video'
         })
 
     def prepare_youtube_api_mock(self, duration):
-        mock_response = MagicMock(spec=file)
-        mock_response.code = 200
         fake_buffer = """{
  "kind": "youtube#videoListResponse",
  "etag": "tbWC5XrSXxe1WOAx6MK9z4hHSU8/U18cvGr7ajKhffqbJnnrvHvXOOc",
@@ -507,11 +586,16 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
  ]
 }
 """
-        mock_response.read.side_effect = [fake_buffer % duration, '']
+        return self.prepare_youtube_api_mock_raw(fake_buffer % duration)
+
+    def prepare_youtube_api_mock_raw(self, response_string):
+        self.task.api_key = 'foobar'
+        mock_response = MagicMock(spec=file)
+        mock_response.code = 200
+        mock_response.read.side_effect = [response_string, '']
         self.mock_urllib.urlopen.return_value = mock_response
 
     def test_pause_after_end_of_video(self):
-        self.task.api_key = 'foobar'
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
@@ -521,16 +605,380 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
     def test_pause_near_end_of_video(self):
         # we occasionally see pause events slightly after the end of the video
-        self.task.api_key = 'foobar'
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 62.9, None, None),
         ]
         self._check_output(inputs, {
-            Columns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
-            Columns.START_OFFSET: 0,
-            Columns.END_OFFSET: 62.9,
-            Columns.VIDEO_DURATION: 62,
-            Columns.REASON: 'pause_video'
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 62.9,
+            ViewingColumns.VIDEO_DURATION: 62,
+            ViewingColumns.REASON: 'pause_video'
         })
+
+    @data(
+        '{lksjdf',
+        '{}',
+        '{"items": []}',
+    )
+    def test_invalid_json_youtube_api(self, response_string):
+        self.prepare_youtube_api_mock_raw(response_string)
+        inputs = [
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+        ]
+        self._check_output(inputs, {
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.VIDEO_DURATION: VIDEO_UNKNOWN_DURATION,
+            ViewingColumns.REASON: 'pause_video'
+        })
+
+    def test_invalid_duration_format(self):
+        self.prepare_youtube_api_mock('foobar')
+        inputs = [
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+        ]
+        self._check_output(inputs, {
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.VIDEO_DURATION: VIDEO_UNKNOWN_DURATION,
+            ViewingColumns.REASON: 'pause_video'
+        })
+
+    @data(
+        ('PT2H30M1S', 9001),
+        ('PT2M30S', 150),
+        ('PT4S', 4),
+        ('PT130S', 130)
+    )
+    @unpack
+    def test_different_durations(self, duration_string, duration_secs):
+        self.prepare_youtube_api_mock(duration_string)
+        inputs = [
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+        ]
+        self._check_output(inputs, {
+            ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
+            ViewingColumns.START_OFFSET: 0,
+            ViewingColumns.END_OFFSET: 3,
+            ViewingColumns.VIDEO_DURATION: duration_secs,
+            ViewingColumns.REASON: 'pause_video'
+        })
+
+
+class VideoUsageTaskMapTest(MapperTestMixin, unittest.TestCase):
+    """Test video usage mapper"""
+
+    task_class = VideoUsageTask
+
+    def test_simple(self):
+        self.assert_single_map_output(
+            '\t'.join(
+                [
+                    'foo_username',
+                    'foo/bar/baz',
+                    'i4x-foo-bar',
+                    '63',
+                    '2015-04-17T00:00:00+00:00',
+                    '10',
+                    '15',
+                    'pause_video'
+                ]
+            ),
+            ('foo/bar/baz', 'i4x-foo-bar'),
+            ('foo_username', '10', '15', '63')
+        )
+
+
+class UsageColumns(object):
+
+    PIPELINE_VIDEO_ID = 0
+    COURSE_ID = 1
+    VIDEO_MODULE_ID = 2
+    VIDEO_DURATION = 3
+    SECONDS_PER_SEGMENT = 4
+    START_VIEWS = 5
+    END_VIEWS = 6
+    PARTIAL_VIEWS = 7
+    SEGMENT = 8
+    USERS_VIEWED = 9
+    NUM_VIEWS = 10
+
+
+@ddt
+class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+
+    VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
+
+    task_class = VideoUsageTask
+
+    def setUp(self):
+        super(VideoUsageTaskReducerTest, self).setUp()
+        self.reduce_key = (self.COURSE_ID, self.VIDEO_MODULE_ID)
+
+    def test_single_viewing(self):
+        inputs = [
+            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, {
+            UsageColumns.PIPELINE_VIDEO_ID: self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
+            UsageColumns.COURSE_ID: self.COURSE_ID,
+            UsageColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
+            UsageColumns.VIDEO_DURATION: '\\N',
+            UsageColumns.SECONDS_PER_SEGMENT: VIDEO_VIEWING_SECONDS_PER_SEGMENT,
+            UsageColumns.START_VIEWS: 1,
+            UsageColumns.END_VIEWS: 1,
+            UsageColumns.PARTIAL_VIEWS: 0,
+            UsageColumns.SEGMENT: 0,
+            UsageColumns.USERS_VIEWED: 1,
+            UsageColumns.NUM_VIEWS: 1,
+        })
+
+    def test_adjacent_viewings(self):
+        inputs = [
+            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            ('foo', 5, 5.2, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+            {
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+        ])
+
+    def test_play_pause_play(self):
+        # This may be unexpected, the user watched the entire segment from 0-4.9 seconds, however, they paused the video
+        # at 4.6 seconds. This caused us to count 2 viewings in this bucket, since we treat the viewings as separate.
+        # One could perform more sophisticated analysis to determine, if, in fact, this was a contiguous viewing or an
+        # interrupted one.
+        inputs = [
+            ('foo', 0, 4.6, VIDEO_UNKNOWN_DURATION),
+            ('foo', 4.6, 4.9, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 2,
+            }
+        ])
+
+    def test_overlapping_viewings(self):
+        inputs = [
+            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            ('foo', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 2,
+            },
+            {
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+        ])
+
+    def test_multi_segment_viewing(self):
+        inputs = [
+            ('foo', 0, 10.2, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+            {
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+            {
+                UsageColumns.SEGMENT: 2,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+        ])
+
+    def test_overlapping_viewings_different_users(self):
+        inputs = [
+            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 4.2, 10.2, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+            {
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 2,
+            },
+            {
+                UsageColumns.SEGMENT: 2,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+        ])
+
+    def test_view_counts_without_duration(self):
+        inputs = [
+            # These three viewings are in the first segment
+            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 1.5, 2, VIDEO_UNKNOWN_DURATION),
+            ('foo', 4, 4.99, VIDEO_UNKNOWN_DURATION),
+
+            # These viewings are in neither the first nor the last segment
+            ('foo', 6, 9.99, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 6, 9.99, VIDEO_UNKNOWN_DURATION),
+
+            # These viewings are in the last segment observed
+            ('foo', 10.5, 11, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 10.7, 11, VIDEO_UNKNOWN_DURATION),
+        ]
+
+        # Note that the start, end and partial counts are denormalized into all results, so they should have an
+        # identical value in every record. Also note that the middle records are ignored here. There is only one
+        # partial view because there were 3 views in the first segment and only 2 in the last. If one were to assume
+        # that every user watched the entire video, one could then assume that 1 user did not watch the entire video.
+        # In practice, this assumption does not hold, however, it gives a reasonable guesstimate that can serve as a
+        # starting point.
+        self._check_output(inputs, [
+            {
+                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.START_VIEWS: 3,
+                UsageColumns.END_VIEWS: 2,
+                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+            {
+                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.START_VIEWS: 3,
+                UsageColumns.END_VIEWS: 2,
+                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 2,
+            },
+            {
+                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.START_VIEWS: 3,
+                UsageColumns.END_VIEWS: 2,
+                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.SEGMENT: 2,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 2,
+            },
+        ])
+
+    def test_more_end_than_start_views(self):
+        inputs = [
+            # These three viewings are in the first segment
+            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 1.5, 2, VIDEO_UNKNOWN_DURATION),
+
+            # These viewings are in the last segment observed
+            ('foo', 5, 6, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 5, 6, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 7, 9, VIDEO_UNKNOWN_DURATION),
+        ]
+
+        # Note that the start, end and partial counts are denormalized into all results, so they should have an
+        # identical value in every record.
+        self._check_output(inputs, [
+            {
+                UsageColumns.START_VIEWS: 2,
+                UsageColumns.END_VIEWS: 3,
+                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 2,
+            },
+            {
+                UsageColumns.START_VIEWS: 2,
+                UsageColumns.END_VIEWS: 3,
+                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 2,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+        ])
+
+    def test_sparsity_of_output(self):
+        inputs = [
+            # These three viewings are in the first segment
+            ('foo', 5, 9, 40),
+            ('foo', 16, 19, 40),
+        ]
+
+        self._check_output(inputs, [
+            # Note that segment 0 is omitted since we didn't see any activity there
+            {
+                UsageColumns.SEGMENT: 1,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+            # Note that segment 2 is omitted since we didn't see any activity there
+            {
+                UsageColumns.SEGMENT: 3,
+                UsageColumns.USERS_VIEWED: 1,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+            # Note all segments up to the end of the video are omitted, again due to a lack of activity
+        ])
+
+    def test_multiple_known_durations(self):
+        inputs = [
+            ('foo', 0, 1, 10),
+            ('foo', 0, 1, 50),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.VIDEO_DURATION: 50,
+                UsageColumns.END_VIEWS: 0,
+            }
+        ])
+
+    def test_an_unknown_durations(self):
+        inputs = [
+            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
+            ('foo', 0, 1, 50),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.END_VIEWS: 2,
+            }
+        ])
+
+    def test_end_view_with_duration(self):
+        inputs = [
+            ('foo', 6, 8, 9.2),
+        ]
+        self._check_output(inputs, [
+            {
+                UsageColumns.VIDEO_DURATION: 9,
+                UsageColumns.END_VIEWS: 1,
+            }
+        ])

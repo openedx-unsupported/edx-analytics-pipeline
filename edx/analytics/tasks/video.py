@@ -104,25 +104,21 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 youtube_id = code
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                log.warn('Play video without valid currentTime: {0}'.format(line))
                 return
         elif event_type == VIDEO_PAUSED:
             # Pause events may have a missing currentTime value if video is paused at the beginning,
             # so provide a default of zero.
             current_time = self._check_time_offset(event_data.get('currentTime', 0), line)
             if current_time is None:
-                log.warn('Pause video without valid currentTime: {0}'.format(line))
                 return
         elif event_type == VIDEO_SEEK:
             current_time = self._check_time_offset(event_data.get('new_time'), line)
             old_time = self._check_time_offset(event_data.get('old_time'), line)
             if current_time is None or old_time is None:
-                log.warn('Seek event without valid old and new times: {0}'.format(line))
                 return
         elif event_type == VIDEO_STOPPED:
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                log.warn('Stop video without valid currentTime: {0}'.format(line))
                 return
 
         if youtube_id is not None:
@@ -135,17 +131,20 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def _check_time_offset(self, time_value, line):
         """Check that time can be converted to a float, and has a reasonable value."""
-        if time_value:
-            try:
-                time_value = float(time_value)
-            except TypeError:
-                log.warn('Video event with invalid time-offset type: {0}'.format(line))
-                return None
+        if time_value is None:
+            log.warn('Video without valid time: {0}'.format(line))
+            return time_value
 
-            # Some events have ridiculous (and dangerous) values for time.
-            if time_value > VIDEO_MAXIMUM_DURATION:
-                log.warn('Video event with huge time-offset value: {0}'.format(line))
-                return None
+        try:
+            time_value = float(time_value)
+        except ValueError:
+            log.warn('Video event with invalid time-offset type: {0}'.format(line))
+            return None
+
+        # Some events have ridiculous (and dangerous) values for time.
+        if time_value > VIDEO_MAXIMUM_DURATION:
+            log.warn('Video event with huge time-offset value: {0}'.format(line))
+            return None
 
         return time_value
 
@@ -345,10 +344,8 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             elif duration > video_duration:
                 video_duration = duration
 
-            first_second = int(math.floor(float(start_offset)))
-            first_segment = self.snap_to_last_segment_boundary(first_second)
-            last_second = int(math.ceil(float(end_offset)))
-            last_segment = self.snap_to_last_segment_boundary(last_second)
+            first_segment = self.snap_to_last_segment_boundary(float(start_offset))
+            last_segment = self.snap_to_last_segment_boundary(float(end_offset))
             for segment in xrange(first_segment, last_segment + 1):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
@@ -362,7 +359,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = max(usage_map.keys())
         else:
-            final_segment = self.snap_to_last_segment_boundary(int(math.ceil(float(video_duration))))
+            final_segment = self.snap_to_last_segment_boundary(float(video_duration))
 
         # Output stats.
         start_views = usage_map.get(0, {}).get('views', 0)

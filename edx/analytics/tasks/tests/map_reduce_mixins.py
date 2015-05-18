@@ -89,8 +89,7 @@ class ReducerTestMixin(object):
         output = self._get_reducer_output(inputs)
         if not isinstance(column_values, list):
             column_values = [column_values]
-        output = list(output)
-        self.assertEquals(len(output), len(column_values))
+        self.assertEquals(len(output), len(column_values), '{0} != {1}'.format(output, column_values))
         for output_tuple, expected_columns in zip(output, column_values):
             for column_num, expected_value in expected_columns.iteritems():
                 self.assertEquals(output_tuple[column_num], expected_value)
