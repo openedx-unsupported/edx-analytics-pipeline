@@ -31,7 +31,7 @@ class TargetFromUrlTestCase(unittest.TestCase):
             self.assertEquals(target.path, path)
 
     @patch('luigi.s3.boto')
-    def test_s3_https_scheme(self, mock_boto):
+    def test_s3_https_scheme(self, _mock_boto):
         test_url = 's3+https://foo/bar'
         target = url.get_target_from_url(test_url)
         self.assertIsInstance(target, luigi.s3.S3Target)

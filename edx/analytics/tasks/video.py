@@ -1,3 +1,5 @@
+"""Tasks for aggregating statisics about video viewing."""
+
 from collections import namedtuple
 import json
 import logging
@@ -36,11 +38,12 @@ VIDEO_UNKNOWN_DURATION = -1
 VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
 VIDEO_VIEWING_MINIMUM_LENGTH = 0.25  # seconds
 
-VideoViewing = namedtuple('VideoViewing', [
+VideoViewing = namedtuple('VideoViewing', [   # pylint: disable=invalid-name
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
 
 
 class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
+    """Validates video-related events and identifies start-stop event pairs."""
 
     output_root = luigi.Parameter()
 
@@ -162,6 +165,12 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         return time_value
 
     def reducer(self, key, events):
+        """
+        Constructs "viewing" records for each user in a course video module.
+
+        Puts the user's video events in chronological order, and identifies pairs of
+        play_video/non-play_video events.
+        """
         username, course_id, encoded_module_id = key
 
         sorted_events = sorted(events)
@@ -183,6 +192,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 old_time = float(old_time)
 
             def start_viewing():
+                """Returns a 'viewing' object representing the point where a video began to be played."""
                 video_duration = VIDEO_UNKNOWN_DURATION
                 if youtube_id:
                     video_duration = self.video_durations.get(youtube_id)
@@ -205,6 +215,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             def end_viewing(end_time):
+                """Returns a "viewing" record by combining the end_time with the current 'viewing' object."""
 
                 # Check that end_time is within the bounds of the duration.
                 # Note that duration may be an int, and end_time may be a float,
@@ -241,14 +252,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             elif viewing:
                 viewing_end_time = None
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
-                    # play -> pause
-                    # play -> stop
+                    # play -> pause or play -> stop
                     viewing_end_time = current_time
-
                 elif event_type == VIDEO_SEEK:
                     # play -> seek
                     viewing_end_time = old_time
-
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
 
@@ -261,28 +269,39 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     viewing = None
                     last_viewing_end_event = event
             else:
-                # this is a non-play event outside of a viewing
+                # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
                 pass
 
         # This happens too often!  Comment out for now...
         # if viewing is not None:
-        #     log.error('Unexpected viewing started with no matching end.\nViewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
+        #     log.error('Unexpected viewing started with no matching end.\n'
+        #               'Viewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
 
     def output(self):
         return get_target_from_url(self.output_root)
 
     def get_video_duration(self, youtube_id):
+        """
+        For youtube videos, queries Google API for video duration information.
+
+        This returns an "unknown" duration flag if no API key has been defined, or if the query fails.
+        """
         duration = VIDEO_UNKNOWN_DURATION
         if self.api_key is None:
             return duration
 
         video_file = None
         try:
-            video_file = urllib.urlopen("https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(youtube_id, self.api_key))
+            video_url = "https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(
+                youtube_id, self.api_key
+            )
+            video_file = urllib.urlopen(video_url)
             content = json.load(video_file)
             items = content.get('items', [])
             if len(items) > 0:
-                duration_str = items[0].get('contentDetails', {'duration': 'MISSING_CONTENTDETAILS'}).get('duration', 'MISSING_DURATION')
+                duration_str = items[0].get(
+                    'contentDetails', {'duration': 'MISSING_CONTENTDETAILS'}
+                ).get('duration', 'MISSING_DURATION')
                 matcher = re.match(r'PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?', duration_str)
                 if not matcher:
                     log.error('Unable to parse duration returned for video %s: %s', youtube_id, duration_str)
@@ -293,7 +312,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     duration = duration_secs
             else:
                 log.error('Unable to find items in response to duration request for youtube video: %s', youtube_id)
-        except Exception:
+        except Exception:  # pylint: disable=broad-except
             log.exception("Unrecognized response from Youtube API")
         finally:
             if video_file is not None:
@@ -303,17 +322,20 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+    """All parameters needed to run the VideoUsageTask and its required tasks."""
     pass
 
 
 class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
+    """Aggregates usage statistics for video segments across individual user 'viewings'."""
 
     output_root = luigi.Parameter()
 
     def requires(self):
         # Define path so that data could be loaded into Hive, without actually requiring the load to be performed.
         table_name = 'user_video_viewing'
-        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
+        dummy_partition = HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        partition_path_spec = dummy_partition.path_spec
         input_path = url_path_join(self.warehouse_path, table_name, partition_path_spec + '/')
         return UserVideoViewingTask(
             mapreduce_engine=self.mapreduce_engine,
@@ -338,6 +360,22 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
 
     def reducer(self, key, viewings):
+        """
+        Outputs a record for each watched segment in each video module in each course.
+
+        Modules with no views will not be output.  Segments in video modules that were not watched
+        are also not output.
+
+        No attempt is made to ensure that videos within a video module are unique.  It is possible
+        for a video to be changed or replaced over time.  It is possible for some versions to provide
+        duration information and others to not.  If any viewing by a user is of a video with unknown
+        duration, then the duration for the video's module is listed as unknown.  Otherwise we choose
+        the maximum value across all videos for the video module.
+
+        Output is designed to be loaded as a Hive table.  So videos with unknown duration
+        use the Hive representation for Null to represent video duration.
+
+        """
         course_id, encoded_module_id = key
         pipeline_video_id = '{0}|{1}'.format(course_id, encoded_module_id)
         usage_map = {}
@@ -392,6 +430,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             )
 
     def snap_to_last_segment_boundary(self, second):
+        """Maps a time_offset to a segment index."""
         return (int(second) / VIDEO_VIEWING_SECONDS_PER_SEGMENT)
 
     def output(self):
@@ -399,6 +438,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
 
 class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
+    """Imports data about video usage into a Hive table."""
 
     @property
     def table(self):
@@ -440,6 +480,7 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
 
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
+    """Insert information about video segments from a Hive table into MySQL."""
 
     @property
     def table(self):
@@ -488,6 +529,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysql
 
 
 class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
+    """Insert non-segment information about videos from a Hive table into MySQL."""
 
     @property
     def table(self):
@@ -544,6 +586,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
 
 
 class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
+    """Insert all video data into MySQL."""
 
     def requires(self):
         kwargs = {

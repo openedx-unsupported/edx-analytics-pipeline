@@ -372,6 +372,7 @@ class UserVideoViewingTaskLegacyMapTest(InitializeLegacyKeysMixin, UserVideoView
 
 
 class ViewingColumns(object):
+    """Constants for columns in UserVideoViewingTask output."""
 
     USERNAME = 0
     COURSE_ID = 1
@@ -385,6 +386,7 @@ class ViewingColumns(object):
 
 @ddt
 class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+    """Tests reducer for UserVideoViewingTask."""
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
 
@@ -598,6 +600,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         })
 
     def prepare_youtube_api_mock(self, duration):
+        """Mock calls to Google API to return a specific video duration value."""
         fake_buffer = """{
  "kind": "youtube#videoListResponse",
  "etag": "tbWC5XrSXxe1WOAx6MK9z4hHSU8/U18cvGr7ajKhffqbJnnrvHvXOOc",
@@ -624,6 +627,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         return self.prepare_youtube_api_mock_raw(fake_buffer % duration)
 
     def prepare_youtube_api_mock_raw(self, response_string):
+        """Mock calls to Google API for video duration information."""
         self.task.api_key = 'foobar'
         mock_response = MagicMock(spec=file)
         mock_response.code = 200
@@ -733,7 +737,7 @@ class VideoUsageTaskMapTest(MapperTestMixin, unittest.TestCase):
 
 
 class UsageColumns(object):
-
+    """Constants for columns in VideoUsageTask output."""
     PIPELINE_VIDEO_ID = 0
     COURSE_ID = 1
     VIDEO_MODULE_ID = 2
@@ -749,6 +753,7 @@ class UsageColumns(object):
 
 @ddt
 class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+    """Test VideoUsageTask reducer."""
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
 

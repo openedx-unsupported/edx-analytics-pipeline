@@ -32,7 +32,8 @@ class VideoAcceptanceTest(AcceptanceTestCase):
         """Ensure the video information is correct."""
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT pipeline_video_id, course_id, encoded_module_id, duration, segment_length, start_views, end_views, partial_views FROM video'
+                'SELECT pipeline_video_id, course_id, encoded_module_id, duration, segment_length,'
+                ' start_views, end_views, partial_views FROM video'
                 ' ORDER BY pipeline_video_id ASC'
             )
             results = cursor.fetchall()

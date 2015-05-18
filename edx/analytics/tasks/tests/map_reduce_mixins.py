@@ -5,7 +5,11 @@ import luigi
 
 
 class MapperTestMixin(object):
-    """Base class for map function tests"""
+    """
+    Base class for map function tests.
+
+    Assumes that self.task_class is defined in a derived class.
+    """
 
     DEFAULT_USER_ID = 10
     DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
@@ -59,7 +63,11 @@ class MapperTestMixin(object):
 
 
 class ReducerTestMixin(object):
-    """Base class for reduce function tests"""
+    """
+    Base class for reduce function tests.
+
+    Assumes that self.task_class is defined in a derived class.
+    """
 
     DATE = '2013-12-17'
     COURSE_ID = 'foo/bar/baz'
@@ -76,8 +84,9 @@ class ReducerTestMixin(object):
         self.task.init_local()
         self.reduce_key = tuple()
 
-    def assert_no_output(self, input):
-        output = self._get_reducer_output(input)
+    def assert_no_output(self, input_value):
+        """Asserts that the given input produces no output."""
+        output = self._get_reducer_output(input_value)
         self.assertEquals(len(output), 0)
 
     def _get_reducer_output(self, inputs):
