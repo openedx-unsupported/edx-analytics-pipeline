@@ -30,9 +30,9 @@ class MapperTestMixin(object):
 
     def create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
-        return json.dumps(self._create_event_dict(**kwargs))
+        return json.dumps(self.create_event_dict(**kwargs))
 
-    def _create_event_dict(self, **kwargs):
+    def create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
         template_name = kwargs.get('template_name', self.default_event_template)

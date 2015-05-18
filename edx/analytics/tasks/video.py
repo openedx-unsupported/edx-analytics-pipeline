@@ -52,6 +52,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         super(UserVideoViewingTask, self).init_local()
         # Providing an api_key is optional.
         self.api_key = configuration.get_config().get('google', 'api_key', None)
+        # Reset this (mostly for the sake of tests).
+        self.video_durations = {}
 
     def mapper(self, line):
         # Add a filter here to permit quicker rejection of unrelated events.
@@ -71,10 +73,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         if event_type not in VIDEO_EVENT_TYPES:
             return
 
+        # This has already been checked when getting the event, so just fetch the value.
         timestamp = eventlog.get_event_time_string(event)
-        if timestamp is None:
-            log.error("encountered event with bad timestamp: %s", event)
-            return
 
         # Strip username to remove trailing newlines that mess up Luigi.
         username = event.get('username', '').strip()

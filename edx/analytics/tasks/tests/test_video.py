@@ -99,12 +99,24 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         {'time': "2013-12-01T15:38:32.805444"},
         {'time': None},
         {'username': ''},
-#        {'username': None},
-        {'event_type': None}
+        {'event_type': None},
+        {'event': None},
+        {'event': ''},
     )
     def test_invalid_events(self, kwargs):
-        # TODO: fix this to test for missing elements, rather than elements set to None.
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
+
+    @data(
+        'time',
+        'username',
+        'event_type',
+        'event',
+    )
+    def test_events_with_missing_attribute(self, attribute_name):
+        event_dict = self.create_event_dict()
+        del event_dict[attribute_name]
+        line = json.dumps(event_dict)
+        self.assert_no_map_output_for(line)
 
     @data(
         'page_close',
@@ -216,6 +228,12 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         self.assert_single_map_output(
             self.create_event_log_line(template_name='stop_video'), self.default_key, expected_value)
 
+    def test_username_with_newline(self):
+        username = 'test_user'
+        key = (username, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
+        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
+        self.assert_single_map_output(self.create_event_log_line(username=username + '\n'), key, expected_value)
+
     def test_unicode_username(self):
         key = (self.UTF8_BYTE_STRING, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
@@ -260,6 +278,15 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         ('play_video', ''),
         ('pause_video', ''),
         ('stop_video', ''),
+        ('play_video', 'nan'),
+        ('pause_video', 'nan'),
+        ('stop_video', 'nan'),
+        ('play_video', 'inf'),
+        ('pause_video', 'inf'),
+        ('stop_video', 'inf'),
+        ('play_video', '-5'),
+        ('pause_video', '-5'),
+        ('stop_video', '-5'),
     )
     @unpack
     def test_invalid_time(self, template_name, time_value):
@@ -319,6 +346,12 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         ('new_time', None),
         ('old_time', ''),
         ('new_time', ''),
+        ('old_time', 'nan'),
+        ('new_time', 'nan'),
+        ('old_time', 'inf'),
+        ('new_time', 'inf'),
+        ('old_time', '-5'),
+        ('new_time', '-5'),
     )
     @unpack
     def test_seek_invalid_time(self, field_name, time_value):
@@ -348,6 +381,7 @@ class ViewingColumns(object):
     START_OFFSET = 5
     END_OFFSET = 6
     REASON = 7
+
 
 @ddt
 class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
