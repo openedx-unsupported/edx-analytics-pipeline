@@ -138,11 +138,14 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         """Check that time can be converted to a float, and has a reasonable value."""
         if time_value is None:
             log.warn('Video with missing time_offset value: {0}'.format(line))
-            return time_value
+            return None
 
         try:
             time_value = float(time_value)
         except ValueError:
+            log.warn('Video event with invalid time-offset value: {0}'.format(line))
+            return None
+        except TypeError:
             log.warn('Video event with invalid time-offset type: {0}'.format(line))
             return None
 
@@ -403,16 +406,15 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 stats['views'] = stats.get('views', 0) + 1
 
         # If we don't know the duration of the video, just use the final segment that was
-        # actually viewed to determine end_views.
+        # actually viewed to determine users_at_end.
         if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = max(usage_map.keys())
         else:
             final_segment = self.snap_to_last_segment_boundary(float(video_duration))
 
         # Output stats.
-        start_views = usage_map.get(0, {}).get('views', 0)
-        end_views = usage_map.get(final_segment, {}).get('views', 0)
-        partial_views = abs(start_views - end_views)
+        users_at_start = len(usage_map.get(0, {}).get('users', []))
+        users_at_end = len(usage_map.get(final_segment, {}).get('users', []))
         for segment in sorted(usage_map.keys()):
             stats = usage_map[segment]
             yield (
@@ -421,9 +423,8 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 encoded_module_id,
                 int(video_duration) if video_duration != VIDEO_UNKNOWN_DURATION else '\\N',
                 VIDEO_VIEWING_SECONDS_PER_SEGMENT,
-                start_views,
-                end_views,
-                partial_views,
+                users_at_start,
+                users_at_end,
                 segment,
                 len(stats.get('users', [])),
                 stats.get('views', 0),
@@ -452,9 +453,8 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             ('encoded_module_id', 'STRING'),
             ('duration', 'INT'),
             ('segment_length', 'INT'),
-            ('start_views', 'INT'),
-            ('end_views', 'INT'),
-            ('partial_views', 'INT'),
+            ('users_at_start', 'INT'),
+            ('users_at_end', 'INT'),
             ('segment', 'INT'),
             ('num_users', 'INT'),
             ('num_views', 'INT'),
@@ -544,9 +544,8 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
                 encoded_module_id,
                 duration,
                 segment_length,
-                start_views,
-                end_views,
-                partial_views
+                users_at_start,
+                users_at_end
             FROM video_usage
         """
 
@@ -558,9 +557,8 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
             ('encoded_module_id', 'VARCHAR(255)'),
             ('duration', 'INTEGER'),
             ('segment_length', 'INTEGER'),
-            ('start_views', 'INTEGER'),
-            ('end_views', 'INTEGER'),
-            ('partial_views', 'INTEGER'),
+            ('users_at_start', 'INTEGER'),
+            ('users_at_end', 'INTEGER'),
         ]
 
     @property

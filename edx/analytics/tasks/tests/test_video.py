@@ -743,12 +743,11 @@ class UsageColumns(object):
     VIDEO_MODULE_ID = 2
     VIDEO_DURATION = 3
     SECONDS_PER_SEGMENT = 4
-    START_VIEWS = 5
-    END_VIEWS = 6
-    PARTIAL_VIEWS = 7
-    SEGMENT = 8
-    USERS_VIEWED = 9
-    NUM_VIEWS = 10
+    USERS_AT_START = 5
+    USERS_AT_END = 6
+    SEGMENT = 7
+    USERS_VIEWED = 8
+    NUM_VIEWS = 9
 
 
 @ddt
@@ -773,9 +772,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             UsageColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
             UsageColumns.VIDEO_DURATION: '\\N',
             UsageColumns.SECONDS_PER_SEGMENT: VIDEO_VIEWING_SECONDS_PER_SEGMENT,
-            UsageColumns.START_VIEWS: 1,
-            UsageColumns.END_VIEWS: 1,
-            UsageColumns.PARTIAL_VIEWS: 0,
+            UsageColumns.USERS_AT_START: 1,
+            UsageColumns.USERS_AT_END: 1,
             UsageColumns.SEGMENT: 0,
             UsageColumns.USERS_VIEWED: 1,
             UsageColumns.NUM_VIEWS: 1,
@@ -896,72 +894,65 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo2', 10.7, 11, VIDEO_UNKNOWN_DURATION),
         ]
 
-        # Note that the start, end and partial counts are denormalized into all results, so they should have an
-        # identical value in every record. Also note that the middle records are ignored here. There is only one
-        # partial view because there were 3 views in the first segment and only 2 in the last. If one were to assume
-        # that every user watched the entire video, one could then assume that 1 user did not watch the entire video.
-        # In practice, this assumption does not hold, however, it gives a reasonable guesstimate that can serve as a
-        # starting point.
+        # Note that the start and end counts are denormalized into all results, so they should have an
+        # identical value in every record. Also note that the middle records are ignored here.
         self._check_output(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
-                UsageColumns.START_VIEWS: 3,
-                UsageColumns.END_VIEWS: 2,
-                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.USERS_AT_START: 2,
+                UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 2,
                 UsageColumns.NUM_VIEWS: 3,
             },
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
-                UsageColumns.START_VIEWS: 3,
-                UsageColumns.END_VIEWS: 2,
-                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.USERS_AT_START: 2,
+                UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 1,
                 UsageColumns.USERS_VIEWED: 2,
                 UsageColumns.NUM_VIEWS: 2,
             },
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
-                UsageColumns.START_VIEWS: 3,
-                UsageColumns.END_VIEWS: 2,
-                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.USERS_AT_START: 2,
+                UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 2,
                 UsageColumns.USERS_VIEWED: 2,
                 UsageColumns.NUM_VIEWS: 2,
             },
         ])
 
-    def test_more_end_than_start_views(self):
+    def test_more_users_at_end_than_at_start(self):
         inputs = [
             # These three viewings are in the first segment
             ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
             ('foo2', 1.5, 2, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 2.5, 4, VIDEO_UNKNOWN_DURATION),
 
             # These viewings are in the last segment observed
             ('foo', 5, 6, VIDEO_UNKNOWN_DURATION),
             ('foo2', 5, 6, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 7, 9, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 8, 9, VIDEO_UNKNOWN_DURATION),
+            ('foo3', 7, 9, VIDEO_UNKNOWN_DURATION),
         ]
 
-        # Note that the start, end and partial counts are denormalized into all results, so they should have an
+        # Note that the start and end counts are denormalized into all results, so they should have an
         # identical value in every record.
         self._check_output(inputs, [
             {
-                UsageColumns.START_VIEWS: 2,
-                UsageColumns.END_VIEWS: 3,
-                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.USERS_AT_START: 2,
+                UsageColumns.USERS_AT_END: 3,
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 2,
+                UsageColumns.NUM_VIEWS: 3,
             },
             {
-                UsageColumns.START_VIEWS: 2,
-                UsageColumns.END_VIEWS: 3,
-                UsageColumns.PARTIAL_VIEWS: 1,
+                UsageColumns.USERS_AT_START: 2,
+                UsageColumns.USERS_AT_END: 3,
                 UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 3,
+                UsageColumns.USERS_VIEWED: 3,
+                UsageColumns.NUM_VIEWS: 4,
             },
         ])
 
@@ -996,7 +987,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: 50,
-                UsageColumns.END_VIEWS: 0,
+                UsageColumns.USERS_AT_END: 0,
             }
         ])
 
@@ -1008,7 +999,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
-                UsageColumns.END_VIEWS: 2,
+                UsageColumns.USERS_AT_END: 1,
             }
         ])
 
@@ -1019,6 +1010,6 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: 9,
-                UsageColumns.END_VIEWS: 1,
+                UsageColumns.USERS_AT_END: 1,
             }
         ])
