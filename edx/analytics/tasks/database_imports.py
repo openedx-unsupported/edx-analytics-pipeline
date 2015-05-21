@@ -165,6 +165,8 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
     Requires override of `table_name` and `columns` properties.
     """
 
+    columns = []
+
     @property
     def table_location(self):
         return url_path_join(self.destination, self.table_name)
@@ -297,6 +299,48 @@ class ImportCourseUserGroupUsersTask(ImportMysqlToHiveTableTask):
             ('courseusergroup_id', 'INT'),
             ('user_id', 'INT'),
         ]
+
+
+class ImportShoppingCartOrder(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_order'
+
+
+class ImportShoppingCartOrderItem(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_orderitem'
+
+
+class ImportShoppingCartCertificateItem(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_certificateitem'
+
+
+class ImportShoppingCartPaidCourseRegistration(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_paidcourseregistration'
+
+
+class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_donation'
+
+
+class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'shoppingcart_courseregcodeitem'
 
 
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
