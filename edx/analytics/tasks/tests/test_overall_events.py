@@ -2,6 +2,7 @@
 
 import sys
 import json
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 import luigi
 
 from edx.analytics.tasks.tests import unittest
@@ -11,32 +12,28 @@ from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixi
 from StringIO import StringIO
 
 
-class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Ensure events of various flavors are counted"""
 
     def setUp(self):
+        self.task_class = TotalEventsDailyTask
+        super(TotalEventsTaskMapTest, self).setUp()
 
-        fake_param = luigi.DateIntervalParameter()
-        self.task = TotalEventsDailyTask(
-            interval=fake_param.parse('2014-12-05'),
-            output_root='/fake/output'
-        )
+        # fake_param = luigi.DateIntervalParameter()
+        # self.task = TotalEventsDailyTask(
+        #      interval=fake_param.parse('2014-12-05'),
+        #      output_root='/fake/output'
+        # )
 
         self.initialize_ids()
         self.task.init_local()
 
         self.event_type = "edx.course.enrollment.activated"
-        self.timestamp = "2014-12-05T22:13:09.691008+00:00"
-        self.user_id = 5
+        self.timestamp = "2013-12-17T15:38:32.805444"
+        self.user_id = 10
 
-    def _create_event_log_line(self, **kwargs):
-        """Create an event log with test values, as a JSON string."""
-        return json.dumps(self._create_event_dict(**kwargs))
-
-    def _create_event_dict(self, **kwargs):
-        """Create an event log with test values, as a dict."""
-        # Define default values for event log entry.
-        event_dict = {
+        self.event_templates = {
+            'event' : {
             "username": "test_user",
             "host": "test_host",
             "session": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
@@ -58,20 +55,20 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
             "agent": "blah, blah, blah",
             "page": None
         }
-        event_dict.update(**kwargs)
-        return event_dict
+        }
+        self.default_event_template = 'event'
 
     def test_explicit_event(self):
-        line = self._create_event_log_line(user_id="")
-        self.assertEquals(tuple(self.task.mapper(line)), (('2014-12-05', 1), ))
+        line = self.create_event_log_line(user_id="")
+        self.assert_single_map_output(line, '2013-12-17', 1)
 
     def test_no_timestamp(self):
-        line = self._create_event_log_line(timestamp="")
-        self.assertEquals(tuple(self.task.mapper(line)), (('2014-12-05', 1), ))
+        line = self.create_event_log_line(timestamp="")
+        self.assert_single_map_output(line, '2013-12-17', 1)
 
     def test_bad_event(self):
         line = "bad event"
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
+        self.assert_no_map_output_for(line)
 
     def test_event_no_ids(self):
         """
@@ -79,8 +76,8 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         because of their contexts. This test ensures these events are still counted.
         """
         self.empty_ids()
-        line = self._create_event_log_line()
-        self.assertEquals(tuple(self.task.mapper(line)), (('2014-12-05', 1), ))
+        line = self.create_event_log_line()
+        self.assert_single_map_output(line, '2013-12-17', 1)
 
     def test_implicit_event(self):
         event = {
@@ -94,7 +91,7 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
                 "course_id": "",
                 "path": "/jsi18n/"
             },
-            "time": "2014-12-05T22:11:29.689805+00:00",
+            "time": "2013-12-17T22:11:29.689805+00:00",
             "ip": "10.0.2.2",
             "event": "{\"POST\": {}, \"GET\": {}}",
             "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_5) AppleWebKit/537.36 (KHTML, like Gecko) "
@@ -102,10 +99,10 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
             "page": "null"
         }
         line = json.dumps(event)
-        self.assertEquals(tuple(self.task.mapper(line)), (('2014-12-05', 1), ))
+        self.assert_single_map_output(line, '2013-12-17', 1)
 
     def test_no_time_element(self):
-        event_line = self._create_event_dict()
+        event_line = self.create_event_dict()
         del event_line["time"]
         line = json.dumps(event_line)
         # When the time element is missing, luigi will print an error to stderr.
@@ -113,35 +110,36 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         # count the event.
         test_stderr = StringIO()
         sys.stderr = test_stderr
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
+        self.assert_no_map_output_for(line)
         test_stderr = test_stderr.getvalue().strip()
         self.assertEquals(test_stderr, 'reporter:counter:Event,Missing Time Field,1')
 
 
-class TotalEventsTaskReducerTest(unittest.TestCase):
+class TotalEventsTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     """Ensure counts are aggregated"""
 
     def setUp(self):
-        self.interval = '2014-12-17'
-        fake_param = luigi.DateIntervalParameter()
-        self.task = TotalEventsDailyTask(
-            interval=fake_param.parse(self.interval),
-            output_root="/fake/output"
-        )
-        self.key = '2014-12-17T00:00:01'
+        self.task_class = TotalEventsDailyTask
+        super(TotalEventsTaskReducerTest, self).setUp()
 
-    def _check_output(self, key, values, expected):
+        # self.interval = '2013-12-17'
+        # fake_param = luigi.DateIntervalParameter()
+        # self.task = TotalEventsDailyTask(
+        #     interval=fake_param.parse(self.interval),
+        #     output_root="/fake/output"
+        # )
+        self.reduce_key = '2013-12-17T00:00:01'
+
+    def _check_output(self, inputs, expected):
         """Compare generated with expected output."""
-        self.assertEquals(tuple(self.task.reducer(key, values)), expected)
+        self.assertEquals(tuple(self._get_reducer_output(inputs)), expected)
 
     def test_one_event_count(self):
-        key = '2014-12-17T00:00:01'
-        values = [1, ]
-        expected = ((key, 1), )
-        self._check_output(key, values, expected)
+        inputs = [1, ]
+        expected = (('2013-12-17T00:00:01', 1), )
+        self._check_output(inputs, expected)
 
     def test_multiple_events_same_day(self):
-        key = '2014-12-17T00:00:01'
-        values = [1, 1]
-        expected = ((key, 2), )
-        self._check_output(key, values, expected)
+        inputs = [1, 1]
+        expected = (('2013-12-17T00:00:01', 2), )
+        self._check_output(inputs, expected)

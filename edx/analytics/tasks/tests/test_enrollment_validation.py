@@ -18,24 +18,21 @@ from edx.analytics.tasks.enrollment_validation import (
     CreateEnrollmentValidationEventsForTodayTask,
 )
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.util.datetime_util import add_microseconds
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 
 
-class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
     def setUp(self):
-        self.initialize_ids()
+        self.task_class = CourseEnrollmentValidationTask
+        super(CourseEnrollmentValidationTaskMapTest, self).setUp()
 
-        fake_param = luigi.DateIntervalParameter()
-        self.task = CourseEnrollmentValidationTask(
-            interval=fake_param.parse('2013-12-17'),
-            output_root='/fake/output'
-        )
-        self.task.init_local()
+        self.initialize_ids()
 
         self.user_id = 21
         self.timestamp = "2013-12-17T15:38:32.805444"
@@ -52,6 +49,8 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
             org_id=self.org_id,
         )
 
+        self.expected_key = (self.course_id, self.user_id)
+
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
         return json.dumps(self._create_event_dict(**kwargs))
@@ -66,62 +65,55 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
         event = self.factory.create_event_dict(event_data, **kwargs)
         return event
 
-    def assert_no_output_for(self, line):
-        """Assert that an input line generates no output."""
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
-
     def test_non_enrollment_event(self):
         line = 'this is garbage'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_unparseable_enrollment_event(self):
         line = 'this is garbage but contains edx.course.enrollment'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_missing_event_type(self):
         event_dict = self._create_event_dict()
         event_dict['old_event_type'] = event_dict['event_type']
         del event_dict['event_type']
         line = json.dumps(event_dict)
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_nonenroll_event_type(self):
         line = self._create_event_log_line(event_type='edx.course.enrollment.unknown')
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_bad_datetime(self):
         line = self._create_event_log_line(time='this is a bogus time')
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_bad_event_data(self):
         line = self._create_event_log_line(event=["not an event"])
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_illegal_course_id(self):
         line = self._create_event_log_line(event={"course_id": ";;;;bad/id/val", "user_id": self.user_id})
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_missing_user_id(self):
         line = self._create_event_log_line(event={"course_id": self.course_id})
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_good_enroll_event(self):
         line = self._create_event_log_line()
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, ACTIVATED, self.mode, None)),)
-        self.assertEquals(event, expected)
+        expected_value = (self.timestamp, ACTIVATED, self.mode, None)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_unenroll_event(self):
         line = self._create_event_log_line(event_type=DEACTIVATED)
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, DEACTIVATED, self.mode, None)),)
-        self.assertEquals(event, expected)
+        expected_value = (self.timestamp, DEACTIVATED, self.mode, None)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_mode_change_event(self):
         line = self._create_event_log_line(event_type=MODE_CHANGED)
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, MODE_CHANGED, self.mode, None)),)
-        self.assertEquals(event, expected)
+        expected_value = (self.timestamp, MODE_CHANGED, self.mode, None)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_validation_event(self):
         validation_info = {
@@ -137,9 +129,8 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, unittest.
         }
         event_info.update(validation_info)
         line = self._create_event_log_line(event_type=VALIDATED, event=event_info)
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, VALIDATED, self.mode, validation_info)),)
-        self.assertEquals(event, expected)
+        expected_value = (self.timestamp, VALIDATED, self.mode, validation_info)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
 class CourseEnrollmentValidationTaskLegacyMapTest(InitializeLegacyKeysMixin, CourseEnrollmentValidationTaskMapTest):
@@ -147,18 +138,14 @@ class CourseEnrollmentValidationTaskLegacyMapTest(InitializeLegacyKeysMixin, Cou
     pass
 
 
-class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
+class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase, ReducerTestMixin):
     """Provide common methods for testing CourseEnrollmentValidationTask reducer."""
 
-    def setUp(self):
-        self.mode = 'honor'
 
-    @property
-    def key(self):
-        """Returns key value to simulate output from mapper to pass to reducer."""
-        user_id = 0
-        course_id = 'foo/bar/baz'
-        return (course_id, user_id)
+    def setUp(self):
+        super(BaseCourseEnrollmentValidationTaskReducerTest, self).setUp()
+        self.reduce_key = ('foo/bar/baz', 0)
+        self.mode = 'honor'
 
     def create_task(self, generate_before=True, tuple_output=True, include_nonstate_changes=True,
                     earliest_timestamp=None, expected_validation=None):
@@ -208,11 +195,11 @@ class BaseCourseEnrollmentValidationTaskReducerTest(unittest.TestCase):
 
     def _get_reducer_output(self, values):
         """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.key, values))
+        return tuple(self.task.reducer(self.reduce_key, values))
 
     def check_output(self, inputs, expected):
         """Compare generated with expected output."""
-        expected_with_key = tuple([(key, self.key + value) for key, value in expected])
+        expected_with_key = tuple([(key, self.reduce_key + value) for key, value in expected])
         self.assertEquals(self._get_reducer_output(inputs), expected_with_key)
 
 
@@ -225,7 +212,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         self.create_task(generate_before=True)
 
     def test_no_events(self):
-        self.check_output([], tuple())
+        self.assert_no_output([])
 
     def test_missing_single_enrollment(self):
         inputs = [
@@ -261,7 +248,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_single_unenrollment(self):
         inputs = [
@@ -332,7 +319,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_unenroll_during_dump(self):
         inputs = [
@@ -341,7 +328,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_unenroll_during_dump_reverse(self):
         inputs = [
@@ -350,7 +337,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_single_unenroll_enroll(self):
         inputs = [
@@ -359,7 +346,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_multiple_validation(self):
         inputs = [
@@ -369,7 +356,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-01-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_multiple_validation_without_enroll(self):
         inputs = [
@@ -393,7 +380,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_missing_activate_between_validation(self):
         inputs = [
@@ -527,7 +514,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_activate_missing_mode_change(self):
         inputs = [
@@ -548,7 +535,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456', mode='verified'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_activate_duplicate_mode_change(self):
         inputs = [
@@ -556,7 +543,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456', mode='honor'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_activate_with_mode_change(self):
         inputs = [
@@ -565,7 +552,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456', mode='honor'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_validate_with_missing_mode_change(self):
         inputs = [
@@ -588,15 +575,14 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
             self._activated('2013-04-01T00:00:01.123456', mode='honor'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_only_mode_change(self):
         inputs = [
             self._mode_changed('2013-05-01T00:00:01.123456', mode='verified'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
-
+        self.assert_no_output(inputs)
 
 class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
     """
@@ -604,27 +590,22 @@ class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidat
     """
     def setUp(self):
         super(CourseEnrollmentValidationTaskEventReducerTest, self).setUp()
-        self.create_task(tuple_output=False)
+        #self.create_task(tuple_output=False)
+        self.create_task(generate_before=True)
 
     def test_missing_single_enrollment(self):
         inputs = [
             self._validated('2013-09-01T00:00:01.123456', True, '2013-04-01T00:00:01.123456'),
             # missing activation (4/1)
         ]
-        events = self._get_reducer_output(inputs)
-        self.assertEquals(len(events), 1)
-        datestamp, encoded_event = events[0]
-        self.assertEquals(datestamp, '2013-04-01')
-        event = json.loads(encoded_event)
+        expected = (('2013-04-01',
+             (
+                 '2013-04-01T00:00:01.123456', ACTIVATED, 'honor',
+                 "start => validate(active)", '2013-04-01T00:00:01.123456',
+                 '2013-09-01T00:00:01.123456'
+             )), )
 
-        self.assertEquals(event.get('event_type'), ACTIVATED)
-        self.assertEquals(event.get('time'), '2013-04-01T00:00:01.123456')
-
-        synthesized = event.get('synthesized')
-        self.assertEquals(synthesized.get('reason'), "start => validate(active)")
-        self.assertEquals(synthesized.get('after_time'), '2013-04-01T00:00:01.123456')
-        self.assertEquals(synthesized.get('before_time'), '2013-09-01T00:00:01.123456')
-
+        self.check_output(inputs, expected)
 
 class EarliestTimestampTaskReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
     """
@@ -635,7 +616,7 @@ class EarliestTimestampTaskReducerTest(BaseCourseEnrollmentValidationTaskReducer
         self.create_task(earliest_timestamp="2013-01-01T11")
 
     def test_no_events(self):
-        self.check_output([], tuple())
+        self.assert_no_output([])
 
     def test_missing_single_enrollment(self):
         inputs = [
@@ -671,7 +652,7 @@ class ExpectedValidationTaskReducerTest(BaseCourseEnrollmentValidationTaskReduce
         self.create_task(expected_validation="2014-10-01T11")
 
     def test_no_events(self):
-        self.check_output([], tuple())
+        self.assert_no_output([])
 
     def test_missing_validation_from_activation(self):
         inputs = [
@@ -707,7 +688,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         self.create_task(generate_before=False)
 
     def test_no_events(self):
-        self.check_output([], tuple())
+        self.assert_no_output([])
 
     def test_missing_single_enrollment(self):
         inputs = [
@@ -770,7 +751,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             # missing activation (4/1/12)
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_missing_activate_after_validation(self):
         inputs = [
@@ -818,7 +799,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         self.create_task(generate_before=False, include_nonstate_changes=False)
 
     def test_no_events(self):
-        self.check_output([], tuple())
+        self.assert_no_output([])
 
     def test_missing_deactivate_between_activation(self):
         inputs = [
@@ -827,7 +808,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             self._activated('2013-01-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_missing_deactivate_before_activation(self):
         inputs = [
@@ -837,7 +818,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_missing_activate_between_deactivation(self):
         inputs = [
@@ -847,7 +828,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             self._activated('2013-01-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_missing_activate_before_deactivation(self):
         inputs = [
@@ -858,7 +839,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             self._activated('2013-04-01T00:00:01.123456'),
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
     def test_single_deactivation_validation(self):
         inputs = [
@@ -866,7 +847,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
             # missing activation and deactivation?
         ]
         # expect no event.
-        self.check_output(inputs, tuple())
+        self.assert_no_output(inputs)
 
 
 class CreateAllEnrollmentValidationEventsTest(unittest.TestCase):

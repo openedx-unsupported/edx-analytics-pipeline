@@ -13,6 +13,7 @@ from mock import Mock, MagicMock, patch
 import luigi.worker
 
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.user_location import LastCountryForEachUser
 from edx.analytics.tasks.user_location import UsersPerCountry
 from edx.analytics.tasks.user_location import UsersPerCountryReport
@@ -48,12 +49,15 @@ class FakeGeoLocation(object):
         return country_code_map.get(ip_address)
 
 
-class BaseUserLocationEventTestCase(unittest.TestCase):
+class BaseUserLocationEventTestCase(MapperTestMixin, unittest.TestCase):
     """Provides create-event functionality for testing user location tasks."""
 
     username = 'test_user'
     timestamp = "2013-12-17T15:38:32.805444"
     ip_address = FakeGeoLocation.ip_address_1
+
+    def setUp(self):
+        super(BaseUserLocationEventTestCase, self).setUp()
 
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
@@ -75,83 +79,64 @@ class LastCountryForEachUserMapperTestCase(BaseUserLocationEventTestCase):
     """Tests of LastCountryForEachUser.mapper()"""
 
     def setUp(self):
-        self.task = LastCountryForEachUser(
-            mapreduce_engine='local',
-            name='test',
-            src=['test://input/'],
-            dest='test://output/',
-            end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
-            geolocation_data='test://data/data.file',
-        )
+        self.task_class = LastCountryForEachUser
 
-    def assert_no_output_for(self, line):
-        """Assert that an input line generates no output."""
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
+        super(LastCountryForEachUserMapperTestCase, self).setUp()
 
     def test_non_enrollment_event(self):
         line = 'this is garbage'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_bad_datetime(self):
         line = self._create_event_log_line(time='this is a bogus time')
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_after_end_date(self):
         line = self._create_event_log_line(time="2015-12-17T15:38:32.805444")
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_missing_username(self):
         event_dict = self._create_event_dict()
         del event_dict['username']
         line = json.dumps(event_dict)
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_missing_ip_address(self):
         event_dict = self._create_event_dict()
         del event_dict['ip']
         line = json.dumps(event_dict)
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_good_event(self):
         line = self._create_event_log_line()
-        event = tuple(self.task.mapper(line))
-        expected = ((self.username, (self.timestamp, self.ip_address)),)
-        self.assertEquals(event, expected)
+        self.assert_single_map_output(line, self.username, (self.timestamp, self.ip_address))
 
     def test_username_with_newline(self):
         line = self._create_event_log_line(username="baduser\n")
-        event = tuple(self.task.mapper(line))
-        expected = (("baduser", (self.timestamp, self.ip_address)),)
-        self.assertEquals(event, expected)
+        self.assert_single_map_output(line, "baduser", (self.timestamp, self.ip_address))
 
 
-class LastCountryForEachUserReducerTestCase(unittest.TestCase):
+class LastCountryForEachUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
     """Tests of LastCountryForEachUser.reducer()"""
 
     def setUp(self):
+        self.task_class = LastCountryForEachUser
+        super(LastCountryForEachUserReducerTestCase, self).setUp()
+
+        print self.task
+
         self.username = "test_user"
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
-        self.task = LastCountryForEachUser(
-            mapreduce_engine='local',
-            name='test',
-            src=['test://input/'],
-            dest='test://output/',
-            end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
-            geolocation_data='test://data/data.file',
-        )
         self.task.geoip = FakeGeoLocation()
-
-    def _get_reducer_output(self, values):
-        """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.username, values))
+        self.reduce_key = self.username
 
     def _check_output(self, inputs, expected):
         """Compare generated with expected output."""
         self.assertEquals(self._get_reducer_output(inputs), expected)
 
     def test_no_ip(self):
-        self._check_output([], tuple())
+        self.assert_no_output([])
 
     def test_single_ip(self):
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
@@ -210,7 +195,8 @@ class LastCountryForEachUserReducerTestCase(unittest.TestCase):
         expected = (((FakeGeoLocation.country_name_1, UNKNOWN_CODE), self.username),)
         self._check_output(inputs, expected)
 
-
+#TODO: this looks incomplete, but if it were complete I should refactor it
+#into a mapper test and a reducer test
 class UsersPerCountryTestCase(unittest.TestCase):
     """Tests of UsersPerCountry."""
 

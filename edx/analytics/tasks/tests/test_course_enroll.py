@@ -9,27 +9,23 @@ from edx.analytics.tasks.course_enroll import (
     CourseEnrollmentChangesPerDayMixin,
 )
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, unittest.TestCase, MapperTestMixin):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
     def setUp(self):
+        super(CourseEnrollEventMapTest, self).setUp()
+
         self.initialize_ids()
         self.task = CourseEnrollmentEventsPerDayMixin()
         self.user_id = 21
         self.timestamp = "2013-12-17T15:38:32.805444"
-
-    def _create_event_log_line(self, **kwargs):
-        """Create an event log with test values, as a JSON string."""
-        return json.dumps(self._create_event_dict(**kwargs))
-
-    def _create_event_dict(self, **kwargs):
-        """Create an event log with test values, as a dict."""
-        # Define default values for event log entry.
-        event_dict = {
+        self.event_templates = {
+            'course_enroll' : {
             "username": "test_user",
             "host": "test_host",
             "event_source": "server",
@@ -49,79 +45,69 @@ class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, unittest.TestCase):
             "agent": "blah, blah, blah",
             "page": None
         }
-        event_dict.update(**kwargs)
-        return event_dict
-
-    def assert_no_output_for(self, line):
-        """Assert that an input line generates no output."""
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
+        }
+        self.default_event_template = 'course_enroll'
+        self.expected_key = (self.course_id, self.user_id)
 
     def test_non_enrollment_event(self):
         line = 'this is garbage'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_unparseable_enrollment_event(self):
         line = 'this is garbage but contains edx.course.enrollment'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_missing_event_type(self):
-        event_dict = self._create_event_dict()
+        event_dict = self.create_event_dict()
         event_dict['old_event_type'] = event_dict['event_type']
         del event_dict['event_type']
         line = json.dumps(event_dict)
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_nonenroll_event_type(self):
-        line = self._create_event_log_line(event_type='edx.course.enrollment.unknown')
-        self.assert_no_output_for(line)
+        line = self.create_event_log_line(event_type='edx.course.enrollment.unknown')
+        self.assert_no_map_output_for(line)
 
     def test_bad_datetime(self):
-        line = self._create_event_log_line(time='this is a bogus time')
-        self.assert_no_output_for(line)
+        line = self.create_event_log_line(time='this is a bogus time')
+        self.assert_no_map_output_for(line)
 
     def test_bad_event_data(self):
-        line = self._create_event_log_line(event=["not an event"])
-        self.assert_no_output_for(line)
+        line = self.create_event_log_line(event=["not an event"])
+        self.assert_no_map_output_for(line)
 
     def test_illegal_course_id(self):
-        line = self._create_event_log_line(event={"course_id": ";;;;bad/id/val", "user_id": self.user_id})
-        self.assert_no_output_for(line)
+        line = self.create_event_log_line(event={"course_id": ";;;;bad/id/val", "user_id": self.user_id})
+        self.assert_no_map_output_for(line)
 
     def test_missing_user_id(self):
-        line = self._create_event_log_line(event={"course_id": self.course_id})
-        self.assert_no_output_for(line)
+        line = self.create_event_log_line(event={"course_id": self.course_id})
+        self.assert_no_map_output_for(line)
 
     def test_good_enroll_event(self):
-        line = self._create_event_log_line()
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, 1)),)
-        self.assertEquals(event, expected)
+        line = self.create_event_log_line()
+        expected_value = (self.timestamp, 1)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_unenroll_event(self):
-        line = self._create_event_log_line(event_type='edx.course.enrollment.deactivated')
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.user_id), (self.timestamp, -1)),)
-        self.assertEquals(event, expected)
+        line = self.create_event_log_line(event_type='edx.course.enrollment.deactivated')
+        expected_value = (self.timestamp, -1)
+        self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
-class CourseEnrollEventReduceTest(unittest.TestCase):
+class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """
     def setUp(self):
-        self.task = CourseEnrollmentEventsPerDayMixin()
-        self.key = ('course', 'user')
+        super(CourseEnrollEventReduceTest, self).setUp()
 
-    def _get_reducer_output(self, values):
-        """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.key, values))
+        self.task = CourseEnrollmentEventsPerDayMixin()
+        self.reduce_key = ('course', 'user')
 
     def _check_output(self, inputs, expected):
         """Compare generated with expected output."""
         self.assertEquals(self._get_reducer_output(inputs), expected)
-
-    def test_no_events(self):
-        self._check_output([], tuple())
 
     def test_single_enrollment(self):
         inputs = [('2013-01-01T00:00:01', 1), ]
@@ -141,8 +127,7 @@ class CourseEnrollEventReduceTest(unittest.TestCase):
             ('2013-01-01T00:00:03', 1),
             ('2013-01-01T00:00:04', -1),
         ]
-        expected = tuple()
-        self._check_output(inputs, expected)
+        self.assert_no_output(inputs)
 
         # then run with output expected:
         inputs = [
@@ -223,6 +208,7 @@ class CourseEnrollEventReduceTest(unittest.TestCase):
         )
         self._check_output(inputs, expected)
 
+#TODO: this class
 
 class CourseEnrollChangesReduceTest(unittest.TestCase):
     """
