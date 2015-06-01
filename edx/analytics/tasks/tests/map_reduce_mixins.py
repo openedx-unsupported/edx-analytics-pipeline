@@ -142,8 +142,10 @@ class ReducerTestMixin(object):
                 user_country_output='test://output/',
                 interval=Year.parse('2014'),
             )
+        else: #TODO: temporary fix for tiny test class at the end of test_course_enroll
+            self.task = self.task_class()
+            return
 
-        print self.task
         self.task.init_local()
         self.reduce_key = tuple()
 
@@ -156,16 +158,24 @@ class ReducerTestMixin(object):
         """Run the reducer and return the output"""
         return tuple(self.task.reducer(self.reduce_key, inputs))
 
-    # def _check_output(self, inputs, expected):
-    #     """Compare generated with expected output."""
-    #     self.assertEquals(self._get_reducer_output(inputs), expected)
+    def _check_output_complete_tuple(self, inputs, expected):
+        """Compare generated with expected output, comparing the entire tuples
 
-    # def _check_output(self, inputs, expected):
-    #     """Compare generated with expected output."""
-    #     self.assertEquals(self._get_reducer_output(inputs), expected)
+        args:
+            inputs is a valid input to the subclass's reducer
+            expected is a tuple containing the expected output of the reducer
+        """
+        self.assertEquals(self._get_reducer_output(inputs), expected)
 
-    def _check_output(self, inputs, column_values):
-        """Compare generated with expected output."""
+    def _check_output_by_key(self, inputs, column_values):
+        """
+        Compare generated with expected output, but only checking specified columns
+
+        args:
+            inputs is a valid input to the subclass's reducer
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
+                pairs in the expected reducer output
+        """
         output = self._get_reducer_output(inputs)
         if not isinstance(column_values, list):
             column_values = [column_values]
@@ -173,3 +183,15 @@ class ReducerTestMixin(object):
         for output_tuple, expected_columns in zip(output, column_values):
             for column_num, expected_value in expected_columns.iteritems():
                 self.assertEquals(output_tuple[column_num], expected_value)
+
+    def _check_output_tuple_with_key(self, inputs, expected):
+        """Compare generated with expected output, checking the whole tuple and including keys in the expected (in case the reduce_key changes
+            midway through
+
+        args:
+            inputs is a valid input to the subclass's reducer
+            expected is an iterable of (key, value) pairs corresponding to expected output
+        """
+        expected_with_key = tuple([(key, self.reduce_key + value) for key, value in expected])
+        self.assertEquals(self._get_reducer_output(inputs), expected_with_key)
+

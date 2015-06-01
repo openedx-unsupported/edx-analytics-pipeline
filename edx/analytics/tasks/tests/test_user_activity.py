@@ -182,16 +182,17 @@ class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMi
         self.initialize_ids()
         self.username = 'test_user'
 
-        # self.task = UserActivityTask(
-        #     interval=date_interval.Custom.parse(self.interval_string),
-        #     output_root='/tmp/foo'
-        # )
         self.reduce_key = (self.course_id, self.username, '2013-12-04')
 
+    def _check_output(self, inputs, expected):
+        '''
+        for these tests, we want to check that the whole output tuple is equal to the whole expected tuple
 
-    def _check_output(self, values, expected):
-        """Compare generated with expected output."""
-        self.assertEquals(self._get_reducer_output(values), expected)
+        args:
+            inputs is a valid input to the reducer
+            expected is the tuple of expected reducer outputs
+        '''
+        return self._check_output_complete_tuple(inputs, expected)
 
     def test_no_events(self):
         self.reduce_key = ()

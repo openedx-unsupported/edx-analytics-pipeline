@@ -23,6 +23,7 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 
 
 class ProblemCheckEventBaseTest(unittest.TestCase, MapperTestMixin, ReducerTestMixin):
@@ -42,6 +43,7 @@ class ProblemCheckEventBaseTest(unittest.TestCase, MapperTestMixin, ReducerTestM
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
         self.reduce_key = (self.course_id, self.problem_id, self.username)
+
         # self.event_templates = {
         #     'problem_check' : {
         #     "username": self.username,
@@ -135,6 +137,7 @@ class ProblemCheckEventBaseTest(unittest.TestCase, MapperTestMixin, ReducerTestM
             "agent": "blah, blah, blah",
             "page": None
         }
+
         self._update_with_kwargs(event_dict, **kwargs)
         return event_dict
 
@@ -204,7 +207,7 @@ class ProblemCheckEventMapTest(InitializeOpaqueKeysMixin, ProblemCheckEventBaseT
         mapper_output = tuple(self.task.mapper(line))
         expected_data = self._create_problem_data_dict()
         expected_key = self.reduce_key
-        #self.assert_single_map_output_weak(line, expected_key, expected_data) #does this supersede all this stuff?
+        #self.assert_single_map_output_weak_weak(line, expected_key, expected_data) #does this supersede all this stuff?
         self.assertEquals(len(mapper_output), 1)
         self.assertEquals(len(mapper_output[0]), 2)
         self.assertEquals(mapper_output[0][0], expected_key)
@@ -228,6 +231,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
     Verify that ProblemCheckEventMixin.reduce() works correctly.
     """
 
+    #here, we define an explicit check_output to meet the needs of answer distribution checking
     def _check_output(self, inputs, expected):
         """
         Compare generated with expected output.

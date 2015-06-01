@@ -399,6 +399,17 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self.mock_urllib = patcher.start()
         self.addCleanup(patcher.stop)
 
+    def _check_output(self, inputs, column_values):
+        '''
+        For these tests, we only want to test outputs by key, as there is a large dictionary of outputs for any given reducer input
+
+        args:
+            inputs is a valid input to the reducer
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
+                pairs in the expected reducer output
+        '''
+        self._check_output_by_key(inputs, column_values)
+
     def test_simple_viewing(self):
         inputs = [
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
@@ -761,6 +772,18 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     def setUp(self):
         super(VideoUsageTaskReducerTest, self).setUp()
         self.reduce_key = (self.COURSE_ID, self.VIDEO_MODULE_ID)
+
+    def _check_output(self, inputs, column_values):
+        '''
+        For these tests, we only want to test outputs by key, as there is a large dictionary of outputs for any given reducer input
+
+        args:
+            inputs is a valid input to the reducer
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
+                pairs in the expected reducer output
+        '''
+        self._check_output_by_key(inputs, column_values)
+
 
     def test_single_viewing(self):
         inputs = [

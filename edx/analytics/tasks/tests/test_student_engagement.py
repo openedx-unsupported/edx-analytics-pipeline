@@ -257,6 +257,17 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
         self.reduce_key = (self.DATE, self.COURSE_ID, self.USERNAME)
 
+    def _check_output(self, inputs, column_values):
+        '''
+        For these tests, we only want to test outputs by key, as there is a large dictionary of outputs for any given reducer input
+
+        args:
+            inputs is a valid input to the reducer
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
+                pairs in the expected reducer output
+        '''
+        self._check_output_by_key(inputs, column_values)
+
     def test_any_activity(self):
         inputs = [
             ('', '/foo', '{}', self.DATE)

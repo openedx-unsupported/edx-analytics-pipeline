@@ -132,8 +132,14 @@ class LastCountryForEachUserReducerTestCase(ReducerTestMixin, unittest.TestCase)
         self.reduce_key = self.username
 
     def _check_output(self, inputs, expected):
-        """Compare generated with expected output."""
-        self.assertEquals(self._get_reducer_output(inputs), expected)
+        '''
+        for these tests, we want to check that the whole output tuple is equal to the whole expected tuple
+
+        args:
+            inputs is a valid input to the reducer
+            expected is the tuple of expected reducer outputs
+        '''
+        return self._check_output_complete_tuple(inputs, expected)
 
     def test_no_ip(self):
         self.assert_no_output([])

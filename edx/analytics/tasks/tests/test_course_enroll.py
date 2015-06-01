@@ -106,8 +106,14 @@ class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
         self.reduce_key = ('course', 'user')
 
     def _check_output(self, inputs, expected):
-        """Compare generated with expected output."""
-        self.assertEquals(self._get_reducer_output(inputs), expected)
+        '''
+        for these tests, we want to check that the whole output tuple is equal to the whole expected tuple
+
+        args:
+            inputs is a valid input to the reducer
+            expected is the tuple of expected reducer outputs
+        '''
+        return self._check_output_complete_tuple(inputs, expected)
 
     def test_single_enrollment(self):
         inputs = [('2013-01-01T00:00:01', 1), ]
@@ -147,8 +153,7 @@ class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
             ('2013-01-01T00:00:01', 1),
             ('2013-01-01T00:00:02', -1),
         ]
-        expected = tuple()
-        self._check_output(inputs, expected)
+        self.assert_no_output(inputs)
 
     def test_multiple_enroll_events_on_same_day(self):
         inputs = [
@@ -210,24 +215,35 @@ class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
 
 #TODO: this class
 
-class CourseEnrollChangesReduceTest(unittest.TestCase):
+class CourseEnrollChangesReduceTest(ReducerTestMixin, unittest.TestCase):
     """
     Verify that CourseEnrollmentChangesPerDayMixin.reduce() works correctly.
     """
     def setUp(self):
-        self.task = CourseEnrollmentChangesPerDayMixin()
-        self.key = ('course', '2013-01-01')
+        self.task_class = CourseEnrollmentChangesPerDayMixin
+        super(CourseEnrollChangesReduceTest, self).setUp()
 
-    def _get_reducer_output(self, values):
-        """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.key, values))
+        self.reduce_key = ('course', '2013-01-01')
+
+    def _check_output(self, inputs, expected):
+        '''
+        for these tests, we want to check that the whole output tuple is equal to the whole expected tuple
+
+        args:
+            inputs is a valid input to the reducer
+            expected is the tuple of expected reducer outputs
+        '''
+        return self._check_output_complete_tuple(inputs, expected)
 
     def test_no_user_counts(self):
-        self.assertEquals(self._get_reducer_output([]), ((self.key, 0),))
+        expected = ((self.reduce_key, 0),)
+        self._check_output([], expected)
 
     def test_single_user_count(self):
-        self.assertEquals(self._get_reducer_output([1]), ((self.key, 1),))
+        expected = ((self.reduce_key, 1),)
+        self._check_output([1], expected)
 
     def test_multiple_user_count(self):
         inputs = [1, 1, 1, -1, 1]
-        self.assertEquals(self._get_reducer_output(inputs), ((self.key, 3),))
+        expected = ((self.reduce_key, 3),)
+        self._check_output(inputs, expected)

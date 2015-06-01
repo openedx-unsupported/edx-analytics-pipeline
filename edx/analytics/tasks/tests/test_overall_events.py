@@ -19,12 +19,6 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittes
         self.task_class = TotalEventsDailyTask
         super(TotalEventsTaskMapTest, self).setUp()
 
-        # fake_param = luigi.DateIntervalParameter()
-        # self.task = TotalEventsDailyTask(
-        #      interval=fake_param.parse('2014-12-05'),
-        #      output_root='/fake/output'
-        # )
-
         self.initialize_ids()
         self.task.init_local()
 
@@ -122,17 +116,17 @@ class TotalEventsTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self.task_class = TotalEventsDailyTask
         super(TotalEventsTaskReducerTest, self).setUp()
 
-        # self.interval = '2013-12-17'
-        # fake_param = luigi.DateIntervalParameter()
-        # self.task = TotalEventsDailyTask(
-        #     interval=fake_param.parse(self.interval),
-        #     output_root="/fake/output"
-        # )
         self.reduce_key = '2013-12-17T00:00:01'
 
     def _check_output(self, inputs, expected):
-        """Compare generated with expected output."""
-        self.assertEquals(tuple(self._get_reducer_output(inputs)), expected)
+        '''
+        for these tests, we want to check that the whole output tuple is equal to the whole expected tuple
+
+        args:
+            inputs is a valid input to the reducer
+            expected is the tuple of expected reducer outputs
+        '''
+        return self._check_output_complete_tuple(inputs, expected)
 
     def test_one_event_count(self):
         inputs = [1, ]
