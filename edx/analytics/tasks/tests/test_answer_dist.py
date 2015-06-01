@@ -668,8 +668,6 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
             response_type="nonsenseresponse",
         )
         input_data = (self.timestamp, json.dumps(answer_data))
-        #TODO: remove commented line
-        #self.assertEquals(self._get_reducer_output([input_data]), tuple())
         self.assert_no_output([input_data])
 
     @with_luigi_config('answer-distribution', 'valid_response_types', OPTION_REMOVED)
@@ -678,8 +676,6 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
             response_type="nonsenseresponse",
         )
         input_data = (self.timestamp, json.dumps(answer_data))
-        #TODO: remove commented line
-        # self.assertEquals(self._get_reducer_output([input_data]), tuple())
         self.assert_no_output([input_data])
 
     @with_luigi_config('answer-distribution', 'valid_response_types', OPTION_REMOVED)
@@ -913,11 +909,13 @@ class AnswerDistributionPerCourseLegacyReduceTest(InitializeLegacyKeysMixin, Ans
     pass
 
 #TODO: this class doesn't need to get changed?
-class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase, ReducerTestMixin):
+class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMixin, unittest.TestCase):
     """Tests for AnswerDistributionOneFilePerCourseTask class."""
 
     def setUp(self):
+        self.task_class = AnswerDistributionOneFilePerCourseTask
         super(AnswerDistributionOneFilePerCourseTaskTest, self).setUp()
+
         self.task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
             src=None,
@@ -928,9 +926,7 @@ class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase, ReducerTestM
         )
 
     def test_map_single_value(self):
-        key, value = next(self.task.mapper('foo\tbar'))
-        self.assertEquals(key, 'foo')
-        self.assertEquals(value, 'bar')
+        self.assert_single_map_output('foo\tbar', 'foo', 'bar')
 
     def test_reduce_multiple_values(self):
         field_names = AnswerDistributionPerCourseMixin.get_column_order()
