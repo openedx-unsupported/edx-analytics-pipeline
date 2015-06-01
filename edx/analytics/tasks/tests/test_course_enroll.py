@@ -213,8 +213,6 @@ class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
         )
         self._check_output(inputs, expected)
 
-#TODO: this class
-
 class CourseEnrollChangesReduceTest(ReducerTestMixin, unittest.TestCase):
     """
     Verify that CourseEnrollmentChangesPerDayMixin.reduce() works correctly.

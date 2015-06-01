@@ -201,21 +201,13 @@ class LastCountryForEachUserReducerTestCase(ReducerTestMixin, unittest.TestCase)
         expected = (((FakeGeoLocation.country_name_1, UNKNOWN_CODE), self.username),)
         self._check_output(inputs, expected)
 
-#TODO: this looks incomplete, but if it were complete I should refactor it
-#into a mapper test and a reducer test
-class UsersPerCountryTestCase(unittest.TestCase):
+class UsersPerCountryTestCase(MapperTestMixin, ReducerTestMixin, unittest.TestCase):
     """Tests of UsersPerCountry."""
 
     def setUp(self):
-        self.end_date = '2014-04-01',
-        self.task = UsersPerCountry(
-            mapreduce_engine='local',
-            name='test',
-            src=['test://input/'],
-            dest='test://output/',
-            end_date=self.end_date,
-            geolocation_data='test://data/data.file',
-        )
+        self.task_class = UsersPerCountry
+        self.end_date = datetime.date(2014, 4, 1),
+        super(UsersPerCountryTestCase, self).setUp()
 
     def _create_input_line(self, country, code, username):
         """Generates input matching what LastCountryForEachUser.reducer() would produce."""
@@ -223,17 +215,18 @@ class UsersPerCountryTestCase(unittest.TestCase):
 
     def test_mapper_on_normal(self):
         line = self._create_input_line("COUNTRY", "CODE", "USER")
-        self.assertEquals(tuple(self.task.mapper(line)), ((('COUNTRY', 'CODE'), 1),))
+        self.assert_single_map_output(line, ('COUNTRY', 'CODE'), 1)
+        #self.assertEquals(tuple(self.task.mapper(line)), ((('COUNTRY', 'CODE'), 1),))
 
     def test_mapper_with_empty_country(self):
         line = self._create_input_line("", "CODE", "USER")
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
+        self.assert_no_map_output_for(line)
 
     def test_reducer(self):
-        key = ("Country_1", "Code_1")
+        self.reduce_key = ("Country_1", "Code_1")
         values = [34, 29, 102]
-        expected = ((key, sum(values), self.end_date),)
-        self.assertEquals(tuple(self.task.reducer(key, values)), expected)
+        expected = ((self.reduce_key, sum(values), datetime.date(2014, 4, 1)),)
+        self._check_output_complete_tuple(values, expected)
 
 
 class UsersPerCountryReportTestCase(unittest.TestCase):

@@ -1,13 +1,8 @@
 """Utility mixins that simplify tests for map reduce jobs."""
-import inspect
 import json
 import datetime
 
 import luigi
-from luigi.date_interval import Year
-from edx.analytics.tasks.location_per_course import LastCountryOfUser
-from edx.analytics.tasks.user_location import LastCountryForEachUser
-
 
 class MapperTestMixin(object):
     """
@@ -19,6 +14,19 @@ class MapperTestMixin(object):
     DEFAULT_USER_ID = 10
     DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
     DEFAULT_DATE = "2013-12-17"
+    #dictionary of the default values for arguments to various task constructors; if not told otherwise, the needed values for the
+    #task constructor will be pulled from this dictionary
+    DEFAULT_ARGS = {
+        'interval' : DEFAULT_DATE,
+        'output_root' : '/fake/output',
+        'end_date' : datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'geolocation_data' : 'test://data/data.file',
+        'mapreduce_engine' : 'local',
+        'user_country_output' : 'test://output/',
+        'name' : 'test',
+        'src'  : ['test://input/'],
+        'dest' : 'test://output/'
+    }
 
     task_class = None
 
@@ -30,33 +38,24 @@ class MapperTestMixin(object):
         else:
             self.create_task()
 
-    def create_task(self, interval=None):
+    def create_task(self, **kwargs):
         """Allow arguments to be passed to the task constructor."""
-        if not interval:
-            interval = self.DEFAULT_DATE
-        #LastCountryForEachUser is nonstandard (and slated for deprecation),
-        #not using the same interval and output_root args as the other classes,
-        #so we have a separate task initializer for it
-        if hasattr(self.task_class, 'interval') and hasattr(self.task_class, 'output_root'):
-            self.task = self.task_class(
-                interval=luigi.DateIntervalParameter().parse(interval),
-                output_root='/fake/output',
-            )
-        elif hasattr(self, 'interval'):
-            self.task = self.task_class(
-                interval=luigi.DateIntervalParameter().parse(interval),
-                output_root='/fake/output',
-            )
-        elif self.task_class == LastCountryForEachUser:
-            self.task = self.task_class(name='test', src=['test://input/'], dest='test://output/',
-                  end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
-                  geolocation_data='test://data/data.file')
-        elif self.task_class == LastCountryOfUser:
-                    self.task = self.task_class(
-            mapreduce_engine='local',
-            user_country_output='test://output/',
-            interval=Year.parse('2013'),
-        )
+
+        new_kwargs = {}
+        for attr in self.DEFAULT_ARGS:
+            if not hasattr(self.task_class, attr):
+                continue
+            if attr in kwargs:
+                if attr == 'interval':
+                    new_kwargs[attr] = luigi.DateIntervalParameter().parse(kwargs.get(attr))
+                else:
+                    new_kwargs[attr] = kwargs.get(attr)
+            else:
+                if attr == 'interval':
+                    new_kwargs[attr] = luigi.DateIntervalParameter().parse(self.DEFAULT_ARGS.get(attr))
+                else:
+                    new_kwargs[attr] = self.DEFAULT_ARGS.get(attr)
+        self.task = self.task_class(**new_kwargs)
 
         self.task.init_local()
 
@@ -115,36 +114,43 @@ class ReducerTestMixin(object):
     DATE = '2013-12-17'
     COURSE_ID = 'foo/bar/baz'
     USERNAME = 'test_user'
+    #dictionary of the default values for arguments to various task constructors; if not told otherwise, the needed values for the
+    #task constructor will be pulled from this dictionary
+    DEFAULT_ARGS = {
+        'interval' : DATE,
+        'output_root' : '/fake/output',
+        'end_date' : datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'geolocation_data' : 'test://data/data.file',
+        'mapreduce_engine' : 'local',
+        'user_country_output' : 'test://output/',
+        'name' : 'test',
+        'src'  : ['test://input/'],
+        'dest' : 'test://output/'
+    }
+
 
 
     reduce_key = tuple()
     task_class = None
 
     def setUp(self):
-        if hasattr(self.task_class, 'interval') and hasattr(self.task_class, 'output_root'):
-            if (not hasattr(self, 'interval')) or self.interval is None:
-                self.task = self.task_class(
-                    interval=luigi.DateIntervalParameter().parse('2013-12-17'),
-                    output_root='/fake/output',
-                )
-            else: #if we have a predifined interval already, use it
-                self.task = self.task_class(
-                    interval=luigi.DateIntervalParameter().parse(self.interval),
-                    output_root='/fake/output',
-                )
-        elif self.task_class == LastCountryForEachUser:
-            self.task = self.task_class(name='test', src=['test://input/'], dest='test://output/',
-                  end_date=datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
-                  geolocation_data='test://data/data.file')
-        elif self.task_class == LastCountryOfUser:
-            self.task = self.task_class(
-                mapreduce_engine='local',
-                user_country_output='test://output/',
-                interval=Year.parse('2014'),
-            )
-        else: #TODO: temporary fix for tiny test class at the end of test_course_enroll
-            self.task = self.task_class()
-            return
+
+        new_kwargs = {}
+        for attr in self.DEFAULT_ARGS:
+            #if the attribute isn't needed, or if it's already set, don't pull from the default values
+            if not hasattr(self.task_class, attr):
+                continue
+            if getattr(self, attr, None) is not None:
+                if attr == 'interval':
+                    new_kwargs[attr] = luigi.DateIntervalParameter().parse(getattr(self, attr))
+                else:
+                    new_kwargs[attr] = getattr(self, attr)
+            else:
+                if attr == 'interval':
+                    new_kwargs[attr] = luigi.DateIntervalParameter().parse(self.DEFAULT_ARGS.get(attr))
+                else:
+                    new_kwargs[attr] = self.DEFAULT_ARGS.get(attr)
+        self.task = self.task_class(**new_kwargs)
 
         self.task.init_local()
         self.reduce_key = tuple()

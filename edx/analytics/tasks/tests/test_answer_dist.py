@@ -23,8 +23,6 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
-
 
 class ProblemCheckEventBaseTest(unittest.TestCase, MapperTestMixin, ReducerTestMixin):
     """Base test class for testing ProblemCheckEventMixin."""
