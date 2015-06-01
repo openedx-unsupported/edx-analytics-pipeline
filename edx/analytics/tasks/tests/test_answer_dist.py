@@ -198,25 +198,14 @@ class ProblemCheckEventMapTest(InitializeOpaqueKeysMixin, ProblemCheckEventBaseT
         line = self._create_event_dict(context=None)
         self.assert_no_map_output_for(line)
 
-    #TODO: talk about this stuff
     def test_good_problem_check_event(self):
         event = self._create_event_dict()
         line = json.dumps(event)
-        mapper_output = tuple(self.task.mapper(line))
         expected_data = self._create_problem_data_dict()
-        expected_key = self.reduce_key
-        #self.assert_single_map_output_weak_weak(line, expected_key, expected_data) #does this supersede all this stuff?
-        self.assertEquals(len(mapper_output), 1)
-        self.assertEquals(len(mapper_output[0]), 2)
-        self.assertEquals(mapper_output[0][0], expected_key)
-        self.assertEquals(len(mapper_output[0][1]), 2)
-        self.assertEquals(mapper_output[0][1][0], self.timestamp)
         # apparently the output of json.dumps() is not consistent enough
         # to compare, due to ordering issues.  So compare the dicts
         # rather than the JSON strings.
-        actual_info = mapper_output[0][1][1]
-        actual_data = json.loads(actual_info)
-        self.assertEquals(actual_data, expected_data)
+        self.assert_single_map_output_load_jsons(line, self.reduce_key, (self.timestamp, expected_data))
 
 
 class ProblemCheckEventLegacyMapTest(InitializeLegacyKeysMixin, ProblemCheckEventMapTest):

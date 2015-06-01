@@ -55,8 +55,8 @@ class MapperTestMixin(object):
                     new_kwargs[attr] = luigi.DateIntervalParameter().parse(self.DEFAULT_ARGS.get(attr))
                 else:
                     new_kwargs[attr] = self.DEFAULT_ARGS.get(attr)
-        self.task = self.task_class(**new_kwargs)
 
+        self.task = self.task_class(**new_kwargs)
         self.task.init_local()
 
     def create_event_log_line(self, **kwargs):
@@ -81,20 +81,31 @@ class MapperTestMixin(object):
         self.assertEquals(expected_key, actual_key)
         self.assertEquals(expected_value, actual_value)
 
-    #TODO: talk about this issue with someone
-    def assert_single_map_output_weak(self, line, expected_key, expected_value):
-        """Assert that an input line generates exactly one output record with the expected key and value, but compares
-        dicts rather than JSON strings to avoid issues of inconsistent ordering arising from json.dumps()"""
+    def assert_single_map_output_load_jsons(self, line, expected_key, expected_value):
+        """
+        Checks if two tuples are equal, but loading jsons and comparing dictionaries rather than comparing JSON strings directly
+            due to ordering issues
+
+        args:
+            values is a tuple, possibly including json strings
+            expected is a tuple, possibly including dictionaries to be compared with the json strings in values
+        """
         mapper_output = tuple(self.task.mapper(line))
         self.assertEquals(len(mapper_output), 1)
         row = mapper_output[0]
         self.assertEquals(len(row), 2)
         actual_key, actual_value = row
-        self.assertEquals(expected_key, actual_key)
-        #actual_info = mapper_output[0][1][1]
-        actual_data = json.loads(actual_value[1])
-        self.assertEquals(actual_data, expected_value)
+        self.assertEquals(actual_key, expected_key)
 
+        read_list = []
+        expected_list = list(expected_value)
+        for element in actual_value:
+            #load the json if we can, otherwise, just put in the elmeent
+            try:
+                read_list.append(json.loads(element))
+            except ValueError:
+                read_list.append(element)
+        self.assertEquals(read_list, expected_list)
 
     def assert_no_map_output_for(self, line):
         """Assert that an input line generates no output."""
