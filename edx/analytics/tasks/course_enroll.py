@@ -162,6 +162,12 @@ class CourseEnrollmentChangesPerDayMixin(object):
         count = sum(int(v) for v in values)
         yield key, count
 
+    def init_local(self):
+        """
+        Empty local initialization method to make this mixin of the same form as other reducer-containing tasks
+        """
+        return
+
 
 class BaseCourseEnrollmentTaskDownstreamMixin(OverwriteOutputMixin, MapReduceJobTaskMixin):
     """

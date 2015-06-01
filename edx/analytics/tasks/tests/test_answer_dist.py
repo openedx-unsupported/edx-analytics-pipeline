@@ -21,10 +21,10 @@ from edx.analytics.tasks.answer_dist import (
 )
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
-
-class ProblemCheckEventBaseTest(unittest.TestCase):
+class ProblemCheckEventBaseTest(unittest.TestCase, MapperTestMixin, ReducerTestMixin):
     """Base test class for testing ProblemCheckEventMixin."""
 
     def initialize_ids(self):
@@ -32,13 +32,31 @@ class ProblemCheckEventBaseTest(unittest.TestCase):
         raise NotImplementedError
 
     def setUp(self):
+        super(ProblemCheckEventBaseTest, self).setUp()
+
         self.initialize_ids()
         self.task = ProblemCheckEventMixin()
         self.username = 'test_user'
         self.user_id = 24
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
-        self.key = (self.course_id, self.problem_id, self.username)
+        self.reduce_key = (self.course_id, self.problem_id, self.username)
+
+        # self.event_templates = {
+        #     'problem_check' : {
+        #     "username": self.username,
+        #     "host": "test_host",
+        #     "event_source": "server",
+        #     "event_type": "problem_check",
+        #     "context": self.event_context,
+        #     "time": "{0}+00:00".format(self.timestamp),
+        #     "ip": "127.0.0.1",
+        #     "event": self.event,
+        #     "agent": "blah, blah, blah",
+        #     "page": None
+        # }
+        # }
+        # self.default_event_template = 'problem_check'
 
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
@@ -72,7 +90,7 @@ class ProblemCheckEventBaseTest(unittest.TestCase):
             "success": "incorrect",
         }
         self._update_with_kwargs(event_data, **kwargs)
-
+        # self.event = event_data
         return event_data
 
     @staticmethod
@@ -117,6 +135,7 @@ class ProblemCheckEventBaseTest(unittest.TestCase):
             "agent": "blah, blah, blah",
             "page": None
         }
+
         self._update_with_kwargs(event_dict, **kwargs)
         return event_dict
 
@@ -124,82 +143,69 @@ class ProblemCheckEventBaseTest(unittest.TestCase):
 class ProblemCheckEventMapTest(InitializeOpaqueKeysMixin, ProblemCheckEventBaseTest):
     """Tests to verify that event log parsing by mapper works correctly."""
 
-    def assert_no_output_for(self, line):
-        """Assert that an input line generates no output."""
-        self.assertEquals(tuple(self.task.mapper(line)), tuple())
-
     def test_non_problem_check_event(self):
         line = 'this is garbage'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_unparseable_problem_check_event(self):
         line = 'this is garbage but contains problem_check'
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_browser_event_source(self):
-        line = self._create_event_log_line(event_source='browser')
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(event_source='browser')
+        self.assert_no_map_output_for(line)
 
     def test_missing_event_source(self):
-        line = self._create_event_log_line(event_source=None)
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(event_source=None)
+        self.assert_no_map_output_for(line)
 
     def test_missing_username(self):
-        line = self._create_event_log_line(username=None)
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(username=None)
+        self.assert_no_map_output_for(line)
 
     def test_missing_event_type(self):
         event_dict = self._create_event_dict()
         event_dict['old_event_type'] = event_dict['event_type']
         del event_dict['event_type']
         line = json.dumps(event_dict)
-        self.assert_no_output_for(line)
+        self.assert_no_map_output_for(line)
 
     def test_implicit_problem_check_event_type(self):
-        line = self._create_event_log_line(event_type='implicit/event/ending/with/problem_check')
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(event_type='implicit/event/ending/with/problem_check')
+        self.assert_no_map_output_for(line)
 
     def test_bad_datetime(self):
-        line = self._create_event_log_line(time='this is a bogus time')
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(time='this is a bogus time')
+        self.assert_no_map_output_for(line)
 
     def test_bad_event_data(self):
-        line = self._create_event_log_line(event=["not an event"])
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(event=["not an event"])
+        self.assert_no_map_output_for(line)
 
     def test_missing_course_id(self):
-        line = self._create_event_log_line(context={})
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(context={})
+        self.assert_no_map_output_for(line)
 
     def test_illegal_course_id(self):
-        line = self._create_event_log_line(course_id=";;;;bad/id/val")
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(course_id=";;;;bad/id/val")
+        self.assert_no_map_output_for(line)
 
     def test_missing_problem_id(self):
-        line = self._create_event_log_line(problem_id=None)
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(problem_id=None)
+        self.assert_no_map_output_for(line)
 
     def test_missing_context(self):
-        line = self._create_event_log_line(context=None)
-        self.assert_no_output_for(line)
+        line = self._create_event_dict(context=None)
+        self.assert_no_map_output_for(line)
 
     def test_good_problem_check_event(self):
         event = self._create_event_dict()
         line = json.dumps(event)
-        mapper_output = tuple(self.task.mapper(line))
         expected_data = self._create_problem_data_dict()
-        expected_key = self.key
-        self.assertEquals(len(mapper_output), 1)
-        self.assertEquals(len(mapper_output[0]), 2)
-        self.assertEquals(mapper_output[0][0], expected_key)
-        self.assertEquals(len(mapper_output[0][1]), 2)
-        self.assertEquals(mapper_output[0][1][0], self.timestamp)
         # apparently the output of json.dumps() is not consistent enough
         # to compare, due to ordering issues.  So compare the dicts
         # rather than the JSON strings.
-        actual_info = mapper_output[0][1][1]
-        actual_data = json.loads(actual_info)
-        self.assertEquals(actual_data, expected_data)
+        self.assert_single_map_output_load_jsons(line, self.reduce_key, (self.timestamp, expected_data))
 
 
 class ProblemCheckEventLegacyMapTest(InitializeLegacyKeysMixin, ProblemCheckEventMapTest):
@@ -212,10 +218,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
     Verify that ProblemCheckEventMixin.reduce() works correctly.
     """
 
-    def _get_reducer_output(self, values):
-        """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.key, values))
-
+    #here, we define an explicit check_output to meet the needs of answer distribution checking
     def _check_output(self, inputs, expected):
         """
         Compare generated with expected output.
@@ -333,6 +336,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
 
     def test_no_events(self):
         self._check_output([], tuple())
+        self.assert_no_output([])
 
     def test_one_answer_event(self):
         problem_data = self._create_problem_data_dict()
@@ -474,27 +478,23 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
             }
         )
 
-
 class ProblemCheckEventLegacyReduceTest(InitializeLegacyKeysMixin, ProblemCheckEventReduceTest):
     """Run same reducer() tests, but using legacy values for keys."""
     pass
 
 
-class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.TestCase, ReducerTestMixin):
     """
     Verify that AnswerDistributionPerCourseMixin.reduce() works correctly.
     """
     def setUp(self):
+        super(AnswerDistributionPerCourseReduceTest, self).setUp()
         self.initialize_ids()
         self.task = AnswerDistributionPerCourseMixin()
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
-        self.key = (self.course_id, self.answer_id)
+        self.reduce_key = (self.course_id, self.answer_id)
         self.problem_display_name = "This is the Problem for You!"
-
-    def _get_reducer_output(self, values):
-        """Run reducer with provided values hardcoded key."""
-        return tuple(self.task.reducer(self.key, values))
 
     def _check_output(self, inputs, expected):
         """Compare generated with expected output."""
@@ -555,7 +555,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
         return expected_output
 
     def test_no_user_counts(self):
-        self.assertEquals(self._get_reducer_output([]), tuple())
+        self.assert_no_output([])
 
     def test_one_answer_event(self):
         answer_data = self._get_answer_data()
@@ -657,7 +657,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
             response_type="nonsenseresponse",
         )
         input_data = (self.timestamp, json.dumps(answer_data))
-        self.assertEquals(self._get_reducer_output([input_data]), tuple())
+        self.assert_no_output([input_data])
 
     @with_luigi_config('answer-distribution', 'valid_response_types', OPTION_REMOVED)
     def test_filtered_response_type_default(self):
@@ -665,7 +665,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
             response_type="nonsenseresponse",
         )
         input_data = (self.timestamp, json.dumps(answer_data))
-        self.assertEquals(self._get_reducer_output([input_data]), tuple())
+        self.assert_no_output([input_data])
 
     @with_luigi_config('answer-distribution', 'valid_response_types', OPTION_REMOVED)
     def test_valid_response_type_default(self):
@@ -696,7 +696,9 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.
     def test_filtered_non_submission_answer(self):
         answer_data = self._get_non_submission_answer_data()
         input_data = (self.timestamp, json.dumps(answer_data))
-        self.assertEquals(self._get_reducer_output([input_data]), tuple())
+        #TODO: remove commented line
+        #self.assertEquals(self._get_reducer_output([input_data]), tuple())
+        self.assert_no_output([input_data])
 
     def test_two_answer_event_same(self):
         answer_data = self._get_answer_data()
@@ -895,11 +897,14 @@ class AnswerDistributionPerCourseLegacyReduceTest(InitializeLegacyKeysMixin, Ans
     """
     pass
 
-
-class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase):
+#TODO: this class doesn't need to get changed?
+class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMixin, unittest.TestCase):
     """Tests for AnswerDistributionOneFilePerCourseTask class."""
 
     def setUp(self):
+        self.task_class = AnswerDistributionOneFilePerCourseTask
+        super(AnswerDistributionOneFilePerCourseTaskTest, self).setUp()
+
         self.task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
             src=None,
@@ -910,9 +915,7 @@ class AnswerDistributionOneFilePerCourseTaskTest(unittest.TestCase):
         )
 
     def test_map_single_value(self):
-        key, value = next(self.task.mapper('foo\tbar'))
-        self.assertEquals(key, 'foo')
-        self.assertEquals(value, 'bar')
+        self.assert_single_map_output('foo\tbar', 'foo', 'bar')
 
     def test_reduce_multiple_values(self):
         field_names = AnswerDistributionPerCourseMixin.get_column_order()
