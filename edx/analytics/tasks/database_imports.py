@@ -302,34 +302,103 @@ class ImportCourseUserGroupUsersTask(ImportMysqlToHiveTableTask):
 
 
 class ImportShoppingCartOrder(ImportMysqlToHiveTableTask):
+    """Imports orders from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
         return 'shoppingcart_order'
 
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT(11)'),
+            ('user_id', 'INT(11)'),
+            ('currency', 'VARCHAR(8)'),
+            ('status', 'VARCHAR(32)'),
+            ('purchase_time', 'TIMESTAMP'),
+            ('bill_to_firs', 'VARCHAR(64)'),
+            ('bill_to_las', 'VARCHAR(64)'),
+            ('bill_to_street1', 'VARCHAR(128)'),
+            ('bill_to_street2', 'VARCHAR(128)'),
+            ('bill_to_city', 'VARCHAR(64)'),
+            ('bill_to_state', 'VARCHAR(8)'),
+            ('bill_to_postalcode', 'VARCHAR(16)'),
+            ('bill_to_country', 'VARCHAR(64)'),
+            ('bill_to_ccnum', 'VARCHAR(8)'),
+            ('bill_to_cardtype', 'VARCHAR(32)'),
+            ('processor_reply_dump', 'LONGTEXT'),
+            ('refunded_time', 'TIMESTAMP'),
+            ('company_name', 'VARCHAR(255)'),
+            ('company_contact_name', 'VARCHAR(255)'),
+            ('company_contact_email', 'VARCHAR(255)'),
+            ('recipient_name', 'VARCHAR(255)'),
+            ('recipient_email', 'VARCHAR(255)'),
+            ('customer_reference_number', 'VARCHAR(63)'),
+            ('order_type', 'VARCHAR(32)'),
+        ]
+
 
 class ImportShoppingCartOrderItem(ImportMysqlToHiveTableTask):
+    """Imports individual order items from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
         return 'shoppingcart_orderitem'
 
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT(11)'),
+            ('order_id', 'INT(11)'),
+            ('user_id', 'INT(11)'),
+            ('status', 'VARCHAR(32)'),
+            ('qty', 'int(11)'),
+            ('unit_cost', 'STRING'),
+            ('line_desc', 'VARCHAR(1024)'),
+            ('currency', 'VARCHAR(8)'),
+            ('fulfilled_time', 'TIMESTAMP'),
+            ('report_comments', 'LONGTEXT'),
+            ('refund_requested_time', 'TIMESTAMP'),
+            ('service_fee', 'STRING'),
+            ('list_price', 'STRING'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+        ]
 
 class ImportShoppingCartCertificateItem(ImportMysqlToHiveTableTask):
+    """Imports certificate items from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
         return 'shoppingcart_certificateitem'
 
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT(11)'),
+            ('course_id', 'VARCHAR(128)'),
+            ('course_enrollment_id', 'INT(11)'),
+            ('mode', 'VARCHAR(50)'),
+        ]
 
 class ImportShoppingCartPaidCourseRegistration(ImportMysqlToHiveTableTask):
+    """Imports paid course registrations from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
         return 'shoppingcart_paidcourseregistration'
 
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT(11)'),
+            ('course_id', 'VARCHAR(128)'),
+            ('mode', 'VARCHAR(50)'),
+            ('course_enrollment_id', 'INT(11)'),
+        ]
 
 class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
+    """Imports donations from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
@@ -338,21 +407,30 @@ class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
     @property
     def columns(self):
         return [
-            ('orderitem_ptr_id', 'INT'),
-            ('donation_type', 'STRING'),
-            ('course_id', 'STRING'),
+            ('orderitem_ptr_id', 'INT(11)'),
+            ('donation_type', 'VARCHAR(32)'),
+            ('course_id', 'VARCHAR(255)'),
         ]
 
 
 class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
+    """Imports course registration codes from an external LMS DB shopping cart table to a destination directory."""
 
     @property
     def table_name(self):
         return 'shoppingcart_courseregcodeitem'
 
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT(11)'),
+            ('course_id', 'VARCHAR(128)'),
+            ('mode', 'VARCHAR(50)'),
+        ]
 
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
+    
     def requires(self):
         kwargs = {
             'destination': self.destination,
