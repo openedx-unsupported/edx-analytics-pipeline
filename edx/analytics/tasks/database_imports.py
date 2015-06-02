@@ -316,8 +316,8 @@ class ImportShoppingCartOrder(ImportMysqlToHiveTableTask):
             ('currency', 'VARCHAR(8)'),
             ('status', 'VARCHAR(32)'),
             ('purchase_time', 'TIMESTAMP'),
-            ('bill_to_firs', 'VARCHAR(64)'),
-            ('bill_to_las', 'VARCHAR(64)'),
+            ('bill_to_first', 'VARCHAR(64)'),
+            ('bill_to_last', 'VARCHAR(64)'),
             ('bill_to_street1', 'VARCHAR(128)'),
             ('bill_to_street2', 'VARCHAR(128)'),
             ('bill_to_city', 'VARCHAR(64)'),
@@ -336,7 +336,6 @@ class ImportShoppingCartOrder(ImportMysqlToHiveTableTask):
             ('customer_reference_number', 'VARCHAR(63)'),
             ('order_type', 'VARCHAR(32)'),
         ]
-
 
 class ImportShoppingCartOrderItem(ImportMysqlToHiveTableTask):
     """Imports individual order items from an external LMS DB shopping cart table to a destination directory."""
@@ -412,7 +411,6 @@ class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
             ('course_id', 'VARCHAR(255)'),
         ]
 
-
 class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
     """Imports course registration codes from an external LMS DB shopping cart table to a destination directory."""
 
@@ -430,7 +428,7 @@ class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
 
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
-    
+
     def requires(self):
         kwargs = {
             'destination': self.destination,
