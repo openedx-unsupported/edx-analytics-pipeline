@@ -4,6 +4,7 @@
 import luigi
 import luigi.hdfs
 
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.database_imports import DatabaseImportMixin,\
     ImportShoppingCartCertificateItem,\
     ImportShoppingCartCourseRegistrationCodeItem,\
@@ -13,7 +14,7 @@ from edx.analytics.tasks.database_imports import DatabaseImportMixin,\
     ImportShoppingCartPaidCourseRegistration
 
 
-class ShoppingCartTables(DatabaseImportMixin, luigi.WrapperTask):
+class ShoppingCartTables(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of shopping cart database tables from an external LMS RDBMS."""
 
     def requires(self):
