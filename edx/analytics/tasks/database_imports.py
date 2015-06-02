@@ -335,6 +335,14 @@ class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
     def table_name(self):
         return 'shoppingcart_donation'
 
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT'),
+            ('donation_type', 'STRING'),
+            ('course_id', 'STRING'),
+        ]
+
 
 class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
 

@@ -23,12 +23,12 @@ class ShoppingCartTables(DatabaseImportMixin, OverwriteOutputMixin, luigi.Wrappe
             'credentials': self.credentials
         }
         yield (
-            ImportShoppingCartOrder(**kwargs),
-            ImportShoppingCartOrderItem(**kwargs),
-            ImportShoppingCartCertificateItem(**kwargs),
-            ImportShoppingCartPaidCourseRegistration(**kwargs),
+            # ImportShoppingCartOrder(**kwargs),
+            # ImportShoppingCartOrderItem(**kwargs),
+            # ImportShoppingCartCertificateItem(**kwargs),
+            # ImportShoppingCartPaidCourseRegistration(**kwargs),
             ImportShoppingCartDonation(**kwargs),
-            ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
+            # ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
         )
 
     def output(self):
