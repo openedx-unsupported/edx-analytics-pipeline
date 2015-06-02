@@ -1,5 +1,5 @@
 
-"""Importing Shopping Cart Tables from the LMS."""
+"""Import Shopping Cart Tables from the LMS."""
 
 import luigi
 import luigi.hdfs
@@ -15,7 +15,7 @@ from edx.analytics.tasks.database_imports import DatabaseImportMixin,\
 
 
 class ShoppingCartTables(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
-    """Imports a set of shopping cart database tables from an external LMS RDBMS."""
+    """Imports a set of shopping cart database tables from an external LMS RDBMS into a destination directory."""
 
     def requires(self):
         kwargs = {
