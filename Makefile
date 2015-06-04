@@ -21,7 +21,7 @@ develop: requirements
 system-requirements:
 	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base
+	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/default.txt
