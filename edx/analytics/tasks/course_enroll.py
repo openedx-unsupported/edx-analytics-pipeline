@@ -123,6 +123,13 @@ class CourseEnrollmentEventsPerDayMixin(object):
 
             prev_date = this_date
 
+    def init_local(self):
+        """
+        Empty local initialization method to make this mixin of the same form as other reducer-containing tasks.
+        """
+        return
+
+
 
 class CourseEnrollmentChangesPerDayMixin(object):
     """Calculates daily changes in enrollment, given per-user net changes by date."""
@@ -161,6 +168,12 @@ class CourseEnrollmentChangesPerDayMixin(object):
         log.debug("Found key in second reducer: %s", key)
         count = sum(int(v) for v in values)
         yield key, count
+
+    def init_local(self):
+        """
+        Empty local initialization method to make this mixin of the same form as other reducer-containing tasks.
+        """
+        return
 
 
 class BaseCourseEnrollmentTaskDownstreamMixin(OverwriteOutputMixin, MapReduceJobTaskMixin):

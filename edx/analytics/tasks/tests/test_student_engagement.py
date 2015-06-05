@@ -261,7 +261,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('', '/foo', '{}', self.DATE)
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.PROBLEMS_ATTEMPTED_COLUMN: 0,
             self.PROBLEM_ATTEMPTS_COLUMN: 0,
@@ -278,7 +278,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('i4x://foo/bar/baz', 'problem_check', json.dumps({'correct': True}), self.DATE)
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.PROBLEMS_ATTEMPTED_COLUMN: 1,
             self.PROBLEM_ATTEMPTS_COLUMN: 1,
@@ -289,7 +289,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('i4x://foo/bar/baz', 'problem_check', '{}', self.DATE)
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.PROBLEMS_ATTEMPTED_COLUMN: 1,
             self.PROBLEM_ATTEMPTS_COLUMN: 1,
@@ -302,7 +302,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('i4x://foo/bar/baz', 'problem_check', json.dumps({'correct': True}), self.DATE),
             ('i4x://foo/bar/baz', 'problem_check', '{}', self.DATE)
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.PROBLEMS_ATTEMPTED_COLUMN: 1,
             self.PROBLEM_ATTEMPTS_COLUMN: 3,
@@ -315,7 +315,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('i4x://foo/bar/baz2', 'problem_check', json.dumps({'correct': True}), self.DATE),
             ('i4x://foo/bar/baz', 'problem_check', '{}', self.DATE)
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.PROBLEMS_ATTEMPTED_COLUMN: 2,
             self.PROBLEM_ATTEMPTS_COLUMN: 3,
@@ -326,7 +326,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('foobarbaz', 'play_video', '{}', self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.VIDEOS_PLAYED_COLUMN: 1,
         })
@@ -337,7 +337,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foobarbaz', 'play_video', '{}', self.DATE),
             ('foobarbaz', 'play_video', '{}', self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.VIDEOS_PLAYED_COLUMN: 1,
         })
@@ -347,7 +347,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foobarbaz', 'pause_video', '{}', self.DATE),
             ('foobarbaz2', 'seek_video', '{}', self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             self.VIDEOS_PLAYED_COLUMN: 0,
         })
@@ -363,7 +363,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('', event_type, '{}', self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.WAS_ACTIVE_COLUMN: 1,
             column_num: 1,
         })
@@ -380,7 +380,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('', event_type, '{}', self.DATE),
             ('', event_type, '{}', self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             column_num: 2,
         })
 
@@ -391,7 +391,7 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 'timestamp': '2014-12-01T00:00:00.000000',
             }), self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.LAST_SUBSECTION_COLUMN: 'foobar',
         })
 
@@ -410,6 +410,6 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 'timestamp': '2014-12-01T00:00:03.000000',
             }), self.DATE),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             self.LAST_SUBSECTION_COLUMN: 'finalpath',
         })

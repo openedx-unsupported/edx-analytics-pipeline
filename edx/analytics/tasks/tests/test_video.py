@@ -404,7 +404,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.USERNAME: self.USERNAME,
             ViewingColumns.COURSE_ID: self.COURSE_ID,
             ViewingColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
@@ -420,7 +420,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -432,7 +432,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', eval('1.2e+2'), None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.END_OFFSET: 120
         })
 
@@ -443,7 +443,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:07.00000Z', 'play_video', 0, None, 'html5'),
             ('2013-12-17T00:00:12.00000Z', 'stop_video', 5, None, None),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
                 ViewingColumns.START_OFFSET: 0,
@@ -465,7 +465,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.10000Z', 'play_video', 2, None, 'html5'),
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 5, None, None),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
                 ViewingColumns.START_OFFSET: 0,
@@ -493,7 +493,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:03.10000Z', 'play_video', 3, None, 'html5'),
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 11, None, None),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
                 ViewingColumns.START_OFFSET: 0,
@@ -520,7 +520,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.60000Z', 'play_video', 6, None, 'html5'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 9, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00.600000+00:00',
             ViewingColumns.START_OFFSET: 6,
             ViewingColumns.END_OFFSET: 9,
@@ -534,7 +534,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
             ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -547,7 +547,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
             ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -565,7 +565,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:05.00000Z', '/foobar', None, None, None),
             ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -591,7 +591,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -649,7 +649,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 62.9, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 62.9,
@@ -668,7 +668,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -682,7 +682,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -703,7 +703,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
             ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
@@ -766,7 +766,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, {
+        self._check_output_by_key(inputs, {
             UsageColumns.PIPELINE_VIDEO_ID: self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
             UsageColumns.COURSE_ID: self.COURSE_ID,
             UsageColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
@@ -784,7 +784,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
             ('foo', 5, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 1,
@@ -806,7 +806,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 0, 4.6, VIDEO_UNKNOWN_DURATION),
             ('foo', 4.6, 4.9, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 1,
@@ -819,7 +819,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
             ('foo', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 1,
@@ -836,7 +836,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('foo', 0, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 1,
@@ -860,7 +860,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo2', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
             ('foo2', 4.2, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.SEGMENT: 0,
                 UsageColumns.USERS_VIEWED: 2,
@@ -896,7 +896,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
         # Note that the start and end counts are denormalized into all results, so they should have an
         # identical value in every record. Also note that the middle records are ignored here.
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
                 UsageColumns.USERS_AT_START: 2,
@@ -939,7 +939,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
         # Note that the start and end counts are denormalized into all results, so they should have an
         # identical value in every record.
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.USERS_AT_START: 2,
                 UsageColumns.USERS_AT_END: 3,
@@ -963,7 +963,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 16, 19, 40),
         ]
 
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             # Note that segment 0 is omitted since we didn't see any activity there
             {
                 UsageColumns.SEGMENT: 1,
@@ -984,7 +984,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 0, 1, 10),
             ('foo', 0, 1, 50),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: 50,
                 UsageColumns.USERS_AT_END: 0,
@@ -996,7 +996,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
             ('foo', 0, 1, 50),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: '\\N',
                 UsageColumns.USERS_AT_END: 1,
@@ -1007,7 +1007,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         inputs = [
             ('foo', 6, 8, 9.2),
         ]
-        self._check_output(inputs, [
+        self._check_output_by_key(inputs, [
             {
                 UsageColumns.VIDEO_DURATION: 9,
                 UsageColumns.USERS_AT_END: 1,
