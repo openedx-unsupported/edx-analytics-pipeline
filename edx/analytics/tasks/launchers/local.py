@@ -41,8 +41,6 @@ def main():
     configuration = luigi.configuration.get_config()
     if os.path.exists(OVERRIDE_CONFIGURATION_FILE):
         log.debug('Using override.cfg')
-        with open(OVERRIDE_CONFIGURATION_FILE, 'r') as override_file:
-            log.debug(override_file.read())
         configuration.add_config_path(OVERRIDE_CONFIGURATION_FILE)
     else:
         log.debug('override.cfg does not exist')
