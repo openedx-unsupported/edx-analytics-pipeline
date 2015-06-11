@@ -76,6 +76,10 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
+    def extra_modules(self):
+        """edx.analytics.tasks is required by all tasks that load this file."""
+        return [edx.analytics.tasks.mapreduce]
+
 
 class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstreamMixin, MapReduceJobTask):
     """
