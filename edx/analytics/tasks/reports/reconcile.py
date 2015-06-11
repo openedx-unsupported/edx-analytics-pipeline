@@ -78,6 +78,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
+        import edx.analytics.tasks.mapreduce
         return [edx.analytics.tasks.mapreduce]
 
 
@@ -120,17 +121,19 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         transactions = []
         for value in values:
             if len(value) > 10:
-                orderitems.append(OrderItemRecord(*value))
+                record = OrderItemRecord(*value)
+                # We will have already filtered out those orderitems with
+                # different status values, but for now, do it here.
+                if record.status in ['purchased', 'refunded']:
+                    orderitems.append(record)
             else:
                 transactions.append(TransactionRecord(*value))
 
         if len(transactions) == 0:
-            # We have an orderitem with no transaction.
-            # This happens when an order is begun but the
-            # user changes their mind.
-            #if len(orderitems) > 1:
-            #    log.info("Encountered duplicate (%d) order items: %s", len(orderitems), orderitems)
-
+            # We have an orderitem with no transaction.  This happens
+            # when an order is begun but the user changes their mind.
+            # But once those orders are filtered (based on status), we
+            # don't expect there to be extras.
             for orderitem in orderitems:
                 yield ("NO_TRANSACTIONS", key, orderitem, None)
             return
