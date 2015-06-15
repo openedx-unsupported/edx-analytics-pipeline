@@ -15,26 +15,48 @@ from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 log = logging.getLogger(__name__)
 
 
-ORDERITEM_FIELDS = [
-    'id',
+HACKED_ORIGINAL_ORDERITEM_FIELDS = [
+    'id',   # changes to line_item_id
     'order_id',
     'user_id',
     'status',
-    'qty',
-    'unit_cost',
-    'line_desc',
-    'currency',
+    'qty',   # changes to line_item_quantity
+    'unit_cost',   # changes to line_item_unit_price
+    'line_desc',  # changes to product_detail?  line_item_product_id
+    'currency',  # changes to iso_currency_code
     'fulfilled_time',
-    'report_comments',
+    'report_comments',  # not kept...
     'refund_requested_time',
-    'service_fee',
-    'list_price',
-    'created',
-    'modified',
+    'service_fee',  # not kept...
+    'list_price',  # not kept...
+    'created',  # not kept...
+    'modified',  # not kept...
     'course_id',
-    'course_enrollment_id',
-    'mode',
-    'donation_type',
+    'course_enrollment_id',  # not kept...
+    'mode',  # now a product_detail
+    'donation_type',  # was used for product_class
+]
+
+ORDERITEM_FIELDS = [
+    'order_processor',   # "shoppingcart" or "otto"
+    'user_id',
+    'order_id',
+    'line_item_id',
+    'line_item_product_id',
+    'line_item_price',
+    'line_item_unit_price',
+    'line_item_quantity',
+    'product_class',  # e.g. seat, donation
+    'course_id',  # Was called course_key
+    'product_detail',  # contains course mode
+    'username',
+    'user_email',
+    'date_placed',
+    'iso_currency_code',
+    'status',
+    # TODO: I don't understand how to use these...
+    'refunded_amount',
+    'refunded_quantity',
 ]
 
 OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)
@@ -107,7 +129,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         # reducer. :)
         if len(fields) > 10:
             # assume it's an order
-            key = fields[1]
+            key = fields[2]
         else:
             # assume it's a transaction
             key = fields[3]
@@ -124,8 +146,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 record = OrderItemRecord(*value)
                 # We will have already filtered out those orderitems with
                 # different status values, but for now, do it here.
-                if record.status in ['purchased', 'refunded']:
-                    orderitems.append(record)
+                # if record.status in ['purchased', 'refunded']:
+                orderitems.append(record)
             else:
                 transactions.append(TransactionRecord(*value))
 
@@ -134,41 +156,71 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             # when an order is begun but the user changes their mind.
             # But once those orders are filtered (based on status), we
             # don't expect there to be extras.
+            # That said, there seem to be a goodly number of MITProfessionalX
+            # entries that probably have transactions in a different account.
             for orderitem in orderitems:
-                yield ("NO_TRANSACTIONS", key, orderitem, None)
+                # yield ("NO_TRANSACTIONS", key, orderitem, None)
+                yield ("TRANSACTION_TABLE", self.format_transaction_table_output("ERROR_NO_TRANSACTION", None, orderitem))
             return
 
         if len(orderitems) == 0:
             # Same thing if we have transactions with no orderitems.
-            # This is likely when the transaction pull is newer than the order pull.
+            # This is likely when the transaction pull is newer than the order pull,
+            # or if a basket was charged that was not marked as a purchased order.
+            # In the latter case, if the charge was later refunded and the current balance
+            # is zero, then no further action is needed.  Otherwise either the order needs
+            # to be updated (to reflect that they did actually receive what they ordered),
+            # or the balance should be refunded (because they never received what they were charged for).
+            trans_balance = sum([Decimal(transaction.amount) for transaction in transactions])
+            code = "NO_ORDER_ZERO_BALANCE" if trans_balance == 0 else "ERROR_NO_ORDER_NONZERO_BALANCE"
             for transaction in transactions:
-                yield ("NO_ORDERITEMS", key, transaction, None)
+                # yield ("NO_ORDERITEMS", key, transaction, None)
+                yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, None))
             return
 
         # This is the location for the main form of reconciliation.
         # Let's work through some of the easy cases, and work down from there.
         if len(orderitems) == 1:
             orderitem = orderitems[0]
-            amount = Decimal(orderitem.unit_cost) * int(orderitem.qty)
-            trans_amount = sum([Decimal(transaction.amount) for transaction in transactions])
-            if amount == trans_amount:
+            # order_value = Decimal(orderitem.line_item_unit_price) * int(orderitem.line_item_quantity)
+            order_value = Decimal(orderitem.line_item_price)
+            trans_balance = sum([Decimal(transaction.amount) for transaction in transactions])
+            # Assume if the orderitem is not purchased, then it's refunded.
+            order_balance = order_value if orderitem.status == 'purchased' else 0
+            if order_balance == trans_balance:
+                code = "PURCHASE_BALANCE_MATCHING" if orderitem.status == 'purchased' else "REFUND_ZERO_BALANCE"
                 for transaction in transactions:
-                    proportion = 1.00  # we have one orderitem
-                    yield ("TRANSACTION_MATCHES", key, orderitem, transaction, proportion)
+                    # proportion = 1.00  # we have one orderitem
+                    # yield ("TRANSACTION_MATCHES", key, orderitem, transaction, proportion)
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
             else:
-                yield ("AMOUNTS_UNEQUAL", key, orderitems, transactions)
+                code = "ERROR_PURCHASE_BALANCE_NOT_MATCHING" if orderitem.status == 'purchased' else "ERROR_REFUND_NONZERO_BALANCE"
+                for transaction in transactions:
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
+                # yield ("AMOUNTS_UNEQUAL", key, orderitems, transactions)
 
         elif len(transactions) == 1:
+            # If we have multiple orderitems and a single transaction, then we assume the single transaction
+            # sums to the value of all the orderitems.
+            # TODO: check that all orderitems are actually purchases.  Assume for now....
             transaction = transactions[0]
-            amount = sum([Decimal(orderitem.unit_cost) * int(orderitem.qty) for orderitem in orderitems])
-            if amount == Decimal(transaction.amount):
+            trans_balance = Decimal(transaction.amount)
+            # order_value = sum([Decimal(orderitem.line_item_unit_price) * int(orderitem.line_item_quantity) for orderitem in orderitems])
+            order_value = sum([Decimal(orderitem.line_item_price) for orderitem in orderitems])
+            if order_value == trans_balance:
+                code = "PURCHASE_BALANCE_MATCHING"
                 for orderitem in orderitems:
-                    amount = Decimal(orderitem.unit_cost) * int(orderitem.qty)
-                    proportion = float(amount) / float(transaction.amount)
-                    yield ("TRANSACTION_MATCHES", key, orderitem, transaction, proportion)
+                    item_amount = Decimal(orderitem.line_item_unit_price) * int(orderitem.line_item_quantity)
+                    proportion = float(item_amount) / float(trans_balance)
+                    # yield ("TRANSACTION_MATCHES", key, orderitem, transaction, proportion)
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, proportion))
             else:
-                yield ("AMOUNTS_UNEQUAL", key, orderitems, transactions)
-
+                code = "ERROR_PURCHASE_BALANCE_NOT_MATCHING"
+                # yield ("AMOUNTS_UNEQUAL", key, orderitems, transactions)
+                # Because the balance doesn't match, we don't actually pass a "proportion" value on,
+                # but rather rely on the error condition to permit these to be filtered later.
+                for orderitem in orderitems:
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
         else:
             # TODO: figure out the mapping of multiple orders to multiple
             # transactions.  Easier step is to look at each single transaction
@@ -180,6 +232,42 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         filename = u'reconcile_{reconcile_type}.tsv'.format(reconcile_type="all")
         output_path = url_path_join(self.output_root, filename)
         return get_target_from_url(output_path)
+
+    def format_transaction_table_output(self, audit_code, transaction, orderitem, proportion = 1.0):
+        # TODO: When calculating the transaction fee, apply the proportion to the
+        # value provided by the transaction object.
+        transaction_fee_per_item = "0.0"
+        if orderitem:
+            org_id = get_org_id_for_course(orderitem.course_id) or ""
+        else:
+            org_id = ""
+
+        result = [
+            audit_code,
+            orderitem.order_id if orderitem else transaction.order_id,
+            orderitem.date_placed if orderitem else "",
+            transaction.date if transaction else "",
+            transaction.transaction_id if transaction else "",
+            transaction.payment_gateway_id if transaction else "",
+            transaction.payment_gateway_account_id if transaction else "",
+            transaction.transaction_type if transaction else "",
+            transaction.payment_method if transaction else "",
+            transaction.amount if transaction else "",
+            transaction.iso_currency_code if transaction else "",
+            transaction_fee_per_item,
+            orderitem.line_item_id if orderitem else "",
+            orderitem.line_item_product_id if orderitem else "",
+            orderitem.line_item_price if orderitem else "",
+            orderitem.line_item_unit_price if orderitem else "",
+            orderitem.line_item_quantity if orderitem else "",
+            orderitem.username if orderitem else "",
+            orderitem.user_email if orderitem else "",
+            orderitem.product_class if orderitem else "",
+            orderitem.product_detail if orderitem else "",
+            orderitem.course_id if orderitem else "",
+            org_id,
+        ]
+        return '\t'.join(result)
 
 
 class ReconciliationOutputTask(ReconcileOrdersAndTransactionsDownstreamMixin, MultiOutputMapReduceJobTask):
@@ -210,60 +298,10 @@ class ReconciliationOutputTask(ReconcileOrdersAndTransactionsDownstreamMixin, Mu
         filename = u'reconcile_{reconcile_type}.tsv'.format(reconcile_type=reconcile_type)
         return url_path_join(self.output_root, filename)
 
-    def format_match_output(self, value):
-        # orderitem, transaction, proportion = value
-        fields = value.split('\t')
-        num_orderitem_fields = len(ORDERITEM_FIELDS)
-        num_trans_fields = len(TRANSACTION_FIELDS)
-        # order_id = fields[0]
-        orderitem = OrderItemRecord(*fields[1:num_orderitem_fields + 1])
-        transaction = TransactionRecord(*fields[num_orderitem_fields + 1:num_orderitem_fields + num_trans_fields + 1])
-        # proportion = fields[-1]
-
-        # Set or calculate values that we don't (yet) read directly.
-        time = ""
-        audit_codes = ""
-        order_item_total_cost = str(Decimal(orderitem.unit_cost) * int(orderitem.qty))
-        # when calculating the transaction fee, apply the proportion to the
-        # value provided by the transaction object.
-        transaction_fee_per_item = "0.0"
-        line_item_product_id = ""
-        org_id = get_org_id_for_course(orderitem.course_id) or ""
-
-        result = [
-            time,
-            transaction.date,
-            transaction.transaction_id,
-            transaction.payment_gateway_id,
-            transaction.payment_gateway_account_id,
-            transaction.transaction_type,
-            transaction.payment_method,
-            transaction.amount,
-            transaction.iso_currency_code,
-            transaction_fee_per_item,
-            orderitem.id,
-            line_item_product_id,
-            order_item_total_cost,
-            orderitem.unit_cost,
-            orderitem.qty,
-            audit_codes,
-            "username_of_{}".format(orderitem.user_id),
-            "email_of_{}".format(orderitem.user_id),
-            "donation" if orderitem.donation_type != "\\n" else "seat",
-            orderitem.mode,
-            orderitem.course_id,
-            org_id,
-            orderitem.order_id,
-        ]
-        return '\t'.join(result)
-
     def format_value(self, reconcile_type, value):
         """
         Transform a value into the right format for the given reconcile_type.
         """
-        if reconcile_type == "TRANSACTION_MATCHES":
-            return self.format_match_output(value)
-
         return value
 
     def multi_output_reducer(self, key, values, output_file):
