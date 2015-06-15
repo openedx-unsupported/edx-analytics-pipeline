@@ -460,6 +460,22 @@ class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportEcommerceUser(ImportMysqlToHiveTableTask):
+    """Ecommerce: Users: Imports users from an external ecommerce table to a destination dir."""
+
+    @property
+    def table_name(self):
+        return 'ecommerce_user'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('username', 'STRING'),
+            ('email', 'STRING'),
+        ]
+
+
 class ImportProductCatalog(ImportMysqlToHiveTableTask):
     """
     Ecommerce: Products: Imports product catalog from an external ecommerce table to both a
@@ -485,6 +501,24 @@ class ImportProductCatalog(ImportMysqlToHiveTableTask):
             ('is_discountable', 'STRING'),
             ('parent_id', 'INT'),
             ('product_class_id', 'INT'),
+        ]
+
+
+class ImportProductCatalogClass(ImportMysqlToHiveTableTask):
+    """Ecommerce: Products: Imports product catalog classes from an external ecommerce table to a destination dir."""
+
+    @property
+    def table_name(self):
+        return 'catalogue_productclass'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('slug', 'STRING'),
+            ('requires_shipping', 'TINYINT'),
+            ('track_stock', 'TINYINT'),
         ]
 
 
@@ -634,7 +668,7 @@ class ImportRefundHistoricalRefund(ImportMysqlToHiveTableTask):
     def columns(self):
         return [
             ('id', 'INT'),
-            ('total_credit_excl_tax', 'STRING'),
+            ('total_credit_excl_tax', 'DECIMAL'),
             ('status', 'STRING'),
             ('history_id', 'INT'),
             ('history_date', 'TIMESTAMP'),
