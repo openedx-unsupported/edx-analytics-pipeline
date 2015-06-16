@@ -5,6 +5,7 @@ from decimal import Decimal
 import logging
 
 import luigi
+import luigi.date_interval
 
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
@@ -57,6 +58,7 @@ ORDERITEM_FIELDS = [
     # TODO: I don't understand how to use these...
     'refunded_amount',
     'refunded_quantity',
+    'payment_ref_id'
 ]
 
 OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)
@@ -91,7 +93,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'source'}
     )
 
-    interval = luigi.DateIntervalParameter(default="2014-01-01-2015-01-02")
+    interval = luigi.DateIntervalParameter(default=luigi.date_interval.Custom.parse("2014-01-01-2015-01-02"))
 
     pattern = luigi.Parameter(
         is_list=True,
@@ -129,7 +131,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         # reducer. :)
         if len(fields) > 10:
             # assume it's an order
-            key = fields[2]
+            key = fields[-1]
         else:
             # assume it's a transaction
             key = fields[3]
