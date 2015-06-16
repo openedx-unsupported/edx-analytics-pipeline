@@ -1,0 +1,2 @@
+- /etc/luigi/client.cfg is hardcoded with EMR values
+- sourcing other env.sh files from .bashrc appears not to work as expected... PATH is not modified
