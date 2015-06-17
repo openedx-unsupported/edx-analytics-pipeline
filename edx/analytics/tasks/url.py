@@ -19,7 +19,7 @@ import luigi.format
 import luigi.hdfs
 import luigi.s3
 
-from edx.analytics.tasks.s3_util import ScalableS3Client, S3HdfsTarget
+from edx.analytics.tasks.s3_util import ScalableS3Client, S3HdfsTarget, S3HadoopTarget
 
 
 class ExternalURL(luigi.ExternalTask):
@@ -66,6 +66,8 @@ def get_target_from_url(url):
     kwargs = {}
     if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
         kwargs['format'] = luigi.hdfs.PlainDir
+        if issubclass(target_class, S3HdfsTarget):
+            target_class = S3HadoopTarget
     if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
         # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
         # everything else off the url and pass that in to the target.

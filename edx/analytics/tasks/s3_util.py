@@ -211,3 +211,21 @@ class S3HdfsTarget(HdfsTarget):
             if not hasattr(self, 's3_client'):
                 self.s3_client = ScalableS3Client()
             return AtomicS3File(safe_path, self.s3_client)
+
+
+class S3HadoopTarget(S3HdfsTarget):
+
+    def __init__(self, path=None, format=Plain, is_tmp=False):
+        super(S3HadoopTarget, self).__init__(path=path, format=format, is_tmp=is_tmp)
+        self.success_marker_path = path + '_SUCCESS'
+        self.stage_output = False
+
+    def marker_exists(self):
+        self.fs.exists(self.success_marker_path)
+
+    def exists(self):
+        return self.marker_exists()
+
+    def prepare_for_output(self):
+        if not self.marker_exists() and self.fs.exists(self.path):
+            self.remove()
