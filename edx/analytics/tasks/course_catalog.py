@@ -16,13 +16,13 @@ import urllib3.contrib.pyopenssl
 urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 
-class PullFromDrupalMixin(OverwriteOutputMixin, WarehouseMixin):
+class PullFromCatalogAPIMixin(OverwriteOutputMixin, WarehouseMixin):
     """Define common parameters for Drupal course catalog pull and downstream tasks."""
 
-    run_date = luigi.DateParameter(default=datetime.date.today())
+    run_date = luigi.DateParameter(default=datetime.dateime.utcnow().date())
 
 
-class DailyPullCatalogFromDrupalTask(PullFromDrupalMixin, luigi.Task):
+class DailyPullCatalogFromCatalogAPITask(PullFromCatalogAPIMixin, luigi.Task):
     """
     A task that reads the course catalog out of Drupal and writes the result json blob to a file.
 
@@ -31,8 +31,7 @@ class DailyPullCatalogFromDrupalTask(PullFromDrupalMixin, luigi.Task):
     """
 
     CATALOG_URL = 'https://www.edx.org/api/catalog/v2/courses'
-    CATALOG_FORMAT = 'json'
-    run_date = luigi.DateParameter(default=datetime.date.today())
+    run_date = luigi.DateParameter(default=datetime.dateime.utcnow().date())
 
     def requires(self):
         pass
@@ -48,30 +47,28 @@ class DailyPullCatalogFromDrupalTask(PullFromDrupalMixin, luigi.Task):
 
     def output(self):
         """Output is in the form {warehouse_path}/catalog/{CCYY-mm-dd}/catalog.json"""
-        date_string = self.run_date.strftime('%Y%m%d')
-        filename = "catalog.{}".format(self.CATALOG_FORMAT)
-        url_with_filename = url_path_join(self.warehouse_path, "catalog", date_string, filename)
+        date_string = "dt=" + self.run_date.strftime('%Y-%m-%d')
+        url_with_filename = url_path_join(self.warehouse_path, "catalog", date_string, "catalog.json")
         return get_target_from_url(url_with_filename)
 
 
-class DailyProcessFromCatalogSubjectTask(PullFromDrupalMixin, luigi.Task):
+class DailyProcessFromCatalogSubjectTask(PullFromCatalogAPIMixin, luigi.Task):
     """
-    A task that reads a local file generated from a daily catalog pull, and writes the course id and subject to a csv.
+    A task that reads a local file generated from a daily catalog pull, and writes the course id and subject to a tsv.
 
 
     The output file should be readable by Hive.
     """
 
-    run_date = luigi.DateParameter(default=datetime.date.today())
+    run_date = luigi.DateParameter(default=datetime.dateime.utcnow().date())
 
     def requires(self):
         kwargs = {
             'run_date': self.run_date,
-            # 'host': self.host,
             'warehouse_path': self.warehouse_path,
             'overwrite': self.overwrite
         }
-        return DailyPullCatalogFromDrupalTask(**kwargs)
+        return DailyPullCatalogFromCatalogAPITask(**kwargs)
 
     def run(self):
         # Read the catalog and select just the subjects data for output
@@ -79,8 +76,10 @@ class DailyProcessFromCatalogSubjectTask(PullFromDrupalMixin, luigi.Task):
         with self.input().open('r') as input_file:
             # Since the course catalog is of fairly manageable size, we can read it all into memory at once.
             # If this needs to change, we should be able to parse the catalog course by course.
-            catalog = json.loads(input_file.read())['items']
+            catalog = json.loads(input_file.read()).get('items', None)
             with self.output().open('w') as output_file:
+                if catalog is None:
+                    return
                 for course in catalog:
                     course_id = course['course_id']
                     # This will be a list of dictionaries with keys 'title', 'uri', and 'language'.
@@ -89,24 +88,24 @@ class DailyProcessFromCatalogSubjectTask(PullFromDrupalMixin, luigi.Task):
                     # It's possible no subjects are given for the course, in which case we record the lack of subjects.
                     if subjects is None or len(subjects) == 0:
                         line = [
-                            course_id.encode('utf-8'),
-                            self.run_date,
-                            '\N'.encode('utf-8'),  # pylint: disable-msg=W1402
-                            '\N'.encode('utf-8'),  # pylint: disable-msg=W1402
-                            '\N'.encode('utf-8')  # pylint: disable-msg=W1402
+                            course_id,
+                            self.run_date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
+                            '\N',
+                            '\N',
+                            '\N'
                         ]
-                        output_file.write('\t'.join(line))
+                        output_file.write('\t'.join([v.encode('utf-8') for v in line]))
                         output_file.write('\n')
                     else:
                         for subject in subjects:
                             line = [
-                                course_id.encode('utf-8'),
-                                str(self.run_date),
-                                subject.get('uri', '\N').encode('utf-8'),  # pylint: disable-msg=W1402
-                                subject.get('title', '\N').encode('utf-8'),  # pylint: disable-msg=W1402
-                                subject.get('language', '\N').encode('utf-8')  # pylint: disable-msg=W1402
+                                course_id,
+                                self.run_date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
+                                subject.get('uri', '\N'),
+                                subject.get('title', '\N'),
+                                subject.get('language', '\N')
                             ]
-                            output_file.write('\t'.join(line))
+                            output_file.write('\t'.join([v.encode('utf-8') for v in line]))
                             output_file.write('\n')
 
     def output(self):
@@ -125,7 +124,8 @@ class DailyProcessFromCatalogSubjectTask(PullFromDrupalMixin, luigi.Task):
 class DailyLoadSubjectsToVerticaTask(VerticaCopyTask):
     """Does the bulk loading of the subjects data into Vertica."""
 
-    run_date = luigi.DateParameter(default=datetime.date.today())
+    run_date = luigi.DateParameter(default=datetime.dateime.utcnow().date())
+    table = luigi.Parameter()
 
     @property
     def insert_source_task(self):
@@ -133,15 +133,16 @@ class DailyLoadSubjectsToVerticaTask(VerticaCopyTask):
 
     @property
     def table(self):
-        return "experimental.d_course_subjects"
+        return "d_course_subjects"
 
     @property
     def auto_primary_key(self):
+        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
         return None
 
     @property
     def default_columns(self):
-        """List of tuples defining name and definition of automatically-filled columns."""
+        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
         return None
 
     @property
@@ -156,7 +157,7 @@ class DailyLoadSubjectsToVerticaTask(VerticaCopyTask):
         ]
 
 
-class CourseCatalogWorkflow(PullFromDrupalMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+class CourseCatalogWorkflow(PullFromCatalogAPIMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
     """Upload the course catalog to the data warehouse."""
 
     def requires(self):

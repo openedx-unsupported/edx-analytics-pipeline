@@ -28,7 +28,7 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
     Parameters for copying a database into Vertica.
 
         credentials: Path to the external access credentials file.
-        database:  The name of the database to which to write.
+        database:  The schema to which to write (called database to keep the code analogous to that for MySQL).
         insert_chunk_size:  The number of rows to insert at a time.
 
     """
@@ -94,12 +94,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         By default it will be created using types (optionally) specified in columns.
 
         If overridden, use the provided connection object for setting
-        up the table in order to create the table and insert data
+        up the schema in order to create the schema and insert data
         using the same transaction.
         """
-        # In Vertica, tables are specified as schema_name.table_name, so just the first part of the table is needed.
-        schema = self.table.split('.')[0]
-        query = "CREATE SCHEMA IF NOT EXISTS {schema}".format(schema)
+        query = "CREATE SCHEMA IF NOT EXISTS {schema}".format(self.database)
         log.debug(query)
         connection.cursor().execute(query)
 
@@ -136,8 +134,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         coldefs = ','.join(
             '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
         )
-        query = "CREATE TABLE IF NOT EXISTS {table} ({coldefs})".format(
-            table=self.table, coldefs=coldefs
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs})".format(
+            schema=self.database, table=self.table, coldefs=coldefs
         )
         log.debug(query)
         connection.cursor().execute(query)
@@ -150,7 +148,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def output(self):
         """
-        Returns a MysqlTarget representing the inserted dataset.
+        Returns a VerticaTarget representing the inserted dataset.
 
         Normally you don't override this.
         """
