@@ -11,7 +11,7 @@ import re
 
 import luigi
 
-from edx.analytics.tasks.calendar import CalendarTableTask
+from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
     ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
 from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask

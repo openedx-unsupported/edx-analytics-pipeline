@@ -2,7 +2,7 @@
 
 from luigi import date_interval
 
-from edx.analytics.tasks.calendar import CalendarTask
+from edx.analytics.tasks.calendar_task import CalendarTask
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.target import FakeTarget
