@@ -199,7 +199,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 orderitems.append(record)
             else:
                 if value[6] == '\\N':
-                    value[6] = '0.0'
+                    value[6] = None
                 transactions.append(TransactionRecord(*value))
 
         if len(transactions) == 0:
@@ -291,7 +291,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 for orderitem in orderitems:
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
                     item_amount = Decimal(orderitem.line_item_price)
-                    self.format_transaction_table_output(code, transaction, orderitem, item_amount)
+                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
             else:
                 for index, orderitem in enumerate(orderitems):
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
@@ -312,57 +312,57 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         return get_target_from_url(self.output_root)
 
     def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None):
-        transaction_fee_per_item = "0.0"
-        if transaction_amount_per_item is None:
-            transaction_amount_per_item = transaction.amount if transaction else ""
+        if transaction and transaction_amount_per_item is None:
+            transaction_amount_per_item = transaction.amount
 
-        if transaction:
+        transaction_fee_per_item = None
+        if transaction and transaction.transaction_fee is not None:
             if transaction.amount == transaction_amount_per_item:
                 transaction_fee_per_item = str(transaction.transaction_fee)
             else:
                 proportion = Decimal(transaction_amount_per_item) / Decimal(transaction.amount)
                 transaction_fee_per_item = str(Decimal(transaction.transaction_fee) * proportion)
-        transaction_amount_per_item = str(transaction_amount_per_item)
 
+        NULL = "\\N"
+
+        org_id = None
         if orderitem:
-            org_id = get_org_id_for_course(orderitem.course_id) or ""
-        else:
-            org_id = ""
+            org_id = get_org_id_for_course(orderitem.course_id)
 
         result = [
             audit_code,
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
-            orderitem.order_id if orderitem else "",
-            orderitem.date_placed if orderitem else "",
+            orderitem.order_id if orderitem else NULL,
+            orderitem.date_placed if orderitem else NULL,
             # transaction information
-            transaction.date if transaction else "",
-            transaction.transaction_id if transaction else "",
-            transaction.payment_gateway_id if transaction else "",
-            transaction.payment_gateway_account_id if transaction else "",
-            transaction.transaction_type if transaction else "",
-            transaction.payment_method if transaction else "",
-            transaction.amount if transaction else "",
-            transaction.iso_currency_code if transaction else "",
-            transaction.transaction_fee if transaction else "",
+            transaction.date if transaction else NULL,
+            transaction.transaction_id if transaction else NULL,
+            transaction.payment_gateway_id if transaction else NULL,
+            transaction.payment_gateway_account_id if transaction else NULL,
+            transaction.transaction_type if transaction else NULL,
+            transaction.payment_method if transaction else NULL,
+            transaction.amount if transaction else NULL,
+            transaction.iso_currency_code if transaction else NULL,
+            transaction.transaction_fee if transaction else NULL,
             # mapping information: part of transaction that applies to this orderitem
-            transaction_amount_per_item,
-            transaction_fee_per_item,
+            str(transaction_amount_per_item) if transaction_amount_per_item is not None else NULL,
+            str(transaction_fee_per_item) if transaction_fee_per_item is not None else NULL,
             # orderitem information
-            orderitem.line_item_id if orderitem else "",
-            orderitem.line_item_product_id if orderitem else "",
-            orderitem.line_item_price if orderitem else "",
-            orderitem.line_item_unit_price if orderitem else "",
-            orderitem.line_item_quantity if orderitem else "",
-            orderitem.refunded_amount if orderitem else "",
-            orderitem.refunded_quantity if orderitem else "",
-            orderitem.user_id if orderitem else "",
-            orderitem.username if orderitem else "",
-            orderitem.user_email if orderitem else "",
-            orderitem.product_class if orderitem else "",
-            orderitem.product_detail if orderitem else "",
-            orderitem.course_id if orderitem else "",
-            org_id,
-            orderitem.order_processor if orderitem else "",
+            orderitem.line_item_id if orderitem else NULL,
+            orderitem.line_item_product_id if orderitem else NULL,
+            orderitem.line_item_price if orderitem else NULL,
+            orderitem.line_item_unit_price if orderitem else NULL,
+            orderitem.line_item_quantity if orderitem else NULL,
+            orderitem.refunded_amount if orderitem else NULL,
+            orderitem.refunded_quantity if orderitem else NULL,
+            orderitem.user_id if orderitem else NULL,
+            orderitem.username if orderitem else NULL,
+            orderitem.user_email if orderitem else NULL,
+            orderitem.product_class if orderitem else NULL,
+            orderitem.product_detail if orderitem else NULL,
+            orderitem.course_id if orderitem else NULL,
+            org_id if org_id is not None else NULL,
+            orderitem.order_processor if orderitem else NULL,
         ]
         return (OrderTransactionRecord(*result).to_tsv(),)
 
@@ -404,15 +404,18 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
 class OrderTransactionRecord(OrderTransactionRecordBase):
 
     def to_tsv(self):
-        return '\t'.join([str(v) for v in self])
+        return '\t'.join([str(v) if v is not None else "" for v in self])
 
     @staticmethod
     def from_job_output(tsv_str):
         record = tsv_str.split('\t')
-        return OrderTransactionRecord(*record)
+        nulled_record = [v if v != "\\N" else None for v in record]
+        return OrderTransactionRecord(*nulled_record)
 
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
+
+    output_root = None
 
     @property
     def table(self):
@@ -483,7 +486,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         'transaction_amount',
         'line_item_transaction_fee',
         'line_item_id',
-        'line_item_product_id',
         'line_item_price',
         'product_class',
         'product_detail',
@@ -499,7 +501,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             order_source=self.order_source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=self.output_root,
+            output_root=url_path_join(self.output_root, 'reconciled_order_transactions', 'dt=' + self.interval.date_b.isoformat()) + '/',
             # overwrite=self.overwrite,
         )
 
@@ -510,7 +512,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         for record_str in self.input().open('r'):
             record = OrderTransactionRecord.from_job_output(record_str)
 
-            if record.transaction_date != "":
+            if record.transaction_date is not None and record.transaction_date != '':
                 all_records.append(record)
 
         with self.output().open('w') as output_file:
@@ -521,17 +523,20 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 return record.transaction_date, record.order_line_item_id, record.order_org_id
 
             for record in sorted(all_records, key=get_sort_key):
+                line_item_id = None
+                if record.order_line_item_id is not None:
+                    line_item_id = record.order_processor[0] + ':' + record.order_line_item_id
+
                 writer.writerow({
                     'date': record.transaction_date,
                     'transaction_id': record.transaction_payment_gateway_id[0] + ':' + record.transaction_id,
                     'payment_gateway_id': record.transaction_payment_gateway_id,
                     'transaction_type': record.transaction_type,
                     'payment_method': record.transaction_payment_method,
-                    'transaction_amount': record.transaction_amount_per_item,
+                    'transaction_amount': record.transaction_amount,
                     'line_item_transaction_fee': record.transaction_fee_per_item,
-                    'line_item_id': record.order_line_item_id,
-                    'line_item_product_id': record.order_line_item_product_id,
-                    'line_item_price': record.order_line_item_price,
+                    'line_item_id': line_item_id,
+                    'line_item_price': record.transaction_amount_per_item,
                     'product_class': record.order_product_class,
                     'product_detail': record.order_product_detail,
                     'course_id': record.order_course_id,
