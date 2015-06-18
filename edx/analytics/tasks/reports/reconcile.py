@@ -414,6 +414,8 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
+    output_root = None
+
     @property
     def table(self):
         return 'reconciled_order_transactions'

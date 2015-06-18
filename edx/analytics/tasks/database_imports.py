@@ -991,6 +991,32 @@ class ImportPaymentProcessorResponse(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportCourseModeTask(ImportMysqlToHiveTableTask):
+    """
+    Course Information: Imports course_modes table to both a destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'course_modes_coursemode'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('course_id', 'STRING'),
+            ('mode_slug', 'STRING'),
+            ('mode_display_name', 'STRING'),
+            ('min_price', 'INT'),
+            ('suggested_prices', 'STRING'),
+            ('currency', 'STRING'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('expiration_datetime', 'TIMESTAMP'),
+            ('description', 'STRING'),
+            ('sku', 'STRING'),
+        ]
+
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
 
