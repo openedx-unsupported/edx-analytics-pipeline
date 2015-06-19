@@ -1,10 +1,11 @@
 """Perform reconciliation of transaction history against order history"""
 
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 import csv
 import datetime
 from decimal import Decimal
 import logging
+from operator import attrgetter
 
 import luigi
 import luigi.date_interval
@@ -18,10 +19,12 @@ from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
 log = logging.getLogger(__name__)
 
+# Precision for money is assumed to be two places.
+TWOPLACES = Decimal(10) ** -2       # same as Decimal('0.01')
 
 ORDERITEM_FIELDS = [
     'order_processor',   # "shoppingcart" or "otto"
-    'user_id',
+    'user_id',  # this is the order system's user_id, not the same as auth_user's user_id.
     'order_id',
     'line_item_id',
     'line_item_product_id',  # for "shoppingcart", this is the kind of orderitem table.
@@ -41,15 +44,21 @@ ORDERITEM_FIELDS = [
     'payment_ref_id',  # This is the value to compare with the transactions.
 ]
 
-OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)  # pylint: disable=invalid-name
+BaseOrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)  # pylint: disable=invalid-name
 
-# These are cybersource-specific at the moment, until generalized
-# for Paypal, etc.
-# Generalization will include:
-#  time = timestamp the transaction was recorded (in addition to the date)
-#  transaction_type: needs to be generalized (cybersource-specific terms now).
-#  transaction_fee:  not reported in cybersource reports.
-#
+
+class OrderItemRecord(BaseOrderItemRecord):
+    """Override vanilla namedtuple to redefine types."""
+    def __new__(cls, *args, **kwargs):
+        result = super(OrderItemRecord, cls).__new__(cls, *args, **kwargs)
+        result = result._replace(  # pylint: disable=no-member,protected-access
+            refunded_amount=Decimal(result.refunded_amount),  # pylint: disable=no-member
+            line_item_price=Decimal(result.line_item_price),  # pylint: disable=no-member
+            line_item_unit_price=Decimal(result.line_item_unit_price),  # pylint: disable=no-member
+        )
+        return result
+
+
 TRANSACTION_FIELDS = [
     'date',
     'payment_gateway_id',
@@ -64,7 +73,20 @@ TRANSACTION_FIELDS = [
     'transaction_id',
 ]
 
-TransactionRecord = namedtuple('TransactionRecord', TRANSACTION_FIELDS)  # pylint: disable=invalid-name
+
+BaseTransactionRecord = namedtuple('TransactionRecord', TRANSACTION_FIELDS)  # pylint: disable=invalid-name
+
+
+class TransactionRecord(BaseTransactionRecord):
+    """Override vanilla namedtuple to redefine types."""
+    def __new__(cls, *args, **kwargs):
+        result = super(TransactionRecord, cls).__new__(cls, *args, **kwargs)
+        result = result._replace(  # pylint: disable=no-member,protected-access
+            amount=Decimal(result.amount),  # pylint: disable=no-member
+            transaction_fee=Decimal(result.transaction_fee) if result.transaction_fee is not None else None,  # pylint: disable=no-member
+        )
+        return result
+
 
 LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
     '1556',
@@ -76,6 +98,7 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
 
 
 class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
+    """Define parameters needed downstream for running ReconcileOrdersAndTransactionsTask."""
 
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
@@ -125,16 +148,26 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def mapper(self, line):
         fields = line.split('\t')
-        # If we put the "payment_ref_id" in the front of all these fields, or
-        # at least always in the same index, then we wouldn't this
-        # ugly heuristic here.  (It would only need to be in the
-        # reducer. :)
-        if len(fields) > 11:
-            # assume it's an order
+        if len(fields) == len(ORDERITEM_FIELDS):
+            # Assume it's an order.
+            record_type = OrderItemRecord.__name__
             key = fields[-1]
-        else:
-            # assume it's a transaction
+            # Convert nulls in 'product_detail', 'refunded_amount', 'refunded_quantity'.
+            if fields[10] == '\\N':
+                fields[10] = ''
+            if fields[16] == '\\N':
+                fields[16] = '0.0'
+            if fields[17] == '\\N':
+                fields[17] = '0'
+
+        elif len(fields) == len(TRANSACTION_FIELDS):
+            # Assume it's a transaction.
+            record_type = TransactionRecord.__name__
             key = fields[3]
+            # Convert nulls in 'transaction_fee'.
+            if fields[6] == '\\N':
+                fields[6] = None
+
             # Edx-only: if the transaction was within a time period when
             # Otto was storing basket-id values instead of payment_ref_ids in
             # its transactions, then apply a heuristic to the transactions
@@ -143,186 +176,430 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             if fields[0] > '2015-05-01' and fields[0] < '2015-06-14':
                 if len(key) <= 4 and key not in LOW_ORDER_ID_SHOPPINGCART_ORDERS:
                     key = 'EDX-{}'.format(int(key) + 100000)
+        else:
+            raise ValueError("ERROR: unrecognized line with {} fields:  {}".format(len(fields), line))
 
-        yield key, fields
+        yield key, (record_type, fields)
 
-    def _orderitem_is_professional_ed(self, orderitem):
+    def _orderitem_is_white_label(self, orderitem):
+        """Identify white-label orders in shoppingcart by heuristic."""
+        # Currently, only white-label courses have product_ids that are either 2 or 3.
         return orderitem.order_processor == 'shoppingcart' and orderitem.line_item_product_id in ['2', '3']
 
     def _orderitem_status_is_consistent(self, orderitem):
+        """Check that orderitem's status matches its refunded_amount."""
         return (
-            (orderitem.status == 'purchased' and Decimal(orderitem.refunded_amount) == 0.0) or
-            (orderitem.status == 'refunded' and Decimal(orderitem.refunded_amount) > 0.0)
+            (orderitem.status == 'purchased' and orderitem.refunded_amount == 0.0) or
+            (orderitem.status == 'refunded' and orderitem.refunded_amount > 0.0)
         )
 
-    def _add_orderitem_status_to_code(self, orderitem, code):
+    def _check_orderitem_wrongstatus(self, orderitem, status):
+        """Add a prefix to orderitem's audit status to indicate inconsistency in status."""
         if self._orderitem_status_is_consistent(orderitem):
-            return code
+            return status
         else:
-            return "ERROR_WRONGSTATUS_{}".format(code)
+            return "ERROR_WRONGSTATUS_{}".format(status)
 
-    def _get_code_for_nonmatch(self, orderitem, trans_balance):
-        code = "ERROR_{}_BALANCE_NOT_MATCHING".format(orderitem.status.upper())
-        if trans_balance == Decimal(orderitem.line_item_price):
-            # If these are equal, then the refunded_amount must be non-zero,
-            # and not have a matching transaction.
-            code = "{}_REFUND_MISSING".format(code)
-        elif trans_balance == 0.0:
-            code = "{}_WAS_REFUNDED".format(code)
-        elif trans_balance == -1 * Decimal(orderitem.line_item_price):
-            code = "{}_WAS_REFUNDED_TWICE".format(code)
-        elif trans_balance == 2 * Decimal(orderitem.line_item_price):
-            code = "{}_WAS_CHARGED_TWICE".format(code)
-        elif trans_balance < Decimal(orderitem.line_item_price):
-            code = "ERROR_BALANCE_NOT_MATCHING_PARTIAL_REFUND"
-        elif trans_balance > Decimal(orderitem.line_item_price):
-            code = "ERROR_BALANCE_NOT_MATCHING_EXTRA_CHARGE"
-        code = self._add_orderitem_status_to_code(orderitem, code)
-        return code
-
-    def reducer(self, _key, values):
+    def _extract_transactions(self, values):
+        """
+        Pulls orderitems and transactions out of input values iterable.
+        """
         orderitems = []
         transactions = []
-        for value in values:
-            if len(value) > 17:
-                # convert refunded_amount:
-                if value[16] == '\\N':
-                    value[16] = '0.0'
-                # same for 'refunded_quantity':
-                if value[17] == '\\N':
-                    value[17] = '0'
-                # same for 'product_detail'
-                if value[10] == '\\N':
-                    value[10] = ''
+        for (record_type, fields) in values:
+            if record_type == 'OrderItemRecord':
+                orderitems.append(OrderItemRecord(*fields))
+            elif record_type == 'TransactionRecord':
+                transactions.append(TransactionRecord(*fields))
+        # Standardize the ordering.
+        orderitems = sorted(orderitems, key=attrgetter('date_placed', 'line_item_id'))
+        transactions = sorted(transactions, key=attrgetter('date', 'transaction_id'))
+        return orderitems, transactions
 
-                record = OrderItemRecord(*value)
+    def _get_audit_code_for_orders_without_transactions(self, orderitems):
+        """
+        Return an audit_code for each orderitem when there are no transactions.
 
-                orderitems.append(record)
-            else:
-                if value[6] == '\\N':
-                    value[6] = None
-                transactions.append(TransactionRecord(*value))
+        Orders without transactions happens when an order is begun but
+        the user changes their mind.  Also included are registrations
+        that have no cost, so having no transactions is actually a
+        reasonable state.
+
+        More are due to a difference in the timing of the orders and
+        the transaction extraction.  At present, the orders are
+        pulled at whatever time the task is run, and they are dumped.
+        For transactions, the granularity is daily: we only have up
+        through yesterday's.  So there may be orders from today that
+        don't yet have transactions downloaded.
+
+        There are also some professional-ed entries that have
+        transactions in a different account.
+
+        """
+        for orderitem in orderitems:
+            order_audit_code = 'ERROR_ORDER_NOT_BALANCED'
+            orderitem_audit_code = 'ERROR_NO_TRANSACTION'
+            transaction_audit_code = 'NO_TRANSACTION'
+            if self._orderitem_is_white_label(orderitem):
+                # Missing white-label is not an error, even if it's not balanced.
+                order_audit_code = 'ORDER_NOT_BALANCED'
+                orderitem_audit_code = 'NO_TRANS_WHITE_LABEL'
+            elif orderitem.line_item_unit_price == 0.0:
+                order_audit_code = 'ORDER_BALANCED'
+                orderitem_audit_code = 'NO_COST'
+            orderitem_audit_code = self._check_orderitem_wrongstatus(orderitem, orderitem_audit_code)
+            audit_code = (order_audit_code, orderitem_audit_code, transaction_audit_code)
+            yield audit_code, orderitem
+
+    def _get_audit_code_for_transactions_without_orderitems(self, transactions, trans_balance):
+        """
+        Return an audit_code for each transaction when there are no orderitems.
+
+        This is likely when the transaction pull is newer than the
+        order pull, or if a shoppingcart basket was charged that was
+        not marked as a purchased order.  In the latter case, if the
+        charge was later refunded and the current balance is zero,
+        then no further action is needed.  Otherwise either the order
+        needs to be updated (to reflect that they did actually receive
+        what they ordered), or the balance should be refunded (because
+        they never received what they were charged for).
+
+        """
+        order_audit_code = 'NO_ORDER_ZERO_BALANCE' if trans_balance == 0 else 'ERROR_NO_ORDER_NONZERO_BALANCE'
+        for transaction in transactions:
+            trans_audit_code = 'PURCHASE' if transaction.amount >= 0.0 else 'REFUND'
+            audit_code = (order_audit_code, 'NO_ORDERITEM', trans_audit_code)
+            yield audit_code, transaction
+
+    def reducer(self, _key, values):
+        """Convert orderitems and transactions into orderitem-transaction records."""
+        orderitems, transactions = self._extract_transactions(values)
+
+        # Check to see that all orderitems belong to the same order.
+        distinct_order_ids = set([orderitem.order_id for orderitem in orderitems])
+        if len(distinct_order_ids) > 1:
+            orderitem_ids = [orderitem.line_item_id for orderitem in orderitems]
+            raise Exception("ERROR: orderitems {} encountered with different order_ids {}".format(
+                orderitem_ids,
+                distinct_order_ids,
+            ))
+
+        # Calculate common values.
+        trans_balance = Decimal(0.0)
+        if len(transactions) > 0:
+            trans_balance = sum([transaction.amount for transaction in transactions])
+        order_balance = Decimal(0.0)
+        if len(orderitems):
+            order_balance = sum(
+                [orderitem.line_item_price - orderitem.refunded_amount for orderitem in orderitems]
+            )
 
         if len(transactions) == 0:
-            # We have an orderitem with no transaction.  This happens
-            # when an order is begun but the user changes their mind.
-            # But once those orders are filtered (based on status), we
-            # don't expect there to be extras.
-
-            # That said, there seem to be a goodly number of MITProfessionalX
-            # entries that probably have transactions in a different account.
-
-            # Also included are registrations that have no cost, so
-            # having no transactions is actually a reasonable state.
-            # These are dominated by DemoX registrations that
-            # presumably demonstrate the process but have no cost.
-
-            # And more are due to a difference in the timing of the
-            # orders and the transaction extraction.  At present, the
-            # orders are pulled at whatever time the task is run, and
-            # they are dumped.  For transactions, the granularity is
-            # daily: we only have up through yesterday's.  So there
-            # may be orders from today that don't yet have
-            # transactions downloaded.
-            for orderitem in orderitems:
-                code = "ERROR_NO_TRANSACTION"
-                if self._orderitem_is_professional_ed(orderitem):
-                    code = "NO_TRANS_PROFESSIONAL"
-                elif Decimal(orderitem.line_item_unit_price) == 0.0:
-                    code = "NO_TRANSACTION_NOCOST"
-                code = self._add_orderitem_status_to_code(orderitem, code)
-                yield self.format_transaction_table_output(code, None, orderitem)
-            return
-
-        if len(orderitems) == 0:
-            # Same thing if we have transactions with no orderitems.
-            # This is likely when the transaction pull is newer than the order pull,
-            # or if a basket was charged that was not marked as a purchased order.
-            # In the latter case, if the charge was later refunded and the current balance
-            # is zero, then no further action is needed.  Otherwise either the order needs
-            # to be updated (to reflect that they did actually receive what they ordered),
-            # or the balance should be refunded (because they never received what they were charged for).
-            trans_balance = sum([Decimal(transaction.amount) for transaction in transactions])
-            code = "NO_ORDER_ZERO_BALANCE" if trans_balance == 0 else "ERROR_NO_ORDER_NONZERO_BALANCE"
-            for transaction in transactions:
-                yield self.format_transaction_table_output(code, transaction, None)
-            return
-
-        # This is the location for the main form of reconciliation.
-        # Let's work through some of the easy cases, and work down from there.
-        if len(orderitems) == 1:
-            orderitem = orderitems[0]
-            order_balance = Decimal(orderitem.line_item_price) - Decimal(orderitem.refunded_amount)
-            trans_balance = sum([Decimal(transaction.amount) for transaction in transactions])
-            if order_balance == trans_balance:
-                code = "{}_BALANCE_MATCHING".format(orderitem.status.upper())
-                if self._orderitem_is_professional_ed(orderitem):
-                    code = "ERROR_PROFED_{}".format(code)
-                # We have just compared independent of the status, but check that it's
-                # consistent.
-                code = self._add_orderitem_status_to_code(orderitem, code)
-                for transaction in transactions:
-                    yield self.format_transaction_table_output(code, transaction, orderitem)
-            else:
-                code = self._get_code_for_nonmatch(orderitem, trans_balance)
-                for transaction in transactions:
-                    yield self.format_transaction_table_output(code, transaction, orderitem)
-
-        elif len(transactions) == 1:
-            # If we have multiple orderitems and a single transaction, then we assume the single transaction
-            # sums to the value of all the orderitems.
-            # TODO: check more invariants:  e.g. same order_processor, same user(?).
-            transaction = transactions[0]
-            trans_balance = Decimal(transaction.amount)
-            order_value = sum([Decimal(orderitem.line_item_price) - Decimal(orderitem.refunded_amount) for orderitem in orderitems])
-            order_cost = sum([Decimal(orderitem.line_item_price) for orderitem in orderitems])
-            if order_value == trans_balance:
-                for orderitem in orderitems:
-                    code = "PURCHASED_BALANCE_MATCHING"
-                    if self._orderitem_is_professional_ed(orderitem):
-                        code = "ERROR_PROFED_PURCHASED_BALANCE_MATCHING"
-                    code = self._add_orderitem_status_to_code(orderitem, code)
-                    # If we got here with a single transaction, we expect that refunded_amount must be zero.
-                    # We just have to divide up the payment transaction over the order items.
-                    item_amount = Decimal(orderitem.line_item_price)
-                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
-            elif order_cost == trans_balance:
-                # We know that the refund is bogus, and we can more confidently distribute the
-                # transaction across the orderitems.
-                for orderitem in orderitems:
-                    code = self._get_code_for_nonmatch(orderitem, trans_balance)
-                    item_amount = Decimal(orderitem.line_item_price)
-                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
-            else:
-                for index, orderitem in enumerate(orderitems):
-                    code = self._get_code_for_nonmatch(orderitem, trans_balance)
-                    # We need to come up with a value, which is complicated by the
-                    # presence of a refund or a mismatch in order value and transaction.
-                    # Arbitrarily put all the value into one of the order items.
-                    item_amount = trans_balance if index == 1 else Decimal(0.0)
-                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
-
+            for audit_code, orderitem in self._get_audit_code_for_orders_without_transactions(orderitems):
+                yield self.format_transaction_table_output(audit_code, None, orderitem)
+        elif len(orderitems) == 0:
+            audit_code_trans = self._get_audit_code_for_transactions_without_orderitems(transactions, trans_balance)
+            for audit_code, transaction in audit_code_trans:
+                yield self.format_transaction_table_output(audit_code, transaction, None)
         else:
-            # for now, just get some transactions into the file, independent of the
-            # orderitems involved.
-            code = "MULTIPLE_ORDERITEMS"
-            for transaction in transactions:
-                yield self.format_transaction_table_output(code, transaction, orderitems[0])
+            # This is the main case, where transactions are mapped to orderitems.
+            order_audit_code = "ORDER_BALANCED" if trans_balance == order_balance else "ERROR_ORDER_NOT_BALANCED"
+            orderitem_transactions = self._map_transactions_to_orderitems(orderitems, transactions)
+            orderitems_notrans = set(orderitems)
+            for orderitem in orderitem_transactions:
+                trans_list = orderitem_transactions[orderitem]
+                orderitems_notrans.remove(orderitem)
+                # Get the audit_code of the orderitem:
+                transaction_balance = Decimal(0.0)
+                trans_audit_codes = []
+                for trans_entry in trans_list:
+                    transaction, value, trans_audit_code, _fee = trans_entry
+                    transaction_balance += value
+                    trans_audit_codes.append(trans_audit_code)
+                orderitem_audit_code = self._get_orderitem_audit_code(orderitem, transaction_balance, trans_audit_codes)
+                for trans_entry in trans_list:
+                    transaction, value, trans_audit_code, fee = trans_entry
+                    audit_code = (order_audit_code, orderitem_audit_code, trans_audit_code)
+                    yield self.format_transaction_table_output(audit_code, transaction, orderitem, value, fee)
+
+            # Finally output the orderitems that have no transactions.
+            for audit_code, orderitem in self._get_audit_code_for_orders_without_transactions(orderitems_notrans):
+                _, orderitem_audit_code, transaction_audit_code = audit_code
+                audit_code = (order_audit_code, orderitem_audit_code, transaction_audit_code)
+                yield self.format_transaction_table_output(audit_code, None, orderitem)
+
+    def _get_orderitem_audit_code(self, orderitem, trans_balance, trans_audit_codes):
+        """Infer audit_code of orderitem based on balance of associated transactions."""
+        orderitem_balance = orderitem.line_item_price - orderitem.refunded_amount
+        audit_code = "ERROR_{}_BALANCE_NOT_MATCHING".format(orderitem.status.upper())
+        if trans_balance == orderitem_balance:
+            audit_code = "{}_BALANCE_MATCHING".format(orderitem.status.upper())
+        elif trans_balance == orderitem.line_item_price:
+            # If these are equal, then the refunded_amount must be non-zero,
+            # and not have a matching transaction.
+            audit_code = "{}_REFUND_MISSING".format(audit_code)
+        elif trans_balance == 0.0:
+            audit_code = "{}_WAS_REFUNDED".format(audit_code)
+        elif (trans_balance == -1 * orderitem.line_item_price and
+                ('REFUND_AGAIN' in trans_audit_codes or 'REFUND_AGAIN_STATUS_NOT_REFUNDED' in trans_audit_codes)):
+            audit_code = "{}_WAS_REFUNDED_TWICE".format(audit_code)
+        elif trans_balance == 2 * orderitem.line_item_price and 'PURCHASE_AGAIN' in trans_audit_codes:
+            audit_code = "{}_WAS_CHARGED_TWICE".format(audit_code)
+        elif trans_balance < 0.0:
+            audit_code = "{}_OVER_REFUND".format(audit_code)
+        elif trans_balance < orderitem.line_item_price:
+            if any([code.startswith('REFUND') for code in trans_audit_codes]):
+                # Only mark as a partial refund if there were any refunds at all.
+                audit_code = "{}_PARTIAL_REFUND".format(audit_code)
+            else:
+                audit_code = "{}_UNDER_CHARGE".format(audit_code)
+        elif trans_balance > orderitem.line_item_price:
+            audit_code = "{}_OVER_CHARGE".format(audit_code)
+
+        # Prepend modifiers.
+        audit_code = self._check_orderitem_wrongstatus(orderitem, audit_code)
+        if self._orderitem_is_white_label(orderitem):
+            audit_code = "ERROR_WHITE_LABEL_{}".format(audit_code)
+        return audit_code
+
+    def _get_purchase_audit_code(self, orderitem, transaction_amount, orderitem_purchases):
+        """
+        Return an audit_code string depending on whether the item is already purchased or refunded.
+
+        Possible values:
+
+          PURCHASE_ONE:  a regular purchase of an item for its cost, with no previous purchases.
+          PURCHASE_MISCHARGE:  a regular purchase of an item for its cost, with no previous purchases.
+          PURCHASE_AGAIN:  a purchase of an item for its cost, but with previous purchases of it already made.
+          PURCHASE_AGAIN_MISCHARGE:  a purchase of an item for its cost, but with previous purchases of it already made.
+
+        """
+        orderitem_cost = orderitem.line_item_price
+        if orderitem in orderitem_purchases:
+            if transaction_amount == orderitem_cost:
+                transaction_audit_code = 'PURCHASE_AGAIN'
+            else:
+                transaction_audit_code = 'PURCHASE_AGAIN_MISCHARGE'
+        else:
+            if transaction_amount == orderitem_cost:
+                transaction_audit_code = 'PURCHASE_ONE'
+            else:
+                transaction_audit_code = 'PURCHASE_MISCHARGE'
+        return transaction_audit_code
+
+    def _get_simple_purchase_audit_code(self, orderitem, orderitem_purchases, _orderitem_refunds):
+        """Return an audit_code string to be used when distributing a purchase transaction over orderitems."""
+        return 'PURCHASE_AGAIN' if orderitem in orderitem_purchases else 'PURCHASE_ONE'
+
+    def _get_orderitem_to_purchase(self, target_transaction_audit_code, transaction, orderitems, orderitem_purchases):
+        """Loop through orderitems, and 'purchase' the first one with a matching transaction_audit_code."""
+        for orderitem in orderitems:
+            purchase_audit_code = self._get_purchase_audit_code(orderitem, transaction.amount, orderitem_purchases)
+            if purchase_audit_code == target_transaction_audit_code:
+                return orderitem
+        return None
+
+    def _split_transaction_over_orderitems(self, orderitems, transaction, get_audit_code, orderitem_purchases, orderitem_refunds=None):
+        """
+        When a transaction matches the value of all orderitems, split the transaction across all of them.
+        Use the same code to handle purchases and refunds.
+
+        Split the transaction fee across orderitems as well.
+        """
+        total_fees = Decimal(0.0)
+        orderitem_map_to_update = orderitem_refunds if orderitem_refunds is not None else orderitem_purchases
+        for index, orderitem in enumerate(orderitems):
+            orderitem_cost = orderitem.line_item_price * -1 if orderitem_refunds is not None else orderitem.line_item_price
+            transaction_audit_code = get_audit_code(orderitem, orderitem_purchases, orderitem_refunds)
+            # Calculate transaction_fee_per_item if there is a transaction fee.
+            transaction_fee_per_item = None
+            if transaction.transaction_fee is not None:
+                if index < (len(orderitems) - 1):
+                    proportion = orderitem_cost / transaction.amount
+                    transaction_fee_per_item = (transaction.transaction_fee * proportion).quantize(TWOPLACES)
+                    total_fees += transaction_fee_per_item
+                else:
+                    # If it's the last orderitem, make sure we don't have roundoff error.
+                    transaction_fee_per_item = (transaction.transaction_fee - total_fees).quantize(TWOPLACES)
+            new_value = (transaction, orderitem_cost, transaction_audit_code, transaction_fee_per_item)
+            orderitem_map_to_update[orderitem].append(new_value)
+
+    def _map_purchases_to_orderitems(self, orderitems, purchase_transactions):
+        """Distributes purchase transactions onto orderitems, splitting if necessary.
+
+        Returns a dict, with orderitems as keys.  Each orderitem's value is a list
+        of tuples.  Each tuple in turn contains four objects: the transaction, the
+        value of the transaction that goes towards the purchase of the orderitem,
+        the audit_code that annotates the transaction's "purchase", and the amount of
+        a transaction_fee going to the orderitem.
+        """
+        orderitem_purchases = defaultdict(list)
+        sorted_purchase_transactions = sorted(purchase_transactions, key=attrgetter('date', 'transaction_id'))
+        order_cost = sum([orderitem.line_item_price for orderitem in orderitems])
+
+        for transaction in sorted_purchase_transactions:
+            if transaction.amount == order_cost:
+                self._split_transaction_over_orderitems(orderitems, transaction, self._get_simple_purchase_audit_code, orderitem_purchases)
+            else:
+                # Try identifying a single orderitem that matches the current transaction in
+                # one of the following ways, considering each in turn until a match is found.
+                target_purchase_sequence = ['PURCHASE_ONE', 'PURCHASE_MISCHARGE', 'PURCHASE_AGAIN']
+                found = False
+                for target_transaction_audit_code in target_purchase_sequence:
+                    orderitem = self._get_orderitem_to_purchase(
+                        target_transaction_audit_code, transaction, orderitems, orderitem_purchases
+                    )
+                    if orderitem is not None:
+                        transaction_fee = transaction.transaction_fee
+                        new_value = (transaction, transaction.amount, target_transaction_audit_code, transaction_fee)
+                        orderitem_purchases[orderitem].append(new_value)
+                        found = True
+                        break
+
+                if not found:
+                    # We have a payment that doesn't align with one or all orderitems,
+                    # so just purchase the first orderitem.
+                    # It could be for two out of three orderitems, for example, but that
+                    # should be rarer.  More likely is an overpayment or underpayment, and
+                    # that is a problem that needs to be flagged if it hasn't already
+                    # been addressed.
+                    transaction_audit_code = 'PURCHASE_FIRST'
+                    transaction_fee = transaction.transaction_fee
+                    new_value = (transaction, transaction.amount, transaction_audit_code, transaction_fee)
+                    orderitem_purchases[orderitems[0]].append(new_value)
+
+        return orderitem_purchases
+
+    def _get_refund_audit_code(self, orderitem, orderitem_purchases, orderitem_refunds):
+        """
+        Return a transaction_audit_code string depending on whether the item is already purchased or refunded.
+
+        Possible values:
+
+            REFUND_ONE:  a regular refund of an item for its cost, with a previous purchase
+                and no previous refunds.
+            REFUND_AGAIN:  a refund of an item for its cost, with a previous purchase and with
+                a previous refund already made.
+            REFUND_ONE_STATUS_NOT_REFUNDED:  a regular refund of an item for its cost, with a
+                previous purchase and no previous refunds, but with the status of the orderitem
+                not reflecting that a refund transaction was expected.
+            REFUND_AGAIN_STATUS_NOT_REFUNDED:  a refund of an item for its cost, with a previous
+                purchase and with a previous refund already made, but with the status of the orderitem
+                not reflecting that a refund transaction was expected.
+            REFUND_NEVER_PURCHASED:  for any refund of an item for which no purchase was made.
+
+        """
+        if orderitem in orderitem_purchases:
+            if orderitem in orderitem_refunds:
+                transaction_audit_code = 'REFUND_AGAIN' if orderitem.status == 'refunded' else 'REFUND_AGAIN_STATUS_NOT_REFUNDED'
+            else:
+                transaction_audit_code = 'REFUND_ONE' if orderitem.status == 'refunded' else 'REFUND_ONE_STATUS_NOT_REFUNDED'
+        else:
+            transaction_audit_code = 'REFUND_NEVER_PURCHASED'
+        return transaction_audit_code
+
+    def _get_orderitem_to_refund(self, target_audit_code, transaction, orderitems, orderitem_purchases, orderitem_refunds):
+        """Loop through orderitems, and refund the first one with a matching transaction_audit_code."""
+        for orderitem in orderitems:
+            orderitem_cost = orderitem.line_item_price * -1
+            transaction_audit_code = self._get_refund_audit_code(orderitem, orderitem_purchases, orderitem_refunds)
+            if transaction.amount == orderitem_cost and transaction_audit_code == target_audit_code:
+                return orderitem
+        return None
+
+    def _map_refunds_to_orderitems(self, orderitems, refund_transactions, orderitem_purchases):
+        """Distributes refund transactions onto orderitems, splitting if necessary.
+
+        Returns a dict, with orderitems as keys.  Each orderitem's value is a list
+        of tuples.  Each tuple in turn contains four objects: the transaction, the
+        value of the transaction that goes towards the refund of the orderitem,
+        the audit_code that annotates the transaction's "refund", and the amount of
+        a transaction_fee going to the orderitem.
+        """
+        orderitem_refunds = defaultdict(list)
+        sorted_refund_transactions = sorted(refund_transactions, key=attrgetter('date', 'transaction_id'))
+        order_cost = sum([orderitem.line_item_price * -1 for orderitem in orderitems])
+
+        for transaction in sorted_refund_transactions:
+            if transaction.amount == order_cost:
+                self._split_transaction_over_orderitems(
+                    orderitems, transaction, self._get_refund_audit_code, orderitem_purchases, orderitem_refunds
+                )
+            else:
+                # Transaction_amount != order_cost overall, so first try to find a particular
+                # orderitem that has been paid for and should be refunded and has not yet been refunded.
+                # Try identifying a single orderitem that matches the current transaction in
+                # one of the following ways, considering each in turn until a match is found.
+                # First refund those orderitems that have not been refunded yet, favoring those orderitems
+                # that have their status set to indicate that the orderitem should be refunded.
+                # Then repeat the search on those orderitems that have already been refunded.
+                target_refund_sequence = [
+                    'REFUND_ONE',
+                    'REFUND_ONE_STATUS_NOT_REFUNDED',
+                    'REFUND_AGAIN',
+                    'REFUND_AGAIN_STATUS_NOT_REFUNDED',
+                ]
+                found = False
+                for target_transaction_audit_code in target_refund_sequence:
+                    orderitem = self._get_orderitem_to_refund(
+                        target_transaction_audit_code, transaction, orderitems, orderitem_purchases, orderitem_refunds
+                    )
+                    if orderitem is not None:
+                        transaction_fee = transaction.transaction_fee
+                        new_value = (transaction, transaction.amount, target_transaction_audit_code, transaction_fee)
+                        orderitem_refunds[orderitem].append(new_value)
+                        found = True
+                        break
+
+                if not found:
+                    # If we haven't found anything better, arbitrarily assign the refund to the first orderitem.
+                    transaction_audit_code = 'REFUND_FIRST'
+                    transaction_fee = transaction.transaction_fee
+                    new_value = (transaction, transaction.amount, transaction_audit_code, transaction_fee)
+                    orderitem_refunds[orderitems[0]].append(new_value)
+
+        return orderitem_refunds
+
+    def _map_transactions_to_orderitems(self, orderitems, transactions):
+        """
+        Maps transactions across the orderitems for a given order.
+
+        First assigns all positive transactions to orderitems to find purchases, and then
+        uses this information to map negative transactions to orderitems based on their
+        purchase state and their status.
+
+        Returns a dict keyed by orderitem objects, with values equal to lists of tuples.
+        Each tuple contains a transaction, the amount of the transaction going to the orderitem,
+        a transaction audit_code, and the amount of a transaction_fee going to the orderitem.
+
+        """
+        # First identify all transactions that are purchases, and apply them to orderitems.
+        purchase_transactions = [transaction for transaction in transactions if transaction.amount >= 0]
+        orderitem_purchases = self._map_purchases_to_orderitems(orderitems, purchase_transactions)
+
+        # Only apply refunds once all purchases are known.
+        refund_transactions = [transaction for transaction in transactions if transaction.amount < 0]
+        orderitem_refunds = self._map_refunds_to_orderitems(orderitems, refund_transactions, orderitem_purchases)
+
+        # Combine purchases and refunds back into a single map.
+        orderitem_transactions = defaultdict(list)
+        for orderitem_dict in [orderitem_purchases, orderitem_refunds]:
+            for orderitem in orderitem_dict:
+                trans_list = orderitem_dict[orderitem]
+                orderitem_transactions[orderitem].extend(trans_list)
+
+        return orderitem_transactions
 
     def output(self):
         return get_target_from_url(self.output_root)
 
-    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None):
-        if transaction and transaction_amount_per_item is None:
-            transaction_amount_per_item = transaction.amount
+    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None,
+                                        transaction_fee_per_item=None):
+        """Generate an output row from an orderitem and transaction."""
 
-        transaction_fee_per_item = None
-        if transaction and transaction.transaction_fee is not None:
-            if transaction.amount == transaction_amount_per_item:
-                transaction_fee_per_item = str(transaction.transaction_fee)
-            else:
-                proportion = Decimal(transaction_amount_per_item) / Decimal(transaction.amount)
-                transaction_fee_per_item = str(Decimal(transaction.transaction_fee) * proportion)
+        if transaction:
+            if transaction_amount_per_item is None:
+                transaction_amount_per_item = transaction.amount
 
         NULL = "\\N"  # pylint: disable=invalid-name
 
@@ -331,7 +608,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             org_id = get_org_id_for_course(orderitem.course_id)
 
         result = [
-            audit_code,
+            audit_code[0],
+            audit_code[1],
+            audit_code[2],
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
             orderitem.order_id if orderitem else NULL,
             encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else NULL,
@@ -372,7 +651,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
 
 OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: disable=invalid-name
-    "audit_code",
+    "order_audit_code",
+    "orderitem_audit_code",
+    "transaction_audit_code",
     "payment_ref_id",
     "order_id",
     "unique_order_id",
@@ -409,18 +690,22 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: d
 
 
 class OrderTransactionRecord(OrderTransactionRecordBase):
+    """Stores transaction-orderitem mapping output."""
 
     def to_tsv(self):
+        """Serializes the record to a TSV-formatted string."""
         return '\t'.join([str(v) if v is not None else "" for v in self])
 
     @staticmethod
     def from_job_output(tsv_str):
+        """Constructor that reads format generated by to_tsv()."""
         record = tsv_str.split('\t')
         nulled_record = [v if v != "\\N" else None for v in record]
         return OrderTransactionRecord(*nulled_record)
 
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
+    """Load reconciled order and transaction information into Hive table."""
 
     output_root = None
 
@@ -431,7 +716,9 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
     @property
     def columns(self):
         return [
-            ('audit_code', 'STRING'),
+            ('order_audit_code', 'STRING'),
+            ('orderitem_audit_code', 'STRING'),
+            ('transaction_audit_code', 'STRING'),
             ('payment_ref_id', 'STRING'),
             ('order_id', 'INT'),
             ('unique_order_id', 'STRING'),
@@ -484,6 +771,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
 
 class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Task):
+    """Generates CSV files containing transaction information."""
 
     output_root = luigi.Parameter()
 
@@ -534,6 +822,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             writer.writerow(dict((k, k) for k in self.COLUMNS))  # Write header
 
             def get_sort_key(record):
+                """Sort function for records."""
                 return record.transaction_date, record.order_line_item_id, record.order_org_id
 
             for record in sorted(all_records, key=get_sort_key):
@@ -554,4 +843,9 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 })
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+        return get_target_from_url(url_path_join(
+            self.output_root,
+            'transaction',
+            'dt=' + self.interval.date_b.isoformat(),  # pylint: disable=no-member
+            'transactions.csv'
+        ))
