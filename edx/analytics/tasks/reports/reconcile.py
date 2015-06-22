@@ -47,16 +47,17 @@ OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)
 #  transaction_fee:  not reported in cybersource reports.
 #
 TRANSACTION_FIELDS = [
+    'date',
     'payment_gateway_id',
     'payment_gateway_account_id',
-    'date',
     'payment_ref_id',
     'iso_currency_code',
     'amount',
+    'transaction_fee',
     'transaction_type',
     'payment_method',
+    'payment_method_type',
     'transaction_id',
-    'request_id_for_now',
 ]
 
 TransactionRecord = namedtuple('TransactionRecord', TRANSACTION_FIELDS)
@@ -113,7 +114,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         # at least always in the same index, then we wouldn't this
         # ugly heuristic here.  (It would only need to be in the
         # reducer. :)
-        if len(fields) > 10:
+        if len(fields) > 11:
             # assume it's an order
             key = fields[-1]
         else:
@@ -124,7 +125,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             # its transactions, then apply a heuristic to the transactions
             # from that period to convert them to a payment_ref_id that should
             # work in most cases.
-            if fields[2] > '2015-05-01' and fields[2] < '2015-06-14':
+            if fields[0] > '2015-05-01' and fields[0] < '2015-06-14':
                 if len(key) <= 4 and key not in LOW_ORDER_ID_SHOPPINGCART_ORDERS:
                     key = 'EDX-{}'.format(int(key) + 100000)
 
@@ -157,6 +158,10 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             code = "{}_WAS_REFUNDED_TWICE".format(code)
         elif trans_balance == 2 * Decimal(orderitem.line_item_price):
             code = "{}_WAS_CHARGED_TWICE".format(code)
+        elif trans_balance < Decimal(orderitem.line_item_price):
+            code = "ERROR_BALANCE_NOT_MATCHING_PARTIAL_REFUND"
+        elif trans_balance > Decimal(orderitem.line_item_price):
+            code = "ERROR_BALANCE_NOT_MATCHING_EXTRA_CHARGE"
         code = self._add_orderitem_status_to_code(orderitem, code)
         return code
 
@@ -179,6 +184,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
                 orderitems.append(record)
             else:
+                if value[6] == '\\N':
+                    value[6] = '0.0'
                 transactions.append(TransactionRecord(*value))
 
         if len(transactions) == 0:
