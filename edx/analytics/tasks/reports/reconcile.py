@@ -247,7 +247,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 # consistent.
                 code = self._add_orderitem_status_to_code(orderitem, code)
                 for transaction in transactions:
-                    # proportion = 1.00  # we have one orderitem
                     yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
             else:
                 code = self._get_code_for_nonmatch(orderitem, trans_balance)
@@ -261,34 +260,32 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             transaction = transactions[0]
             trans_balance = Decimal(transaction.amount)
             order_value = sum([Decimal(orderitem.line_item_price) - Decimal(orderitem.refunded_amount) for orderitem in orderitems])
+            order_cost = sum([Decimal(orderitem.line_item_price) for orderitem in orderitems])
             if order_value == trans_balance:
                 for orderitem in orderitems:
                     code = "PURCHASED_BALANCE_MATCHING"
                     if self._orderitem_is_professional_ed(orderitem):
                         code = "ERROR_PROFED_PURCHASED_BALANCE_MATCHING"
                     code = self._add_orderitem_status_to_code(orderitem, code)
-                    # TODO: what to do about refund value in this calculation?  This seems wrong.
-                    item_amount = Decimal(orderitem.line_item_unit_price) * int(orderitem.line_item_quantity)
-                    proportion = float(item_amount) / float(trans_balance)
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, proportion))
-            else:
-                # First partition orders by order_id.
-                orderitem_partition = defaultdict(list)
-                for orderitem in orderitems:
-                    orderitem_partition[orderitem.order_id] = orderitem
-                # TODO: distribute transactions to each of the separate orders, and reinvoke
-                # the entire processing.  This should actually be done at the very top of all this.
-                # For now we will just report this case.
+                    # If we got here with a single transaction, we expect that refunded_amount must be zero.
+                    # We just have to divide up the payment transaction over the order items.
+                    item_amount = Decimal(orderitem.line_item_price)
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
+            elif order_cost == trans_balance:
+                # We know that the refund is bogus, and we can more confidently distribute the
+                # transaction across the orderitems.
                 for orderitem in orderitems:
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
-                    # For now, just append a suffix when we have multiple orders.
-                    if len(orderitem_partition) > 1:
-                        code = "{}_MULTIPLE_ORDERS".format(code)
-                    # Because the balance doesn't match, we don't
-                    # actually pass a "proportion" value on, but
-                    # rather rely on the error condition to permit
-                    # these to be filtered later.
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
+                    item_amount = Decimal(orderitem.line_item_price)
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
+            else:
+                for index, orderitem in enumerate(orderitems):
+                    code = self._get_code_for_nonmatch(orderitem, trans_balance)
+                    # We need to come up with a value, which is complicated by the
+                    # presence of a refund or a mismatch in order value and transaction.
+                    # Arbitrarily put all the value into one of the order items.
+                    item_amount = trans_balance if index == 1 else Decimal(0.0)
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
 
         else:
             # If we're here, we know we have multiple orderitems *and*
@@ -304,28 +301,31 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             if len(orderitem_partition) > 1:
                 yield ("MULTIPLE_ORDERS", key, orderitems, transactions)
             else:
-                yield ("MULTIPLE_ORDERITEMS", key, orderitems, transactions)
+                # yield ("MULTIPLE_ORDERITEMS", key, orderitems, transactions)
+                # for now, just get some transactions into the file, independent of the
+                # orderitems involved.
+                code = "MULTIPLE_ORDERITEMS"
+                for transaction in transactions:
+                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, None))
 
     def output(self):
         filename = u'reconcile_{reconcile_type}.tsv'.format(reconcile_type="all")
         output_path = url_path_join(self.output_root, filename)
         return get_target_from_url(output_path)
 
-    def format_transaction_table_output(self, audit_code, transaction, orderitem, proportion = 1.0):
-        # TODO: When calculating the transaction fee, apply the proportion to the
-        # value provided by the transaction object.
-
-        # TODO: it's not clear what the actual "value" of this entry is.  The
-        # transaction.amount is the value of the entire transaction, not the part of the transaction
-        # that is put towards the orderitem.  So if we have two orderitems of $50 and
-        # a single transaction of $100, and then a refund of -$100, it's not clear where
-        # the +$50 and -$50 should appear in the table below. Perhaps it should be made more
-        # explicit - something like transaction_amount_for_orderitem.  And it would have to
-        # be passed in, perhaps instead of the proportion.  The result should be a single column
-        # that can be summed to get the total value of the original transactions (and broken down
-        # by account too).
-
+    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item = None):
         transaction_fee_per_item = "0.0"
+        if transaction_amount_per_item is None:
+            transaction_amount_per_item = transaction.amount if transaction else ""
+
+        if transaction:
+            if transaction.amount == transaction_amount_per_item:
+                transaction_fee_per_item = str(transaction.transaction_fee)
+            else:
+                proportion = Decimal(transaction_amount_per_item) / Decimal(transaction.amount)
+                transaction_fee_per_item = str(Decimal(transaction.transaction_fee) * proportion)
+        transaction_amount_per_item = str(transaction_amount_per_item)
+
         if orderitem:
             org_id = get_org_id_for_course(orderitem.course_id) or ""
         else:
@@ -336,6 +336,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
             orderitem.order_id if orderitem else "",
             orderitem.date_placed if orderitem else "",
+            # transaction information
             transaction.date if transaction else "",
             transaction.transaction_id if transaction else "",
             transaction.payment_gateway_id if transaction else "",
@@ -344,17 +345,16 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             transaction.payment_method if transaction else "",
             transaction.amount if transaction else "",
             transaction.iso_currency_code if transaction else "",
+            transaction.transaction_fee if transaction else "",
+            # mapping information: part of transaction that applies to this orderitem
+            transaction_amount_per_item,
             transaction_fee_per_item,
+            # orderitem information
             orderitem.line_item_id if orderitem else "",
             orderitem.line_item_product_id if orderitem else "",
-            # TODO: Should this information reflect the original orderitem's value, or the
-            # end value after refund(s) have been applied?
             orderitem.line_item_price if orderitem else "",
             orderitem.line_item_unit_price if orderitem else "",
-            # TODO: Should this information reflect the original quantity, or the
-            # end quantity after refund(s) have been applied?
             orderitem.line_item_quantity if orderitem else "",
-            # TODO: Assume we leave the above alone, and just add refund info here.
             orderitem.refunded_amount if orderitem else "",
             orderitem.refunded_quantity if orderitem else "",
             orderitem.username if orderitem else "",
