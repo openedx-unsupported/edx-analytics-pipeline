@@ -1,8 +1,10 @@
 """Perform reconciliation of transaction history against order history"""
 
 from collections import namedtuple, defaultdict
+import csv
 from decimal import Decimal
 import logging
+from operator import itemgetter
 
 import luigi
 import luigi.date_interval
@@ -365,7 +367,124 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             org_id,
             orderitem.order_processor if orderitem else "",
         ]
-        return '\t'.join(result)
+        return OrderTransactionRecord(*result).to_tsv()
+
+
+OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
+    "audit_code",
+    "payment_ref_id",
+    "order_id",
+    "order_timestamp",
+    "transaction_date",
+    "transaction_id",
+    "transaction_payment_gateway_id",
+    "transaction_payment_gateway_account_id",
+    "transaction_type",
+    "transaction_payment_method",
+    "transaction_amount",
+    "transaction_iso_currency_code",
+    "transaction_fee",
+    "transaction_amount_per_item",
+    "transaction_fee_per_item",
+    "order_line_item_id",
+    "order_line_item_product_id",
+    "order_line_item_price",
+    "order_line_item_unit_price",
+    "order_line_item_quantity",
+    "order_refunded_amount",
+    "order_refunded_quantity",
+    "order_username",
+    "order_user_email",
+    "order_product_class",
+    "order_product_detail",
+    "order_course_id",
+    "order_org_id",
+    "order_processor",
+])
+
+
+class OrderTransactionRecord(OrderTransactionRecordBase):
+
+    def to_tsv(self):
+        return '\t'.join([str(v) for v in self])
+
+    @staticmethod
+    def from_job_output(tsv_str):
+        record = tsv_str.split('\t')
+        if record[0] != 'TRANSACTION_TABLE':
+            return None
+        return OrderTransactionRecord(*record[1:])
+
+
+class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Task):
+
+    output_root = luigi.Parameter()
+
+    COLUMNS = [
+        'date',
+        'transaction_id',
+        'payment_gateway_id',
+        'transaction_type',
+        'payment_method',
+        'transaction_amount',
+        'line_item_transaction_fee',
+        'line_item_id',
+        'line_item_product_id',
+        'line_item_price',
+        'product_class',
+        'product_detail',
+        'course_id',
+        'org_id'
+    ]
+
+    def requires(self):
+        return ReconcileOrdersAndTransactionsTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.output_root,
+            # overwrite=self.overwrite,
+        )
+
+    def run(self):
+        all_records = []
+
+        # first load all records in memory so that we can sort them
+        for record_str in self.input().open('r'):
+            record = OrderTransactionRecord.from_job_output(record_str)
+
+            if record.transaction_date != "":
+                all_records.append(record)
+
+        with self.output().open('w') as output_file:
+            writer = csv.DictWriter(output_file, self.COLUMNS)
+            writer.writerow(dict((k, k) for k in self.COLUMNS))  # Write header
+
+            def get_sort_key(record):
+                return record.transaction_date, record.order_line_item_id, record.order_org_id
+
+            for record in sorted(all_records, key=get_sort_key):
+                writer.writerow({
+                    'date': record.transaction_date,
+                    'transaction_id': record.transaction_payment_gateway_id[0] + ':' + record.transaction_id,
+                    'payment_gateway_id': record.transaction_payment_gateway_id,
+                    'transaction_type': record.transaction_type,
+                    'payment_method': record.transaction_payment_method,
+                    'transaction_amount': record.transaction_amount_per_item,
+                    'line_item_transaction_fee': record.transaction_fee_per_item,
+                    'line_item_id': record.order_line_item_id,
+                    'line_item_product_id': record.order_line_item_product_id,
+                    'line_item_price': record.order_line_item_price,
+                    'product_class': record.order_product_class,
+                    'product_detail': record.order_product_detail,
+                    'course_id': record.order_course_id,
+                    'org_id': record.order_org_id
+                })
+
+    def output(self):
+        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
 
 
 class ReconciliationOutputTask(ReconcileOrdersAndTransactionsDownstreamMixin, MultiOutputMapReduceJobTask):
