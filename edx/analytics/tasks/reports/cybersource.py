@@ -102,6 +102,12 @@ class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
         return url
 
 
+TRANSACTION_TYPE_MAP = {
+    'ics_bill': 'sale',
+    'ics_credit': 'refund'
+}
+
+
 class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
     """
     A task that reads a local file generated from a daily Cybersource pull, and writes to a TSV file.
@@ -143,12 +149,12 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
                     #   batch_id: CyberSource batch in which the transaction was sent.
                     #   payment_processor: code for organization that processes the payment.
                     result = [
+                        # Date
+                        row['batch_date'],
                         # Name of system.
                         'cybersource',
                         # CyberSource merchant ID used for the transaction.
                         row['merchant_id'],
-                        # Date when the batch was sent to the processor.
-                        row['batch_date'],
                         # Merchant-generated order reference or tracking number.
                         # For shoppingcart or otto, this should equal order_id,
                         # though sometimes it is basket_id.
@@ -156,14 +162,13 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
                         # ISO currency code used for the transaction.
                         row['currency'],
                         row['amount'],
-                        row['transaction_type'],
-                        # Type of card or bank account.
-                        row['payment_method'],
-                        # According to their doc, this is a "reference number that you use to
-                        # reconcile your CyberSource reports with your processor reports.
-                        # This field corresponds to the <service>_reconciliationID (Simple Order API)
-                        # and to the <service>_ trans_ref_no (SCMP API) reply fields."
-                        row['trans_ref_no'],
+                        # Transaction fee
+                        '\\N',
+                        TRANSACTION_TYPE_MAP[row['transaction_type']],
+                        # We currently only process credit card transactions with Cybersource
+                        'credit_card',
+                        # Type of credit card used
+                        row['payment_method'].lower().replace(' ', '_'),
                         # Identifier for the transaction.
                         row['request_id'],
                     ]
