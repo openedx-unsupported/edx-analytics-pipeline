@@ -1,17 +1,18 @@
 """Perform reconciliation of transaction history against order history"""
 
-from collections import namedtuple, defaultdict
+from collections import namedtuple
 import csv
+import datetime
 from decimal import Decimal
 import logging
-from operator import itemgetter
 
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
 log = logging.getLogger(__name__)
@@ -72,16 +73,24 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
     '9918',
 )
 
+
 class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
-    source = luigi.Parameter(
-        is_list=True,
-        default_from_config={'section': 'payment-reconciliation', 'name': 'source'}
+    transaction_source = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
+    )
+
+    order_source = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'}
     )
 
     # Create a dummy default for this parameter, since it is parsed by EventLogSelectionTask
     # but not actually used.
-    interval = luigi.DateIntervalParameter(default=luigi.date_interval.Custom.parse("2014-01-01-2015-01-02"))
+    interval = luigi.DateIntervalParameter(
+        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
+            datetime.datetime.utcnow().date().isoformat()
+        ))
+    )
 
     pattern = luigi.Parameter(
         is_list=True,
@@ -104,8 +113,11 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def requires(self):
         """Use EventLogSelectionTask to define inputs."""
+        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
+        order_partition = url_path_join(self.order_source, partition_path_spec)
+
         return EventLogSelectionTask(
-            source=self.source,
+            source=[self.transaction_source, order_partition],
             pattern=self.pattern,
             interval=self.interval,
         )
@@ -167,7 +179,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         code = self._add_orderitem_status_to_code(orderitem, code)
         return code
 
-    def reducer(self, key, values):
+    def reducer(self, _key, values):
         orderitems = []
         transactions = []
         for value in values:
@@ -218,7 +230,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 elif Decimal(orderitem.line_item_unit_price) == 0.0:
                     code = "NO_TRANSACTION_NOCOST"
                 code = self._add_orderitem_status_to_code(orderitem, code)
-                yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, None, orderitem))
+                yield self.format_transaction_table_output(code, None, orderitem)
             return
 
         if len(orderitems) == 0:
@@ -232,7 +244,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             trans_balance = sum([Decimal(transaction.amount) for transaction in transactions])
             code = "NO_ORDER_ZERO_BALANCE" if trans_balance == 0 else "ERROR_NO_ORDER_NONZERO_BALANCE"
             for transaction in transactions:
-                yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, None))
+                yield self.format_transaction_table_output(code, transaction, None)
             return
 
         # This is the location for the main form of reconciliation.
@@ -249,11 +261,11 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 # consistent.
                 code = self._add_orderitem_status_to_code(orderitem, code)
                 for transaction in transactions:
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
+                    yield self.format_transaction_table_output(code, transaction, orderitem)
             else:
                 code = self._get_code_for_nonmatch(orderitem, trans_balance)
                 for transaction in transactions:
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem))
+                    yield self.format_transaction_table_output(code, transaction, orderitem)
 
         elif len(transactions) == 1:
             # If we have multiple orderitems and a single transaction, then we assume the single transaction
@@ -272,14 +284,14 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                     # If we got here with a single transaction, we expect that refunded_amount must be zero.
                     # We just have to divide up the payment transaction over the order items.
                     item_amount = Decimal(orderitem.line_item_price)
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
+                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
             elif order_cost == trans_balance:
                 # We know that the refund is bogus, and we can more confidently distribute the
                 # transaction across the orderitems.
                 for orderitem in orderitems:
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
                     item_amount = Decimal(orderitem.line_item_price)
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
+                    self.format_transaction_table_output(code, transaction, orderitem, item_amount)
             else:
                 for index, orderitem in enumerate(orderitems):
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
@@ -287,35 +299,19 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                     # presence of a refund or a mismatch in order value and transaction.
                     # Arbitrarily put all the value into one of the order items.
                     item_amount = trans_balance if index == 1 else Decimal(0.0)
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, orderitem, item_amount))
+                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
 
         else:
-            # If we're here, we know we have multiple orderitems *and*
-            # multiple transactions.
-            orderitem_partition = defaultdict(list)
-            for orderitem in orderitems:
-                orderitem_partition[orderitem.order_id] = orderitem
-
-            # TODO: figure out the mapping of multiple orders to multiple
-            # transactions.  Easier step is to look at each single transaction
-            # and see if it matches the sum of order items.  We're not yet
-            # prepared to deal with partial transactions.
-            if len(orderitem_partition) > 1:
-                yield ("MULTIPLE_ORDERS", key, orderitems, transactions)
-            else:
-                # yield ("MULTIPLE_ORDERITEMS", key, orderitems, transactions)
-                # for now, just get some transactions into the file, independent of the
-                # orderitems involved.
-                code = "MULTIPLE_ORDERITEMS"
-                for transaction in transactions:
-                    yield ("TRANSACTION_TABLE", self.format_transaction_table_output(code, transaction, None))
+            # for now, just get some transactions into the file, independent of the
+            # orderitems involved.
+            code = "MULTIPLE_ORDERITEMS"
+            for transaction in transactions:
+                yield self.format_transaction_table_output(code, transaction, orderitems[0])
 
     def output(self):
-        filename = u'reconcile_{reconcile_type}.tsv'.format(reconcile_type="all")
-        output_path = url_path_join(self.output_root, filename)
-        return get_target_from_url(output_path)
+        return get_target_from_url(self.output_root)
 
-    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item = None):
+    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None):
         transaction_fee_per_item = "0.0"
         if transaction_amount_per_item is None:
             transaction_amount_per_item = transaction.amount if transaction else ""
@@ -359,6 +355,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             orderitem.line_item_quantity if orderitem else "",
             orderitem.refunded_amount if orderitem else "",
             orderitem.refunded_quantity if orderitem else "",
+            orderitem.user_id if orderitem else "",
             orderitem.username if orderitem else "",
             orderitem.user_email if orderitem else "",
             orderitem.product_class if orderitem else "",
@@ -367,7 +364,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             org_id,
             orderitem.order_processor if orderitem else "",
         ]
-        return OrderTransactionRecord(*result).to_tsv()
+        return (OrderTransactionRecord(*result).to_tsv(),)
 
 
 OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
@@ -393,6 +390,7 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
     "order_line_item_quantity",
     "order_refunded_amount",
     "order_refunded_quantity",
+    "order_user_id",
     "order_username",
     "order_user_email",
     "order_product_class",
@@ -411,9 +409,65 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
     @staticmethod
     def from_job_output(tsv_str):
         record = tsv_str.split('\t')
-        if record[0] != 'TRANSACTION_TABLE':
-            return None
-        return OrderTransactionRecord(*record[1:])
+        return OrderTransactionRecord(*record)
+
+
+class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
+
+    @property
+    def table(self):
+        return 'reconciled_order_transactions'
+
+    @property
+    def columns(self):
+        return [
+            ('audit_code', 'STRING'),
+            ('payment_ref_id', 'STRING'),
+            ('order_id', 'INT'),
+            ('order_timestamp', 'TIMESTAMP'),
+            ('transaction_date', 'STRING'),
+            ('transaction_id', 'STRING'),
+            ('transaction_payment_gateway_id', 'STRING'),
+            ('transaction_payment_gateway_account_id', 'STRING'),
+            ('transaction_type', 'STRING'),
+            ('transaction_payment_method', 'STRING'),
+            ('transaction_amount', 'DECIMAL'),
+            ('transaction_iso_currency_code', 'STRING'),
+            ('transaction_fee', 'DECIMAL'),
+            ('transaction_amount_per_item', 'DECIMAL'),
+            ('transaction_fee_per_item', 'DECIMAL'),
+            ('order_line_item_id', 'INT'),
+            ('order_line_item_product_id', 'INT'),
+            ('order_line_item_price', 'DECIMAL'),
+            ('order_line_item_unit_price', 'DECIMAL'),
+            ('order_line_item_quantity', 'INT'),
+            ('order_refunded_amount', 'DECIMAL'),
+            ('order_refunded_quantity', 'INT'),
+            ('order_user_id', 'INT'),
+            ('order_username', 'STRING'),
+            ('order_user_email', 'STRING'),
+            ('order_product_class', 'STRING'),
+            ('order_product_detail', 'STRING'),
+            ('order_course_id', 'STRING'),
+            ('order_org_id', 'STRING'),
+            ('order_processor', 'STRING'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    def requires(self):
+        return ReconcileOrdersAndTransactionsTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            transaction_source=self.transaction_source,
+            order_source=self.order_source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.partition_location,
+            # overwrite=self.overwrite,
+        )
 
 
 class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Task):
@@ -441,7 +495,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         return ReconcileOrdersAndTransactionsTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
+            transaction_source=self.transaction_source,
+            order_source=self.order_source,
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.output_root,
@@ -485,48 +540,3 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
-
-
-class ReconciliationOutputTask(ReconcileOrdersAndTransactionsDownstreamMixin, MultiOutputMapReduceJobTask):
-
-    def requires(self):
-        return ReconcileOrdersAndTransactionsTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            output_root=self.output_root,
-            # overwrite=self.overwrite,
-        )
-
-    def mapper(self, line):
-        """
-        Groups inputs by reconciliation type, writes all records with the same type to the same output file.
-        """
-        reconcile_type, content = line.split('\t', 1)
-        yield (reconcile_type), content
-
-    def output_path_for_key(self, key):
-        """
-        Create a different output file based on the type (or category) of reconciliation.
-        """
-        reconcile_type = key.lower()
-        filename = u'reconcile_{reconcile_type}.tsv'.format(reconcile_type=reconcile_type)
-        return url_path_join(self.output_root, filename)
-
-    def format_value(self, reconcile_type, value):
-        """
-        Transform a value into the right format for the given reconcile_type.
-        """
-        return value
-
-    def multi_output_reducer(self, key, values, output_file):
-        """
-        Dump all the values with the same reconcile_type to the same file.
-
-        """
-        for value in values:
-            formatted_value = self.format_value(key, value)
-            output_file.write(formatted_value)
-            output_file.write('\n')
