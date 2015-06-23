@@ -4,6 +4,8 @@ import luigi
 import paypalrestsdk
 import json
 
+from luigi.date_interval import DateInterval
+
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -41,6 +43,7 @@ class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
     A task that reads out of a remote Paypal account and writes to a file in raw JSON lines format.
     """
 
+    overwrite = luigi.BooleanParameter(default=True)
     output_root = luigi.Parameter()
 
     def initialize(self):
@@ -57,7 +60,7 @@ class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
 
         end_date = self.run_date + datetime.timedelta(days=1)
         request_args = {
-            'start_time': "{}T00:00:00Z".format(self.start_date.isoformat()),  # pylint: disable=no-member
+            'start_time': "{}T00:00:00Z".format(self.run_date.isoformat()),  # pylint: disable=no-member
             'end_time': "{}T00:00:00Z".format(end_date.isoformat()),
             'count': 20
         }
@@ -91,7 +94,7 @@ class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
         pass
 
     def output(self):
-        url_with_filename = url_path_join(self.output_root, 'paypal', '{0}_{1}.json'.format(self.start_date.isoformat(), self.run_date.isoformat()))
+        url_with_filename = url_path_join(self.output_root, 'paypal', '{0}.json'.format(self.run_date.isoformat()))
         return get_target_from_url(url_with_filename)
 
 
@@ -111,66 +114,67 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
         interval_start_date_string = self.start_date.isoformat()
         interval_end_date_string = self.interval.date_b.isoformat()
 
-        with self.input()[0].open('r') as input_file:
-            for line in input_file:
-                payment_record = json.loads(line)
-                for trans_with_items in payment_record.get('transactions', []):
-                    for transaction in trans_with_items.get('related_resources', []):
-                        trans_type = transaction.keys()[0]
-                        details = transaction[trans_type]
-                        created_date_string = details['create_time'].split('T')[0]
+        for input_target in self.input():
+            with input_target.open('r') as input_file:
+                for line in input_file:
+                    payment_record = json.loads(line)
+                    for trans_with_items in payment_record.get('transactions', []):
+                        for transaction in trans_with_items.get('related_resources', []):
+                            trans_type = transaction.keys()[0]
+                            details = transaction[trans_type]
+                            created_date_string = details['create_time'].split('T')[0]
 
-                        if created_date_string < interval_start_date_string or created_date_string >= interval_end_date_string:
-                            continue
+                            if created_date_string < interval_start_date_string or created_date_string >= interval_end_date_string:
+                                continue
 
-                        output_file = output_files.get(created_date_string)
-                        if not output_file:
-                            target = get_target_from_url(
-                                url_path_join(
-                                    self.output_root, 'payments', 'dt=' + created_date_string, 'paypal-{}.tsv'.format(
-                                        self.client_mode
+                            output_file = output_files.get(created_date_string)
+                            if not output_file:
+                                target = get_target_from_url(
+                                    url_path_join(
+                                        self.output_root, 'payments', 'dt=' + created_date_string, 'paypal-{}.tsv'.format(
+                                            self.client_mode
+                                        )
                                     )
                                 )
-                            )
-                            output_file = target.open('w')
-                            output_files[created_date_string] = output_file
+                                output_file = target.open('w')
+                                output_files[created_date_string] = output_file
 
-                        payment_method = payment_record['payer']['payment_method']
-                        if payment_method == 'paypal':
-                            # The terminology doesn't match up here. We want the method represent the fact that it's a
-                            # transfer instead of a credit card transaction, with the type of transfer being paypal.
-                            # One could imagine other types of payment (google wallet for example) that would also be
-                            # transfers, but would have a different payment type (google_wallet).
-                            payment_method = 'instant_transfer'
-                            payment_method_type = 'paypal'
-                        else:
-                            raise ValueError('Unhandled payment method "{}", update this mapping to assign proper'
-                                             ' payment method and payment method type values.'.format(payment_method))
-                        record = [
-                            # date
-                            created_date_string,
-                            # payment gateway
-                            'paypal',
-                            # payment gateway account ID
-                            self.client_mode + '-' + self.client_id,
-                            # payment reference number, this is used to join with orders
-                            trans_with_items.get('invoice_number', '\\N'),
-                            # currency
-                            details['amount']['currency'],
-                            # amount
-                            details['amount']['total'],
-                            # transaction fee
-                            details.get('transaction_fee', {}).get('value', '\\N'),
-                            # transaction type - either "sale" or "refund"
-                            trans_type,
-                            # payment method - currently this is only "instant_transfer"
-                            payment_method,
-                            # payment method type - currently this is only ever "paypal"
-                            payment_method_type,
-                            # identifier for the transaction
-                            details['id'],
-                        ]
-                        output_file.write('\t'.join(record) + '\n')
+                            payment_method = payment_record['payer']['payment_method']
+                            if payment_method == 'paypal':
+                                # The terminology doesn't match up here. We want the method represent the fact that it's a
+                                # transfer instead of a credit card transaction, with the type of transfer being paypal.
+                                # One could imagine other types of payment (google wallet for example) that would also be
+                                # transfers, but would have a different payment type (google_wallet).
+                                payment_method = 'instant_transfer'
+                                payment_method_type = 'paypal'
+                            else:
+                                raise ValueError('Unhandled payment method "{}", update this mapping to assign proper'
+                                                 ' payment method and payment method type values.'.format(payment_method))
+                            record = [
+                                # date
+                                created_date_string,
+                                # payment gateway
+                                'paypal',
+                                # payment gateway account ID
+                                self.client_mode + '-' + self.client_id,
+                                # payment reference number, this is used to join with orders
+                                trans_with_items.get('invoice_number', '\\N'),
+                                # currency
+                                details['amount']['currency'],
+                                # amount
+                                details['amount']['total'],
+                                # transaction fee
+                                details.get('transaction_fee', {}).get('value', '\\N'),
+                                # transaction type - either "sale" or "refund"
+                                trans_type,
+                                # payment method - currently this is only "instant_transfer"
+                                payment_method,
+                                # payment method type - currently this is only ever "paypal"
+                                payment_method_type,
+                                # identifier for the transaction
+                                details['id'],
+                            ]
+                            output_file.write('\t'.join(record) + '\n')
 
         for output_file in output_files.values():
             output_file.close()
@@ -179,15 +183,15 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
             output_file.write('OK')
 
     def requires(self):
-        yield RawPaypalTransactionLogTask(
-            output_root=self.output_root,
-            overwrite=self.overwrite,
-            start_date=self.start_date,
-            client_mode=self.client_mode,
-            client_id=self.client_id,
-            client_secret=self.client_secret,
-            run_date=self.run_date,
-        )
+        for run_date in DateInterval(self.start_date, self.interval.date_b):
+            yield RawPaypalTransactionLogTask(
+                output_root=self.output_root,
+                start_date=self.start_date,
+                client_mode=self.client_mode,
+                client_id=self.client_id,
+                client_secret=self.client_secret,
+                run_date=run_date,
+            )
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
