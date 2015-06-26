@@ -1,0 +1,7 @@
+{"items":
+  [{"course_id":"TestingX\/Foo101","subjects":[{"uri":"\/course\/subject\/foo","title":"Foo","language":"py"}]},
+  {"course_id":"TestingX\/Foo102","subjects":[{"uri":"\/course\/subject\/foo","title":"Foo","language":"py"},
+                                                {"uri":"\/course\/subject\/bar","title":"Bar","language":"py"}]},
+  {"course_id":"TestingX\/Foo201","subjects":[{"uri":"\/course\/subject\/foo","title":"Foo","language":"py"}]},
+  {"course_id":"AcceptanceX\/Foo101","subjects":[{"uri":"\/course\/subject\/foo","title":"Foo","language":"py"}]},
+  {"course_id":"AcceptanceX\/Bar101","subjects":[{"uri":"\/course\/subject\/bar","title":"Bar","language":"py"}]}]}

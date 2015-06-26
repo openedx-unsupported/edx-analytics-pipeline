@@ -72,6 +72,8 @@ class TaskService(object):
 
     def override_config(self, config_parser, overrides):
         for section_name, section in overrides.iteritems():
+            print section_name
+            print section
             for key, value in section.iteritems():
                 config_parser.set(section_name, key, value)
 

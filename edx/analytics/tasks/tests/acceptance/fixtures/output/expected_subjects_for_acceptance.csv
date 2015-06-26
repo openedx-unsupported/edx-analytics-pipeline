@@ -1,0 +1,7 @@
+row_number,course_id,date,subject_uri,subject_title,subject_language
+1,TestingX/Foo101,2015-06-29,/course/subject/foo,Foo,py
+2,TestingX/Foo102,2015-06-29,/course/subject/foo,Foo,py
+3,TestingX/Foo102,2015-06-29,/course/subject/bar,Bar,py
+4,TestingX/Foo201,2015-06-29,/course/subject/foo,Foo,py
+5,AcceptanceX/Foo101,2015-06-29,/course/subject/foo,Foo,py
+6,AcceptanceX/Bar101,2015-06-29,/course/subject/bar,Bar,py
