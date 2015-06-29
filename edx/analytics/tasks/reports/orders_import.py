@@ -49,6 +49,7 @@ class PullFromShoppingCartTablesTask(DatabaseImportMixin, OverwriteOutputMixin, 
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
+            'database': self.database,
         }
         yield (
             # Original shopping cart tables.
