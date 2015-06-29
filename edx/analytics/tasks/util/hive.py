@@ -254,6 +254,7 @@ class HivePartitionFromParameterQueryTask(HivePartitionFromQueryTask):  # pylint
     insert_query = luigi.Parameter()
     table = luigi.Parameter()
     columns = luigi.Parameter(is_list=True)
+    partition_value = luigi.Parameter()
 
     @property
     def hive_table_task(self):
