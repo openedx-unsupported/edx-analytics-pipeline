@@ -12,7 +12,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import Week, eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, HivePartitionTask
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HiveQueryToMysqlTask, HivePartitionTask
 
 log = logging.getLogger(__name__)
 
@@ -386,7 +386,6 @@ class CourseActivityMonthlyTask(CourseActivityTask):
     """
 
     end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    months = luigi.IntParameter(default=6)
 
     @property
     def interval(self):
@@ -402,7 +401,7 @@ class CourseActivityMonthlyTask(CourseActivityTask):
             raise ValueError('Number of months to process must be greater than 0')
 
         ending_date = self.end_date.replace(day=1)
-        starting_date = ending_date - relativedelta(months=self.months)
+        starting_date = ending_date - relativedelta(months=1)
 
         return luigi.date_interval.Custom(starting_date, ending_date)
 
@@ -453,3 +452,32 @@ class CourseActivityMonthlyTask(CourseActivityTask):
             ('course_id', 'label'),
             ('year', 'month')
         ]
+
+
+class AllUserActivity(OverwriteOutputMixin, WarehouseMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
+
+    date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    hive_overwrite = luigi.BooleanParameter(default=False)
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'warehouse_path': self.warehouse_path,
+            'overwrite': self.overwrite,
+            'hive_overwrite': self.hive_overwrite,
+        }
+        return (
+            CourseActivityDailyTask(
+                date=self.date,
+                **kwargs
+            ),
+            CourseActivityWeeklyTask(
+                end_date=self.date,
+                **kwargs
+            ),
+            CourseActivityMonthlyTask(
+                end_date=self.date,
+                **kwargs
+            )
+        )
