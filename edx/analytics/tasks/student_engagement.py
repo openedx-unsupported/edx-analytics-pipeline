@@ -21,7 +21,7 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HivePartitionFromParameterQueryTask
 
 log = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
         )
 
 
-class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTableFromQueryTask):
+class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HivePartitionFromParameterQueryTask):
     """
     Join additional information onto raw student engagement data, but leave information in Hive,
     not in Mysql.
