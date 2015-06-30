@@ -11,10 +11,7 @@ Examples::
 from __future__ import absolute_import
 
 import os
-import gzip
 import urlparse
-from cStringIO import StringIO
-from contextlib import closing
 
 import luigi
 import luigi.configuration
@@ -52,24 +49,6 @@ class IgnoredTarget(luigi.hdfs.HdfsTarget):
         return open('/dev/null', mode)
 
 
-class LocalOutputDirectoryTarget(luigi.LocalTarget):
-
-    def open(self, mode='r'):
-        if mode == 'r':
-            string_buffer = StringIO()
-            for file_path in os.listdir(self.path):
-                with open(url_path_join(self.path, file_path), 'r') as input_file:
-                    if file_path.endswith('.gz'):
-                        input_file = gzip.GzipFile(fileobj=input_file)
-
-                    string_buffer.write(input_file.read())
-
-            string_buffer.seek(0)
-            return closing(string_buffer)
-        else:
-            raise Exception('mode must be r')
-
-
 DEFAULT_TARGET_CLASS = luigi.LocalTarget
 URL_SCHEME_TO_TARGET_CLASS = {
     'hdfs': luigi.hdfs.HdfsTarget,
@@ -80,47 +59,19 @@ URL_SCHEME_TO_TARGET_CLASS = {
 }
 
 
-def get_target_from_url(url, success_marked=False):
+def get_target_from_url(url):
     """Returns a luigi target based on the url scheme"""
     parsed_url = urlparse.urlparse(url)
     target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
     kwargs = {}
-
-    if url.endswith('/'):
-        if issubclass(target_class, luigi.hdfs.HdfsTarget):
-            kwargs['format'] = luigi.hdfs.PlainDir
-        elif issubclass(target_class, luigi.LocalTarget):
-            target_class = LocalOutputDirectoryTarget
-
+    if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
+        kwargs['format'] = luigi.hdfs.PlainDir
     if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
         # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
     if issubclass(target_class, luigi.s3.S3Target):
         kwargs['client'] = ScalableS3Client()
-
-    if success_marked:
-        class OutputDirectoryTarget(target_class):
-
-            @property
-            def success_marker_target(self):
-                return get_target_from_url(url_path_join(self.path, '_SUCCESS'))
-
-            def exists(self):
-                if super(OutputDirectoryTarget, self).exists():
-                    success_marker_exists = self.success_marker_target.exists()
-                    if not success_marker_exists:
-                        self.remove()
-                else:
-                    success_marker_exists = False
-
-                return success_marker_exists
-
-            def mark_successful(self):
-                with self.success_marker_target.open('w'):
-                    pass
-
-        target_class = OutputDirectoryTarget
 
     url = url.rstrip('/')
     return target_class(url, **kwargs)

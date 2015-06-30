@@ -130,7 +130,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, MapReduceJobTask):
             yield key, num_events
 
     def output(self):
-        return get_target_from_url(self.output_root, success_marked=True)
+        return get_target_from_url(self.output_root)
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -205,24 +205,18 @@ class CourseActivityTask(MapReduceJobTaskMixin, HiveQueryToMysqlTask):
 
     @property
     def required_table_tasks(self):
-        required_tables = [
-            CalendarPartitionTask(
+        yield CalendarPartitionTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.hive_overwrite,
+        )
+        for date_obj in self.interval:
+            yield UserActivityPartitionTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.hive_overwrite,
+                date=date_obj,
             )
-        ]
-        for date_obj in self.interval:
-            required_tables.append(
-                UserActivityPartitionTask(
-                    mapreduce_engine=self.mapreduce_engine,
-                    n_reduce_tasks=self.n_reduce_tasks,
-                    warehouse_path=self.warehouse_path,
-                    overwrite=self.hive_overwrite,
-                    date=date_obj,
-                )
-            )
-
-        return required_tables
 
 
 class CourseActivityWeeklyTask(CourseActivityTask):

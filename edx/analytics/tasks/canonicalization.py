@@ -220,7 +220,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         return bucket
 
     def output(self):
-        return get_target_from_url(self.output_root, success_marked=True)
+        return get_target_from_url(self.output_root)
 
     def run(self):
         self.remove_output_on_overwrite()
