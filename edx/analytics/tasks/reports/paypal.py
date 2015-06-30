@@ -37,13 +37,14 @@ class PaypalTaskMixin(OverwriteOutputMixin):
     )
     run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
+    overwrite = luigi.BooleanParameter(default=True)
+
 
 class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
     """
     A task that reads out of a remote Paypal account and writes to a file in raw JSON lines format.
     """
 
-    overwrite = luigi.BooleanParameter(default=True)
     output_root = luigi.Parameter()
 
     def initialize(self):
@@ -191,6 +192,7 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
                 client_id=self.client_id,
                 client_secret=self.client_secret,
                 run_date=run_date,
+                overwrite=self.overwrite,
             )
 
     def output(self):

@@ -1,5 +1,7 @@
 import luigi
 import luigi.hdfs
+import luigi.date_interval
+import datetime
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
@@ -35,7 +37,9 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
                 **kwargs
             ),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(),
+            ReconciledOrderTransactionTableTask(
+                interval=luigi.date_interval.Custom(datetime.date(2014, 01, 01), self.import_date)
+            ),
         )
 
     def output(self):
@@ -74,14 +78,14 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('course_id', 'STRING'),
             ('mode_slug', 'STRING'),
             ('suggested_prices', 'STRING'),
-            ('expiration_datetime', 'TIMESTAMP'),
+            ('min_price', 'INT'),
+            ('expiration_datetime', 'STRING'),
             ('total_currently_enrolled', 'INT'),
             ('audit_currently_enrolled', 'INT'),
             ('honor_currently_enrolled', 'INT'),
             ('verified_currently_enrolled', 'INT'),
             ('professional_currently_enrolled', 'INT'),
             ('no_id_professional_currently_enrolled', 'INT'),
-            ('error_currently_enrolled', 'INT'),
             ('refunded_seat_count', 'INT'),
             ('refunded_amount', 'DECIMAL'),
             ('net_seat_revenue', 'DECIMAL'),
@@ -101,14 +105,14 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 VP_COURSES.course_id,
                 VP_COURSES.mode_slug, -- first one of the modes, if any are set up
                 VP_COURSES.suggested_prices,
-                VP_COURSES.expiration_datetime,
+                COALESCE(VP_COURSES.min_price, ""),
+                COALESCE(CAST(VP_COURSES.expiration_datetime AS STRING), ""),
                 ALL_ENROLLS.total_currently_enrolled,
                 ALL_ENROLLS.audit_currently_enrolled,
                 ALL_ENROLLS.honor_currently_enrolled,
                 ALL_ENROLLS.verified_currently_enrolled,
                 ALL_ENROLLS.professional_currently_enrolled,
                 ALL_ENROLLS.no_id_professional_currently_enrolled,
-                ALL_ENROLLS.error_currently_enrolled, -- this should be 0 everywhere, unless we're missing a mode
                 COALESCE(seats.refunded_seats,0) refunded_seat_count,
                 COALESCE(seats.refunded_amount,0) refunded_amount,
                 COALESCE(seats.net_amount,0) net_seat_revenue,
