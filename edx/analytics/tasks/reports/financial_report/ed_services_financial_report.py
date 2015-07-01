@@ -73,6 +73,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         return [
             ('course_id', 'STRING'),
             ('mode_slug', 'STRING'),
+            ('min_price', 'INT'),
             ('suggested_prices', 'STRING'),
             ('expiration_datetime', 'TIMESTAMP'),
             ('total_currently_enrolled', 'INT'),
@@ -101,6 +102,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 VP_COURSES.course_id,
                 VP_COURSES.mode_slug, -- first one of the modes, if any are set up
                 VP_COURSES.suggested_prices,
+                VP_COURSES.min_price,
                 VP_COURSES.expiration_datetime,
                 ALL_ENROLLS.total_currently_enrolled,
                 ALL_ENROLLS.audit_currently_enrolled,
