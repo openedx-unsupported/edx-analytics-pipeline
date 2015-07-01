@@ -291,7 +291,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 for orderitem in orderitems:
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
                     item_amount = Decimal(orderitem.line_item_price)
-                    self.format_transaction_table_output(code, transaction, orderitem, item_amount)
+                    yield self.format_transaction_table_output(code, transaction, orderitem, item_amount)
             else:
                 for index, orderitem in enumerate(orderitems):
                     code = self._get_code_for_nonmatch(orderitem, trans_balance)
