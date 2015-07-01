@@ -322,7 +322,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             else:
                 proportion = Decimal(transaction_amount_per_item) / Decimal(transaction.amount)
                 transaction_fee_per_item = str(Decimal(transaction.transaction_fee) * proportion)
-        transaction_amount_per_item = str(transaction_amount_per_item)
 
         NULL = "\\N"
 
@@ -346,8 +345,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             transaction.iso_currency_code if transaction else NULL,
             transaction.transaction_fee if transaction else NULL,
             # mapping information: part of transaction that applies to this orderitem
-            transaction_amount_per_item if transaction_amount_per_item is not None else NULL,
-            transaction_fee_per_item if transaction_fee_per_item is not None else NULL,
+            str(transaction_amount_per_item) if transaction_amount_per_item is not None else NULL,
+            str(transaction_fee_per_item) if transaction_fee_per_item is not None else NULL,
             # orderitem information
             orderitem.line_item_id if orderitem else NULL,
             orderitem.line_item_product_id if orderitem else NULL,
