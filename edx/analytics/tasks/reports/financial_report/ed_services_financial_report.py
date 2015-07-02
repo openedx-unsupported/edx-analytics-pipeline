@@ -125,8 +125,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     cmc.*
                 from
                     course_modes_coursemode cmc
-                where
-                    cmc.mode_slug in ('verified', 'professional', 'no-id-professional')
+                # where
+                #     cmc.mode_slug in ('verified', 'professional', 'no-id-professional')
             ) VP_COURSES
 
             -- Enrollment --
