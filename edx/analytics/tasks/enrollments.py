@@ -538,6 +538,46 @@ class EnrollmentDailyTask(EnrollmentTask):
         ]
 
 
+class EnrollmentSnapshotTask(EnrollmentTask):
+    """
+    Complete list of users enrolled in each courses as of the end date of the
+    interval.
+
+    The resulting data in MySQL can be joined with the data in auth_userprofile.
+
+    The MySQL data is erased and re-created whenever this task runs. Historical
+    records are preserved in Hive as date partitions.
+    """
+    indexes = [ ('course_id',), ]
+    table = 'course_enrollment_snapshot'
+
+    @property
+    def query(self):
+        return """
+            SELECT
+                ce.course_id,
+                ce.user_id
+            FROM course_enrollment ce
+            JOIN (SELECT MAX(`date`) as max_date FROM course_enrollment) md
+            WHERE at_end=1 AND ce.`date`=md.max_date;
+        """
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('user_id', 'INTEGER NOT NULL'),
+        ]
+
+    @property
+    def default_columns(self):
+        """ Columns whose data comes from MySQL, plus constraints """
+        return [
+            ('created', 'TIMESTAMP DEFAULT NOW()'),
+            ('CONSTRAINT combined_key', 'UNIQUE (course_id, user_id)'),
+        ]
+
+
 class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
@@ -555,4 +595,5 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
             EnrollmentByEducationLevelTask(**kwargs),
             EnrollmentByModeTask(**kwargs),
             EnrollmentDailyTask(**kwargs),
+            EnrollmentSnapshotTask(**kwargs),
         )
