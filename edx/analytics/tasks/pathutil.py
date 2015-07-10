@@ -134,6 +134,8 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             in order for them to be processed.
     """
 
+    s3_file_list_cache = None
+
     def __init__(self, *args, **kwargs):
         super(EventLogSelectionTask, self).__init__(*args, **kwargs)
         self.interval = DateInterval(
@@ -179,7 +181,9 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         s3_conn = boto.connect_s3()
         bucket_name, root = get_s3_bucket_key_names(source)
         bucket = s3_conn.get_bucket(bucket_name)
-        for key_metadata in bucket.list(root):
+        if self.s3_file_list_cache is None:
+            self.s3_file_list_cache = list(bucket.list(root))
+        for key_metadata in self.s3_file_list_cache:
             if key_metadata.size > 0:
                 key_path = key_metadata.key[len(root):].lstrip('/')
                 yield url_path_join(source, key_path)

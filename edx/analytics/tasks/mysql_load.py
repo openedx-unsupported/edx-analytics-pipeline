@@ -217,10 +217,13 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                 else:
                     raise
 
-            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
-            # commit the currently open transaction before continuing with the copy.
-            query = "DELETE FROM {table}".format(table=self.table)
-            connection.cursor().execute(query)
+            connection.cursor().execute(self.overwrite_query)
+
+    @property
+    def overwrite_query(self):
+        # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+        # commit the currently open transaction before continuing with the copy.
+        return "DELETE FROM {table}".format(table=self.table)
 
     def _execute_insert_query(self, cursor, value_list, column_names):
         """

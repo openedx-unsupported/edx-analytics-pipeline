@@ -10,6 +10,7 @@ import StringIO
 import logging
 import logging.config
 
+from dogapi import dog_stats_api
 import luigi
 import luigi.hdfs
 import luigi.hadoop
@@ -73,7 +74,16 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
                 },
             }
         )
+
+        api_key = configuration.get_config().get('data_dog', 'api_key', None)
+        dog_stats_api.start(api_key=api_key)
+
         return super(MapReduceJobTask, self).init_hadoop()
+
+    def increment_counter(self, name, value=1):
+        """Increment Hadoop counters and data dog counters at the same time"""
+        dog_stats_api.increment(name, value=value)
+        self.incr_counter(self.__class__.__name__, name, value)
 
     def job_runner(self):
         # Lazily import this since this module will be loaded on hadoop worker nodes however stevedore will not be
