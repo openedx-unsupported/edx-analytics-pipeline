@@ -7,7 +7,7 @@ import gzip
 # from edx.analytics.tasks.clean_for_vertica import CleanForVerticaTask
 from edx.analytics.tasks.url import get_target_from_url
 
-from vertica_load import VerticaCopyTask
+from vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from clean_for_vertica import CleanForVerticaTask
 
 log = logging.getLogger(__name__)
@@ -147,6 +147,22 @@ class VerticaEventLoadingTask(VerticaCopyTask):
             cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
                                .format(schema=self.schema, table=self.table), insert_source_stream)
 
+class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
+    """Workflow for encapsulating the Vertica event loading task and passing in parameters."""
+    interval = luigi.DateIntervalParameter()
 
-if __name__ == '__main__':
-    luigi.run(main_task_cls=LocalLuigiTestTask)
+    def requires(self):
+        # Add additional args for VerticaCopyMixin.
+        kwargs2 = {
+            'schema': self.schema,
+            'credentials': self.credentials,
+            'interval': self.interval,
+        }
+        kwargs2.update(kwargs2)
+
+        yield (
+            VerticaEventLoadingTask(**kwargs2),
+        )
+#
+# if __name__ == '__main__':
+#     luigi.run(main_task_cls=LocalLuigiTestTask)
