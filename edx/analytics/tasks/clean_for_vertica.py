@@ -39,7 +39,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     interval = luigi.DateIntervalParameter(None)
     output_root = None
     date = luigi.DateParameter()
-    remove_implict = luigi.BooleanParameter()
+    remove_implicit = luigi.BooleanParameter()
 
     VERSION = 2  # Version 1 was after the canonicalization
     OUTPUT_BUCKETS = 100
