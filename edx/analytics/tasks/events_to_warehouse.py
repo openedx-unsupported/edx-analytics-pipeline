@@ -75,12 +75,13 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     # By default, use flex tables, since we may want to materialize additional columns
     use_flex = luigi.Parameter(default=True)
     interval = luigi.DateIntervalParameter()
+    run_date = luigi.DateParameter(default=datetime.utcnow().date())
 
     @property
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
         # return LocalLuigiTestInput(id=95)
-        return(CleanForVerticaTask(interval=self.interval))
+        return(CleanForVerticaTask(interval=self.interval, date=self.run_date, remove_implicit=False))
 
     @property
     def table(self):
