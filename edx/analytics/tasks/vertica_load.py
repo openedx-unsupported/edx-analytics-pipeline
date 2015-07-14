@@ -101,6 +101,28 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
+    def create_column_definitions(self):
+        """
+        Builds the list of column definitions for the table to be loaded.
+
+        Assumes that columns are specified as (name, definition) tuples
+
+        :return a string to be used in a SQL query to create the table
+        """
+        columns = []
+        if self.auto_primary_key is not None:
+            columns.append(self.auto_primary_key)
+        columns.extend(self.columns)
+        if self.default_columns is not None:
+            columns.extend(self.default_columns)
+        if self.auto_primary_key is not None:
+            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+
+        coldefs = ','.join(
+            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
+        )
+        return coldefs
+
     def create_table(self, connection):
         """
         Override to provide code for creating the target table, if not existing.
@@ -122,18 +144,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             )
 
         # Assumes that columns are specified as (name, definition) tuples
-        columns = []
-        if self.auto_primary_key is not None:
-            columns.append(self.auto_primary_key)
-        columns.extend(self.columns)
-        if self.default_columns is not None:
-            columns.extend(self.default_columns)
-        if self.auto_primary_key is not None:
-            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+        coldefs = self.create_column_definitions()
 
-        coldefs = ','.join(
-            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
-        )
         query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs})".format(
             schema=self.schema, table=self.table, coldefs=coldefs
         )

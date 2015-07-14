@@ -67,6 +67,7 @@ class VerticaTarget(luigi.Target):
                VALUES (%s, %s)""".format(marker_schema=self.marker_schema, marker_table=self.marker_table),
             (self.update_id, "{schema}.{table}".format(schema=self.schema, table=self.table))
         )
+
         # make sure update is properly marked
         assert self.exists(connection)
 
@@ -98,9 +99,10 @@ class VerticaTarget(luigi.Target):
         :type autocmommit: bool
         """
 
-        options = {'user': self.user, 'password': self.password, 'host': self.host, 'port': self.port,
-                   'database': "", 'autocommit': autocommit}
-        connection = vertica_python.connect(options=options)
+        # vertica-python 0.5.0 changes the code for connecting to databases to use kwargs instead of a dictionary.
+        # The 'database' parameter is included for DBAPI reasons and does not actually affect the session.
+        connection = vertica_python.connect(user=self.user, password=self.password, host=self.host, port=self.port,
+                                            database="", autocommit=autocommit)
         return connection
 
     def create_marker_table(self):
