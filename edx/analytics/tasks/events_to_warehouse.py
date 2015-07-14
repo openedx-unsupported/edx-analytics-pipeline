@@ -8,62 +8,63 @@ import gzip
 from edx.analytics.tasks.url import get_target_from_url
 
 from vertica_load import VerticaCopyTask
+from clean_for_vertica import CleanForVerticaTask
 
 log = logging.getLogger(__name__)
 
-class DummyTarget(luigi.Target):
-    def exists(self):
-        try:
-            open('sample_event.gz', 'rw')
-            return True
-        except IOError:
-            return False
-
-    def open(self, mode):
-        return open('sample_event.gz', mode)
-
-class DummyTarget2(luigi.Target):
-    def exists(self):
-        try:
-            open('done', 'rw')
-            return True
-        except IOError:
-            return False
-
-    def open(self, mode):
-        return open('done', mode)
-
-class DummyTarget3(luigi.Target):
-    def exists(self):
-        try:
-            open('done_copying', 'rw')
-            return True
-        except IOError:
-            return False
-
-    def open(self, mode):
-        return open('done_copying', mode)
-
-class LocalLuigiTestInput(luigi.Task):
-    id = luigi.IntParameter()
-
-    def run(self):
-        print self.id
-        print "HERE WE ARE"
-
-    def output(self):
-        return DummyTarget()
-
-class LocalLuigiTestTask(luigi.Task):
-    def requires(self):
-        return VerticaEventLoadingTask(overwrite=False, schema='experimental', credentials='vertica_creds', interval='2015-07')
-
-    def run(self):
-        print "HELLO, WORLD!"
-        self.output().open('w').write("DONE!")
-
-    def output(self):
-        return DummyTarget2()
+# class DummyTarget(luigi.Target):
+#     def exists(self):
+#         try:
+#             open('sample_event.gz', 'rw')
+#             return True
+#         except IOError:
+#             return False
+#
+#     def open(self, mode):
+#         return open('sample_event.gz', mode)
+#
+# class DummyTarget2(luigi.Target):
+#     def exists(self):
+#         try:
+#             open('done', 'rw')
+#             return True
+#         except IOError:
+#             return False
+#
+#     def open(self, mode):
+#         return open('done', mode)
+#
+# class DummyTarget3(luigi.Target):
+#     def exists(self):
+#         try:
+#             open('done_copying', 'rw')
+#             return True
+#         except IOError:
+#             return False
+#
+#     def open(self, mode):
+#         return open('done_copying', mode)
+#
+# class LocalLuigiTestInput(luigi.Task):
+#     id = luigi.IntParameter()
+#
+#     def run(self):
+#         print self.id
+#         print "HERE WE ARE"
+#
+#     def output(self):
+#         return DummyTarget()
+#
+# class LocalLuigiTestTask(luigi.Task):
+#     def requires(self):
+#         return VerticaEventLoadingTask(overwrite=False, schema='experimental', credentials='vertica_creds', interval='2015-07')
+#
+#     def run(self):
+#         print "HELLO, WORLD!"
+#         self.output().open('w').write("DONE!")
+#
+#     def output(self):
+#         return DummyTarget2()
 
 class VerticaEventLoadingTask(VerticaCopyTask):
     """
@@ -78,8 +79,8 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     @property
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
-        return LocalLuigiTestInput(id=95)
-        # return(CleanForVerticaTask(interval=self.interval))
+        # return LocalLuigiTestInput(id=95)
+        return(CleanForVerticaTask(interval=self.interval))
 
     @property
     def table(self):
