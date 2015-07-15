@@ -5,7 +5,7 @@ import luigi
 import luigi.hdfs
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, HiveTransformUdf
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin,
     ImportShoppingCartCertificateItem,
@@ -184,11 +184,40 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('refunded_amount', 'DECIMAL'),
             ('refunded_quantity', 'INT'),
             ('payment_ref_id', 'STRING'),
+            ('unique_line_item_id', 'STRING'),
+            ('unique_order_id', 'STRING'),
         ]
 
     @property
     def partition(self):
         return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def transform_udfs(self):
+        return [
+            HiveTransformUdf(
+                'generate_internal_ids.py',
+                """
+                #!python
+                import sys
+                import base64
+
+                for line in sys.stdin:
+                    split_line = line.strip().split('\\t')
+                    system = split_line[0]
+                    output = [split_line[1]]
+                    key = None
+                    for obj in split_line[2:]:
+                        if key is None:
+                            key = obj
+                        else:
+                            output.append(base64.b32encode(system + '|' + key + '|' + obj))
+                            key = None
+                    print '\\t'.join(output)
+
+                """
+            )
+        ]
 
     @property
     def insert_query(self):
@@ -226,7 +255,10 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     r.refunded_quantity AS refunded_quantity,
 
                     -- The EDX-1XXXX identifier is used to find transactions associated with this order
-                    o.number AS payment_ref_id
+                    o.number AS payment_ref_id,
+
+                    ids.encoded_order_line_id AS unique_line_item_id,
+                    ids.encoded_order_id AS unique_order_id
 
                 FROM order_line ol
                 JOIN order_order o ON o.id = ol.order_id
@@ -265,6 +297,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     WHERE status = "Complete"
                     GROUP BY order_line_id
                 ) r ON r.order_line_id = ol.id
+
+                LEFT OUTER JOIN (
+                    SELECT TRANSFORM("otto", id, "line_item_id", id, "order_id", order_id)
+                    USING 'python generate_internal_ids.py' AS (order_line_id INT, encoded_order_line_id STRING, encoded_order_id STRING)
+                    FROM order_line
+                ) ids ON ids.order_line_id = ol.id
 
                 -- Only process complete orders
                 WHERE ol.status = "Complete"
@@ -321,7 +359,10 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- the complete line item quantity and amount
                     IF(oi.status = 'refunded', oi.qty * oi.unit_cost, NULL) AS refunded_amount,
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
-                    oi.order_id AS payment_ref_id
+                    oi.order_id AS payment_ref_id,
+
+                    ids.encoded_order_item_id AS unique_line_item_id,
+                    ids.encoded_order_id AS unique_order_id
                 FROM shoppingcart_orderitem oi
                 JOIN shoppingcart_order o ON o.id = oi.order_id
                 JOIN auth_user au ON au.id = o.user_id
@@ -332,6 +373,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 LEFT OUTER JOIN shoppingcart_paidcourseregistration pcr ON pcr.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_courseregcodeitem crc ON crc.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_donation d ON d.orderitem_ptr_id = oi.id
+
+                LEFT OUTER JOIN (
+                    SELECT TRANSFORM("shoppingcart", id, "line_item_id", id, "order_id", order_id)
+                    USING 'python generate_internal_ids.py' AS (order_item_id INT, encoded_order_item_id STRING, encoded_order_id STRING)
+                    FROM shoppingcart_orderitem
+                ) ids ON ids.order_item_id = oi.id
 
                 -- Ignore "cart", "defunct-cart" and "paying" statuses since they won't have corresponding transactions
                 WHERE oi.status IN ('purchased', 'refunded')
