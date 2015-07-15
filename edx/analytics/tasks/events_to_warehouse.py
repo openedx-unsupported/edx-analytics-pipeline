@@ -81,7 +81,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
         # return LocalLuigiTestInput(id=95)
-        return(CleanForVerticaTask(interval=self.interval, date=self.run_date, remove_implicit=False))
+        return(CleanForVerticaTask(date=self.run_date, remove_implicit=False))
 
     @property
     def table(self):
@@ -164,6 +164,6 @@ class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
         yield (
             VerticaEventLoadingTask(**kwargs2),
         )
-#
-# if __name__ == '__main__':
-#     luigi.run(main_task_cls=LocalLuigiTestTask)
+
+if __name__ == '__main__':
+    luigi.run(main_task_cls=VerticaEventLoadingWorkflow)

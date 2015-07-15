@@ -36,7 +36,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     startup, those days are not processed again unless the overwrite flag is set.
     """
 
-    interval = luigi.DateIntervalParameter(None)
+    interval = None
     output_root = None
     date = luigi.DateParameter()
     remove_implicit = luigi.BooleanParameter()
@@ -115,7 +115,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         event = self.event_from_line(line)
         event = self.add_metadata(event, line)
-        if self.remove_implict:
+        if self.remove_implicit:
             self.remove_implicit_events(event)
 
         if event is None:

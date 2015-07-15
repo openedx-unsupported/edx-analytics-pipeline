@@ -5,6 +5,7 @@ from __future__ import absolute_import
 
 import textwrap
 
+import datetime
 import luigi
 import luigi.task
 
@@ -19,8 +20,9 @@ from edx.analytics.tasks.tests.target import FakeTarget
 from edx.analytics.tasks.tests.config import with_luigi_config
 from edx.analytics.tasks.events_to_warehouse import VerticaEventLoadingTask
 
+# TODO: figure out how to incorporate the interval parameter
 
-class CopyToVerticaDummyTable(VerticaEventLoadingTask):
+class CopyEventsToVerticaDummyTable(VerticaEventLoadingTask):
     """
     Define table for testing.
     """
@@ -43,7 +45,7 @@ class CopyToVerticaDummyTable(VerticaEventLoadingTask):
         return None
 
 
-class CopyToPredefinedVerticaDummyTable(CopyToVerticaDummyTable):
+class CopyEventsToPredefinedVerticaDummyTable(CopyEventsToVerticaDummyTable):
     """
     Define table for testing without definitions (since table is externally defined).
     """
@@ -63,7 +65,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         self.mock_vertica_connector = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def create_task(self, credentials=None, source=None, overwrite=False, cls=CopyToVerticaDummyTable):
+    def create_task(self, credentials=None, source=None, overwrite=False, use_flex=True, cls=CopyEventsToVerticaDummyTable):
         """
          Emulate execution of a generic MysqlTask.
         """
@@ -72,7 +74,9 @@ class VerticaCopyTaskTest(unittest.TestCase):
         luigi.task.Register.clear_instance_cache()
         task = cls(
             credentials=sentinel.ignored,
-            overwrite=overwrite
+            overwrite=overwrite,
+            interval=sentinel.ignored,
+            use_flex=use_flex
         )
 
         if not credentials:
@@ -105,7 +109,8 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     @with_luigi_config('vertica-export', 'schema', 'foobar')
     def test_parameters_from_config(self):
-        task = CopyToVerticaDummyTable(credentials=sentinel.credentials)
+        task = CopyEventsToVerticaDummyTable(credentials=sentinel.credentials,
+                                             interval=datetime.datetime.utcnow().date())
         self.assertEquals(task.schema, 'foobar')
 
     def test_run(self):
@@ -125,27 +130,38 @@ class VerticaCopyTaskTest(unittest.TestCase):
         self.assertFalse(self.mock_vertica_connector.connect().commit.called)
         self.assertTrue(self.mock_vertica_connector.connect().close.called)
 
-    def test_create_table(self):
+    def test_create_flex_table(self):
         connection = MagicMock()
         self.create_task().create_table(connection)
         connection.cursor().execute.assert_called_once_with(
-            "CREATE TABLE IF NOT EXISTS testing.dummy_table "
-            "(id AUTO_INCREMENT PRIMARY KEY,course_id VARCHAR(255),"
+            "CREATE FLEX TABLE IF NOT EXISTS testing.dummy_table "
+            "(course_id VARCHAR(255),"
             "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
-            "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+            "count INT)"
         )
 
     def test_create_table_without_column_definition(self):
         connection = MagicMock()
-        task = self.create_task(cls=CopyToPredefinedVerticaDummyTable)
+        task = self.create_task(cls=CopyEventsToPredefinedVerticaDummyTable)
         with self.assertRaises(NotImplementedError):
             task.create_table(connection)
 
     def test_create_table_without_table_definition(self):
         connection = MagicMock()
-        task = self.create_task(cls=VerticaCopyTask)
+        task = self.create_task(cls=VerticaEventLoadingTask)
         with self.assertRaises(NotImplementedError):
             task.create_table(connection)
+
+    def test_create_columnar_table(self):
+        """The events to warehouse loader has the capacity to load into flex or columnar tables, so test both."""
+        connection = MagicMock()
+        self.create_task(use_flex=False).create_table(connection)
+        connection.cursor().execute.assert_called_once_with(
+            "CREATE TABLE IF NOT EXISTS testing.dummy_table "
+            "(course_id VARCHAR(255),"
+            "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
+            "count INT)"
+        )
 
     def _get_source_string(self, num_rows=1):
         """Returns test data to be input to database table."""
@@ -198,7 +214,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_to_predefined_table(self):
-        task = self.create_task(cls=CopyToPredefinedVerticaDummyTable)
+        task = self.create_task(cls=CopyEventsToPredefinedVerticaDummyTable)
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
         query = cursor.copy_file.call_args[0][0]
@@ -210,6 +226,21 @@ class VerticaCopyTaskTest(unittest.TestCase):
             sent_source = sent_data.read()
         self.assertEquals(sent_source, expected_source)
 
+    def test_columnar_table(self):
+        task = self.create_task(use_flex=False)
+        task.run()
+
+        mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
+        mock_cursor.execute.assert_has_calls([
+            call("CREATE SCHEMA IF NOT EXISTS foobar"),
+            call(
+                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
+                "(course_id VARCHAR(255),"
+                "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
+                "count INT)"
+            )
+        ])
+
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
     def test_create_schema(self):
         task = self.create_task()
@@ -219,9 +250,9 @@ class VerticaCopyTaskTest(unittest.TestCase):
         mock_cursor.execute.assert_has_calls([
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
             call(
-                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
-                "(id AUTO_INCREMENT PRIMARY KEY,course_id VARCHAR(255),"
+                "CREATE FLEX TABLE IF NOT EXISTS foobar.dummy_table "
+                "(course_id VARCHAR(255),"
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
-                "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+                "count INT)"
             )
         ])
