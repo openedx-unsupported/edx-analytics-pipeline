@@ -144,9 +144,14 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     # TODO: address the vertica copy not doing the problem, maybe?
     def copy_data_table_from_target(self, cursor):
         """Overriden since we copy from gzip files and need to use the json parser."""
-        with self.input()['insert_source'].open('r') as insert_source_stream:
-            cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
-                               .format(schema=self.schema, table=self.table), insert_source_stream)
+        # with self.input()['insert_source'].open('r') as insert_source_stream:
+        #     cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
+        #                        .format(schema=self.schema, table=self.table), insert_source_stream)
+
+        with gzip.open(self.input()['insert_source'], 'r') as insert_source_file:
+            cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+                             .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
+
 
 class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
     """Workflow for encapsulating the Vertica event loading task and passing in parameters."""
