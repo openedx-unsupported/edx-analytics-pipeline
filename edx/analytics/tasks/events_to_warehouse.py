@@ -147,10 +147,14 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # with self.input()['insert_source'].open('r') as insert_source_stream:
         #     cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
         #                        .format(schema=self.schema, table=self.table), insert_source_stream)
-
-        with gzip.open(self.input()['insert_source'], 'r') as insert_source_file:
-            cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
-                             .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
+        for place in self.input()['insert_source'].fs.listdir():
+            print place
+            with gzip.open(get_target_from_url(place), 'r') as file:
+                cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+                                 .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
+        # with gzip.open(self.input()['insert_source'], 'r') as insert_source_file:
+        #     cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+        #                      .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
 
 
 class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
