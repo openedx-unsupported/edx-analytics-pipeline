@@ -146,8 +146,9 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         """Overriden since we copy from gzip files and need to use the json parser."""
 
         # This one causes 100 Java IOExceptions about "inability to stream" to be thrown, one for each part file
-        with self.input()['insert_source'].open('r') as insert_source_stream:
-            print "HELLO, WE OPENED IT!"
+        f = self.input()['insert_source'].open('r')
+        print "HELLO, WE OPENED IT!"
+        f.close()
 
         raise IOError
             # cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
