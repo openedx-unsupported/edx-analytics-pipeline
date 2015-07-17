@@ -144,18 +144,22 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     # TODO: address the vertica copy not doing the problem, maybe?
     def copy_data_table_from_target(self, cursor):
         """Overriden since we copy from gzip files and need to use the json parser."""
-        # This one causes 100 IOExceptions about "inability to stream" to be thrown, one for each part file
-        # with self.input()['insert_source'].open('r') as insert_source_stream:
-        #     cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
-        #                        .format(schema=self.schema, table=self.table), insert_source_stream)
 
-        # This one hasn't been tested yet, but the idea is to just walk over the whole bucket
+        # This one causes 100 Java IOExceptions about "inability to stream" to be thrown, one for each part file
+        with self.input()['insert_source'].open('r') as insert_source_stream:
+            print "HELLO, WE OPENED IT!"
 
-        for place in self.input()['insert_source'].fs.listdir(self.input()['insert_source'].path):
-            print place
-            with gzip.open(get_target_from_url(url_path_join(self.input()['insert_source'].path, place), 'r')) as insert_source_file:
-                cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
-                                 .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
+        raise IOError
+            # cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
+            #                    .format(schema=self.schema, table=self.table), insert_source_stream)
+
+        # This one fails because gzip.open expects a string or buffer
+
+        # for place in self.input()['insert_source'].fs.listdir(self.input()['insert_source'].path):
+        #     print place
+        #     with gzip.open(get_target_from_url(url_path_join(self.input()['insert_source'].path, place), 'r')) as insert_source_file:
+        #         cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+        #                          .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
 
         # with gzip.open(self.input()['insert_source'], 'r') as insert_source_file:
         #     cursor.copy_file("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
