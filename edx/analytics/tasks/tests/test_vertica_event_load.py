@@ -140,18 +140,6 @@ class VerticaCopyTaskTest(unittest.TestCase):
             "count INT)"
         )
 
-    def test_create_table_without_column_definition(self):
-        connection = MagicMock()
-        task = self.create_task(cls=CopyEventsToPredefinedVerticaDummyTable)
-        with self.assertRaises(NotImplementedError):
-            task.create_table(connection)
-
-    def test_create_table_without_table_definition(self):
-        connection = MagicMock()
-        task = self.create_task(cls=VerticaEventLoadingTask)
-        with self.assertRaises(NotImplementedError):
-            task.create_table(connection)
-
     def test_create_columnar_table(self):
         """The events to warehouse loader has the capacity to load into flex or columnar tables, so test both."""
         connection = MagicMock()
@@ -232,9 +220,9 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
         mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
         mock_cursor.execute.assert_has_calls([
-            call("CREATE SCHEMA IF NOT EXISTS foobar"),
+            call("CREATE SCHEMA IF NOT EXISTS testing"),
             call(
-                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
+                "CREATE TABLE IF NOT EXISTS testing.dummy_table "
                 "(course_id VARCHAR(255),"
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT)"
