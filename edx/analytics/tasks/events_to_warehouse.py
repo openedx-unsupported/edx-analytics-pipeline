@@ -148,6 +148,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # This one causes 100 Java IOExceptions about "inability to stream" to be thrown, one for each part file
         f = self.input()['insert_source'].open('r')
         print "HELLO, WE OPENED IT!"
+        print f.read(8)
         f.close()
 
         raise IOError
