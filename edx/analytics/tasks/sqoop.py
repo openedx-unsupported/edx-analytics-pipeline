@@ -62,13 +62,13 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         }
     """
     destination = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'destination'}
+        config_path={'section': 'database-import', 'name': 'destination'}
     )
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
     database = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'database'}
+        config_path={'section': 'database-import', 'name': 'database'}
     )
     num_mappers = luigi.Parameter(default=None)
     verbose = luigi.BooleanParameter(default=False)

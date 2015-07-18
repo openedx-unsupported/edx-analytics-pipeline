@@ -266,7 +266,7 @@ class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDown
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
-        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        config_path={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
     )
     interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)

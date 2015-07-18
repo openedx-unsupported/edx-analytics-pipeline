@@ -42,25 +42,25 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """
 
     output_root = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'output_root'}
+        config_path={'section': 'event-export', 'name': 'output_root'}
     )
     config = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'config'}
+        config_path={'section': 'event-export', 'name': 'config'}
     )
     org_id = luigi.Parameter(is_list=True, default=[])
 
     gpg_key_dir = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'gpg_key_dir'}
+        config_path={'section': 'event-export', 'name': 'gpg_key_dir'}
     )
     gpg_master_key = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'gpg_master_key'}
+        config_path={'section': 'event-export', 'name': 'gpg_master_key'}
     )
     environment = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'environment'}
+        config_path={'section': 'event-export', 'name': 'environment'}
     )
 
     required_path_text = luigi.Parameter(
-        default_from_config={'section': 'event-export', 'name': 'required_path_text'}
+        config_path={'section': 'event-export', 'name': 'required_path_text'}
     )
 
     def requires_local(self):

@@ -126,7 +126,7 @@ class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
 
     """
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
     num_mappers = luigi.Parameter(default=None, significant=False)  # TODO: move to config
     where = luigi.Parameter(default=None)

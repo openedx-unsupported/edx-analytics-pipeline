@@ -25,7 +25,7 @@ class WarehouseMixin(object):
     """Task that is aware of the data warehouse."""
 
     warehouse_path = luigi.Parameter(
-        default_from_config={'section': 'hive', 'name': 'warehouse_path'}
+        config_path={'section': 'hive', 'name': 'warehouse_path'}
     )
 
 
