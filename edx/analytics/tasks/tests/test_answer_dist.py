@@ -888,10 +888,10 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
 
         self.task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
-            src=None,
+            src=[],
             dest=None,
             name=None,
-            include=None,
+            include=[],
             output_root=None,
         )
 
@@ -927,10 +927,10 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
         task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
-            src=None,
+            src=[],
             dest=None,
             name='name',
-            include=None,
+            include=[],
             output_root='/tmp',
         )
         output_path = task.output_path_for_key(course_id)
@@ -942,10 +942,10 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
         task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
-            src=None,
+            src=[],
             dest=None,
             name='name',
-            include=None,
+            include=[],
             output_root='/tmp',
         )
         output_path = task.output_path_for_key(course_id)
@@ -973,10 +973,10 @@ class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
         self.assertTrue(os.path.exists(self.output_root))
         AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
-            src=None,
+            src=[],
             dest=None,
             name='name',
-            include=None,
+            include=[],
             output_root=self.output_root,
         )
         self.assertTrue(os.path.exists(self.output_root))
@@ -986,10 +986,10 @@ class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
         # to get rid of the output_root directory.
         task = AnswerDistributionOneFilePerCourseTask(
             mapreduce_engine='local',
-            src=None,
+            src=[],
             dest=None,
             name='name',
-            include=None,
+            include=[],
             output_root=self.output_root,
             delete_output_root="true",
             marker=self.output_root,

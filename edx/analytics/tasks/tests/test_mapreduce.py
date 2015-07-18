@@ -2,6 +2,7 @@
 
 from __future__ import absolute_import
 
+from ConfigParser import NoOptionError
 from mock import patch, call
 import os
 import tempfile
@@ -132,8 +133,17 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
         self.addCleanup(cleanup, self.output_root)
 
         patcher = patch('edx.analytics.tasks.mapreduce.luigi.configuration.get_config')
+        temporary_file_path = tempfile.mkdtemp()
+        self.fake_config = {'remote_log_level': 'debug', 'marker': temporary_file_path}
+
+        def config_get(sec, name):
+            if name in self.fake_config:
+                return self.fake_config[name]
+            raise NoOptionError(sec, name)
         self.mock_get_config = patcher.start()
+        self.mock_get_config.return_value.get.side_effect = config_get
         self.addCleanup(patcher.stop)
+        self.addCleanup(shutil.rmtree, temporary_file_path)
 
     def test_no_delete_output_root(self):
         self.assertTrue(os.path.exists(self.output_root))
@@ -144,10 +154,6 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
         self.assertTrue(os.path.exists(self.output_root))
 
     def test_delete_output_root(self):
-        temporary_file_path = tempfile.mkdtemp()
-        self.mock_get_config.return_value.get.return_value = temporary_file_path
-        self.addCleanup(shutil.rmtree, temporary_file_path)
-
         # We create a task in order to get the output path.
         task = TestJobTask(
             mapreduce_engine='local',
