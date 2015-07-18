@@ -256,8 +256,8 @@ class CourseActivityWeeklyTask(CourseActivityTask):
                 act.category as label,
                 COUNT(DISTINCT username) as count
             FROM user_activity_daily act
-            JOIN calendar cal ON act.date = cal.date
-            WHERE "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            JOIN calendar cal ON act.`date` = cal.`date`
+            WHERE "{interval_start}" <= cal.`date` AND cal.`date` < "{interval_end}"
             GROUP BY
                 act.course_id,
                 cal.iso_week_start,
