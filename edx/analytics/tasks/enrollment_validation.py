@@ -884,10 +884,10 @@ class EnrollmentValidationWorkflow(CourseEnrollmentValidationPerDateTask):
     """
 
     validation_root = luigi.Parameter(
-        default_from_config={'section': 'enrollment-validation', 'name': 'validation_root'}
+        config_path={'section': 'enrollment-validation', 'name': 'validation_root'}
     )
     validation_pattern = luigi.Parameter(
-        default_from_config={'section': 'enrollment-validation', 'name': 'validation_pattern'}
+        config_path={'section': 'enrollment-validation', 'name': 'validation_pattern'}
     )
     credentials = luigi.Parameter(default=None)
 

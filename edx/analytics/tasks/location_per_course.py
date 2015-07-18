@@ -37,7 +37,7 @@ class LastCountryOfUserMixin(
 
     """
     user_country_output = luigi.Parameter(
-        default_from_config={'section': 'last-country-of-user', 'name': 'user_country_output'}
+        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'}
     )
 
 
@@ -184,7 +184,7 @@ class QueryLastCountryPerCourseMixin(object):
         course_country_output:  location to write query results.
     """
     course_country_output = luigi.Parameter(
-        default_from_config={'section': 'query-country-per-course', 'name': 'course_country_output'}
+        config_path={'section': 'query-country-per-course', 'name': 'course_country_output'}
     )
 
 

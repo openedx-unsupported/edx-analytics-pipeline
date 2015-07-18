@@ -208,7 +208,7 @@ class CourseEnrollmentEventsPerDay(
         MapReduceJobTask):
     """Calculates daily change in enrollment for a user in a course, given raw event log input."""
     # input_format overwrites the default value of none from MapReduceJobTaskMixin
-    input_format = luigi.Parameter(default_from_config={'section': 'manifest', 'name': 'input_format'})
+    input_format = luigi.Parameter(config_path={'section': 'manifest', 'name': 'input_format'})
 
     def requires(self):
         return PathSetTask(self.src, self.include, self.manifest)

@@ -38,10 +38,10 @@ class DatabaseImportMixin(object):
         }
     """
     destination = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'destination'}
+        config_path={'section': 'database-import', 'name': 'destination'}
     )
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
     import_date = luigi.DateParameter(default=None)
 

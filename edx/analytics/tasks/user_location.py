@@ -27,7 +27,7 @@ class GeolocationMixin(object):
         geolocation_data: a URL to the location of country-level geolocation data.
     """
     geolocation_data = luigi.Parameter(
-        default_from_config={'section': 'geolocation', 'name': 'geolocation_data'}
+        config_path={'section': 'geolocation', 'name': 'geolocation_data'}
     )
 
 

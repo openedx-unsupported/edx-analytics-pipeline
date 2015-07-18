@@ -27,7 +27,7 @@ class MapReduceJobTaskMixin(object):
     """Defines arguments used by downstream tasks to pass to upstream MapReduceJobTask."""
 
     mapreduce_engine = luigi.Parameter(
-        default_from_config={'section': 'map-reduce', 'name': 'engine'},
+        config_path={'section': 'map-reduce', 'name': 'engine'},
         significant=False
     )
     # TODO: remove these parameters
@@ -39,7 +39,7 @@ class MapReduceJobTaskMixin(object):
     n_reduce_tasks = luigi.Parameter(default=25, significant=False)
 
     remote_log_level = luigi.Parameter(
-        default_from_config={'section': 'map-reduce', 'name': 'remote_log_level'},
+        config_path={'section': 'map-reduce', 'name': 'remote_log_level'},
         significant=False
     )
 
@@ -244,7 +244,7 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     output_root = luigi.Parameter()
     delete_output_root = luigi.BooleanParameter(default=False, significant=False)
     marker = luigi.Parameter(
-        default_from_config={'section': 'map-reduce', 'name': 'marker'},
+        config_path={'section': 'map-reduce', 'name': 'marker'},
         significant=False
     )
 

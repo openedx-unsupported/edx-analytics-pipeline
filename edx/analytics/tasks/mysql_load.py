@@ -36,10 +36,10 @@ class MysqlInsertTaskMixin(OverwriteOutputMixin):
 
     """
     database = luigi.Parameter(
-        default_from_config={'section': 'database-export', 'name': 'database'}
+        config_path={'section': 'database-export', 'name': 'database'}
     )
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-export', 'name': 'credentials'}
+        config_path={'section': 'database-export', 'name': 'credentials'}
     )
     insert_chunk_size = luigi.IntParameter(default=100, significant=False)
 

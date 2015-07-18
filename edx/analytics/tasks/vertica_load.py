@@ -31,10 +31,10 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
         schema:  The schema to which to write.
     """
     schema = luigi.Parameter(
-        default_from_config={'section': 'vertica-export', 'name': 'schema'}
+        config_path={'section': 'vertica-export', 'name': 'schema'}
     )
     credentials = luigi.Parameter(
-        default_from_config={'section': 'vertica-export', 'name': 'credentials'}
+        config_path={'section': 'vertica-export', 'name': 'credentials'}
     )
 
 

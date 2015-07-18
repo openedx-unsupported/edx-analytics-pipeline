@@ -38,13 +38,13 @@ class MysqlSelectTask(luigi.Task):
     """
 
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
     destination = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'destination'}
+        config_path={'section': 'database-import', 'name': 'destination'}
     )
     database = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'database'}
+        config_path={'section': 'database-import', 'name': 'database'}
     )
 
     converters = [

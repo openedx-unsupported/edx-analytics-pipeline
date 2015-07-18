@@ -24,7 +24,7 @@ class CourseEnrollmentCountMixin(MapReduceJobTaskMixin):
     name = luigi.Parameter()
     src = luigi.Parameter(
         is_list=True,
-        default_from_config={'section': 'enrollment-reports', 'name': 'src'},
+        config_path={'section': 'enrollment-reports', 'name': 'src'},
     )
     include = luigi.Parameter(is_list=True, default=('*',))
     weeks = luigi.IntParameter(default=DEFAULT_NUM_WEEKS)
@@ -36,11 +36,11 @@ class CourseEnrollmentCountMixin(MapReduceJobTaskMixin):
     manifest = luigi.Parameter(default=None)
     manifest_path = luigi.Parameter(default=None)
     destination_directory = luigi.Parameter(default=None)
-    destination = luigi.Parameter(default_from_config={'section': 'enrollment-reports', 'name': 'destination'})
+    destination = luigi.Parameter(config_path={'section': 'enrollment-reports', 'name': 'destination'})
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
-    blacklist = luigi.Parameter(default_from_config={'section': 'enrollment-reports', 'name': 'blacklist'})
+    blacklist = luigi.Parameter(config_path={'section': 'enrollment-reports', 'name': 'blacklist'})
 
     """Provides methods useful for generating reports using course enrollment counts."""
 
