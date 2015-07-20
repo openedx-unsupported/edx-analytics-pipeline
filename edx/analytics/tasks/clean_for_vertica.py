@@ -183,8 +183,9 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
 
     def jobconfs(self):
         jcs = super(CleanForVerticaTask, self).jobconfs()
-        jcs.extend([
-            'mapred.output.compress=true',
-            'mapred.output.compression.codec=org.apache.hadoop.io.compress.GzipCodec'
-        ])
+        # For whatever reason, streaming folders of gzips doesn't work that well
+        # jcs.extend([
+        #     'mapred.output.compress=true',
+        #     'mapred.output.compression.codec=org.apache.hadoop.io.compress.GzipCodec'
+        # ])
         return jcs

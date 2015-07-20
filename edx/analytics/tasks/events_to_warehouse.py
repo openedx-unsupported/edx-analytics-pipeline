@@ -66,6 +66,13 @@ class LocalLuigiTestTask(luigi.Task):
     def output(self):
         return DummyTarget2()
 
+
+class Dummy4(luigi.Task):
+    def output(self):
+        # return get_target_from_url('/Users/jamesrowan/test_loader_folder/part-00023.gz')
+        return get_target_from_url('/Users/jamesrowan/test_loader_folder/')
+
+
 class VerticaEventLoadingTask(VerticaCopyTask):
     """
     A subclass of the Vertica bulk loading task that specifically loads flex tables from gzipped
@@ -146,10 +153,19 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         """Overriden since we copy from gzip files and need to use the json parser."""
 
         # This one causes 100 Java IOExceptions about "inability to stream" to be thrown, one for each part file
+        # with self.input()['insert_source'].open('r') as insert_source_file:
+        #     print "HELLO, WE OPENED IT!"
+        #     cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
+        #                        .format(schema=self.schema, table=self.table), insert_source_file)
+        #     print "NO ERRORS THROWN!"
+
+        # trying nongzipped locally
         with self.input()['insert_source'].open('r') as insert_source_file:
             print "HELLO, WE OPENED IT!"
-            cursor.copy_stream("COPY {schema}.{table} FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
+            cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
                                .format(schema=self.schema, table=self.table), insert_source_file)
+            print "NO ERRORS THROWN!"
+
 
         # This one fails because gzip.open expects a string or buffer
 
