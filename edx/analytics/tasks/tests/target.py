@@ -12,6 +12,14 @@ class FakeTarget(object):
     StringIO buffer.
     """
     def __init__(self, value=''):
+        self.value = value
+
+    @property
+    def value(self):
+        return self.buffer.getvalue()
+
+    @value.setter
+    def value(self, value):
         self.buffer = StringIO(value)
         # Rewind the buffer head so the value can be read
         self.buffer.seek(0)
