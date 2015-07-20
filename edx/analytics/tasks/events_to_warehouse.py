@@ -160,11 +160,13 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         #     print "NO ERRORS THROWN!"
 
         # trying nongzipped locally
-        with self.input()['insert_source'].open('r') as insert_source_file:
-            print "HELLO, WE OPENED IT!"
-            cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
-                               .format(schema=self.schema, table=self.table), insert_source_file)
-            print "NO ERRORS THROWN!"
+        # with self.input()['insert_source'].open('r') as insert_source_file:
+
+        insert_source_file = self.input()['insert_source'].open('r')
+        print "HELLO, WE OPENED IT!"
+        cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+                           .format(schema=self.schema, table=self.table), insert_source_file)
+        print "NO ERRORS THROWN!"
 
 
         # This one fails because gzip.open expects a string or buffer
