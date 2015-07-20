@@ -14,7 +14,7 @@ import luigi.date_interval
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.overwrite import OverwriteutputMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.canonicalization import CanonicalizationTask
