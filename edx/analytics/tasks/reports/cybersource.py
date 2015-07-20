@@ -10,6 +10,7 @@ from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.id_codec import encode_id
 
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
@@ -171,6 +172,8 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
                         row['payment_method'].lower().replace(' ', '_'),
                         # Identifier for the transaction.
                         row['request_id'],
+                        # globally unique transaction ID
+                        encode_id('cybersource', 'transaction_id', row['request_id']),
                     ]
                     output_file.write('\t'.join(result))
                     output_file.write('\n')

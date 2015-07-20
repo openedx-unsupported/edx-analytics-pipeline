@@ -1,11 +1,14 @@
 """Various helper utilities that are commonly used when working with Hive"""
 
 import logging
+import os
+import tempfile
 import textwrap
 
 import luigi
+import luigi.hadoop
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner
+from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, load_hive_cmd
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
@@ -131,8 +134,64 @@ class OverwriteAwareHiveQueryRunner(HiveQueryRunner):
         if hasattr(job, 'remove_output_on_overwrite'):
             job.remove_output_on_overwrite()
 
-        log.debug('Executing hive query: %s', job.query())
-        return super(OverwriteAwareHiveQueryRunner, self).run_job(job)
+        query = job.query()
+        transform_udfs = getattr(job, 'transform_udfs', [])
+
+        log.debug('Executing hive query: %s', query)
+        self.prepare_outputs(job)
+        try:
+            with tempfile.NamedTemporaryFile() as f:
+                for transform_udf in transform_udfs:
+                    transform_udf.open()
+                    f.write(transform_udf.add_file_command)
+                    f.write(';\n')
+
+                f.write(query)
+                f.flush()
+                arglist = [load_hive_cmd(), '-f', f.name]
+                if job.hiverc():
+                    arglist += ['-i', job.hiverc()]
+                if job.hiveconfs():
+                    for k, v in job.hiveconfs().iteritems():
+                        arglist += ['--hiveconf', '{0}={1}'.format(k, v)]
+
+                log.info(arglist)
+                return luigi.hadoop.run_and_track_hadoop_job(arglist)
+        finally:
+            for transform_udf in transform_udfs:
+                try:
+                    transform_udf.close()
+                except Exception:
+                    log.exception('Unable to close transform UDF %s', transform_udf.script_name)
+
+
+class HiveTransformUdf(object):
+
+    def __init__(self, script_name, script_content):
+        self.script_name = script_name
+        self.script_content = textwrap.dedent(script_content).strip()
+        self.temporary_file_path = None
+        self.temporary_directory_path = None
+
+    def open(self):
+        self.temporary_directory_path = tempfile.mkdtemp()
+        self.temporary_file_path = os.path.join(self.temporary_directory_path, self.script_name)
+        with open(self.temporary_file_path, 'w+b') as temporary_file:
+            temporary_file.write(self.script_content)
+
+    @property
+    def add_file_command(self):
+        if self.temporary_file_path is None:
+            return ''
+
+        return "add FILE {0}".format(self.temporary_file_path)
+
+    def close(self):
+        if self.temporary_file_path is None:
+            return
+
+        os.unlink(self.temporary_file_path)
+        os.rmdir(self.temporary_directory_path)
 
 
 class HivePartition(object):
