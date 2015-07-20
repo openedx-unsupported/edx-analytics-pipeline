@@ -69,8 +69,8 @@ class LocalLuigiTestTask(luigi.Task):
 
 class Dummy4(luigi.Task):
     def output(self):
-        # return get_target_from_url('/Users/jamesrowan/test_loader_folder/part-00023.gz')
-        return get_target_from_url('/Users/jamesrowan/test_loader_folder/')
+        return get_target_from_url('file:/Users/jamesrowan/test_loader_folder/')
+        # return get_target_from_url('s3+https://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/')
 
 
 class VerticaEventLoadingTask(VerticaCopyTask):
@@ -88,7 +88,8 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
         # return LocalLuigiTestInput(id=95)
-        return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
+        # return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
+        return Dummy4()
 
     @property
     def table(self):
