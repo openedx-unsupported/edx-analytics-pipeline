@@ -10,7 +10,7 @@ else:
     import unittest
 
 from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive
+from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica
 
 
 log = logging.getLogger(__name__)
@@ -53,6 +53,8 @@ class AcceptanceTestCase(unittest.TestCase):
         assert('identifier' in self.config)
         # A URL to a JSON file that contains most of the connection information for the MySQL database.
         assert('credentials_file_url' in self.config)
+        # A URL to a JSON file that contains most of the connection information for the Veritca database.
+        assert('vertica_creds_url' in self.config)
         # A URL to a build of the oddjob third party library
         assert 'oddjob_jar' in self.config
         # A URL to a maxmind compatible geolocation database file
@@ -69,7 +71,9 @@ class AcceptanceTestCase(unittest.TestCase):
         self.test_src = url_path_join(self.test_root, 'src')
         self.test_out = url_path_join(self.test_root, 'out')
 
+        self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
+        schema = 'test_' + self.identifier
         import_database_name = 'import_' + database_name
         export_database_name = 'export_' + database_name
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
@@ -94,6 +98,13 @@ class AcceptanceTestCase(unittest.TestCase):
                 'credentials': self.config['credentials_file_url'],
                 'database': export_database_name
             },
+            'vertica-export': {
+                'credentials': self.config['vertica_creds_url'],
+                'schema': schema
+            },
+            'course-catalog': {
+                'catalog_path': self.catalog_path
+            },
             'geolocation': {
                 'geolocation_data': self.config['geolocation_data']
             },
@@ -109,6 +120,7 @@ class AcceptanceTestCase(unittest.TestCase):
         self.import_db = db.DatabaseService(self.config, import_database_name)
         self.export_db = db.DatabaseService(self.config, export_database_name)
         self.task = task.TaskService(self.config, task_config_override, self.identifier)
+        self.vertica = vertica.VerticaService(self.config, schema)
         self.hive = hive.HiveService(self.task, self.config, database_name)
 
         self.reset_external_state()
@@ -118,6 +130,7 @@ class AcceptanceTestCase(unittest.TestCase):
         self.import_db.reset()
         self.export_db.reset()
         self.hive.reset()
+        self.vertica.reset()
 
     def upload_tracking_log(self, input_file_name, file_date):
         # Define a tracking log path on S3 that will be matched by the standard event-log pattern."

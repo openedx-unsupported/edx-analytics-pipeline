@@ -6,7 +6,7 @@ import logging
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.calendar import CalendarTableTask
+from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url
