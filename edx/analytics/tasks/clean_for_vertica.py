@@ -103,7 +103,25 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         if event.get('event_type')[0] == '/':  # This is the marker for an implicit event
             return None
-        return event
+        else:
+            return event
+
+    # def truncate_event_post_key(self, event):
+    #     """
+    #     The JSON parser Vertica uses to ingest into flex tables can't handle key names larger than 256 columns,
+    #     which will sometimes happen in the "POST" key of our event payload, so we need to truncate such fields.
+    #
+    #     Args:
+    #         event: an event dictionary, or None if something has gone wrong earlier
+    #
+    #     Returns:
+    #         the event, with the event.event.POST field truncated if its length is bigger than 255.
+    #     """
+    #     event_payload = event.get('event', {})
+    #     if 'POST' in event_payload and isinstance(event_payload.get('POST'), basestring):
+    #         posted_info = event_payload['POST']
+    #         event_payload['POST'] = posted_info[:255] if len(posted_info) > 255 else posted_info
+    #     return event
 
     def mapper(self, line):
         """
@@ -116,7 +134,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         event = self.event_from_line(line)
         event = self.add_metadata(event, line)
         if self.remove_implicit:
-            self.remove_implicit_events(event)
+            event = self.remove_implicit_events(event)
 
         if event is None:
             return
