@@ -1,13 +1,14 @@
+import datetime
 import luigi
 import luigi.hdfs
 import luigi.date_interval
-import datetime
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
-from edx.analytics.tasks.database_imports import (DatabaseImportMixin,ImportStudentCourseEnrollmentTask, ImportCourseModeTask)
-# from edx.analytics.tasks.reports.data_import.coursemode_imports import CourseModeTableTask
+from edx.analytics.tasks.database_imports import (
+    DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
+)
 
 
 class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
@@ -92,7 +93,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('net_seat_count', 'INT'),
             ('donation_count', 'INT'),
             ('net_donation_revenue', 'DECIMAL'),
-       ]
+        ]
 
     @property
     def partition(self):
