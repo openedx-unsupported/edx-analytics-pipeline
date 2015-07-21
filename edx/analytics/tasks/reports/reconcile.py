@@ -13,6 +13,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.pathutil import EventLogSelectionTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
+from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
 log = logging.getLogger(__name__)
@@ -40,7 +41,7 @@ ORDERITEM_FIELDS = [
     'payment_ref_id',  # This is the value to compare with the transactions.
 ]
 
-OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)
+OrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)  # pylint: disable=invalid-name
 
 # These are cybersource-specific at the moment, until generalized
 # for Paypal, etc.
@@ -63,7 +64,7 @@ TRANSACTION_FIELDS = [
     'transaction_id',
 ]
 
-TransactionRecord = namedtuple('TransactionRecord', TRANSACTION_FIELDS)
+TransactionRecord = namedtuple('TransactionRecord', TRANSACTION_FIELDS)  # pylint: disable=invalid-name
 
 LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
     '1556',
@@ -323,7 +324,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 proportion = Decimal(transaction_amount_per_item) / Decimal(transaction.amount)
                 transaction_fee_per_item = str(Decimal(transaction.transaction_fee) * proportion)
 
-        NULL = "\\N"
+        NULL = "\\N"  # pylint: disable=invalid-name
 
         org_id = None
         if orderitem:
@@ -333,10 +334,12 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             audit_code,
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
             orderitem.order_id if orderitem else NULL,
+            encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else NULL,
             orderitem.date_placed if orderitem else NULL,
             # transaction information
             transaction.date if transaction else NULL,
             transaction.transaction_id if transaction else NULL,
+            encode_id(transaction.payment_gateway_id, "transaction_id", transaction.transaction_id) if transaction else NULL,
             transaction.payment_gateway_id if transaction else NULL,
             transaction.payment_gateway_account_id if transaction else NULL,
             transaction.transaction_type if transaction else NULL,
@@ -349,6 +352,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             str(transaction_fee_per_item) if transaction_fee_per_item is not None else NULL,
             # orderitem information
             orderitem.line_item_id if orderitem else NULL,
+            encode_id(orderitem.order_processor, "line_item_id", orderitem.line_item_id) if orderitem else NULL,
             orderitem.line_item_product_id if orderitem else NULL,
             orderitem.line_item_price if orderitem else NULL,
             orderitem.line_item_unit_price if orderitem else NULL,
@@ -367,13 +371,15 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         return (OrderTransactionRecord(*result).to_tsv(),)
 
 
-OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
+OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: disable=invalid-name
     "audit_code",
     "payment_ref_id",
     "order_id",
+    "unique_order_id",
     "order_timestamp",
     "transaction_date",
     "transaction_id",
+    "unique_transaction_id",
     "transaction_payment_gateway_id",
     "transaction_payment_gateway_account_id",
     "transaction_type",
@@ -384,6 +390,7 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [
     "transaction_amount_per_item",
     "transaction_fee_per_item",
     "order_line_item_id",
+    "unique_order_line_item_id",
     "order_line_item_product_id",
     "order_line_item_price",
     "order_line_item_unit_price",
@@ -427,9 +434,11 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('audit_code', 'STRING'),
             ('payment_ref_id', 'STRING'),
             ('order_id', 'INT'),
+            ('unique_order_id', 'STRING'),
             ('order_timestamp', 'TIMESTAMP'),
             ('transaction_date', 'STRING'),
             ('transaction_id', 'STRING'),
+            ('unique_transaction_id', 'STRING'),
             ('transaction_payment_gateway_id', 'STRING'),
             ('transaction_payment_gateway_account_id', 'STRING'),
             ('transaction_type', 'STRING'),
@@ -440,6 +449,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('transaction_amount_per_item', 'DECIMAL'),
             ('transaction_fee_per_item', 'DECIMAL'),
             ('order_line_item_id', 'INT'),
+            ('unique_order_line_item_id', 'STRING'),
             ('order_line_item_product_id', 'INT'),
             ('order_line_item_price', 'DECIMAL'),
             ('order_line_item_unit_price', 'DECIMAL'),
@@ -501,7 +511,11 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             order_source=self.order_source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=url_path_join(self.output_root, 'reconciled_order_transactions', 'dt=' + self.interval.date_b.isoformat()) + '/',
+            output_root=url_path_join(
+                self.output_root,
+                'reconciled_order_transactions',
+                'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+            ) + '/',
             # overwrite=self.overwrite,
         )
 
@@ -512,7 +526,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         for record_str in self.input().open('r'):
             record = OrderTransactionRecord.from_job_output(record_str)
 
-            if record.transaction_date is not None and record.transaction_date != '':
+            if record.transaction_date is not None and record.transaction_date != '':  # pylint: disable=no-member
                 all_records.append(record)
 
         with self.output().open('w') as output_file:
@@ -523,19 +537,15 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 return record.transaction_date, record.order_line_item_id, record.order_org_id
 
             for record in sorted(all_records, key=get_sort_key):
-                line_item_id = None
-                if record.order_line_item_id is not None:
-                    line_item_id = record.order_processor[0] + ':' + record.order_line_item_id
-
                 writer.writerow({
                     'date': record.transaction_date,
-                    'transaction_id': record.transaction_payment_gateway_id[0] + ':' + record.transaction_id,
+                    'transaction_id': record.unique_transaction_id,
                     'payment_gateway_id': record.transaction_payment_gateway_id,
                     'transaction_type': record.transaction_type,
                     'payment_method': record.transaction_payment_method,
                     'transaction_amount': record.transaction_amount,
                     'line_item_transaction_fee': record.transaction_fee_per_item,
-                    'line_item_id': line_item_id,
+                    'line_item_id': record.unique_order_line_item_id,
                     'line_item_price': record.transaction_amount_per_item,
                     'product_class': record.order_product_class,
                     'product_detail': record.order_product_detail,
