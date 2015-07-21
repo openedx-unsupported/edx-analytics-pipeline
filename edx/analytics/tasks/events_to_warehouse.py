@@ -69,8 +69,10 @@ class LocalLuigiTestTask(luigi.Task):
 
 class Dummy4(luigi.Task):
     def output(self):
-        return get_target_from_url('file:/Users/jamesrowan/test_loader_folder/')
-        # return get_target_from_url('s3+https://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/')
+        # return get_target_from_url('/Users/jamesrowan/test_loader_folder/')
+        # return luigi.LocalTarget('/Users/jamesrowan/test_loader_folder/')
+        print str(type(get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')))
+        return get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')
 
 
 class VerticaEventLoadingTask(VerticaCopyTask):
@@ -88,8 +90,8 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
         # return LocalLuigiTestInput(id=95)
-        # return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
-        return Dummy4()
+        return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
+        # return Dummy4()
 
     @property
     def table(self):
@@ -163,11 +165,14 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # trying nongzipped locally
         # with self.input()['insert_source'].open('r') as insert_source_file:
 
-        insert_source_file = self.input()['insert_source'].open('r')
-        print "HELLO, WE OPENED IT!"
-        cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
-                           .format(schema=self.schema, table=self.table), insert_source_file)
-        print "NO ERRORS THROWN!"
+        # insert_source_file = self.input()['insert_source'].open('r')
+        with self.input()['insert_source'].open('r') as insert_source_file:
+            print "HELLO, WE OPENED IT!"
+            cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+                               .format(schema=self.schema, table=self.table), insert_source_file)
+            print "NO ERRORS THROWN!"
+
+        print "closed"
 
 
         # This one fails because gzip.open expects a string or buffer
