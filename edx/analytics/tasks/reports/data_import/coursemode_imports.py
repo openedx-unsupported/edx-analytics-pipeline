@@ -2,7 +2,8 @@ import luigi
 import luigi.hdfs
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.database_imports import (DatabaseImportMixin,ImportCourseModeTask)
+from edx.analytics.tasks.database_imports import (DatabaseImportMixin, ImportCourseModeTask)
+
 
 class CourseModeTableTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """
