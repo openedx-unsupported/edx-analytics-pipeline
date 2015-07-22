@@ -62,6 +62,10 @@ class LocalLuigiTestTask(luigi.Task):
 
     def run(self):
         print "HELLO, WORLD!"
+        print luigi.DateIntervalParameter('2015-07').value
+        for d in luigi.DateIntervalParameter('2015-07').parse(luigi.DateIntervalParameter('2015-07').value):
+            print str(type(d))
+            b = luigi.DateParameter(d)
         self.output().open('w').write("DONE!")
 
     def output(self):
@@ -86,13 +90,15 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     use_flex = luigi.Parameter(default=True)
     interval = luigi.DateIntervalParameter()
     run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    remove_implicit = luigi.BooleanParameter(default=True)
 
     @property
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
-        # return LocalLuigiTestInput(id=95)
-        return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
         # return Dummy4()
+        # return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
+        for day in luigi.DateIntervalParameter().parse(self.run_date.value):
+            yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
 
     @property
     def table(self):
