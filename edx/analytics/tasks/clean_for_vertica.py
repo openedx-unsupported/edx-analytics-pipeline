@@ -133,7 +133,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         event = self.event_from_line(line)
         event = self.add_metadata(event, line)
-        if self.remove_implicit.value:
+        if self.remove_implicit:
             event = self.remove_implicit_events(event)
 
         if event is None:
