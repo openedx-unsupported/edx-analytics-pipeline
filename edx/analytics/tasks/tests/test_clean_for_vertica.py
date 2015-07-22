@@ -3,6 +3,10 @@ Test the MapReduce task for cleaning event data prior to bulkloading into Vertic
 
 Note that because this task requires canonicalized events as input, we don't need to test any edge cases.
 
+Note that because the mapper keys are generated deterministically in a non-meaningful way from the event
+processing metadata, we don't use the provided assert_single_map_output function from MapperTestMixin and
+instead just check the mapper output values.
+
 Testing strategy:
     Single clean implicit event, when the task has remove_implicit=True, should have no output.
     Single clean implicit event, when the task has remove_implict=False, should appear in the 1-event output.
@@ -53,6 +57,9 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
         # super(TestCleanForVerticaMapper, self).setUp()
 
         # self.initialize_ids()
+        self.course_id = "fooX/bar101X"
+        self.org_id = "fooX"
+        self.user_id = "test_user"
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.event_templates = {
             'sample_implicit': {
@@ -98,8 +105,26 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
         self.expected_key = (self.course_id, self.user_id)
 
 
+        # When CleanForVerticaTask's mapper adds metadata to the events, it expects
+        # and uses certain environment variables, so we set those here.
+        os.environ['map_input_file'] = 'test_map_input'
 
-    def test_implicit_removed(self):
-        """If we have an implicit event, we remove it by default."""
-        line = self.create_event_log_line()
+    def assert_single_map_output_value(self, line, expected):
+        """Assert that an input line generates exactly one output record with the expected value."""
+        mapper_output = tuple(self.task.mapper(line))
+        self.assertEqual(len(mapper_output), 1, "Expected only a single mapper output.")
+        row = mapper_output[0]
+        actual_key, actual_value = row
+        self.assertEqual(actual_value, expected)
+
+    def test_implicit_removed_when_desired(self):
+        """If we have an implicit event, we remove it if the remove_implicit flag is set to True."""
+        self.task = CleanForVerticaTask(date=datetime.date(2013, 12, 17), remove_implicit=True)
+        line = self.create_event_log_line(template_name='sample_implicit')
         self.assert_no_map_output_for(line)
+
+    def test_implicit_kept_when_desired(self):
+        """If we have an implicit event, we keep it if the remove_implicit flag is set to False."""
+        self.task = CleanForVerticaTask(date=datetime.date(2013, 12, 17), remove_implicit=False)
+        line = self.create_event_log_line(template_name='sample_implicit')
+        self.assert_single_map_output_value(line, '{}')

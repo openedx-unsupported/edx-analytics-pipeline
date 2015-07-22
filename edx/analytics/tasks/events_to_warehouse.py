@@ -96,7 +96,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
         # return Dummy4()
-        return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
+        return(CleanForVerticaTask(date=self.run_date, remove_implicit=self.remove_implicit))
         # for day in luigi.DateIntervalParameter().parse(self.run_date):
         #     yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
 
