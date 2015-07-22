@@ -516,7 +516,7 @@ class StudentEngagementToMysqlTask(
     @property
     def insert_source_task(self):
         return (
-            JoinedStudentEngagementTableTask(
+            StudentEngagementTableTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
@@ -530,6 +530,151 @@ class StudentEngagementToMysqlTask(
     @property
     def table(self):
         return 'student_engagement_{}'.format(self.interval_type)
+
+    @property
+    def query(self):
+        # Write everything into Mysql.
+        return """
+            SELECT
+                end_date,
+                course_id,
+                username,
+                days_active,
+                problems_attempted,
+                problem_attempts,
+                problems_correct,
+                videos_played,
+                forum_posts,
+                forum_responses,
+                forum_comments,
+                textbook_pages_viewed,
+                last_subsection_viewed
+            FROM student_engagement_raw_{}
+        """.format(self.interval_type)
+
+    @property
+    def columns(self):
+        return [
+            ('end_date', 'DATETIME'),
+            ('course_id', 'VARCHAR(255)'),
+            ('username', 'VARCHAR(255)'),
+            ('days_active', 'INT(11)'),
+            ('problems_attempted', 'INT(11)'),
+            ('problem_attempts', 'INT(11)'),
+            ('problems_correct', 'INT(11)'),
+            ('videos_played', 'INT(11)'),
+            ('forum_posts', 'INT(11)'),
+            ('forum_responses', 'INT(11)'),
+            ('forum_comments', 'INT(11)'),
+            ('textbook_pages_viewed', 'INT(11)'),
+            ('last_subsection_viewed', 'VARCHAR(255)'),
+        ]
+
+
+class StudentEngagementToVerticaTask(
+        StudentEngagementTableDownstreamMixin,
+        VerticaCopyTask):
+    """
+    Writes student engagement information to Vertica database.
+    """
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        return (
+            StudentEngagementTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                interval_type=self.interval_type,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'd_student_engagement_{}'.format(self.interval_type)
+
+    @property
+    def auto_primary_key(self):
+        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
+        return None
+
+    @property
+    def default_columns(self):
+        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
+        return None
+
+    @property
+    def query(self):
+        # Write everything into Vertica.
+        return """
+            SELECT
+                end_date,
+                course_id,
+                username,
+                days_active,
+                problems_attempted,
+                problem_attempts,
+                problems_correct,
+                videos_played,
+                forum_posts,
+                forum_responses,
+                forum_comments,
+                textbook_pages_viewed,
+                last_subsection_viewed
+            FROM student_engagement_raw_{}
+        """.format(self.interval_type)
+
+    @property
+    def columns(self):
+        return [
+            ('row_number', 'AUTO_INCREMENT PRIMARY KEY'),
+            ('end_date', 'DATETIME'),
+            ('course_id', 'VARCHAR(255)'),
+            ('username', 'VARCHAR(255)'),
+            ('days_active', 'INT(11)'),
+            ('problems_attempted', 'INT(11)'),
+            ('problem_attempts', 'INT(11)'),
+            ('problems_correct', 'INT(11)'),
+            ('videos_played', 'INT(11)'),
+            ('forum_posts', 'INT(11)'),
+            ('forum_responses', 'INT(11)'),
+            ('forum_comments', 'INT(11)'),
+            ('textbook_pages_viewed', 'INT(11)'),
+            ('last_subsection_viewed', 'VARCHAR(255)'),
+        ]
+
+
+class JoinedStudentEngagementToMysqlTask(
+        StudentEngagementTableDownstreamMixin,
+        MysqlInsertTask):
+    """
+    Writes student engagement information to Mysql database.
+    """
+
+    @property
+    def insert_source_task(self):
+        return (
+            JoinedStudentEngagementTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                interval_type=self.interval_type,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'student_engagement_joined_{}'.format(self.interval_type)
 
     @property
     def query(self):
@@ -575,7 +720,7 @@ class StudentEngagementToMysqlTask(
         ]
 
 
-class StudentEngagementToVerticaTask(
+class JoinedStudentEngagementToVerticaTask(
         StudentEngagementTableDownstreamMixin,
         VerticaCopyTask):
     """
@@ -602,7 +747,7 @@ class StudentEngagementToVerticaTask(
 
     @property
     def table(self):
-        return 'd_student_engagement_{}'.format(self.interval_type)
+        return 'd_student_engagement_joined_{}'.format(self.interval_type)
 
     @property
     def auto_primary_key(self):
