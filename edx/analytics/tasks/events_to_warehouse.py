@@ -62,13 +62,14 @@ class LocalLuigiTestTask(luigi.Task):
 
     def run(self):
         print "HELLO, WORLD!"
-        print luigi.DateIntervalParameter('2015-07').value
-        for d in luigi.DateIntervalParameter('2015-07').parse(luigi.DateIntervalParameter('2015-07').value):
+        b = luigi.DateIntervalParameter('2015-07')
+        for d in luigi.DateIntervalParameter('2015-07-01/03').parse(b):
             print str(type(d))
             b = luigi.DateParameter(d)
         self.output().open('w').write("DONE!")
 
     def output(self):
+        luigi.DateIntervalParameter('2015-07-01/03').parse('2015-07-01-2015-07-03')
         return DummyTarget2()
 
 
@@ -88,17 +89,16 @@ class VerticaEventLoadingTask(VerticaCopyTask):
 
     # By default, use flex tables, since we may want to materialize additional columns
     use_flex = luigi.Parameter(default=True)
-    interval = luigi.DateIntervalParameter()
     run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     remove_implicit = luigi.BooleanParameter(default=True)
 
     @property
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
-        # return Dummy4()
+        return Dummy4()
         # return(CleanForVerticaTask(date=self.run_date, remove_implicit=True))
-        for day in luigi.DateIntervalParameter().parse(self.run_date.value):
-            yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
+        # for day in luigi.DateIntervalParameter().parse(self.run_date):
+        #     yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
 
     @property
     def table(self):
@@ -209,19 +209,30 @@ class VerticaEventLoadingTask(VerticaCopyTask):
 class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
     """Workflow for encapsulating the Vertica event loading task and passing in parameters."""
     interval = luigi.DateIntervalParameter()
+    remove_implicit = luigi.BooleanParameter(default=True)
 
     def requires(self):
         # Add additional args for VerticaCopyMixin.
         kwargs2 = {
             'schema': self.schema,
             'credentials': self.credentials,
-            'interval': self.interval,
         }
         kwargs2.update(kwargs2)
 
-        yield (
-            VerticaEventLoadingTask(**kwargs2),
-        )
+        for day in luigi.DateIntervalParameter().parse(str(self.interval)):
+            task_needed = VerticaEventLoadingTask(run_date=day, remove_implicit=self.remove_implicit, **kwargs2)
+            print str(task_needed)
+            yield task_needed
+
+        # yield (
+        #     VerticaEventLoadingTask(**kwargs2),
+        # )
+
+    def run(self):
+        self.output().open('w').write("DONE!")
+
+    def output(self):
+        return DummyTarget2()
 
 if __name__ == '__main__':
-    luigi.run(main_task_cls=LocalLuigiTestTask)
+    luigi.run(main_task_cls=VerticaEventLoadingWorkflow)
