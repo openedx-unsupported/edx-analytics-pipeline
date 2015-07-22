@@ -160,7 +160,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def _get_expected_query(self):
         """Returns query that should be generated for copying into the table."""
-        query = ("COPY {schema}.dummy_table FROM STDIN GZIP PARSER fjsonparser() NO COMMIT;"
+        query = ("COPY {schema}.dummy_table FROM STDIN PARSER fjsonparser() NO COMMIT;"
                  .format(schema=self.create_task().schema))
         return query
 

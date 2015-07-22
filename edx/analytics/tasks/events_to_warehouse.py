@@ -9,6 +9,7 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 
 from vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from clean_for_vertica import CleanForVerticaTask
+import vertica_python
 
 log = logging.getLogger(__name__)
 
@@ -57,7 +58,7 @@ class LocalLuigiTestInput(luigi.Task):
 
 class LocalLuigiTestTask(luigi.Task):
     def requires(self):
-        return VerticaEventLoadingTask(overwrite=False, schema='experimental', credentials='vertica_creds', interval='2015-07')
+        return VerticaEventLoadingTask(overwrite=True, schema='experimental', credentials='vertica_creds', interval='2015-07')
 
     def run(self):
         print "HELLO, WORLD!"
@@ -69,10 +70,10 @@ class LocalLuigiTestTask(luigi.Task):
 
 class Dummy4(luigi.Task):
     def output(self):
-        # return get_target_from_url('/Users/jamesrowan/test_loader_folder/')
+        return get_target_from_url('/Users/jamesrowan/test_loader_folder/part-00024')
         # return luigi.LocalTarget('/Users/jamesrowan/test_loader_folder/')
-        print str(type(get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')))
-        return get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')
+        # print str(type(get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')))
+        # return get_target_from_url('s3://edx-analytics-data/dev/warehouse/events-vertica/dt=2015-07-20/part-00023')
 
 
 class VerticaEventLoadingTask(VerticaCopyTask):
@@ -96,7 +97,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     @property
     def table(self):
         """We use the table event_logs for this task."""
-        return "event_logs"
+        return "event_logs_test"
 
     def create_table(self, connection):
         """Overriden because we will create a flex table instead of a traditional table."""
@@ -168,8 +169,19 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # insert_source_file = self.input()['insert_source'].open('r')
         with self.input()['insert_source'].open('r') as insert_source_file:
             print "HELLO, WE OPENED IT!"
+
+            # If we are using an overwrite
+            if self.overwrite:
+                cursor.flush_to_query_ready()
+
             cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
                                .format(schema=self.schema, table=self.table), insert_source_file)
+
+            # while True:
+            #     message = cursor.connection.read_message()
+            #
+            #     print message
+
             print "NO ERRORS THROWN!"
 
         print "closed"

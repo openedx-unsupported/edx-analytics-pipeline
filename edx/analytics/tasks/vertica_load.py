@@ -187,19 +187,27 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         # clear table contents
         self.attempted_removal = True
         if self.overwrite:
+            print "IN overwrite area!"
             # first clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                query = "DELETE FROM {schema}.{marker_table} where target_table='{schema}.{target_table}';".format(
+                    schema=self.schema,
                     marker_table=marker_table,
-                    target_table=self.table,
+                    target_table=self.table
                 )
+                print "we want to run the following query: "
+                print query
+                print "============================================================"
                 connection.cursor().execute(query)
+                print "we executed it"
             except vertica_python.errors.Error as err:
                 if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
                     # If so, then our query error failed because the table doesn't exist.
+                    print "table doesn't exist"
                     pass
                 else:
+                    print "Other error"
                     raise
 
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
