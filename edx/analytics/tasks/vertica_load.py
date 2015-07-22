@@ -196,24 +196,26 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                     marker_table=marker_table,
                     target_table=self.table
                 )
-                print "we want to run the following query: "
-                print query
-                print "============================================================"
                 connection.cursor().execute(query)
-                print "we executed it"
             except vertica_python.errors.Error as err:
                 if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
                     # If so, then our query error failed because the table doesn't exist.
-                    print "table doesn't exist"
                     pass
                 else:
-                    print "Other error"
                     raise
 
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
             connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
 
     @property
     def copy_delimiter(self):
