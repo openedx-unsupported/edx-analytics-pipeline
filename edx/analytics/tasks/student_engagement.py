@@ -516,14 +516,17 @@ class StudentEngagementToMysqlTask(
     @property
     def insert_source_task(self):
         return (
-            StudentEngagementTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                overwrite=self.overwrite,
-                interval_type=self.interval_type,
+            # Get the location of the Hive table, so it can be opened and read.
+            get_target_from_url(
+                StudentEngagementTableTask(
+                    mapreduce_engine=self.mapreduce_engine,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                    source=self.source,
+                    interval=self.interval,
+                    pattern=self.pattern,
+                    overwrite=self.overwrite,
+                    interval_type=self.interval_type,
+                ).path
             )
         )
 
@@ -585,14 +588,17 @@ class StudentEngagementToVerticaTask(
     @property
     def insert_source_task(self):
         return (
-            StudentEngagementTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                overwrite=self.overwrite,
-                interval_type=self.interval_type,
+            # Get the location of the Hive table, so it can be opened and read.
+            get_target_from_url(
+                StudentEngagementTableTask(
+                    mapreduce_engine=self.mapreduce_engine,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                    source=self.source,
+                    interval=self.interval,
+                    pattern=self.pattern,
+                    overwrite=self.overwrite,
+                    interval_type=self.interval_type,
+                ).path
             )
         )
 
