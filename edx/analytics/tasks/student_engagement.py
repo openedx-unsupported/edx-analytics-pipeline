@@ -506,6 +506,13 @@ class StudentEngagementCsvFileTask(
             writer.writerow(row_dict)
 
 
+class StudentEngagementTableLocationTask(StudentEngagementTableTask):
+    """Hive table that provides its location as the output instead of its partition."""
+
+    def output(self):
+        return get_target_from_url(self.partition_location)
+
+
 class StudentEngagementToMysqlTask(
         StudentEngagementTableDownstreamMixin,
         MysqlInsertTask):
@@ -517,43 +524,20 @@ class StudentEngagementToMysqlTask(
     def insert_source_task(self):
         return (
             # Get the location of the Hive table, so it can be opened and read.
-            get_target_from_url(
-                StudentEngagementTableTask(
-                    mapreduce_engine=self.mapreduce_engine,
-                    n_reduce_tasks=self.n_reduce_tasks,
-                    source=self.source,
-                    interval=self.interval,
-                    pattern=self.pattern,
-                    overwrite=self.overwrite,
-                    interval_type=self.interval_type,
-                ).path
+            StudentEngagementTableLocationTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                interval_type=self.interval_type,
             )
         )
 
     @property
     def table(self):
         return 'student_engagement_{}'.format(self.interval_type)
-
-    @property
-    def query(self):
-        # Write everything into Mysql.
-        return """
-            SELECT
-                end_date,
-                course_id,
-                username,
-                days_active,
-                problems_attempted,
-                problem_attempts,
-                problems_correct,
-                videos_played,
-                forum_posts,
-                forum_responses,
-                forum_comments,
-                textbook_pages_viewed,
-                last_subsection_viewed
-            FROM student_engagement_raw_{}
-        """.format(self.interval_type)
 
     @property
     def columns(self):
@@ -589,53 +573,20 @@ class StudentEngagementToVerticaTask(
     def insert_source_task(self):
         return (
             # Get the location of the Hive table, so it can be opened and read.
-            get_target_from_url(
-                StudentEngagementTableTask(
-                    mapreduce_engine=self.mapreduce_engine,
-                    n_reduce_tasks=self.n_reduce_tasks,
-                    source=self.source,
-                    interval=self.interval,
-                    pattern=self.pattern,
-                    overwrite=self.overwrite,
-                    interval_type=self.interval_type,
-                ).path
+            StudentEngagementTableLocationTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                overwrite=self.overwrite,
+                interval_type=self.interval_type,
             )
         )
 
     @property
     def table(self):
         return 'd_student_engagement_{}'.format(self.interval_type)
-
-    @property
-    def auto_primary_key(self):
-        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
-        return None
-
-    @property
-    def default_columns(self):
-        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
-        return None
-
-    @property
-    def query(self):
-        # Write everything into Vertica.
-        return """
-            SELECT
-                end_date,
-                course_id,
-                username,
-                days_active,
-                problems_attempted,
-                problem_attempts,
-                problems_correct,
-                videos_played,
-                forum_posts,
-                forum_responses,
-                forum_comments,
-                textbook_pages_viewed,
-                last_subsection_viewed
-            FROM student_engagement_raw_{}
-        """.format(self.interval_type)
 
     @property
     def columns(self):
@@ -681,29 +632,6 @@ class JoinedStudentEngagementToMysqlTask(
     @property
     def table(self):
         return 'student_engagement_joined_{}'.format(self.interval_type)
-
-    @property
-    def query(self):
-        # Write everything into Mysql.
-        return """
-            SELECT
-                end_date,
-                course_id,
-                username,
-                email,
-                cohort,
-                days_active,
-                problems_attempted,
-                problem_attempts,
-                problems_correct,
-                videos_played,
-                forum_posts,
-                forum_responses,
-                forum_comments,
-                textbook_pages_viewed,
-                last_subsection_viewed
-            FROM student_engagement_joined_{}
-        """.format(self.interval_type)
 
     @property
     def columns(self):
@@ -754,39 +682,6 @@ class JoinedStudentEngagementToVerticaTask(
     @property
     def table(self):
         return 'd_student_engagement_joined_{}'.format(self.interval_type)
-
-    @property
-    def auto_primary_key(self):
-        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
-        return None
-
-    @property
-    def default_columns(self):
-        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
-        return None
-
-    @property
-    def query(self):
-        # Write everything into Vertica.
-        return """
-            SELECT
-                end_date,
-                course_id,
-                username,
-                email,
-                cohort,
-                days_active,
-                problems_attempted,
-                problem_attempts,
-                problems_correct,
-                videos_played,
-                forum_posts,
-                forum_responses,
-                forum_comments,
-                textbook_pages_viewed,
-                last_subsection_viewed
-            FROM student_engagement_joined_{}
-        """.format(self.interval_type)
 
     @property
     def columns(self):
