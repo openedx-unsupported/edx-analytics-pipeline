@@ -126,8 +126,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         columns.extend(self.columns)
         if self.default_columns is not None:
             columns.extend(self.default_columns)
-        if self.auto_primary_key is not None:
-            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+        # TODO: make the auto_primary_key and this consistent, because it is an error
+        # to define PRIMARY KEY in both ways.  It should come out of one.
+        # if self.auto_primary_key is not None:
+        #     columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
 
         coldefs = ','.join(
             '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
