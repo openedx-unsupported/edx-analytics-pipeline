@@ -591,7 +591,6 @@ class StudentEngagementToVerticaTask(
     @property
     def columns(self):
         return [
-            ('row_number', 'AUTO_INCREMENT PRIMARY KEY'),
             ('end_date', 'DATETIME'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
@@ -686,7 +685,6 @@ class JoinedStudentEngagementToVerticaTask(
     @property
     def columns(self):
         return [
-            ('row_number', 'AUTO_INCREMENT PRIMARY KEY'),
             ('end_date', 'DATETIME'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
