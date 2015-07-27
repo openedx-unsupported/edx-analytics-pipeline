@@ -103,6 +103,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def requires(self):
         reqs = super(VerticaEventLoadingTask, self).requires()
         reqs['extra'] = LogConcatenator(run_date=self.run_date, remove_implicit=self.remove_implicit)
+        return reqs
 
     @property
     def table(self):
