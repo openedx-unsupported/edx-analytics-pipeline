@@ -101,8 +101,8 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         #     yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
 
     def requires(self):
-        return super(VerticaEventLoadingTask, self).requires + [LogConcatenator(run_date=self.run_date,
-                                                                                remove_implicit=self.remove_implicit)]
+        reqs = super(VerticaEventLoadingTask, self).requires()
+        reqs['extra'] = LogConcatenator(run_date=self.run_date, remove_implicit=self.remove_implicit)
 
     @property
     def table(self):
