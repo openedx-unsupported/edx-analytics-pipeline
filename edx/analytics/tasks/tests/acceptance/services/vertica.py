@@ -60,7 +60,8 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
-        return vertica_python.connect(self.credentials)
+        creds=self.credentials
+        return vertica_python.connect(user=creds['user'], password=creds['password'], host=creds['host'], database='')
 
     def reset(self):
         """Create a testing schema on the Vertica replacing any existing content with an empty database."""
