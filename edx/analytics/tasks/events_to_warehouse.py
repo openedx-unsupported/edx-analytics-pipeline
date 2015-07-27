@@ -100,6 +100,10 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # for day in luigi.DateIntervalParameter().parse(self.run_date):
         #     yield CleanForVerticaTask(date=day, remove_implict=self.remove_implict.value)
 
+    def requires(self):
+        return super(VerticaEventLoadingTask, self).requires + [LogConcatenator(run_date=self.run_date,
+                                                                                remove_implicit=self.remove_implicit)]
+
     @property
     def table(self):
         """We use the table event_logs for this task."""
