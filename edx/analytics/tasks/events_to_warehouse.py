@@ -184,6 +184,8 @@ class VerticaEventLoadingTask(VerticaCopyTask):
             if self.overwrite:
                 cursor.flush_to_query_ready()
 
+            print insert_source_file.read()
+
             cursor.copy_stream("COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
                                .format(schema=self.schema, table=self.table), insert_source_file)
 
