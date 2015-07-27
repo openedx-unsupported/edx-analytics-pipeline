@@ -43,6 +43,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
 
     VERSION = 2  # Version 1 was after the canonicalization
     OUTPUT_BUCKETS = 100
+    MAX_KEY_LENGTH = 256
 
     n_reduce_tasks = OUTPUT_BUCKETS
 
@@ -106,22 +107,30 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         else:
             return event
 
-    # def truncate_event_post_key(self, event):
-    #     """
-    #     The JSON parser Vertica uses to ingest into flex tables can't handle key names larger than 256 columns,
-    #     which will sometimes happen in the "POST" key of our event payload, so we need to truncate such fields.
-    #
-    #     Args:
-    #         event: an event dictionary, or None if something has gone wrong earlier
-    #
-    #     Returns:
-    #         the event, with the event.event.POST field truncated if its length is bigger than 255.
-    #     """
-    #     event_payload = event.get('event', {})
-    #     if 'POST' in event_payload and isinstance(event_payload.get('POST'), basestring):
-    #         posted_info = event_payload['POST']
-    #         event_payload['POST'] = posted_info[:255] if len(posted_info) > 255 else posted_info
-    #     return event
+    def truncate_keys(self, event):
+        """
+        The JSON parser Vertica uses to ingest into flex tables can't handle key names larger than 256 columns,
+        which will sometimes happen, so we truncate those keys.
+
+        Args:
+            event: an event dictionary, or None if something has gone wrong earlier
+
+        Returns:
+            the event, with all of the keys shortened to be at most 256 characters.
+        """
+        if event is None:
+            return None
+
+        new_event = {}
+        for key in event:
+            if len(key) > self.MAX_KEY_LENGTH:
+                shortened_key = key[:self.MAX_KEY_LENGTH]
+                new_event[shortened_key] = self.truncate_keys(event[key]) if type(event[key]) == dict else event[key]
+            else:
+                new_event[key] = self.truncate_keys(event[key]) if type(event[key]) == dict else event[key]
+
+        return new_event
+
 
     def mapper(self, line):
         """
@@ -132,9 +141,10 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
             (date, bucket), cleaned_for_vertica_event
         """
         event = self.event_from_line(line)
-        event = self.add_metadata(event, line)
         if self.remove_implicit:
             event = self.remove_implicit_events(event)
+        event = self.truncate_keys(event)
+        event = self.add_metadata(event, line)
 
         if event is None:
             return
@@ -184,5 +194,9 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     def jobconfs(self):
         jcs = super(CleanForVerticaTask, self).jobconfs()
         # Downstream luigi methods won't be able to open a folder of gzipped files from hdfs/s3 properly,
-        # so unfortunately we can't put in compression here
+        # so unfortunately we can't put in compression here without doing something to formatting
+        jcs.extend([
+            'mapred.output.compress=true',
+            'mapred.output.compression.codec=org.apache.hadoop.io.compress.GzipCodec'
+        ])
         return jcs

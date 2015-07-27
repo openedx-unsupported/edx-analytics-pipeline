@@ -1,5 +1,5 @@
 """
-Ensure we can write to MySQL data sources.
+Ensure we can write to Vertica data sources.
 """
 from __future__ import absolute_import
 
@@ -54,7 +54,7 @@ class CopyToPredefinedVerticaDummyTable(CopyToVerticaDummyTable):
 
 class VerticaCopyTaskTest(unittest.TestCase):
     """
-    Ensure we can connect to and write data to MySQL data sources.
+    Ensure we can connect to and write data to Vertica data sources.
     """
 
     def setUp(self):
@@ -64,7 +64,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def create_task(self, credentials=None, source=None, overwrite=False, cls=CopyToVerticaDummyTable):
         """
-         Emulate execution of a generic MysqlTask.
+         Emulate execution of a generic VerticaCopyTask.
         """
         # Make sure to flush the instance cache so we create
         # a new task object.

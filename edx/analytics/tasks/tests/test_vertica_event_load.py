@@ -1,11 +1,12 @@
 """
-Ensure we can write to MySQL data sources.
+Ensure we can copy events into Vertica.
 """
 from __future__ import absolute_import
 
 import textwrap
 
 import datetime
+from StringIO import StringIO
 import luigi
 import luigi.task
 
@@ -20,7 +21,18 @@ from edx.analytics.tasks.tests.target import FakeTarget
 from edx.analytics.tasks.tests.config import with_luigi_config
 from edx.analytics.tasks.events_to_warehouse import VerticaEventLoadingTask
 
-# TODO: figure out how to incorporate the interval parameter
+
+class ContextManagerStringIO(StringIO):
+    """
+    Wrap StringIO.StringIO instance with context-management methods, as the streaming Vertica copy commands
+    may make use of with clauses.
+    """
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        return self.close()
+
 
 class CopyEventsToVerticaDummyTable(VerticaEventLoadingTask):
     """
@@ -55,9 +67,9 @@ class CopyEventsToPredefinedVerticaDummyTable(CopyEventsToVerticaDummyTable):
         return ['course_id', 'interval_start', 'interval_end', 'label', 'count']
 
 
-class VerticaCopyTaskTest(unittest.TestCase):
+class VerticaEventCopyTaskTest(unittest.TestCase):
     """
-    Ensure we can connect to and write data to MySQL data sources.
+    Ensure we can connect to and write data to Vertica data sources.
     """
 
     def setUp(self):
@@ -67,7 +79,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def create_task(self, credentials=None, source=None, overwrite=False, use_flex=True, cls=CopyEventsToVerticaDummyTable):
         """
-         Emulate execution of a generic MysqlTask.
+         Emulate execution of a generic Vertica event-copying task.
         """
         # Make sure to flush the instance cache so we create
         # a new task object.
@@ -75,7 +87,6 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task = cls(
             credentials=sentinel.ignored,
             overwrite=overwrite,
-            interval=sentinel.ignored,
             use_flex=use_flex
         )
 
@@ -109,8 +120,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     @with_luigi_config('vertica-export', 'schema', 'foobar')
     def test_parameters_from_config(self):
-        task = CopyEventsToVerticaDummyTable(credentials=sentinel.credentials,
-                                             interval=datetime.datetime.utcnow().date())
+        task = CopyEventsToVerticaDummyTable(credentials=sentinel.credentials)
         self.assertEquals(task.schema, 'foobar')
 
     def test_run(self):
@@ -184,9 +194,9 @@ class VerticaCopyTaskTest(unittest.TestCase):
         file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
+        with ContextManagerStringIO(file_to_copy) as sent_data:
             sent_source = sent_data.read()
-        self.assertEquals(sent_source, expected_source)
+        self.assertEquals(sent_source.getvalue(), expected_source)
 
     def test_copy_multiple_rows(self):
         task = self.create_task(source=self._get_source_string(4))
@@ -197,7 +207,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
+        with ContextManagerStringIO(file_to_copy) as sent_data:
             sent_source = sent_data.read()
         self.assertEquals(sent_source, expected_source)
 

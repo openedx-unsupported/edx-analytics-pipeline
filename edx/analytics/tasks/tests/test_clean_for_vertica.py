@@ -12,7 +12,6 @@ Testing strategy:
     Single clean implicit event, when the task has remove_implict=False, should appear in the 1-event output.
     Single clean explicit event, when the task has remove_implicit=True, should appear in the 1-event output.
     Single explicit event with a dictionary key longer than 256 should have no output.
-    Metadata added in the clean_for_vertica step should match expected.
 """
 import json
 import StringIO
@@ -37,20 +36,9 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
     Tests to verify that the mapper for cleaning events for Vertica loading works as expected.
     """
 
-    # This dictionary stores the default values for arguments to various task constructors; if not told otherwise,
-    # the task constructor will pull needed values from this dictionary.
-    # DEFAULT_ARGS = {
-    #     'output_root': '/fake/output',
-    #     'end_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
-    #     'geolocation_data': 'test://data/data.file',
-    #     'mapreduce_engine': 'local',
-    #     'user_country_output': 'test://output/',
-    #     'name': 'test',
-    #     'src': ['test://input/'],
-    #     'dest': 'test://output/'
-    # }
-    #
-    #
+    run_date = datetime.date(2013, 12, 17)
+    MAX_KEY_LENGTH = 256
+
     def setUp(self):
         self.task_class = CleanForVerticaTask
 
@@ -79,7 +67,7 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
                     "GET": "bar"
                 },
                 "agent": "blah, blah, blah",
-                "page": None
+                "page": "test.page"
             },
             'sample_explicit': {
                 "username": "test_user",
@@ -98,7 +86,7 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
                     "GET": "bar"
                 },
                 "agent": "blah, blah, blah",
-                "page": None
+                "page": "test.page"
             }
         }
         self.default_event_template = 'sample_explicit'
@@ -108,23 +96,88 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
         # When CleanForVerticaTask's mapper adds metadata to the events, it expects
         # and uses certain environment variables, so we set those here.
         os.environ['map_input_file'] = 'test_map_input'
+        self.maxDiff = None
 
     def assert_single_map_output_value(self, line, expected):
-        """Assert that an input line generates exactly one output record with the expected value."""
+        """
+        Assert that an input line generates exactly one output matching the expected value
+        except in the metadata field, as that field contains unpredictable information
+        like the timestamp of the Vertica cleaning task being run on the line.
+        """
         mapper_output = tuple(self.task.mapper(line))
         self.assertEqual(len(mapper_output), 1, "Expected only a single mapper output.")
         row = mapper_output[0]
         actual_key, actual_value = row
-        self.assertEqual(actual_value, expected)
+        actual_value_dict = json.loads(actual_value)
+        expected_dict = json.loads(expected)
+        actual_value_dict.pop('metadata')
+        self.assertEqual(expected_dict, actual_value_dict)
 
     def test_implicit_removed_when_desired(self):
         """If we have an implicit event, we remove it if the remove_implicit flag is set to True."""
-        self.task = CleanForVerticaTask(date=datetime.date(2013, 12, 17), remove_implicit=True)
+        self.task = CleanForVerticaTask(date=self.run_date, remove_implicit=True)
         line = self.create_event_log_line(template_name='sample_implicit')
         self.assert_no_map_output_for(line)
 
     def test_implicit_kept_when_desired(self):
         """If we have an implicit event, we keep it if the remove_implicit flag is set to False."""
-        self.task = CleanForVerticaTask(date=datetime.date(2013, 12, 17), remove_implicit=False)
+        self.task = CleanForVerticaTask(date=self.run_date, remove_implicit=False)
         line = self.create_event_log_line(template_name='sample_implicit')
-        self.assert_single_map_output_value(line, '{}')
+        processed_line_expected = {"username": "test_user",
+                                   "event_source": "server",
+                                   "event_type": "/test/implicit",
+                                   "ip": "127.0.0.1",
+                                   "event": {"POST": "foo", "GET": "bar"},
+                                   "agent": "blah, blah, blah",
+                                   "template_name": "sample_implicit",
+                                   "host": "test_host",
+                                   "context": {
+                                       "course_id": "fooX/bar101X",
+                                       "org_id": "fooX",
+                                       "user_id": "test_user"
+                                   },
+                                   "time": "2013-12-17T15:38:32.805444+00:00",
+                                   "page": "test.page"
+                                   }
+        self.assert_single_map_output_value(line, json.dumps(processed_line_expected))
+
+    def test_explicit_key(self):
+        """If we have an explicit event, we keep it even if the remove_implicit flag is set to True."""
+        self.task = CleanForVerticaTask(date=self.run_date, remove_implicit=False)
+        line = self.create_event_log_line(template_name='sample_explicit')
+        processed_line_expected = {"username": "test_user",
+                                   "event_source": "server",
+                                   "event_type": "test_event_type",
+                                   "ip": "127.0.0.1",
+                                   "event": {"POST": "foo", "GET": "bar"},
+                                   "agent": "blah, blah, blah",
+                                   "template_name": "sample_explicit",
+                                   "host": "test_host",
+                                   "context": {
+                                       "course_id": "fooX/bar101X",
+                                       "org_id": "fooX",
+                                       "user_id": "test_user"
+                                   },
+                                   "time": "2013-12-17T15:38:32.805444+00:00",
+                                   "page": "test.page"
+                                   }
+        self.assert_single_map_output_value(line, json.dumps(processed_line_expected))
+
+    def test_truncate_massive_keys(self):
+        """
+        If a key in an event is longer than 256 characters, we should truncate it.
+
+        This condition is necessary as long as the Vertica loader being used uses
+        PARSER fjsonparser, as that parser can't handle json keys longer than 256.
+        """
+        self.task = CleanForVerticaTask(date=self.run_date, remove_implicit=False)
+        line = self.create_event_log_line(event={"""
+                                                    This is an event that is too long, too long, too long, too long.
+                                                    This is an event that is too long, too long, too long, too long.
+                                                    This is an event that is too long, too long, too long, too long.
+                                                """: "[]"})
+        mapper_output = tuple(self.task.mapper(line))
+        actual_key, actual_value = mapper_output[0]
+        cleaned_line = json.loads(actual_value)
+
+        self.assertLessEqual(len(cleaned_line.get('event').keys()[0]), self.MAX_KEY_LENGTH)

@@ -173,6 +173,10 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         # with self.input()['insert_source'].open('r') as insert_source_file:
 
         # insert_source_file = self.input()['insert_source'].open('r')
+
+        if hasattr(self.input()['insert_source'], 'format'):
+            print self.input()['insert_source'].format
+
         with self.input()['insert_source'].open('r') as insert_source_file:
             print "HELLO, WE OPENED IT!"
 
