@@ -73,7 +73,7 @@ class AcceptanceTestCase(unittest.TestCase):
 
         self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
-        schema = 'test'
+        schema = 'test_' + self.identifier
         import_database_name = 'import_' + database_name
         export_database_name = 'export_' + database_name
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
