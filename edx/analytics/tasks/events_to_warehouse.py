@@ -212,6 +212,20 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         #                      .format(schema=self.schema, table=self.table), insert_source_file, decoder='utf-8')
 
 
+class LogConcatenator(luigi.Task):
+    """
+    Concatenate the tracking log files from a single day into a single file.
+    """
+    run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    remove_implicit = luigi.BooleanParameter(default=True)
+
+    def requires(self):
+        CleanForVerticaTask(run_date=self.run_date, remove_implicit=self.remove_implicit)
+
+    def run(self):
+        print self.input().fs.listdir('.')
+
+
 class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
     """Workflow for encapsulating the Vertica event loading task and passing in parameters."""
     interval = luigi.DateIntervalParameter()
