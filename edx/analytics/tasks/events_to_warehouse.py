@@ -226,7 +226,7 @@ class LogConcatenator(luigi.Task):
     remove_implicit = luigi.BooleanParameter(default=True)
 
     def requires(self):
-        CleanForVerticaTask(run_date=self.run_date, remove_implicit=self.remove_implicit)
+        CleanForVerticaTask(date=self.run_date, remove_implicit=self.remove_implicit)
 
     def run(self):
         print self.input().fs.listdir('.')
