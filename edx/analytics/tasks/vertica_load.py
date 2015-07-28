@@ -182,6 +182,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                     marker_table=marker_table,
                     target_table=self.table,
                 )
+                log.debug(query)
                 connection.cursor().execute(query)
             except vertica_python.errors.Error as err:
                 if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
@@ -193,6 +194,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
+            log.debug(query)
             connection.cursor().execute(query)
 
     @property
@@ -212,6 +214,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         #                          null=self.copy_null_sequence),
         #                  self.input()['insert_source'].open('r'), decoder='utf-8')
         with self.input()['insert_source'].open('r') as insert_source_file:
+            log.debug("Running copy_stream from source file")
             cursor.copy_stream(
                 "COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
                     schema=self.schema,
