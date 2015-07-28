@@ -32,7 +32,8 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
     def upload_data(self):
         """Puts the test course catalog where the processing task would look for it, bypassing calling the actual API"""
         src = os.path.join(self.data_dir, 'input', self.INPUT_FILE)
-        dst = url_path_join(self.warehouse_path, 'tracking-logs', self.INPUT_FILE)
+        dst = url_path_join(self.warehouse_path, 'src', self.INPUT_FILE)
+        dst2 = url_path_join(self.warehouse_path, 'tracking-logs', self.INPUT_FILE)
 
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
@@ -63,9 +64,9 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             cursor.execute("SELECT COUNT(*) FROM {schema}.event_logs;"
                            .format(schema=self.vertica.schema_name))
             total_count = cursor.fetchone()[0]
-
+            print "FOUND ", total_count, " ROWS"
             expected_total_count = 3
-            self.assertEqual(total_count, expected_total_count)
+            # self.assertEqual(total_count, expected_total_count)
 
             # Verify that all the subject data loaded into Vertica is correct.
             expected_output_csv = os.path.join(self.data_dir, 'output', 'events_to_warehouse_acceptance_flex_events.csv')
@@ -77,5 +78,6 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             print "OBSERVED:"
             print events
             print "EXPECTED:"
+            print expected
 
             self.fail("Just for debugging")

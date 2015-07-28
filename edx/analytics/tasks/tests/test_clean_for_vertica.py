@@ -12,6 +12,9 @@ Testing strategy:
     Single clean implicit event, when the task has remove_implict=False, should appear in the 1-event output.
     Single clean explicit event, when the task has remove_implicit=True, should appear in the 1-event output.
     Single explicit event with a dictionary key longer than 256 should have no output.
+
+    User agent canonicalization should canonicalize a good user agent properly.
+    User agent canonicalization should leave empty fields (and not throw an exception) if the agent is malformed.
 """
 import json
 import StringIO
