@@ -207,10 +207,20 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
-        cursor.copy_file("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
-                         .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
-                                 null=self.copy_null_sequence),
-                         self.input()['insert_source'].open('r'), decoder='utf-8')
+        # cursor.copy_file("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
+        #                  .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
+        #                          null=self.copy_null_sequence),
+        #                  self.input()['insert_source'].open('r'), decoder='utf-8')
+        with self.input()['insert_source'].open('r') as insert_source_file:
+            cursor.copy_stream(
+                "COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
+                    schema=self.schema,
+                    table=self.table,
+                    delim=self.copy_delimiter,
+                    null=self.copy_null_sequence
+                ),
+                insert_source_file
+            )
 
     def run(self):
         """
