@@ -164,7 +164,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                     num_textbook_pages += 1
                 elif event_type == SUBSECTION_VIEWED_MARKER:
                     if not max_timestamp or info['timestamp'] > max_timestamp:
-                        last_subsection_viewed = info['path']
+                        last_subsection_viewed = info['path'].strip()
                         max_timestamp = info['timestamp']
 
                 if is_first:
