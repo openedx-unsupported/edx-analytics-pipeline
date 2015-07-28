@@ -8,7 +8,8 @@ import os
 
 import ciso8601   # for fast date parsing
 import cjson
-# import user_agents
+import ua_parser
+import user_agents
 from string import strip
 import luigi
 import luigi.date_interval
@@ -133,51 +134,52 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
 
         return new_event
 
-    # We don't have user_agents on the MR slave nodes, so we have this commented out for now
+    def canonicalize_user_agent(self, event):
+        """
+        There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
+        the user agent to extract the information we're looking for.
 
-    # def canonicalize_user_agent(self, event):
-    #     """
-    #     There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
-    #     the user agent to extract the information we're looking for.
-    #
-    #     Args:
-    #         event: an event dictionary, or None if something has gone wrong earlier
-    #
-    #     Returns:
-    #         the event, with the 'agent' value replaced by a dictionary of information about the user agent.
-    #     """
-    #     if event is None:
-    #         return None
-    #
-    #     agent_dict = {}
-    #     if event.get('agent') is None:
-    #         event['agent'] = {}
-    #         return event
-    #
-    #     agent = event['agent']
-    #
-    #     try:
-    #         user_agent = user_agents.parse(agent)
-    #
-    #         device_type = ''  # It is possible that the user agent isn't any of the below, e.g. maybe it's a webcrawler
-    #         if user_agent.is_mobile:
-    #             device_type = "mobile"
-    #         elif user_agent.is_tablet:
-    #             device_type = "tablet"
-    #         elif user_agent.is_pc:
-    #             device_type = "desktop"
-    #
-    #         agent_dict['type'] = device_type
-    #         agent_dict['device_name'] = user_agent.device.family
-    #         agent_dict['os'] = user_agent.os.family
-    #         agent_dict['browser'] = user_agent.browser.family
-    #         agent_dict['touch_capable'] = user_agent.is_touch_capable
-    #
-    #         event['agent'] = agent_dict
-    #         return event
-    #     except:  # If the user agent is unparsable, just drop the agent data on the floor since it's of no use to us.
-    #         event['agent'] = {}
-    #         return event
+        Args:
+            event: an event dictionary, or None if something has gone wrong earlier
+
+        Returns:
+            the event, with the 'agent' value replaced by a dictionary of information about the user agent.
+        """
+        if event is None:
+            return None
+
+        agent_dict = {}
+        if event.get('agent') is None:
+            event['agent'] = {}
+            return event
+
+        agent = event['agent']
+
+        try:
+            user_agent = user_agents.parse(agent)
+
+            device_type = ''  # It is possible that the user agent isn't any of the below
+            if user_agent.is_mobile:
+                device_type = "mobile"
+            elif user_agent.is_tablet:
+                device_type = "tablet"
+            elif user_agent.is_pc:
+                device_type = "desktop"
+
+            agent_dict['type'] = device_type
+            agent_dict['device_name'] = user_agent.device.family
+            agent_dict['os'] = user_agent.os.family
+            agent_dict['browser'] = user_agent.browser.family
+            agent_dict['touch_capable'] = user_agent.is_touch_capable
+
+            if device_type:  # i.e. if we recognized the user agent as a real device
+                event['agent'] = agent_dict
+            else:
+                event['agent'] = {}
+            return event
+        except:  # If the user agent can't be parsed, just drop the agent data on the floor since it's of no use to us.
+            event['agent'] = {}
+            return event
 
     def mapper(self, line):
         """
@@ -192,7 +194,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
             event = self.remove_implicit_events(event)
         event = self.truncate_keys(event)
         # Currently not ready to be wired up because the table schema in events_to_warehouse also needs to be changed.
-        # event = self.canonicalize_user_agent(event)
+        event = self.canonicalize_user_agent(event)
         event = self.add_metadata(event, line)
 
         if event is None:
@@ -239,6 +241,10 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     def run(self):
         self.remove_output_on_overwrite()
         super(CleanForVerticaTask, self).run()
+
+    def extra_modules(self):
+        """We need the user agent parser user_agents for the mapper function."""
+        return [ua_parser, user_agents]
 
     def jobconfs(self):
         jcs = super(CleanForVerticaTask, self).jobconfs()

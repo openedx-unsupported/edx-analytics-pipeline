@@ -131,7 +131,7 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
                                    "event_type": "/test/implicit",
                                    "ip": "127.0.0.1",
                                    "event": {"POST": "foo", "GET": "bar"},
-                                   "agent": "blah, blah, blah",
+                                   "agent": {},
                                    "template_name": "sample_implicit",
                                    "host": "test_host",
                                    "context": {
@@ -153,7 +153,7 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
                                    "event_type": "test_event_type",
                                    "ip": "127.0.0.1",
                                    "event": {"POST": "foo", "GET": "bar"},
-                                   "agent": "blah, blah, blah",
+                                   "agent": {},
                                    "template_name": "sample_explicit",
                                    "host": "test_host",
                                    "context": {
@@ -184,3 +184,33 @@ class TestCleanForVerticaMapper(MapperTestMixin, InitializeOpaqueKeysMixin, unit
         cleaned_line = json.loads(actual_value)
 
         self.assertLessEqual(len(cleaned_line.get('event').keys()[0]), self.MAX_KEY_LENGTH)
+
+    def test_parse_user_agent(self):
+        """
+        Test that valid user agents get parsed properly.
+        """
+        # This is the sample user agent string from user-agents=0.3.2's package information on pypi.python.org
+        ua_string = """Mozilla/5.0 (iPhone; CPU iPhone OS 5_1 like Mac OS X) AppleWebKit/534.46 (KHTML, like Gecko) Version/5.1 Mobile/9B179 Safari/7534.48.3"""
+        self.task=CleanForVerticaTask(date=self.run_date, remove_implicit=False)
+        line = self.create_event_log_line(agent=ua_string)
+        mapper_output = tuple(self.task.mapper(line))
+        actual_key, actual_value = mapper_output[0]
+
+        cleaned_event = json.loads(actual_value)
+
+        self.assertDictEqual(cleaned_event['agent'], {'type': 'mobile', 'device_name': 'iPhone', 'os': 'iOS',
+                                                 'browser': 'Mobile Safari', 'touch_capable': True})
+
+    def test_parse_bad_user_agent(self):
+        """
+        If the user agent string is malformed, we shouldn't fail, but just have empty information.
+        """
+        ua_string = "Mozilla/5.0 (malformed..."
+        self.task=CleanForVerticaTask(date=self.run_date, remove_implicit=False)
+        line = self.create_event_log_line(agent=ua_string)
+        mapper_output = tuple(self.task.mapper(line))
+        actual_key, actual_value = mapper_output[0]
+
+        cleaned_event = json.loads(actual_value)
+
+        self.assertDictEqual(cleaned_event['agent'], {})

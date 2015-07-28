@@ -29,7 +29,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     @property
     def table(self):
         """We use the table event_logs for this task."""
-        return "event_logs"
+        return "event_logs_test"
 
     def create_table(self, connection):
         """Overriden because we will create a flex table instead of a traditional table."""
@@ -58,7 +58,11 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     def columns(self):
         """Overriden with the specific materialized columns we know we want in this (flex|columnar) table."""
         return [
-            ('agent', 'VARCHAR(200)'),
+            ('\"agent.type\"', 'VARCHAR(20)'),
+            ('\"agent.device_name\"', 'VARCHAR(100)'),
+            ('\"agent.os\"', 'VARCHAR(100)'),
+            ('\"agent.browser\"', 'VARCHAR(100)'),
+            ('\"agent.touch_capable\"', 'BOOLEAN'),
             ('event', 'VARCHAR(65000)'),
             ('event_type', 'VARCHAR(200)'),
             ('event_source', 'VARCHAR(20)'),
@@ -72,6 +76,24 @@ class VerticaEventLoadingTask(VerticaCopyTask):
             ('\"context.user_id\"', 'INTEGER'),
             ('\"context.path\"', 'VARCHAR(500)')
         ]
+
+        # Old, pre- agent-canonicalization columns
+
+        # return [
+        #     ('agent', 'VARCHAR(200)'),
+        #     ('event', 'VARCHAR(65000)'),
+        #     ('event_type', 'VARCHAR(200)'),
+        #     ('event_source', 'VARCHAR(20)'),
+        #     ('host', 'VARCHAR(80)'),
+        #     ('ip', 'VARCHAR(20)'),
+        #     ('page', 'VARCHAR(1000)'),
+        #     ('time', 'TIMESTAMP'),
+        #     ('username', 'VARCHAR(30)'),
+        #     ('\"context.course_id\"', 'VARCHAR(100)'),
+        #     ('\"context.org_id\"', 'VARCHAR(100)'),
+        #     ('\"context.user_id\"', 'INTEGER'),
+        #     ('\"context.path\"', 'VARCHAR(500)')
+        # ]
 
     @property
     def auto_primary_key(self):
