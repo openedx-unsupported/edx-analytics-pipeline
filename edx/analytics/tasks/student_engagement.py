@@ -18,11 +18,10 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalUrl
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 
 log = logging.getLogger(__name__)
@@ -733,3 +732,38 @@ class StudentEngagementWorkflow(
             StudentEngagementToMysqlTask(**kwargs),
             StudentEngagementToVerticaTask(**kwargs_vertica),
         )
+
+class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
+    """
+    Writes student engagement information to Vertica database.
+    """
+    source_root = luigi.Parameter()
+
+    @property
+    def insert_source_task(self):
+        return (
+            # Get the location of the Hive table explicitly.
+            ExternalUrl(source=self.source_root)
+        )
+
+    @property
+    def table(self):
+        return 'd_student_engagement_{}'.format('test')
+
+    @property
+    def columns(self):
+        return [
+            ('end_date', 'DATETIME'),
+            ('course_id', 'VARCHAR(255)'),
+            ('username', 'VARCHAR(255)'),
+            ('days_active', 'INT'),
+            ('problems_attempted', 'INT'),
+            ('problem_attempts', 'INT'),
+            ('problems_correct', 'INT'),
+            ('videos_played', 'INT'),
+            ('forum_posts', 'INT'),
+            ('forum_responses', 'INT'),
+            ('forum_comments', 'INT'),
+            ('textbook_pages_viewed', 'INT'),
+            ('last_subsection_viewed', 'VARCHAR(255)'),
+        ]

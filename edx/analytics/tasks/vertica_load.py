@@ -178,9 +178,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # first clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                query = "DELETE FROM {schema}.{marker_table} where `target_table`='{schema}.{target_table}'".format(
                     marker_table=marker_table,
                     target_table=self.table,
+                    schema=self.schema,
                 )
                 log.debug(query)
                 connection.cursor().execute(query)
@@ -224,6 +225,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 ),
                 insert_source_file
             )
+            for row in cursor.iterate():
+                log.info("Output row from copy: %s", row)
 
     def run(self):
         """
