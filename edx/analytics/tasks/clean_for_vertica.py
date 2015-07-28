@@ -8,7 +8,7 @@ import os
 
 import ciso8601   # for fast date parsing
 import cjson
-import user_agents
+# import user_agents
 from string import strip
 import luigi
 import luigi.date_interval
@@ -133,52 +133,51 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
 
         return new_event
 
-    def canonicalize_user_agent(self, event):
-        """
-        There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
-        the user agent to extract the information we're looking for.
+    # We don't have user_agents on the MR slave nodes, so we have this commented out for now
 
-        Args:
-            event: an event dictionary, or None if something has gone wrong earlier
-
-        Returns:
-            the event, with the 'agent' value replaced by a dictionary of information about the user agent.
-        """
-        if event is None:
-            return None
-
-        agent_dict = {}
-        if event.get('agent') is None:
-            event['agent'] = {}
-            return event
-
-        agent = event['agent']
-
-        try:
-            user_agent = user_agents.parse(agent)
-            user_agent_string = str(user_agent)
-            device_name, device_os, device_browser = (strip(chunk) for chunk in user_agent_string.split('/'))
-
-            device_type = ''  # It is possible that the user agent isn't any of the below, e.g. maybe it's a webcrawler
-            if user_agent.is_mobile:
-                device_type = "mobile"
-            elif user_agent.is_tablet:
-                device_type = "tablet"
-            elif user_agent.is_pc:
-                device_type = "desktop"
-            touch_capable = user_agent.is_touch_capable
-
-            agent_dict['type'] = device_type
-            agent_dict['device_name'] = device_name
-            agent_dict['os'] = device_os
-            agent_dict['browser'] = device_browser
-            agent_dict['touch_capable'] = touch_capable
-
-            event['agent'] = agent_dict
-            return event
-        except:  # If the user agent is unparsable, just drop the agent data on the floor since it's of no use to us.
-            event['agent'] = {}
-            return event
+    # def canonicalize_user_agent(self, event):
+    #     """
+    #     There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
+    #     the user agent to extract the information we're looking for.
+    #
+    #     Args:
+    #         event: an event dictionary, or None if something has gone wrong earlier
+    #
+    #     Returns:
+    #         the event, with the 'agent' value replaced by a dictionary of information about the user agent.
+    #     """
+    #     if event is None:
+    #         return None
+    #
+    #     agent_dict = {}
+    #     if event.get('agent') is None:
+    #         event['agent'] = {}
+    #         return event
+    #
+    #     agent = event['agent']
+    #
+    #     try:
+    #         user_agent = user_agents.parse(agent)
+    #
+    #         device_type = ''  # It is possible that the user agent isn't any of the below, e.g. maybe it's a webcrawler
+    #         if user_agent.is_mobile:
+    #             device_type = "mobile"
+    #         elif user_agent.is_tablet:
+    #             device_type = "tablet"
+    #         elif user_agent.is_pc:
+    #             device_type = "desktop"
+    #
+    #         agent_dict['type'] = device_type
+    #         agent_dict['device_name'] = user_agent.device.family
+    #         agent_dict['os'] = user_agent.os.family
+    #         agent_dict['browser'] = user_agent.browser.family
+    #         agent_dict['touch_capable'] = user_agent.is_touch_capable
+    #
+    #         event['agent'] = agent_dict
+    #         return event
+    #     except:  # If the user agent is unparsable, just drop the agent data on the floor since it's of no use to us.
+    #         event['agent'] = {}
+    #         return event
 
     def mapper(self, line):
         """

@@ -194,9 +194,8 @@ class VerticaEventCopyTaskTest(unittest.TestCase):
         file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with ContextManagerStringIO(file_to_copy) as sent_data:
-            sent_source = sent_data.read()
-        self.assertEquals(sent_source.getvalue(), expected_source)
+        sent_source = file_to_copy.getvalue()
+        self.assertEquals(sent_source, expected_source)
 
     def test_copy_multiple_rows(self):
         task = self.create_task(source=self._get_source_string(4))
@@ -207,8 +206,7 @@ class VerticaEventCopyTaskTest(unittest.TestCase):
         file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with ContextManagerStringIO(file_to_copy) as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.getvalue()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_to_predefined_table(self):
