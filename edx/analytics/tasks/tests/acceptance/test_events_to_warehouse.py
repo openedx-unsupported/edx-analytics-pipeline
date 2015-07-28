@@ -55,7 +55,7 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
 
         # Drop the table afterwards so that the next test starts with a clean table.
         with self.vertica.cursor() as cursor:
-            cursor.execute("DROP TABLE IF EXISTS {schema}.d_course_subjects".format(schema=self.vertica.schema_name))
+            cursor.execute("DROP TABLE IF EXISTS {schema}.event_logs".format(schema=self.vertica.schema_name))
 
     def validate_output(self):
         """Validates the output, comparing it to a csv of all the expected events in this name."""
