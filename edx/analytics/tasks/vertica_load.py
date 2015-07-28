@@ -99,6 +99,28 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
+    def create_column_definitions(self):
+        """
+        Builds the list of column definitions for the table to be loaded.
+
+        Assumes that columns are specified as (name, definition) tuples
+
+        :return a string to be used in a SQL query to create the table
+        """
+        columns = []
+        if self.auto_primary_key is not None:
+            columns.append(self.auto_primary_key)
+        columns.extend(self.columns)
+        if self.default_columns is not None:
+            columns.extend(self.default_columns)
+        if self.auto_primary_key is not None:
+            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+
+        coldefs = ','.join(
+            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
+        )
+        return coldefs
+
     def create_table(self, connection):
         """
         Override to provide code for creating the target table, if not existing.
@@ -120,18 +142,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             )
 
         # Assumes that columns are specified as (name, definition) tuples
-        columns = []
-        if self.auto_primary_key is not None:
-            columns.append(self.auto_primary_key)
-        columns.extend(self.columns)
-        if self.default_columns is not None:
-            columns.extend(self.default_columns)
-        if self.auto_primary_key is not None:
-            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+        coldefs = self.create_column_definitions()
 
-        coldefs = ','.join(
-            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
-        )
         query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs})".format(
             schema=self.schema, table=self.table, coldefs=coldefs
         )
@@ -173,12 +185,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         # clear table contents
         self.attempted_removal = True
         if self.overwrite:
+            print "IN overwrite area!"
             # first clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                query = "DELETE FROM {schema}.{marker_table} where target_table='{schema}.{target_table}';".format(
+                    schema=self.schema,
                     marker_table=marker_table,
-                    target_table=self.table,
+                    target_table=self.table
                 )
                 connection.cursor().execute(query)
             except vertica_python.errors.Error as err:
@@ -193,6 +207,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
             connection.cursor().execute(query)
 
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
+
     @property
     def copy_delimiter(self):
         """The delimiter in the data to be copied.  Default is tab (\t)"""
@@ -205,10 +227,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
-        cursor.copy_file("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
-                         .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
-                                 null=self.copy_null_sequence),
-                         self.input()['insert_source'].open('r'), decoder='utf-8')
+        with self.input()['insert_source'].open('r') as insert_source_stream:
+            cursor.copy_stream("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
+                             .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
+                                     null=self.copy_null_sequence), insert_source_stream)
 
     def run(self):
         """
@@ -236,6 +258,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
             # We commit only if both operations completed successfully.
             connection.commit()
+            print "COMMITTED"
         except Exception:
             connection.rollback()
             raise
