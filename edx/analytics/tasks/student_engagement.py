@@ -18,7 +18,7 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalUrl
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -743,7 +743,7 @@ class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
     def insert_source_task(self):
         return (
             # Get the location of the Hive table explicitly.
-            ExternalUrl(source=self.source_root)
+            ExternalURL(source=self.source_root)
         )
 
     @property
