@@ -59,19 +59,47 @@ URL_SCHEME_TO_TARGET_CLASS = {
 }
 
 
-def get_target_from_url(url):
+def get_target_from_url(url, success_marked=False):
     """Returns a luigi target based on the url scheme"""
     parsed_url = urlparse.urlparse(url)
     target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
     kwargs = {}
-    if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
-        kwargs['format'] = luigi.hdfs.PlainDir
+
+    if url.endswith('/'):
+        if issubclass(target_class, luigi.hdfs.HdfsTarget):
+            kwargs['format'] = luigi.hdfs.PlainDir
+        elif issubclass(target_class, luigi.LocalTarget):
+            target_class = LocalOutputDirectoryTarget
+
     if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
         # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
     if issubclass(target_class, luigi.s3.S3Target):
         kwargs['client'] = ScalableS3Client()
+
+    if success_marked:
+        class OutputDirectoryTarget(target_class):
+
+            @property
+            def success_marker_target(self):
+                return get_target_from_url(url_path_join(self.path, '_SUCCESS'))
+
+            def exists(self):
+                if super(OutputDirectoryTarget, self).exists():
+                    success_marker_exists = self.success_marker_target.exists()
+                    if not success_marker_exists:
+                        self.remove()
+                else:
+                    success_marker_exists = False
+
+                return success_marker_exists
+
+            def mark_successful(self):
+                with self.success_marker_target.open('w'):
+                    pass
+
+        target_class = OutputDirectoryTarget
 
     url = url.rstrip('/')
     return target_class(url, **kwargs)
