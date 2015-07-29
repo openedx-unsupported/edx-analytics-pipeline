@@ -48,7 +48,7 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
         self.task.launch([
             'VerticaEventLoadingWorkflow',
             '--credentials', self.vertica.vertica_creds_url,
-            '--interval', '2014-04-12-2014-04-15',
+            '--interval', '2014-08-21',
             '--use-flex', '--remove-implicit'
         ])
 
@@ -59,8 +59,10 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             cursor.execute("DROP TABLE IF EXISTS {schema}.event_logs".format(schema=self.vertica.schema_name))
 
     def validate_output(self):
-        """Validates the output, comparing it to a csv of all the expected events in this name."""
+        """Validates the output, comparing it to a csv of info from all the expected events in this range."""
         with self.vertica.cursor() as cursor:
+            # Since the flex table stores the whole canonicalized, cleaned event json, including runtime-specific
+            # metadata, we don't check the entire rows, just the materialized columns.
             cursor.execute("SELECT COUNT(*) FROM {schema}.event_logs;"
                            .format(schema=self.vertica.schema_name))
             total_count = cursor.fetchone()[0]
@@ -72,7 +74,10 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             expected_output_csv = os.path.join(self.data_dir, 'output', 'events_to_warehouse_acceptance_flex_events.csv')
             expected = pandas.read_csv(expected_output_csv)
 
-            cursor.execute("SELECT * FROM {schema}.event_logs;".format(schema=self.vertica.schema_name))
+            cursor.execute("SELECT \"agent.type\",\"agent.device_name\",\"agent.os\",\"agent.browswer\","
+                           "\"agent.touch_capable\",event_type,event_source,host,ip,page,\"time\",username,"
+                           "\"context.course_id\",\"context.org_id\",\"context.user_id\",\"context.path\" "
+                           "FROM {schema}.event_logs;".format(schema=self.vertica.schema_name))
             events = cursor.fetchall()
 
             print "OBSERVED:"
