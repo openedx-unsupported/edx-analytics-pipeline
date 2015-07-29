@@ -543,7 +543,7 @@ class StudentEngagementToMysqlTask(
         """List of tuples defining name and definition of automatically-filled columns."""
         # Make sure that nothing else is added, else the job will result in an error:
         #  "COPY: Input record N has been rejected (Too few columns found)."
-        return None
+        return []
 
     @property
     def columns(self):
@@ -650,7 +650,7 @@ class JoinedStudentEngagementToMysqlTask(
         """List of tuples defining name and definition of automatically-filled columns."""
         # Make sure that nothing else is added, else the job will result in an error:
         #  "COPY: Input record N has been rejected (Too few columns found)."
-        return None
+        return []
 
     @property
     def columns(self):
