@@ -20,14 +20,16 @@ import bson
 import pyinstrument
 import stevedore
 
-import luigi
 import luigi.configuration
-import luigi.hadoop
-
-
-log = logging.getLogger(__name__)
 
 OVERRIDE_CONFIGURATION_FILE = 'override.cfg'
+if os.path.exists(OVERRIDE_CONFIGURATION_FILE):
+    luigi.configuration.get_config().add_config_path(OVERRIDE_CONFIGURATION_FILE)
+
+import luigi
+import luigi.hadoop
+
+log = logging.getLogger(__name__)
 
 
 def main():
@@ -37,15 +39,6 @@ def main():
     # Load tasks configured using entry_points
     # TODO: launch tasks by their entry_point name
     stevedore.ExtensionManager('edx.analytics.tasks')
-
-    configuration = luigi.configuration.get_config()
-    if os.path.exists(OVERRIDE_CONFIGURATION_FILE):
-        log.debug('Using override.cfg')
-        with open(OVERRIDE_CONFIGURATION_FILE, 'r') as override_file:
-            log.debug(override_file.read())
-        configuration.add_config_path(OVERRIDE_CONFIGURATION_FILE)
-    else:
-        log.debug('override.cfg does not exist')
 
     # Tell luigi what dependencies to pass to the Hadoop nodes
     # - boto is used for all direct interactions with s3.
