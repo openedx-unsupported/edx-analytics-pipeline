@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
     """Base class for the end-to-end test of event loading tasks."""
 
-    INPUT_FILE = 'events_to_warehouse_acceptance_tracking.log.gz'
+    INPUT_FILE = 'events_to_warehouse_acceptance_tracking.log'
 
     def setUp(self):
         super(BaseEventsToWarehouseAcceptanceTest, self).setUp()
@@ -37,6 +37,7 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
 
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
+        self.s3_client.put(src, dst2)
 
 
 class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
