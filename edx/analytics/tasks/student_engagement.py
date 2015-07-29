@@ -767,3 +767,10 @@ class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'VARCHAR(255)'),
         ]
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        # Make sure that nothing else is added, else the job will result in an error:
+        #  "COPY: Input record N has been rejected (Too few columns found)."
+        return None
