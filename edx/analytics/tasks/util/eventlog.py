@@ -138,7 +138,13 @@ def get_event_time_string(event):
         raw_timestamp = event['time']
         timestamp = raw_timestamp.split('+')[0]
         if '.' not in timestamp:
-            timestamp = '{datetime}.000000'.format(datetime=timestamp)
+            # Naively appending .00000 to the end of timestamps which have the trailing Z on them
+            # leads to malformed timestamps of the form 2015-01-01T:00:00:01Z.00000, when the Z should go
+            # on the very end if it appears.
+            if timestamp[-1] == 'Z':
+                timestamp = '{datetime}.000000'.format(datetime=timestamp[:-1])
+            else:
+                timestamp = '{datetime}.000000'.format(datetime=timestamp)
         return timestamp
     except Exception:  # pylint: disable=broad-except
         return None

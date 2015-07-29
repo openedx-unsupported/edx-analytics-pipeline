@@ -37,7 +37,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     startup, those days are not processed again unless the overwrite flag is set.
     """
 
-    interval = None
+    interval = luigi.DateIntervalParameter(None)
     output_root = None
     date = luigi.DateParameter()
 
@@ -53,6 +53,10 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         self.output_root = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
 
+    # def incr_counter(self, msg):
+    #     """Keep track of the number of various types of non-canonical events we see."""
+    #
+
     def event_from_line(self, line):
         """
         Convert a line to an event, or None if it's not valid.
@@ -65,7 +69,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         event = eventlog.parse_json_event(line)
         if not event:
-            self.increment_counter('analytics.c14n.malformed')
+            self.incr_counter('analytics.c14n.malformed')
             return None
 
         if 'event_type' not in event:
@@ -111,7 +115,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
             received_at = ciso8601.parse_datetime(received_at_string)
             time = ciso8601.parse_datetime(event['time'])
             if (received_at - time) > datetime.timedelta(days=1):
-                self.increment_counter('analytics.c14n.late_events')
+                self.incr_counter('analytics.c14n.late_events')
 
         return event
 

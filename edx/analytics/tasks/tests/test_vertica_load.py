@@ -174,39 +174,36 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task = self.create_task(source=self._get_source_string(1))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_multiple_rows(self):
         task = self.create_task(source=self._get_source_string(4))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_to_predefined_table(self):
         task = self.create_task(cls=CopyToPredefinedVerticaDummyTable)
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
