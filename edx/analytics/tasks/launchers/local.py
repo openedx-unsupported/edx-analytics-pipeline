@@ -40,12 +40,10 @@ def main():
 
     configuration = luigi.configuration.get_config()
     if os.path.exists(OVERRIDE_CONFIGURATION_FILE):
-        log.debug('Using override.cfg')
-        with open(OVERRIDE_CONFIGURATION_FILE, 'r') as override_file:
-            log.debug(override_file.read())
+        log.debug('Using %s', OVERRIDE_CONFIGURATION_FILE)
         configuration.add_config_path(OVERRIDE_CONFIGURATION_FILE)
     else:
-        log.debug('override.cfg does not exist')
+        log.debug('Configuration file %s does not exist', OVERRIDE_CONFIGURATION_FILE)
 
     # Tell luigi what dependencies to pass to the Hadoop nodes
     # - boto is used for all direct interactions with s3.
