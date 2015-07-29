@@ -539,9 +539,16 @@ class StudentEngagementToMysqlTask(
         return 'student_engagement_{}'.format(self.interval_type)
 
     @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        # Make sure that nothing else is added, else the job will result in an error:
+        #  "COPY: Input record N has been rejected (Too few columns found)."
+        return None
+
+    @property
     def columns(self):
         return [
-            ('end_date', 'DATETIME'),
+            ('end_date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
             ('days_active', 'INT(11)'),
@@ -588,9 +595,16 @@ class StudentEngagementToVerticaTask(
         return 'd_student_engagement_{}'.format(self.interval_type)
 
     @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        # Make sure that nothing else is added, else the job will result in an error:
+        #  "COPY: Input record N has been rejected (Too few columns found)."
+        return None
+
+    @property
     def columns(self):
         return [
-            ('end_date', 'DATETIME'),
+            ('end_date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
             ('days_active', 'INT'),
@@ -632,9 +646,16 @@ class JoinedStudentEngagementToMysqlTask(
         return 'student_engagement_joined_{}'.format(self.interval_type)
 
     @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        # Make sure that nothing else is added, else the job will result in an error:
+        #  "COPY: Input record N has been rejected (Too few columns found)."
+        return None
+
+    @property
     def columns(self):
         return [
-            ('end_date', 'DATETIME'),
+            ('end_date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
             ('email', 'VARCHAR(255)'),
@@ -682,9 +703,16 @@ class JoinedStudentEngagementToVerticaTask(
         return 'd_student_engagement_joined_{}'.format(self.interval_type)
 
     @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        # Make sure that nothing else is added, else the job will result in an error:
+        #  "COPY: Input record N has been rejected (Too few columns found)."
+        return None
+
+    @property
     def columns(self):
         return [
-            ('end_date', 'DATETIME'),
+            ('end_date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
             ('email', 'VARCHAR(255)'),
@@ -753,7 +781,7 @@ class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
     @property
     def columns(self):
         return [
-            ('end_date', 'DATETIME'),
+            ('end_date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(255)'),
             ('days_active', 'INT'),
