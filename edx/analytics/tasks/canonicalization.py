@@ -53,10 +53,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         self.output_root = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
 
-    # def incr_counter(self, msg):
-    #     """Keep track of the number of various types of non-canonical events we see."""
-    #
-
     def event_from_line(self, line):
         """
         Convert a line to an event, or None if it's not valid.

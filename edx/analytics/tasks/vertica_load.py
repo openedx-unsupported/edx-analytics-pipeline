@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 try:
     import vertica_python
+
     vertica_client_available = True  # pylint: disable-msg=C0103
 except ImportError:
     log.warn('Unable to import Vertica client libraries')
@@ -229,8 +230,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """Performs the copy query from the insert source."""
         with self.input()['insert_source'].open('r') as insert_source_stream:
             cursor.copy_stream("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
-                             .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
-                                     null=self.copy_null_sequence), insert_source_stream)
+                               .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
+                                       null=self.copy_null_sequence), insert_source_stream)
 
     def run(self):
         """

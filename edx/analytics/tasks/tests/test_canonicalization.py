@@ -95,9 +95,8 @@ class CanonicalizationMapperTest(unittest.TestCase):
         output = self.call_mapper(time='2015-01-01T00:00:00Z')
         self.assert_event_contains(output, time='2015-01-01T00:00:00.000000Z')
 
-    def test_already_completed_date(self):
-        with patch.dict(self.task.__dict__, {'complete_dates': set(['2015-01-01'])}):
-            self.assert_empty(self.call_mapper(time='2015-01-01T00:00:00'))
+    def test_date_outside_range(self):
+        self.assert_empty(self.call_mapper(time='2014-12-31T11:00:00'))
 
     def test_late_event(self):
         self.assert_emitted(
@@ -145,4 +144,3 @@ class CanonicalizationReducerTest(unittest.TestCase):
         output = self.task.reducer(0, values)
 
         self.assertEqual(list(output), [(1,), (2,), (3,), (4,), (5,)])
-
