@@ -743,7 +743,7 @@ class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
     def insert_source_task(self):
         return (
             # Get the location of the Hive table explicitly.
-            ExternalURL(source=self.source_root)
+            ExternalURL(url=self.source_root)
         )
 
     @property
