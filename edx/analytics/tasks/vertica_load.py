@@ -178,7 +178,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # first clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {schema}.{marker_table} where `target_table`='{schema}.{target_table}'".format(
+                query = "DELETE FROM {schema}.{marker_table} where target_table='{schema}.{target_table}'".format(
                     marker_table=marker_table,
                     target_table=self.table,
                     schema=self.schema,
@@ -197,6 +197,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
             log.debug(query)
             connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
 
     @property
     def copy_delimiter(self):
