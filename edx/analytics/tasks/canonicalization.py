@@ -25,19 +25,16 @@ log = logging.getLogger(__name__)
 class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutputMixin, MapReduceJobTask):
     """
     Standardize the format of events and split them by day.
-
     Reads raw tracking logs, keeps valid events for dates in a specified interval, adds some metadata, and outputs them
     back to S3, with one folder per event emitted date. The events in each folder are split into OUTPUT_BUCKETS files,
     to make it possible to parallelize downstream jobs.
-
     Any events that weren't emitted in the given interval will be dropped. In particular, this includes mobile events
     that are delivered long after they were emitted.
-
     Once the job finishes, it writes a _SUCCESS file for each date in the interval. If such a file is present on
     startup, those days are not processed again unless the overwrite flag is set.
     """
 
-    interval = None
+    interval = luigi.DateIntervalParameter(None)
     output_root = None
     date = luigi.DateParameter()
 
@@ -56,16 +53,14 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     def event_from_line(self, line):
         """
         Convert a line to an event, or None if it's not valid.
-
         Args:
             line: json string, hopefully not malformed
-
         Return:
             an event dictionary, or None if the line isn't valid.
         """
         event = eventlog.parse_json_event(line)
         if not event:
-            self.increment_counter('analytics.c14n.malformed')
+            self.incr_counter('analytics.c14n.malformed')
             return None
 
         if 'event_type' not in event:
@@ -77,7 +72,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Args:
             event: an event dict, or None if something has gone wrong earlier.
-
         Returns:
             the event, with a time field in ISO8601 format, with UTC time, or None if we
             couldn't get the time info.
@@ -98,7 +92,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Logs a datadog event if the event has a received_at context field that is more than 1 day late than its emission
         time.
-
         Also ensures that the event has a context dictionary.
         """
         if event is None:
@@ -111,7 +104,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
             received_at = ciso8601.parse_datetime(received_at_string)
             time = ciso8601.parse_datetime(event['time'])
             if (received_at - time) > datetime.timedelta(days=1):
-                self.increment_counter('analytics.c14n.late_events')
+                self.incr_counter('analytics.c14n.late_events')
 
         return event
 
@@ -171,7 +164,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Args:
             line: an event, hopefully, but not necessarily, proper json.
-
         Returns:
             (date, bucket), canonicalized_event
         """
@@ -195,7 +187,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     def compute_hash(self, line):
         """
         Compute a hash of an event line.
-
         Returns:
             The hexdigest of the line, a hexadecimal string.
         """
@@ -206,9 +197,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     def get_map_output_key(self, event):
         """
         Generate the grouping key for an event.
-
         This will be a deterministically generated integer that evenly distributes the events into buckets.
-
         Returns:
             bucket
         """
