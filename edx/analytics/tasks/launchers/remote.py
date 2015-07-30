@@ -119,7 +119,11 @@ def run_task_playbook(inventory, arguments, uid):
 
 
 def get_ansible_inventory_host(arguments):
-    return 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
+    if arguments.host:
+        return 'all'
+    else:
+        return 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
+
 
 
 def convert_args_to_extra_vars(arguments, uid):
@@ -131,10 +135,7 @@ def convert_args_to_extra_vars(arguments, uid):
         arguments (argparse.Namespace): The arguments that were passed in on the command line.
         uid (str): A unique identifier for this task execution.
     """
-    if arguments.host:
-        name = 'all'
-    else:
-        name = get_ansible_inventory_host(arguments)
+    name = get_ansible_inventory_host(arguments)
     extra_vars = {
         'name': name,
         'branch': arguments.branch,
@@ -157,7 +158,7 @@ def convert_args_to_extra_vars(arguments, uid):
             'WHEEL_URL': arguments.wheel_url,
             'WHEEL_PYVER': '2.7'
         }
-    if arguments.vagrant_path:
+    if arguments.vagrant_path or arguments.host:
         extra_vars['write_luigi_config'] = False
     return json.dumps(extra_vars)
 

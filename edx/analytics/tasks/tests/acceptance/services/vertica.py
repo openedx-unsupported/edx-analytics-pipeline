@@ -13,7 +13,11 @@ class VerticaService(object):
     """Service object to be used as a member of a class to enable that class to write to and read from Vertica."""
 
     def __init__(self, config, schema_name):
-        self.vertica_creds_url = config['vertica_creds_url']
+        self.vertica_creds_url = config.get('vertica_creds_url', '')
+        if len(self.vertica_creds_url) == 0:
+            self.disabled = True
+        else:
+            self.disabled = False
         self.schema_name = schema_name
 
     @property
@@ -58,11 +62,16 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
+        if self.disabled:
+            raise RuntimeError('The vertica service is disabled')
         return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 
     def reset(self):
         """Create a testing schema on the Vertica database replacing any existing content with an empty database."""
+        if self.disabled:
+            return
+
         with self.cursor() as cur:
             reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}'.format(self.schema_name)
             cur.execute(reset_query)
