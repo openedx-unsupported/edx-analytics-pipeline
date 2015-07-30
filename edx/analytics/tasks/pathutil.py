@@ -1,9 +1,7 @@
 """
 Helper classes to specify file dependencies for input and output.
-
 Supports inputs from S3 and local FS.
 Supports outputs to HDFS, S3, and local FS.
-
 """
 
 import boto
@@ -31,9 +29,7 @@ log = logging.getLogger(__name__)
 class PathSetTask(luigi.Task):
     """
     A task to select a subset of files in an S3 bucket or local FS.
-
     Parameters:
-
       src: a URL pointing to a folder in s3:// or local FS.
       include:  a list of patterns to use to select.  Multiple patterns are OR'd.
       manifest: a URL pointing to a manifest file location.
@@ -119,11 +115,9 @@ class EventLogSelectionDownstreamMixin(object):
 class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
     """
     Select all relevant event log input files from a directory.
-
     Recursively list all files in the directory which is expected to contain the input files organized in such a way
     that a pattern can be used to find them. Filenames are expected to contain a date which represents an approximation
     of the date found in the events themselves.
-
     Parameters:
         source: A URL to a path that contains log files that contain the events.
         interval: The range of dates to export logs for.
@@ -133,6 +127,8 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
             in order for them to be processed.
     """
+
+    s3_file_list_cache = None
 
     def __init__(self, *args, **kwargs):
         super(EventLogSelectionTask, self).__init__(*args, **kwargs)
@@ -154,7 +150,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
     def _get_requirements(self):
         """
         Gather the set of requirements needed to run the task.
-
         This can be a rather expensive operation that requires usage of the S3 API to list all files in the source
         bucket and select the ones that are applicable to the given date range.
         """
@@ -179,7 +174,9 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         s3_conn = boto.connect_s3()
         bucket_name, root = get_s3_bucket_key_names(source)
         bucket = s3_conn.get_bucket(bucket_name)
-        for key_metadata in bucket.list(root):
+        if self.s3_file_list_cache is None:
+            self.s3_file_list_cache = list(bucket.list(root))
+        for key_metadata in self.s3_file_list_cache:
             if key_metadata.size > 0:
                 key_path = key_metadata.key[len(root):].lstrip('/')
                 yield url_path_join(source, key_path)
@@ -197,7 +194,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
     def should_include_url(self, url):
         """
         Determine whether the file pointed to by the URL should be included in the set of files used for analysis.
-
         Presently filters first on pattern match and then on the datestamp extracted from the file name.
         """
         # Find the first pattern (if any) that matches the URL.
@@ -227,7 +223,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
     """
     Extract events corresponding to a specified time interval and outputs them from a mapper.
-
     Parameters:
         source: A URL to a path that contains log files that contain the events.
         interval: The range of dates to export logs for.
