@@ -37,6 +37,7 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
 
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
+        self.s3_client.put(src, dst2)
 
 
 class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
