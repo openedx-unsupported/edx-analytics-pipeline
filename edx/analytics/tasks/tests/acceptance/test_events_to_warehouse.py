@@ -27,7 +27,7 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
         self.oddjob_jar = self.config['oddjob_jar']
 
         self.upload_data()
-        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 04, 13))
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 08, 21))
 
     def upload_data(self):
         """Puts the test course catalog where the processing task would look for it, bypassing calling the actual API"""
