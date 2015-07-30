@@ -9,7 +9,7 @@ import luigi.configuration
 
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import Week
-from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartitionTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
@@ -29,16 +29,12 @@ class CalendarDownstreamMixin(OverwriteOutputMixin):
 class CalendarTask(CalendarDownstreamMixin, luigi.Task):
     """
     Generate a canonical calendar.
-
     This table provides information about every day in every year that is being analyzed. It captures many complex
     details associated with calendars and standardizes references to concepts like "weeks" since they can be defined
     in different ways by various systems.
-
     It is also intended to contain business-specific metadata about dates in the future, such as fiscal year boundaries,
     fiscal quarter boundaries and even holidays or other days of special interest for analysis purposes.
-
     Parameters:
-
         output_root (str): path to store the calendar data
     """
 
@@ -68,7 +64,7 @@ class CalendarTask(CalendarDownstreamMixin, luigi.Task):
                 output_file.write('\t'.join([unicode(v).encode('utf8') for v in column_values]) + '\n')
 
 
-class CalendarTableTask(CalendarDownstreamMixin, HiveTableTask):
+class CalendarTableTask(HiveTableTask):
     """Ensure a hive table exists for the calendar so that we can perform joins."""
 
     @property
@@ -88,12 +84,23 @@ class CalendarTableTask(CalendarDownstreamMixin, HiveTableTask):
             ('iso_weekday', 'INT'),
         ]
 
+
+class CalendarPartitionTask(CalendarDownstreamMixin, HivePartitionTask):
+
     @property
-    def partition(self):
-        return HivePartition('interval', str(self.interval))
+    def hive_table_task(self):
+        return CalendarTableTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def partition_value(self):
+        return self.interval.date_b.isoformat()
 
     def requires(self):
-        return CalendarTask(
+        yield self.hive_table_task
+        yield CalendarTask(
             output_root=self.partition_location,
             interval=self.interval,
             overwrite=self.overwrite,
