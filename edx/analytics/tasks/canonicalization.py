@@ -49,6 +49,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         self.interval = luigi.date_interval.Date.from_date(self.date)
         self.output_root = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
+        self.n_reduce_tasks = self.output_buckets
 
     def event_from_line(self, line):
         """

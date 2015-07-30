@@ -53,6 +53,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         self.interval = luigi.date_interval.Date.from_date(self.date)
         self.output_root = url_path_join(self.warehouse_path, 'events-vertica', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
+        self.n_reduce_tasks = self.output_buckets
 
     def requires(self):
         """We require the data to already be canonicalized before running this task."""
@@ -60,6 +61,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
             date=self.date,
             overwrite=self.overwrite,
             warehouse_path=self.warehouse_path,
+            output_buckets=self.output_buckets
         )
 
     def event_from_line(self, line):
