@@ -21,10 +21,14 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     remove_implicit = luigi.BooleanParameter(default=True)
 
+    # The vertica event loading task doesn't use this directly, but the cleaning and canonicalizing MapReduce jobs do.
+    n_reduce_tasks = luigi.IntParameter(default=100)
+
     @property
     def insert_source_task(self):
         """The previous task in the workflow is to clean the data for loading into Vertica."""
-        return(CleanForVerticaTask(date=self.run_date, remove_implicit=self.remove_implicit))
+        return(CleanForVerticaTask(date=self.run_date, remove_implicit=self.remove_implicit,
+                                   output_buckets=self.n_reduce_tasks))
 
     @property
     def table(self):
@@ -127,6 +131,7 @@ class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
     interval = luigi.DateIntervalParameter()
     remove_implicit = luigi.BooleanParameter(default=True)
     use_flex = luigi.BooleanParameter(default=True)
+    n_reduce_tasks = luigi.IntParameter(default=100)
 
     def requires(self):
         # Add additional args for VerticaCopyMixin.
@@ -138,5 +143,6 @@ class VerticaEventLoadingWorkflow(VerticaCopyTaskMixin, luigi.WrapperTask):
 
         for day in luigi.DateIntervalParameter().parse(str(self.interval)):
             task_needed = VerticaEventLoadingTask(run_date=day, remove_implicit=self.remove_implicit,
-                                                  use_flex=self.use_flex, **kwargs2)
+                                                  use_flex=self.use_flex, n_reduce_tasks=self.n_reduce_tasks,
+                                                  **kwargs2)
             yield task_needed

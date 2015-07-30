@@ -42,10 +42,10 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     remove_implicit = luigi.BooleanParameter()
 
     VERSION = 2  # Version 1 was after the canonicalization
-    OUTPUT_BUCKETS = 100
+    output_buckets = luigi.IntParameter(default=100)
     MAX_KEY_LENGTH = 256
 
-    n_reduce_tasks = OUTPUT_BUCKETS
+    n_reduce_tasks = output_buckets
 
     def __init__(self, *args, **kwargs):
         super(CleanForVerticaTask, self).__init__(*args, **kwargs)
@@ -218,7 +218,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         # pick a random bucket using the first 3 digits of the event hash
         string_of_hex_digits = event['metadata']['id'][:3]
         number = int(string_of_hex_digits, 16)
-        bucket = number % self.OUTPUT_BUCKETS
+        bucket = number % self.output_buckets
 
         return bucket
 

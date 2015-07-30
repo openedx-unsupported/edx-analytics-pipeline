@@ -39,9 +39,9 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     date = luigi.DateParameter()
 
     VERSION = 1
-    OUTPUT_BUCKETS = 100
+    output_buckets = luigi.IntParameter(default=100)
 
-    n_reduce_tasks = OUTPUT_BUCKETS
+    n_reduce_tasks = output_buckets
 
     def __init__(self, *args, **kwargs):
         super(CanonicalizationTask, self).__init__(*args, **kwargs)
@@ -206,7 +206,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         # pick a random bucket using the first 3 digits of the event hash
         string_of_hex_digits = event['metadata']['id'][:3]
         number = int(string_of_hex_digits, 16)
-        bucket = number % self.OUTPUT_BUCKETS
+        bucket = number % self.output_buckets
 
         return bucket
 
