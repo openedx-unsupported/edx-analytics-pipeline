@@ -167,6 +167,8 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         Returns:
             (date, bucket), canonicalized_event
         """
+        print line
+        log.debug(line)
         event = self.event_from_line(line)
         event = self.standardize_time(event)
         event = self.count_late_events(event)
