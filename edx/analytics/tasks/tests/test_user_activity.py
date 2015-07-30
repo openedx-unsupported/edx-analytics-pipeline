@@ -1,6 +1,5 @@
 """
 Tests for tasks that collect enrollment events.
-
 """
 import datetime
 import json

@@ -25,26 +25,23 @@ log = logging.getLogger(__name__)
 class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutputMixin, MapReduceJobTask):
     """
     Standardize the format of events and split them by day.
-
     Reads raw tracking logs, keeps valid events for dates in a specified interval, adds some metadata, and outputs them
     back to S3, with one folder per event emitted date. The events in each folder are split into OUTPUT_BUCKETS files,
     to make it possible to parallelize downstream jobs.
-
     Any events that weren't emitted in the given interval will be dropped. In particular, this includes mobile events
     that are delivered long after they were emitted.
-
     Once the job finishes, it writes a _SUCCESS file for each date in the interval. If such a file is present on
     startup, those days are not processed again unless the overwrite flag is set.
     """
 
-    interval = None
+    interval = luigi.DateIntervalParameter(None)
     output_root = None
     date = luigi.DateParameter()
 
     VERSION = 1
-    OUTPUT_BUCKETS = 100
+    output_buckets = luigi.IntParameter(default=100)
 
-    n_reduce_tasks = OUTPUT_BUCKETS
+    n_reduce_tasks = output_buckets
 
     def __init__(self, *args, **kwargs):
         super(CanonicalizationTask, self).__init__(*args, **kwargs)
@@ -52,20 +49,19 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         self.interval = luigi.date_interval.Date.from_date(self.date)
         self.output_root = url_path_join(self.warehouse_path, 'events', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
+        self.n_reduce_tasks = self.output_buckets
 
     def event_from_line(self, line):
         """
         Convert a line to an event, or None if it's not valid.
-
         Args:
             line: json string, hopefully not malformed
-
         Return:
             an event dictionary, or None if the line isn't valid.
         """
         event = eventlog.parse_json_event(line)
         if not event:
-            self.increment_counter('analytics.c14n.malformed')
+            self.incr_counter('analytics.c14n.malformed', 1)
             return None
 
         if 'event_type' not in event:
@@ -77,7 +73,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Args:
             event: an event dict, or None if something has gone wrong earlier.
-
         Returns:
             the event, with a time field in ISO8601 format, with UTC time, or None if we
             couldn't get the time info.
@@ -98,7 +93,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Logs a datadog event if the event has a received_at context field that is more than 1 day late than its emission
         time.
-
         Also ensures that the event has a context dictionary.
         """
         if event is None:
@@ -111,7 +105,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
             received_at = ciso8601.parse_datetime(received_at_string)
             time = ciso8601.parse_datetime(event['time'])
             if (received_at - time) > datetime.timedelta(days=1):
-                self.increment_counter('analytics.c14n.late_events')
+                self.incr_counter('analytics.c14n.late_events', 1)
 
         return event
 
@@ -171,10 +165,10 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         Args:
             line: an event, hopefully, but not necessarily, proper json.
-
         Returns:
             (date, bucket), canonicalized_event
         """
+        log.debug(line)
         event = self.event_from_line(line)
         event = self.standardize_time(event)
         event = self.count_late_events(event)
@@ -195,7 +189,6 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     def compute_hash(self, line):
         """
         Compute a hash of an event line.
-
         Returns:
             The hexdigest of the line, a hexadecimal string.
         """
@@ -206,16 +199,14 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
     def get_map_output_key(self, event):
         """
         Generate the grouping key for an event.
-
         This will be a deterministically generated integer that evenly distributes the events into buckets.
-
         Returns:
             bucket
         """
         # pick a random bucket using the first 3 digits of the event hash
         string_of_hex_digits = event['metadata']['id'][:3]
         number = int(string_of_hex_digits, 16)
-        bucket = number % self.OUTPUT_BUCKETS
+        bucket = number % self.output_buckets
 
         return bucket
 

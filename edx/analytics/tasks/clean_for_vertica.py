@@ -30,11 +30,8 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     """
     Clean event logs up for Vertica ingestion.  This includes removal of empty events
     and optionally removal of implicit events.
-
     May later include reorganizing event data to make flex loading easier.
-
     Writes output in a set of gzipped files so that the task can be parallelized.
-
     Once the job finishes, it writes a _SUCCESS file for each date in the interval. If such a file is present on
     startup, those days are not processed again unless the overwrite flag is set.
     """
@@ -45,10 +42,10 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     remove_implicit = luigi.BooleanParameter()
 
     VERSION = 2  # Version 1 was after the canonicalization
-    OUTPUT_BUCKETS = 100
+    output_buckets = luigi.IntParameter(default=100)
     MAX_KEY_LENGTH = 256
 
-    n_reduce_tasks = OUTPUT_BUCKETS
+    n_reduce_tasks = output_buckets
 
     def __init__(self, *args, **kwargs):
         super(CleanForVerticaTask, self).__init__(*args, **kwargs)
@@ -56,6 +53,7 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         self.interval = luigi.date_interval.Date.from_date(self.date)
         self.output_root = url_path_join(self.warehouse_path, 'events-vertica', 'dt=' + self.date.isoformat()) + '/'
         self.current_time = datetime.datetime.utcnow().isoformat()
+        self.n_reduce_tasks = self.output_buckets
 
     def requires(self):
         """We require the data to already be canonicalized before running this task."""
@@ -63,12 +61,12 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
             date=self.date,
             overwrite=self.overwrite,
             warehouse_path=self.warehouse_path,
+            output_buckets=self.output_buckets
         )
 
     def event_from_line(self, line):
         """
         Convert a line to an event.
-
         Because this task requires a canonicalization task, the event will parse and have an event type.
         """
         event = eventlog.parse_json_event(line)
@@ -100,7 +98,6 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         Args:
             event: an event dictionary, or None if something has gone wrong earlier
-
         Returns:
             the event, if it is an explicit event, or None if it is an implicit event.  This event is called
             only if the remove_implicit parameter is True.
@@ -114,10 +111,8 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         The JSON parser Vertica uses to ingest into flex tables can't handle key names larger than 256 columns,
         which will sometimes happen, so we truncate those keys.
-
         Args:
             event: an event dictionary, or None if something has gone wrong earlier
-
         Returns:
             the event, with all of the keys shortened to be at most 256 characters.
         """
@@ -138,10 +133,8 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
         the user agent to extract the information we're looking for.
-
         Args:
             event: an event dictionary, or None if something has gone wrong earlier
-
         Returns:
             the event, with the 'agent' value replaced by a dictionary of information about the user agent.
         """
@@ -185,7 +178,6 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
         """
         Args:
             line: an event, which is already a proper, canonicalized json.
-
         Returns:
             (date, bucket), cleaned_for_vertica_event
         """
@@ -211,7 +203,6 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     def compute_hash(self, line):
         """
         Compute a hash of an event line.
-
         Returns:
             The hexdigest of the line, a hexadecimal string.
         """
@@ -222,16 +213,14 @@ class CleanForVerticaTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutpu
     def get_map_output_key(self, event):
         """
         Generate the grouping key for an event.
-
         This will be a deterministically generated integer that evenly distributes the events into buckets.
-
         Returns:
             bucket
         """
         # pick a random bucket using the first 3 digits of the event hash
         string_of_hex_digits = event['metadata']['id'][:3]
         number = int(string_of_hex_digits, 16)
-        bucket = number % self.OUTPUT_BUCKETS
+        bucket = number % self.output_buckets
 
         return bucket
 
