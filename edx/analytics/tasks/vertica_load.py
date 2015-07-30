@@ -227,7 +227,16 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         return "'\\N'"
 
     def copy_data_table_from_target(self, cursor):
-        """Performs the copy query from the insert source."""
+        """
+        Performs the copy query from the insert source.
+
+        Override if you're going to be performign custom copies like copies to flex tables that need to specify
+        a PARSER, or if you are using columns with default values which won't show up in the data.
+
+        Example queries from overrides:
+            "COPY {schema}.{table} FROM STDIN PARSER fjsonparser() NO COMMIT;"
+            "COPY {schema}.{table} (val1, val2) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
+        """
         with self.input()['insert_source'].open('r') as insert_source_stream:
             cursor.copy_stream("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
                                .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,

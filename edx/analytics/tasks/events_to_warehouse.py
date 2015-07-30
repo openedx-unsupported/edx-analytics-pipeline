@@ -105,6 +105,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
         """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
         return None
 
+    # TODO: will the DIRECT flag here work? speed up the query?
     def copy_data_table_from_target(self, cursor):
         """Overriden since we need to use the json parser."""
         with self.input()['insert_source'].open('r') as insert_source_file:
