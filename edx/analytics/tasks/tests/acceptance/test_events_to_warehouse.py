@@ -50,7 +50,8 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             'VerticaEventLoadingWorkflow',
             '--credentials', self.vertica.vertica_creds_url,
             '--interval', '2014-08-21',
-            '--use-flex', '--remove-implicit'
+            '--use-flex', '--remove-implicit',
+            '--n-reduce-tasks', '1'
         ])
 
         self.validate_output()
