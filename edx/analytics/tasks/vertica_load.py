@@ -218,16 +218,22 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
-        # cursor.copy_file("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
-        #                  .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
-        #                          null=self.copy_null_sequence),
-        #                  self.input()['insert_source'].open('r'), decoder='utf-8')
+        if isinstance(self.columns[0], basestring):
+            column_names = ','.join([name for name in self.columns])
+        elif len(self.columns[0]) == 2:
+            column_names = ','.join([name for name, _type in self.columns])
+        else:
+            raise Exception('columns must consist of column strings or '
+                            '(column string, type string) tuples (was %r ...)'
+                            % (self.columns[0],))
+
         with self.input()['insert_source'].open('r') as insert_source_file:
             log.debug("Running copy_stream from source file")
             cursor.copy_stream(
-                "COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
+                "COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
                     schema=self.schema,
                     table=self.table,
+                    cols=column_names,
                     delim=self.copy_delimiter,
                     null=self.copy_null_sequence
                 ),

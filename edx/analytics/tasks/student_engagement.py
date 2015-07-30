@@ -89,7 +89,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             timestamp = eventlog.get_event_time_string(event)
             if timestamp is None:
                 return
-            info['path'] = event_type
+            # Remove trailing newlines which mess up the TSV
+            # structure, and remove trailing backslashes that Vertica
+            # treats as continuation characters on import.
+            info['path'] = event_type.strip().rstrip('\\')
             info['timestamp'] = timestamp
             event_type = SUBSECTION_VIEWED_MARKER
 
@@ -163,7 +166,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                     num_textbook_pages += 1
                 elif event_type == SUBSECTION_VIEWED_MARKER:
                     if not max_timestamp or info['timestamp'] > max_timestamp:
-                        last_subsection_viewed = info['path'].strip()
+                        last_subsection_viewed = info['path']
                         max_timestamp = info['timestamp']
 
                 if is_first:
@@ -541,8 +544,6 @@ class StudentEngagementToMysqlTask(
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
-        # Make sure that nothing else is added, else the job will result in an error:
-        #  "COPY: Input record N has been rejected (Too few columns found)."
         return []
 
     @property
@@ -597,8 +598,6 @@ class StudentEngagementToVerticaTask(
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
-        # Make sure that nothing else is added, else the job will result in an error:
-        #  "COPY: Input record N has been rejected (Too few columns found)."
         return None
 
     @property
@@ -620,113 +619,55 @@ class StudentEngagementToVerticaTask(
         ]
 
 
-class JoinedStudentEngagementToMysqlTask(
-        StudentEngagementTableDownstreamMixin,
-        MysqlInsertTask):
-    """
-    Writes student engagement information to Mysql database.
-    """
-
-    @property
-    def insert_source_task(self):
-        return (
-            JoinedStudentEngagementTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                overwrite=self.overwrite,
-                interval_type=self.interval_type,
-            )
-        )
+class StudentEngagementWithDefaultsToMysqlTask(StudentEngagementToMysqlTask):
 
     @property
     def table(self):
-        return 'student_engagement_joined_{}'.format(self.interval_type)
+        return 'student_engagement_wide_{}'.format(self.interval_type)
 
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
-        # Make sure that nothing else is added, else the job will result in an error:
-        #  "COPY: Input record N has been rejected (Too few columns found)."
-        return []
-
-    @property
-    def columns(self):
         return [
-            ('end_date', 'DATE'),
-            ('course_id', 'VARCHAR(255)'),
-            ('username', 'VARCHAR(255)'),
-            ('email', 'VARCHAR(255)'),
-            ('cohort', 'VARCHAR(255)'),
-            ('days_active', 'INT(11)'),
-            ('problems_attempted', 'INT(11)'),
-            ('problem_attempts', 'INT(11)'),
-            ('problems_correct', 'INT(11)'),
-            ('videos_played', 'INT(11)'),
-            ('forum_posts', 'INT(11)'),
-            ('forum_responses', 'INT(11)'),
-            ('forum_comments', 'INT(11)'),
-            ('textbook_pages_viewed', 'INT(11)'),
-            ('last_subsection_viewed', 'VARCHAR(255)'),
+            ('dummy_int_1', 'INT(11) DEFAULT 1'),
+            ('dummy_int_2', 'INT(11) DEFAULT 2'),
+            ('dummy_int_3', 'INT(11) DEFAULT 3'),
+            ('dummy_int_4', 'INT(11) DEFAULT 4'),
+            ('dummy_int_5', 'INT(11) DEFAULT 5'),
+            ('dummy_int_6', 'INT(11) DEFAULT 6'),
+            ('dummy_int_7', 'INT(11) DEFAULT 7'),
+            ('dummy_int_8', 'INT(11) DEFAULT 8'),
+            ('dummy_int_9', 'INT(11) DEFAULT 9'),
+            ('dummy_string_1', 'VARCHAR(255) DEFAULT "String one."'),
+            ('dummy_string_2', 'VARCHAR(255) DEFAULT "String two."'),
+            ('dummy_string_3', 'VARCHAR(255) DEFAULT "String three."'),
+            ('dummy_string_4', 'VARCHAR(255) DEFAULT "String four."'),
         ]
 
 
-class JoinedStudentEngagementToVerticaTask(
-        StudentEngagementTableDownstreamMixin,
-        VerticaCopyTask):
-    """
-    Writes student engagement information to Vertica database.
-    """
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-
-    @property
-    def insert_source_task(self):
-        return (
-            JoinedStudentEngagementTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                overwrite=self.overwrite,
-                interval_type=self.interval_type,
-            )
-        )
+class StudentEngagementWithDefaultsToVerticaTask(StudentEngagementToVerticaTask):
 
     @property
     def table(self):
-        return 'd_student_engagement_joined_{}'.format(self.interval_type)
+        return 'student_engagement_wide_{}'.format(self.interval_type)
 
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
-        # Make sure that nothing else is added, else the job will result in an error:
-        #  "COPY: Input record N has been rejected (Too few columns found)."
-        return None
-
-    @property
-    def columns(self):
         return [
-            ('end_date', 'DATE'),
-            ('course_id', 'VARCHAR(255)'),
-            ('username', 'VARCHAR(255)'),
-            ('email', 'VARCHAR(255)'),
-            ('cohort', 'VARCHAR(255)'),
-            ('days_active', 'INT'),
-            ('problems_attempted', 'INT'),
-            ('problem_attempts', 'INT'),
-            ('problems_correct', 'INT'),
-            ('videos_played', 'INT'),
-            ('forum_posts', 'INT'),
-            ('forum_responses', 'INT'),
-            ('forum_comments', 'INT'),
-            ('textbook_pages_viewed', 'INT'),
-            ('last_subsection_viewed', 'VARCHAR(255)'),
+            ('dummy_int_1', 'INT(11) DEFAULT 1'),
+            ('dummy_int_2', 'INT(11) DEFAULT 2'),
+            ('dummy_int_3', 'INT(11) DEFAULT 3'),
+            ('dummy_int_4', 'INT(11) DEFAULT 4'),
+            ('dummy_int_5', 'INT(11) DEFAULT 5'),
+            ('dummy_int_6', 'INT(11) DEFAULT 6'),
+            ('dummy_int_7', 'INT(11) DEFAULT 7'),
+            ('dummy_int_8', 'INT(11) DEFAULT 8'),
+            ('dummy_int_9', 'INT(11) DEFAULT 9'),
+            ('dummy_string_1', 'VARCHAR(255) DEFAULT "String one."'),
+            ('dummy_string_2', 'VARCHAR(255) DEFAULT "String two."'),
+            ('dummy_string_3', 'VARCHAR(255) DEFAULT "String three."'),
+            ('dummy_string_4', 'VARCHAR(255) DEFAULT "String four."'),
         ]
 
 
@@ -759,46 +700,6 @@ class StudentEngagementWorkflow(
         yield (
             StudentEngagementToMysqlTask(**kwargs),
             StudentEngagementToVerticaTask(**kwargs_vertica),
+            StudentEngagementWithDefaultsToMysqlTask(**kwargs),
+            StudentEngagementWithDefaultsToVerticaTask(**kwargs_vertica),
         )
-
-class DummyStudentEngagementToVerticaTask(VerticaCopyTask):
-    """
-    Writes student engagement information to Vertica database.
-    """
-    source_root = luigi.Parameter()
-
-    @property
-    def insert_source_task(self):
-        return (
-            # Get the location of the Hive table explicitly.
-            ExternalURL(url=self.source_root)
-        )
-
-    @property
-    def table(self):
-        return 'd_student_engagement_{}'.format('test')
-
-    @property
-    def columns(self):
-        return [
-            ('end_date', 'DATE'),
-            ('course_id', 'VARCHAR(255)'),
-            ('username', 'VARCHAR(255)'),
-            ('days_active', 'INT'),
-            ('problems_attempted', 'INT'),
-            ('problem_attempts', 'INT'),
-            ('problems_correct', 'INT'),
-            ('videos_played', 'INT'),
-            ('forum_posts', 'INT'),
-            ('forum_responses', 'INT'),
-            ('forum_comments', 'INT'),
-            ('textbook_pages_viewed', 'INT'),
-            ('last_subsection_viewed', 'VARCHAR(255)'),
-        ]
-
-    @property
-    def default_columns(self):
-        """List of tuples defining name and definition of automatically-filled columns."""
-        # Make sure that nothing else is added, else the job will result in an error:
-        #  "COPY: Input record N has been rejected (Too few columns found)."
-        return None
