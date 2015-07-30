@@ -1,7 +1,6 @@
 import json
 import logging
 import hashlib
-from luigi.s3 import S3Client
 import os
 import sys
 if sys.version_info[:2] <= (2, 6):
@@ -9,7 +8,7 @@ if sys.version_info[:2] <= (2, 6):
 else:
     import unittest
 
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica
 
 
@@ -23,8 +22,6 @@ class AcceptanceTestCase(unittest.TestCase):
     NUM_REDUCERS = 2
 
     def setUp(self):
-        self.s3_client = S3Client()
-
         config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
         try:
             with open(config_json, 'r') as config_json_file:
@@ -36,7 +33,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 self.config = {}
 
         # The name of an existing job flow to run the test on
-        assert('job_flow_name' in self.config)
+        assert('job_flow_name' in self.config or 'host' in self.config)
         # The git URL of the pipeline repository to check this code out from.
         assert('tasks_repo' in self.config)
         # The branch of the pipeline repository to test. Note this can differ from the branch that is currently
@@ -74,8 +71,8 @@ class AcceptanceTestCase(unittest.TestCase):
         self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
         schema = 'test_' + self.identifier
-        import_database_name = 'import_' + database_name
-        export_database_name = 'export_' + database_name
+        import_database_name = 'reports_import_' + database_name
+        export_database_name = 'reports_export_' + database_name
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
         task_config_override = {
             'hive': {
@@ -116,6 +113,8 @@ class AcceptanceTestCase(unittest.TestCase):
                 'access_token': 'acceptance'
             }
         }
+        if 'manifest_input_format' in self.config:
+            task_config_override['manifest']['input_format'] = self.config['manifest_input_format']
 
         log.info('Running test: %s', self.id())
         log.info('Using executor: %s', self.config['identifier'])
@@ -124,17 +123,19 @@ class AcceptanceTestCase(unittest.TestCase):
         self.import_db = db.DatabaseService(self.config, import_database_name)
         self.export_db = db.DatabaseService(self.config, export_database_name)
         self.task = task.TaskService(self.config, task_config_override, self.identifier)
-        self.vertica = vertica.VerticaService(self.config, schema)
         self.hive = hive.HiveService(self.task, self.config, database_name)
+        # self.vertica = vertica.VerticaService(self.config, schema)
 
         self.reset_external_state()
 
     def reset_external_state(self):
-        self.s3_client.remove(self.test_root, recursive=True)
+        root_target = get_target_from_url(self.test_root)
+        if root_target.exists():
+            root_target.remove()
         self.import_db.reset()
         self.export_db.reset()
         self.hive.reset()
-        self.vertica.reset()
+        # self.vertica.reset()
 
     def upload_tracking_log(self, input_file_name, file_date):
         # Define a tracking log path on S3 that will be matched by the standard event-log pattern."

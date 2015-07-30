@@ -46,11 +46,8 @@ class DatabaseService(object):
         """
         with self.cursor(explicit_db=True) as cur:
             with open(file_path, 'r') as sql_file:
-                for line in sql_file:
-                    if line.startswith('--') or len(line.strip()) == 0:
-                        continue
-
-                    cur.execute(line)
+                for _ignored in cur.execute(sql_file.read(), multi=True):
+                    pass
 
     def connect(self, explicit_db=True):
         """

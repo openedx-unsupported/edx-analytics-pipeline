@@ -12,7 +12,7 @@
 
 - name: Run a task
   hosts: "{{ name }}"
-  gather_facts: False
+  gather_facts: True
 
   vars:
     - repo: git@github.com:edx/edx-analytics-pipeline.git
@@ -44,11 +44,11 @@
 
   tasks:
     - name: known_hosts file exists
-      command: touch /home/{{ ansible_ssh_user }}/.ssh/known_hosts creates=/home/{{ ansible_ssh_user }}/.ssh/known_hosts
+      command: touch {{ ansible_env.HOME }}/.ssh/known_hosts creates={{ ansible_env.HOME }}/.ssh/known_hosts
 
     - name: git server in known_hosts file
       lineinfile: >
-        dest=/home/{{ ansible_ssh_user }}/.ssh/known_hosts
+        dest={{ ansible_env.HOME }}/.ssh/known_hosts
         regexp=^{{item.hostname}}
         line="{{ item.hostname }} {{ item.public_key }}"
       with_items: git_servers
