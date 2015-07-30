@@ -60,7 +60,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
         """
         event = eventlog.parse_json_event(line)
         if not event:
-            self.incr_counter('analytics.c14n.malformed')
+            self.incr_counter('analytics.c14n.malformed', 1)
             return None
 
         if 'event_type' not in event:
@@ -104,7 +104,7 @@ class CanonicalizationTask(EventLogSelectionMixin, WarehouseMixin, OverwriteOutp
             received_at = ciso8601.parse_datetime(received_at_string)
             time = ciso8601.parse_datetime(event['time'])
             if (received_at - time) > datetime.timedelta(days=1):
-                self.incr_counter('analytics.c14n.late_events')
+                self.incr_counter('analytics.c14n.late_events', 1)
 
         return event
 
