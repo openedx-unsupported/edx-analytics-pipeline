@@ -33,7 +33,7 @@ class CanonicalizationMapperTest(unittest.TestCase):
 
     def test_malformed_event(self):
         self.assert_empty(self.task.mapper('foobarbaz'))
-        self.mock_increment.assert_called_once_with('analytics.c14n.malformed')
+        self.mock_increment.assert_called_once_with('analytics.c14n.malformed', 1)
 
     def assert_empty(self, output):
         self.assertEquals(len(list(output)), 0, 'Mapper emitted events when we expected none')
@@ -102,7 +102,7 @@ class CanonicalizationMapperTest(unittest.TestCase):
         self.assert_emitted(
             self.call_mapper(time='2015-01-01T00:00:00+00:00', context={'received_at': '2015-01-02T00:00:01Z'})
         )
-        self.mock_increment.assert_called_once_with('analytics.c14n.late_events')
+        self.mock_increment.assert_called_once_with('analytics.c14n.late_events', 1)
 
     def assert_emitted(self, output):
         self.assertGreater(len(list(output)), 0, 'Mapper did not emit an event when it was expected to')
