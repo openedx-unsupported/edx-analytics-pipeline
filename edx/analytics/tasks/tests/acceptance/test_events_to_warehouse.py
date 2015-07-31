@@ -42,8 +42,8 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
         self.s3_client.put(src, dst2)
-        self.s3_client.put(src2, dst3)
-        self.s3_client.put(src3, dst4)
+        # self.s3_client.put(src2, dst3)
+        # self.s3_client.put(src3, dst4)
 
 
 class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
@@ -56,7 +56,8 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             'VerticaEventLoadingWorkflow',
             '--credentials', self.vertica.vertica_creds_url,
             '--interval', '2014-08-21',
-            '--use-flex', '--remove-implicit'
+            '--use-flex', '--remove-implicit',
+            '--n-reduce-tasks', '1'
         ])
 
         self.validate_output()
