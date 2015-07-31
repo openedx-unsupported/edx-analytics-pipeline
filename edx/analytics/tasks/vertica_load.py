@@ -260,8 +260,9 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
             # We commit only if both operations completed successfully.
             connection.commit()
-            print "COMMITTED"
+            log.debug("COMMITTED")
         except Exception:
+            log.debug("ROLLED BACK")
             connection.rollback()
             raise
         finally:
