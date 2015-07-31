@@ -57,6 +57,7 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             '--credentials', self.vertica.vertica_creds_url,
             '--interval', '2014-08-21',
             '--use-flex', '--remove-implicit',
+            '--overwrite',
             '--n-reduce-tasks', '1'
         ])
 
