@@ -86,8 +86,6 @@ class VerticaCopyTaskTest(unittest.TestCase):
         if not source:
             source = self._get_source_string(1)
 
-        print credentials
-
         fake_input = {
             'credentials': FakeTarget(textwrap.dedent(credentials)),
             'insert_source': FakeTarget(textwrap.dedent(source))
@@ -109,20 +107,22 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def test_run(self):
         self.create_task().run()
-        self.assertTrue(self.mock_vertica_connector.connect().cursor().execute.called)
-        self.assertFalse(self.mock_vertica_connector.connect().rollback.called)
-        self.assertTrue(self.mock_vertica_connector.connect().commit.called)
-        self.assertTrue(self.mock_vertica_connector.connect().close.called)
+        mock_conn = self.mock_vertica_connector.connect()
+        self.assertTrue(mock_conn.cursor().execute.called)
+        self.assertFalse(mock_conn.rollback.called)
+        self.assertTrue(mock_conn.commit.called)
+        self.assertTrue(mock_conn.close.called)
 
     def test_run_with_failure(self):
         task = self.create_task()
         task.output().touch = MagicMock(side_effect=Exception("Failed to update marker"))
         with self.assertRaises(Exception):
             task.run()
-        self.assertTrue(self.mock_vertica_connector.connect().cursor().execute.called)
-        self.assertTrue(self.mock_vertica_connector.connect().rollback.called)
-        self.assertFalse(self.mock_vertica_connector.connect().commit.called)
-        self.assertTrue(self.mock_vertica_connector.connect().close.called)
+        mock_conn = self.mock_vertica_connector.connect()
+        self.assertTrue(mock_conn.cursor().execute.called)
+        self.assertTrue(mock_conn.rollback.called)
+        self.assertFalse(mock_conn.commit.called)
+        self.assertTrue(mock_conn.close.called)
 
     def test_create_table(self):
         connection = MagicMock()
@@ -174,39 +174,36 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task = self.create_task(source=self._get_source_string(1))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_multiple_rows(self):
         task = self.create_task(source=self._get_source_string(4))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_to_predefined_table(self):
         task = self.create_task(cls=CopyToPredefinedVerticaDummyTable)
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
