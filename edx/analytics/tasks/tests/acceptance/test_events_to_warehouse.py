@@ -81,10 +81,10 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
                                                'events_to_warehouse_acceptance_flex_events.csv')
             expected = pandas.read_csv(expected_output_csv)
 
-            cursor.execute("SELECT (\"agent.type\", \"agent.device_name\", \"agent.os\", \"agent.browser\", "
+            cursor.execute("SELECT \"agent.type\", \"agent.device_name\", \"agent.os\", \"agent.browser\", "
                            "\"agent.touch_capable\", event_type, event_source, host, ip,"
                            "page, \"time\", username, \"context.course_id\", \"context.org_id\", "
-                           "\"context.user_id\", \"context.path\") FROM {schema}.event_logs;"
+                           "\"context.user_id\", \"context.path\" FROM {schema}.event_logs;"
                            .format(schema=self.vertica.schema_name))
             events = cursor.fetchall()
 
