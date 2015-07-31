@@ -664,10 +664,10 @@ class StudentEngagementWithDefaultsToVerticaTask(StudentEngagementToVerticaTask)
             ('dummy_int_7', 'INT DEFAULT 7'),
             ('dummy_int_8', 'INT DEFAULT 8'),
             ('dummy_int_9', 'INT DEFAULT 9'),
-            ('dummy_string_1', 'VARCHAR(255) DEFAULT "String one."'),
-            ('dummy_string_2', 'VARCHAR(255) DEFAULT "String two."'),
-            ('dummy_string_3', 'VARCHAR(255) DEFAULT "String three."'),
-            ('dummy_string_4', 'VARCHAR(255) DEFAULT "String four."'),
+            ('dummy_string_1', "VARCHAR(255) DEFAULT 'String one.'"),
+            ('dummy_string_2', "VARCHAR(255) DEFAULT 'String two.'"),
+            ('dummy_string_3', "VARCHAR(255) DEFAULT 'String three.'"),
+            ('dummy_string_4', "VARCHAR(255) DEFAULT 'String four.'"),
         ]
 
 
