@@ -88,9 +88,17 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
                            .format(schema=self.vertica.schema_name))
             events = cursor.fetchall()
 
+            events_df = pandas.DataFrame(events, ['agent.type', 'agent.device_name', 'agent.os', 'agent.browser',
+                                                  'agent.touch_capable', 'event_type', 'event_source', 'host', 'ip',
+                                                  'page', 'time', 'username', 'context.course_id', 'context.org_id',
+                                                  'context.user_id', 'context.path'])
+
             print "OBSERVED:"
             print events
             print "EXPECTED:"
             print expected
 
-            self.fail("Just for debugging")
+            try:
+                self.assertTrue(all(events_df == expected))
+            except ValueError:
+                self.fail("Expected and returned data frames have different shapes or labels.")
