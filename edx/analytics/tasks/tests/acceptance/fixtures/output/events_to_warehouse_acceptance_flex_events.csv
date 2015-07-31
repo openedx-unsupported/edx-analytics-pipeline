@@ -3,7 +3,3 @@ desktop,Other,Windows 8.1,Chrome,False,play_video,browser,acceptance.test,127.0.
 desktop,Other,Windows 8.1,Chrome,False,pause_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-21T00:12:02.000000+00:00,sample,testX/foo101x,testX,123456789,/event
 desktop,Other,Windows 8.1,Chrome,False,play_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-21T00:12:03.500000+00:00,sample,testX/foo101x,testX,123456789,/event
 desktop,Other,Windows 8.1,Chrome,False,pause_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-21T00:12:07.000000+00:00,sample,testX/foo101x,testX,123456789,/event
-desktop,Other,Windows 8.1,Chrome,False,play_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-22T00:12:00.000000+00:00,sample,testX/foo101x,testX,123456789,/event
-desktop,Other,Windows 8.1,Chrome,False,pause_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-22T00:12:02.000000+00:00,sample,testX/foo101x,testX,123456789,/event
-desktop,Other,Windows 8.1,Chrome,False,play_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-22T00:12:03.500000+00:00,sample,testX/foo101x,testX,123456789,/event
-desktop,Other,Windows 8.1,Chrome,False,pause_video,browser,acceptance.test,127.0.0.1,https://acceptance.test/testX-foo101x/courseware,2014-08-22T00:12:07.000000+00:00,sample,testX/foo101x,testX,123456789,/event
