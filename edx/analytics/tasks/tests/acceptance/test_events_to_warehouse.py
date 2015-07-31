@@ -81,14 +81,19 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
                                                'events_to_warehouse_acceptance_flex_events.csv')
             expected = pandas.read_csv(expected_output_csv)
 
-            cursor.execute("SELECT \"agent.type\", \"agent.device_name\", \"agent.os\", \"agent.browser\", "
-                           "\"agent.touch_capable\", event_type, event_source, host, ip,"
-                           "page, \"time\", username, \"context.course_id\", \"context.org_id\", "
-                           "\"context.user_id\", \"context.path\" FROM {schema}.event_logs;"
-                           .format(schema=self.vertica.schema_name))
+            # cursor.execute("SELECT \"agent.type\", \"agent.device_name\", \"agent.os\", \"agent.browser\", "
+            #                "\"agent.touch_capable\", event_type, event_source, host, ip,"
+            #                "page, \"time\", username, \"context.course_id\", \"context.org_id\", "
+            #                "\"context.user_id\", \"context.path\" FROM {schema}.event_logs;"
+            #                .format(schema=self.vertica.schema_name))
+            cursor.execute("SELECT * FROM {schema}.event_logs;".format(schema=self.vertica.schema_name))
             events = cursor.fetchall()
 
-            events_df = pandas.DataFrame(events, ['agent.type', 'agent.device_name', 'agent.os', 'agent.browser',
+            print events
+
+            cleaned_events = [event[1:] for event in events]
+
+            events_df = pandas.DataFrame(cleaned_events, ['agent.type', 'agent.device_name', 'agent.os', 'agent.browser',
                                                   'agent.touch_capable', 'event_type', 'event_source', 'host', 'ip',
                                                   'page', 'time', 'username', 'context.course_id', 'context.org_id',
                                                   'context.user_id', 'context.path'])
