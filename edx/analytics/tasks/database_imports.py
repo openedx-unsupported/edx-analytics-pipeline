@@ -89,7 +89,7 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
         query = query_format.format(
             database_name=hive_database_name(),
             table_name=self.table_name,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(*c) for c in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition_date=self.partition_date,
