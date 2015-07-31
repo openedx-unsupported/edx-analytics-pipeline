@@ -58,7 +58,7 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             '--interval', '2014-08-21',
             '--use-flex', '--remove-implicit',
             '--overwrite',
-            '--n-reduce-tasks', '1'
+            '--n-reduce-tasks', '100'
         ])
 
         self.validate_output()
