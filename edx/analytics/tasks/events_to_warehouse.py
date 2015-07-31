@@ -33,7 +33,7 @@ class VerticaEventLoadingTask(VerticaCopyTask):
     @property
     def table(self):
         """We use the table event_logs for this task."""
-        return "event_logs_test2"
+        return "event_logs"
 
     def create_table(self, connection):
         """Overriden because we will create a flex table instead of a traditional table."""
