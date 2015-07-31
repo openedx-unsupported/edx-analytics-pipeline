@@ -10,7 +10,6 @@ import pandas
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.url import url_path_join
 
-
 log = logging.getLogger(__name__)
 
 
@@ -77,10 +76,15 @@ class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
             # self.assertEqual(total_count, expected_total_count)
 
             # Verify that all the subject data loaded into Vertica is correct.
-            expected_output_csv = os.path.join(self.data_dir, 'output', 'events_to_warehouse_acceptance_flex_events.csv')
+            expected_output_csv = os.path.join(self.data_dir, 'output',
+                                               'events_to_warehouse_acceptance_flex_events.csv')
             expected = pandas.read_csv(expected_output_csv)
 
-            cursor.execute("SELECT * FROM {schema}.event_logs;".format(schema=self.vertica.schema_name))
+            cursor.execute("SELECT (\"agent.type\", \"agent.device_name\", \"agent.os\", \"agent.browser\", "
+                           "\"agent.touch_capable\", event_type, event_source, host, ip,"
+                           "page, \"time\", username, \"context.course_id\", \"context.org_id\", "
+                           "\"context.user_id\", \"context.path\") FROM {schema}.event_logs;"
+                           .format(schema=self.vertica.schema_name))
             events = cursor.fetchall()
 
             print "OBSERVED:"
