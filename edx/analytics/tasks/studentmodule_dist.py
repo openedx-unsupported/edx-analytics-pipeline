@@ -42,7 +42,7 @@ class HistogramTaskFromSqoopParamsMixin(object):
     name = luigi.Parameter()
     dest = luigi.Parameter()
     credentials = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'}
     )
     sqoop_overwrite = luigi.BooleanParameter(default=False)  # prefixed with sqoop for disambiguation
     num_mappers = luigi.Parameter(default=None, significant=False)  # TODO: move to config

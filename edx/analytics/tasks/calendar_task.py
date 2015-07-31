@@ -22,7 +22,7 @@ class CalendarDownstreamMixin(OverwriteOutputMixin):
     """The parameters needed to generate a complete calendar."""
 
     interval = luigi.DateIntervalParameter(
-        default_from_config={'section': 'calendar', 'name': 'interval'}
+        config_path={'section': 'calendar', 'name': 'interval'}
     )
 
 

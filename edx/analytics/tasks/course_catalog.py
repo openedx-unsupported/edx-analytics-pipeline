@@ -23,7 +23,7 @@ class PullCatalogMixin(OverwriteOutputMixin, WarehouseMixin):
     """Define common parameters for the course catalog API pull and downstream tasks."""
 
     run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    catalog_path = luigi.Parameter(default_from_config={'section': 'course-catalog', 'name': 'catalog_path'})
+    catalog_path = luigi.Parameter(config_path={'section': 'course-catalog', 'name': 'catalog_path'})
 
 
 class DailyPullCatalogTask(PullCatalogMixin, luigi.Task):

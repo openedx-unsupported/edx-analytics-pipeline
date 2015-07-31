@@ -40,7 +40,7 @@ class PathSetTask(luigi.Task):
     """
     src = luigi.Parameter(
         is_list=True,
-        default_from_config={'section': 'event-logs', 'name': 'source'}
+        config_path={'section': 'event-logs', 'name': 'source'}
     )
     include = luigi.Parameter(is_list=True, default=('*',))
     manifest = luigi.Parameter(default=None)
@@ -104,15 +104,15 @@ class EventLogSelectionDownstreamMixin(object):
 
     source = luigi.Parameter(
         is_list=True,
-        default_from_config={'section': 'event-logs', 'name': 'source'}
+        config_path={'section': 'event-logs', 'name': 'source'}
     )
     interval = luigi.DateIntervalParameter()
     expand_interval = luigi.TimeDeltaParameter(
-        default_from_config={'section': 'event-logs', 'name': 'expand_interval'}
+        config_path={'section': 'event-logs', 'name': 'expand_interval'}
     )
     pattern = luigi.Parameter(
         is_list=True,
-        default_from_config={'section': 'event-logs', 'name': 'pattern'}
+        config_path={'section': 'event-logs', 'name': 'pattern'}
     )
 
 
