@@ -18,6 +18,7 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
     """Base class for the end-to-end test of event loading tasks."""
 
     INPUT_FILE = 'events_to_warehouse_acceptance_tracking.log.gz'
+    CANON_INPUT_FILE = 'part-00000-canonicalized'
 
     def setUp(self):
         super(BaseEventsToWarehouseAcceptanceTest, self).setUp()
@@ -32,12 +33,18 @@ class BaseEventsToWarehouseAcceptanceTest(AcceptanceTestCase):
     def upload_data(self):
         """Puts the test course catalog where the processing task would look for it, bypassing calling the actual API"""
         src = os.path.join(self.data_dir, 'input', self.INPUT_FILE)
+        src2 = os.path.join(self.data_dir, 'input', self.CANON_INPUT_FILE)
+        src3 = os.path.join(self.data_dir, 'input', '_SUCCESS')
         dst = url_path_join(self.warehouse_path, 'src', self.INPUT_FILE)
         dst2 = url_path_join(self.warehouse_path, 'tracking-logs', self.INPUT_FILE)
+        dst3 = url_path_join(self.warehouse_path, 'events', 'dt=2014-08-21', self.CANON_INPUT_FILE)
+        dst4 = url_path_join(self.warehouse_path, 'events', 'dt=2014-08-21', '_SUCCESS')
 
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
         self.s3_client.put(src, dst2)
+        self.s3_client.put(src2, dst3)
+        self.s3_client.put(src3, dst4)
 
 
 class EventsToFlexTableAcceptanceTest(BaseEventsToWarehouseAcceptanceTest):
