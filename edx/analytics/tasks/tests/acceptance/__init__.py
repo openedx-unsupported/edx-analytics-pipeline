@@ -109,8 +109,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': self.test_src,
-                'pattern': self.config['pattern']
+                'source': self.test_src
             }
         }
 

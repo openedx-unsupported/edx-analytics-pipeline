@@ -222,6 +222,8 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
 
+        log.debug("should include? %s", str(should_include))
+
         return should_include
 
     def output(self):
