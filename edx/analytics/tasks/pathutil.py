@@ -173,7 +173,10 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         log.debug(
             'Date interval: %s <= date < %s', self.interval.date_a.isoformat(), self.interval.date_b.isoformat()
         )
-        return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
+        reqs = [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
+        print reqs
+        log.debug("requiring %s", str(reqs))
+        return reqs
 
     def _get_s3_urls(self, source):
         """Recursively list all files inside the source URL directory."""
