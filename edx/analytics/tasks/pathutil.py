@@ -173,7 +173,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         log.debug(
             'Date interval: %s <= date < %s', self.interval.date_a.isoformat(), self.interval.date_b.isoformat()
         )
-        log.debug('Choosing from: %s', str(list(url_gens)))
         return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
 
     def _get_s3_urls(self, source):
@@ -186,6 +185,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         for key_metadata in self.s3_file_list_cache:
             if key_metadata.size > 0:
                 key_path = key_metadata.key[len(root):].lstrip('/')
+                log.debug('Using %s', key_path)
                 yield url_path_join(source, key_path)
 
     def _get_hdfs_urls(self, source):
