@@ -110,7 +110,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'event-logs': {
                 'source': self.test_src,
-                'pattern': tuple(list(self.pattern).extend(self.config['pattern']))
+                'pattern': self.config['pattern']
             }
         }
 
