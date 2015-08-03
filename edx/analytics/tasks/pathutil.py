@@ -173,7 +173,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         log.debug(
             'Date interval: %s <= date < %s', self.interval.date_a.isoformat(), self.interval.date_b.isoformat()
         )
-
+        log.debug('Choosing from: ', list(url_gens))
         return [UncheckedExternalURL(url) for url_gen in url_gens for url in url_gen if self.should_include_url(url)]
 
     def _get_s3_urls(self, source):
