@@ -17,15 +17,12 @@ log = logging.getLogger(__name__)
 class URLManifestTask(luigi.Task):
     """
     Support running map reduce jobs using a manifest file to store the input paths.
-
     The operating system has a hard limit on the number and length of arguments passed to a process. When presented with
     a very large number of input paths, it is fairly easy to exceed the limit, which prevents the hadoop streaming
     system from being able to launch the python subprocess it uses to actually process the data.
-
     The workaround for this problem is to instead provide hadoop with a single input path which is actually a file
     containing the list of actual input paths. A custom input format is used to parse this file and blow out the list of
     input paths in this file into first class hadoop job input paths. This file is called a "manifest" file.
-
     This task requires some presumably large set of input paths and provides a manifest for those paths. The output
     from this task can be used as input for a hadoop job as long as the custom input format is used.
     """
@@ -57,7 +54,6 @@ class URLManifestTask(luigi.Task):
 def convert_tasks_to_manifest_if_necessary(input_tasks):  # pylint: disable=invalid-name
     """
     Provide a manifest for the input paths if there are too many of them.
-
     The configuration section "manifest" can contain a "threshold" option which, when exceeded, causes this function
     to return a URLManifestTask instead of the original input_tasks.
     """
