@@ -311,6 +311,10 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             # create table only if necessary:
             self.create_table(connection)
 
+            # This prevents gap locks when updating the marker table, enabling us to insert and update records in that
+            # table with impunity from other sessions.
+            connection.cursor().execute("SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED")
+
             self.init_copy(connection)
             cursor = connection.cursor()
             self.insert_rows(cursor)
@@ -382,3 +386,34 @@ class CredentialFileMysqlTarget(MySqlTarget):
             return super(CredentialFileMysqlTarget, self).exists(connection=connection)
         except ProgrammingError:
             return False
+
+    def create_marker_table(self):
+        """
+        Override the default luigi logic here since we also need an index on target_table to prevent InnoDB from locking
+        every row in the table when we execute a DELETE FROM WHERE target_table="foo". By default it will lock any row
+        that is scanned during the preparation for the DELETE, so we need to have an index on target_table to ensure
+        that other workflows that are being committed can also update the marker table while this transaction is being
+        committed.
+        """
+        connection = self.connect(autocommit=True)
+        cursor = connection.cursor()
+        try:
+            cursor.execute(
+                """ CREATE TABLE IF NOT EXISTS {marker_table} (
+                        id            BIGINT(20)    NOT NULL AUTO_INCREMENT,
+                        update_id     VARCHAR(128)  NOT NULL,
+                        target_table  VARCHAR(128),
+                        inserted      TIMESTAMP DEFAULT NOW(),
+                        PRIMARY KEY (update_id),
+                        KEY id (id),
+                        INDEX target_table (target_table)
+                    )
+                """
+                .format(marker_table=self.marker_table)
+            )
+        except mysql.connector.Error as e:
+            if e.errno == errorcode.ER_TABLE_EXISTS_ERROR:
+                pass
+            else:
+                raise
+        connection.close()
