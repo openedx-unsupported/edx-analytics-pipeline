@@ -30,7 +30,7 @@ class ImportStudentCourseEnrollmentTestCase(unittest.TestCase):
             USE default;
             DROP TABLE IF EXISTS student_courseenrollment;
             CREATE EXTERNAL TABLE student_courseenrollment (
-                `id` INT,`user_id` INT,`course_id` STRING,`created` TIMESTAMP,`is_active` BOOLEAN,`mode` STRING
+                id INT,user_id INT,course_id STRING,created TIMESTAMP,is_active BOOLEAN,mode STRING
             )
             PARTITIONED BY (dt STRING)
 
