@@ -57,7 +57,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
             CREATE EXTERNAL TABLE {table} (
                 {col_spec}
             )
-            PARTITIONED BY ({partition.key} STRING)
+            PARTITIONED BY (`{partition.key}` STRING)
             {table_format}
             LOCATION '{location}';
             ALTER TABLE {table} ADD PARTITION ({partition.query_spec});
@@ -66,7 +66,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         query = query_format.format(
             database_name=hive_database_name(),
             table=self.table,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(col_name, col_type) for col_name, col_type in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition=self.partition,
@@ -153,7 +153,7 @@ class HivePartition(object):
     @property
     def query_spec(self):
         """This format is used when a partition needs to be referred to in a query"""
-        return "{key}='{value}'".format(
+        return "`{key}`='{value}'".format(
             key=self.key,
             value=self.value,
         )
