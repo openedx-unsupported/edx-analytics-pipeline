@@ -479,6 +479,107 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return self.requires().output()
 
 
+class PerUserVideoViewTask(VideoUsageTask):
+    """
+    Record what videos are viewed by each individual student in the course.
+    This data is for computing typology/trajectory and is not currently used for anything else.
+    It is not part of the InsertToMysqlAllVideoTask meta-task.
+    """
+    def mapper(self, line):
+        (
+            username,
+            course_id,
+            encoded_module_id,
+            video_duration,
+            start_timestamp_str,
+            start_offset,
+            end_offset,
+            _reason
+        ) = line.split('\t')
+        video_duration = float(video_duration)
+        start_offset = float(start_offset)
+        end_offset = float(end_offset)
+        yield (
+            (course_id, encoded_module_id),
+            (username, start_offset, end_offset, video_duration, start_timestamp_str)
+        )
+
+    def reducer(self, key, viewings):
+        """
+        Determine if we should count the user as having watched this video, based on viewings.
+        """
+        course_id, encoded_module_id = key
+
+        viewings_by_user = {}  # Key: username. Values: (start_offset, end_offset, date str)
+
+        # Get the video duration, or the maximum end_offset:
+        video_duration = 0
+        for username, start_offset, end_offset, duration, start_timestamp_str in viewings:
+            if duration == VIDEO_UNKNOWN_DURATION:
+                if end_offset > video_duration:
+                    video_duration = end_offset
+            else:
+                if duration > video_duration:
+                    video_duration = duration
+            date_str = start_timestamp_str[:10]
+            viewings_by_user.setdefault(username, []).append(
+                (start_offset, end_offset, date_str)
+            )
+
+        if video_duration < 1:
+            return  # This data doesn't seem useful
+
+        for username, viewings in viewings_by_user.iteritems():
+            for start_offset, end_offset, date_str in viewings:
+                count_as_viewed = (
+                    end_offset > video_duration * 0.85 or
+                    end_offset - start_offset > video_duration * 0.5
+                )
+                if count_as_viewed:
+                    yield (
+                        date_str,
+                        course_id,
+                        encoded_module_id,
+                        username,
+                    )
+                    break  # We don't care about further viewings by this user - jump to next user
+
+
+class PerUserVideoViewTableTask(VideoTableDownstreamMixin, HiveTableTask):
+    """Imports data about video usage into a Hive table."""
+
+    @property
+    def table(self):
+        return 'video_usage_per_user'
+
+    @property
+    def columns(self):
+        return [
+            ('date_viewed', 'STRING'),
+            ('course_id', 'STRING'),
+            ('encoded_module_id', 'STRING'),
+            ('username', 'STRING'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    def requires(self):
+        return PerUserVideoViewTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            output_root=self.partition_location
+        )
+
+    def output(self):
+        return self.requires().output()
+
+
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
     """Insert information about video segments from a Hive table into MySQL."""
 

@@ -33,13 +33,13 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
+from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveTableFromQueryTask
 import logging
 import luigi
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import UsageKey
 import re
-from .video import VIDEO_PLAYED
+from .video import PerUserVideoViewTableTask, VIDEO_PLAYED
 
 log = logging.getLogger(__name__)
 
@@ -48,17 +48,20 @@ PROBLEM_CHECK = 'problem_check'
 
 class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
     """
-    For every course and every date interval, make a list of all the unique video and problem
-    modules seen, recording the chapter ID of each one.
+    For every course active in the specified interval, make a list of all the unique video and
+    problem modules seen, recording the chapter ID of each one.
 
     This relies on http referer data sent by clients, so it's not guaranteed to be accurate. An
     alternative would be to pull the cached CourseStructure data from the LMS MySQL DB, but that
     does not have historical data.
+
+    We assume:
+    * That each course is a tree, not a DAG - i.e. that no module has multiple parents.
+    * That no module is ever moved from one chapter to another.
     """
     COURSEWARE_URL_PATTERN = r'.*/courses/(?P<course_id>[^/]+)/courseware/(?P<chapter_id>[^/]+)/(?P<seq_id>[^/]+)/.*$'
 
     output_root = luigi.Parameter()
-    interval_type = luigi.Parameter()
 
     def mapper(self, line):
         """ Filter events and separate them by block ID """
@@ -103,30 +106,11 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
         if not block_type or not block_id:
             return
 
-        date_grouping_key = date_string
-
-        if self.interval_type == 'weekly':
-            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            last_weekday = last_complete_date.isoweekday()
-
-            split_date = date_string.split('-')
-            event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
-            event_weekday = event_date.isoweekday()
-
-            days_until_end = last_weekday - event_weekday
-            if days_until_end < 0:
-                days_until_end += 7
-
-            end_of_week_date = event_date + datetime.timedelta(days=days_until_end)
-            date_grouping_key = end_of_week_date.isoformat()
-        else:
-            raise NotImplementedError("Only weekly intervals are currently supported for ChapterAssociationTask")
-
-        yield ((date_grouping_key, course_id, block_type, block_id), (chapter_id))
+        yield ((course_id, block_type, block_id), (chapter_id))
 
     def reducer(self, key, chapter_ids):
         """ Save only the chapter ID associated with each block. """
-        date_grouping_key, course_id, block_type, block_id = key
+        course_id, block_type, block_id = key
         chapter_ids = set(chapter_ids)
         
         if len(chapter_ids) > 1:
@@ -136,7 +120,6 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
 
         yield (
             # Output to be read by Hive must be encoded as UTF-8.
-            date_grouping_key,
             course_id.encode('utf-8'),
             block_type.encode('utf-8'),
             block_id.encode('utf-8'),
@@ -149,7 +132,7 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class TrajectoryDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the tasks below."""
-    interval_type = luigi.Parameter(default="weekly")
+    pass
 
 
 class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
@@ -157,12 +140,11 @@ class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
 
     @property
     def table(self):
-        return 'chapter_association_{}'.format(self.interval_type)
+        return 'chapter_association'
 
     @property
     def columns(self):
         return [
-            ('end_date', 'STRING'),
             ('course_id', 'STRING'),
             ('block_type', 'STRING'),
             ('block_id', 'STRING'),
@@ -181,8 +163,63 @@ class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,
-            interval_type=self.interval_type,
         )
+
+
+class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTableFromQueryTask):
+    """
+    Join the chapter-module association table data with per-student video data
+    """
+
+    @property
+    def table(self):
+        return 'per_student_videos_per_chapter'
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+            ('username', 'STRING'),
+            ('video_id', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT
+            ca.course_id,
+            ca.chapter_id,
+            vids.username,
+            vids.encoded_module_id
+        FROM chapter_association ca
+        INNER JOIN video_usage_per_user vids
+            ON (ca.course_id = vids.course_id AND ca.block_id = vids.encoded_module_id)
+        WHERE ca.block_type = 'video' AND ca.dt >= '{start_date}' AND ca.dt <= '{end_date}'
+        """.format(
+            start_date = self.interval.date_a.isoformat(),
+            end_date = self.interval.date_b.isoformat(),
+        )
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'overwrite': self.overwrite,
+        }
+        yield (
+            ChapterAssociationTableTask(**kwargs),
+            PerUserVideoViewTableTask(**kwargs),
+        )
+
+
 
 class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
     """ Run all the trajectory tasks and output the reports to MySQL. """
@@ -196,5 +233,5 @@ class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
             'warehouse_path': self.warehouse_path,
         }
         yield (
-            ChapterAssociationTableTask(**kwargs),
+            JoinedStudentChapterVideoActivityTask(**kwargs),
         )
