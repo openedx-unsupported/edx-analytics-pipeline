@@ -48,7 +48,6 @@ class TestCourseSubjects(unittest.TestCase):
 
         self.input_file = "catalog_test.json"
         with open(self.input_file, 'w') as fle:
-            # fle.write(source)
             fle.write(source.encode('utf-8'))
 
         fake_warehouse_path = self.input_dir

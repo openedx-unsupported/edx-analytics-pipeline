@@ -30,7 +30,6 @@ class DailyPullCatalogTask(PullCatalogMixin, luigi.Task):
     """
     A task that reads the course catalog off the API and writes the result json blob to a file.
 
-
     Pulls are made daily to keep a full historical record.
     """
 
