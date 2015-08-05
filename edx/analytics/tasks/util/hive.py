@@ -32,7 +32,6 @@ class WarehouseMixin(object):
 class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     """
     Abstract class to import data into a Hive table.
-
     Currently supports a single partition that represents the version of the table data. This allows us to use a
     consistent location for the table and swap out the data in the tables by simply pointing at different partitions
     within the folder that contain different "versions" of the table data. For example, if a snapshot is taken of an
@@ -40,7 +39,6 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     that table will continue to use the data snapshot from the beginning of the day (since that is the "live"
     partition). However, the next time a snapshot is taken a new partition is created and loaded and becomes the "live"
     partition that is used in all joins etc.
-
     Important note: this code currently does *not* clean up old unused partitions, they will just continue to exist
     until they are cleaned up by some external process.
     """
@@ -107,11 +105,9 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     def columns(self):
         """
         Provides definition of columns in Hive.
-
         This should define a list of (name, definition) tuples, where
         the definition defines the Hive type to use. For example,
         ('first_name', 'STRING').
-
         """
         raise NotImplementedError
 
@@ -138,7 +134,6 @@ class OverwriteAwareHiveQueryRunner(HiveQueryRunner):
 class HivePartition(object):
     """
     Represents a particular partition in Hive.
-
     Can produce strings in the formats that are used to represent it in queries, file paths etc.
     """
 

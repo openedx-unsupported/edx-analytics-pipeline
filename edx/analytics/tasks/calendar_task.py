@@ -29,16 +29,12 @@ class CalendarDownstreamMixin(OverwriteOutputMixin):
 class CalendarTask(CalendarDownstreamMixin, luigi.Task):
     """
     Generate a canonical calendar.
-
     This table provides information about every day in every year that is being analyzed. It captures many complex
     details associated with calendars and standardizes references to concepts like "weeks" since they can be defined
     in different ways by various systems.
-
     It is also intended to contain business-specific metadata about dates in the future, such as fiscal year boundaries,
     fiscal quarter boundaries and even holidays or other days of special interest for analysis purposes.
-
     Parameters:
-
         output_root (str): path to store the calendar data
     """
 
