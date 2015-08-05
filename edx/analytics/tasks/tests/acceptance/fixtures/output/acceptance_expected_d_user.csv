@@ -1,0 +1,5 @@
+user_id,user_year_of_birth,user_level_of_education,user_gender,user_email,user_username,user_account_creation_time,user_last_location_country_code
+1,1984,a,m,honor@example.com,honor,2014-06-27 16:02:38,UNKNOWN
+2,1975,b,m,audit@example.com,audit,2014-06-27 16:02:39,IE
+3,2000,b,,verified@example.com,verified,2014-06-27 16:02:41,UNKNOWN
+4,2000,,,staff@example.com,staff,2014-06-27 16:02:43,TH
