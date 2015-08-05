@@ -179,6 +179,16 @@ class ProblemCheckEventMapTest(InitializeOpaqueKeysMixin, ProblemCheckEventBaseT
         line = self.create_event_log_line(context=None)
         self.assert_no_map_output_for(line)
 
+    def test_invalid_answer_id(self):
+        self.answer_id = 'foo\nbar'
+        line = self.create_event_log_line()
+        self.assert_no_map_output_for(line)
+
+    def test_invalid_answer_id_with_tab(self):
+        self.answer_id = 'foo\tbar'
+        line = self.create_event_log_line()
+        self.assert_no_map_output_for(line)
+
     def test_good_problem_check_event(self):
         # Here, we make the event as a dictionary since we're comparing based on dictionaries anyway.
         event = self.create_event_dict()
