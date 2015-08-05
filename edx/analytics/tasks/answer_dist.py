@@ -983,7 +983,16 @@ def get_problem_check_event(line):
         log.error("encountered explicit problem_check event with bogus problem_id: %s", event)
         return None
 
-    if len(event.get('event', {}).get('answers', [])) == 0:
+    event = event.get('event', {})
+    answers = event.get('answers', {})
+    if len(answers) == 0:
+        return None
+
+    try:
+        _check_answer_ids(answers)
+        _check_answer_ids(event.get('submission', {}))
+    except (TypeError, ValueError):
+        log.error("encountered explicit problem_check event with invalid answers: %s", event)
         return None
 
     problem_data_json = json.dumps(problem_data)
@@ -991,3 +1000,11 @@ def get_problem_check_event(line):
     value = (problem_data.get('timestamp'), problem_data_json)
 
     return key, value
+
+def _check_answer_ids(answer_dict):
+    if not isinstance(answer_dict, dict):
+        raise TypeError('Expected dictionaries for answers')
+
+    for answer_id in answer_dict:
+        if '\n' in answer_id or '\t' in answer_id:
+            raise ValueError('Malformed answer_id')
