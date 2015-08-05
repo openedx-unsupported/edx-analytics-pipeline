@@ -29,6 +29,7 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
 
         credentials: Path to the external access credentials file.
         schema:  The schema to which to write.
+        insert_chunk_size:  The number of rows to insert at a time.
     """
     schema = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'schema'}
@@ -41,7 +42,6 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
 class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     """
     A task for copying into a Vertica database.
-
     """
     required_tasks = None
     output_target = None
@@ -78,7 +78,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     @property
     def auto_primary_key(self):
         """Tuple defining name and definition of an auto-incrementing primary key, or None."""
-        return ('id', 'AUTO_INCREMENT PRIMARY KEY')
+        return ('id', 'AUTO_INCREMENT')
+
+    @property
+    def foreign_key_mapping(self):
+        """Dictionary of column_name: (schema.table, column) pairs representing foreign key constraints."""
+        return {}
 
     @property
     def default_columns(self):
@@ -99,6 +104,28 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
+    def create_column_definitions(self):
+        """
+        Builds the list of column definitions for the table to be loaded.
+
+        Assumes that columns are specified as (name, definition) tuples.
+
+        :return a string to be used in a SQL query to create the table
+        """
+        columns = []
+        if self.auto_primary_key is not None:
+            columns.append(self.auto_primary_key)
+        columns.extend(self.columns)
+        if self.default_columns is not None:
+            columns.extend(self.default_columns)
+        if self.auto_primary_key is not None:
+            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+
+        coldefs = ','.join(
+            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
+        )
+        return coldefs
+
     def create_table(self, connection):
         """
         Override to provide code for creating the target table, if not existing.
@@ -106,7 +133,6 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         Requires the schema to exist first.
 
         By default it will be created using types (optionally) specified in columns.
-
         If overridden, use the provided connection object for setting
         up the table in order to create the table and insert data
         using the same transaction.
@@ -120,20 +146,17 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             )
 
         # Assumes that columns are specified as (name, definition) tuples
-        columns = []
-        if self.auto_primary_key is not None:
-            columns.append(self.auto_primary_key)
-        columns.extend(self.columns)
-        if self.default_columns is not None:
-            columns.extend(self.default_columns)
-        if self.auto_primary_key is not None:
-            columns.append(("PRIMARY KEY", "({name})".format(name=self.auto_primary_key[0])))
+        coldefs = self.create_column_definitions()
 
-        coldefs = ','.join(
-            '{name} {definition}'.format(name=name, definition=definition) for name, definition in columns
-        )
-        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs})".format(
-            schema=self.schema, table=self.table, coldefs=coldefs
+        foreign_key_defs = ''
+        for column in self.foreign_key_mapping:
+            foreign_key_defs += ", FOREIGN KEY ({col}) REFERENCES {other_schema_and_table} ({other_col})".format(
+                col=column, other_schema_and_table=self.foreign_key_mapping[column][0],
+                other_col=self.foreign_key_mapping[column][1]
+            )
+
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
+            schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs
         )
         log.debug(query)
         connection.cursor().execute(query)
@@ -176,10 +199,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # first clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
             try:
-                query = "DELETE FROM {marker_table} where `target_table`='{target_table}'".format(
+                query = "DELETE FROM {schema}.{marker_table} where target_table='{schema}.{target_table}';".format(
+                    schema=self.schema,
                     marker_table=marker_table,
                     target_table=self.table,
                 )
+                log.debug(query)
                 connection.cursor().execute(query)
             except vertica_python.errors.Error as err:
                 if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
@@ -191,7 +216,16 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
+            log.debug(query)
             connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
 
     @property
     def copy_delimiter(self):
@@ -205,10 +239,27 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
-        cursor.copy_file("COPY {schema}.{table} FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;"
-                         .format(schema=self.schema, table=self.table, delim=self.copy_delimiter,
-                                 null=self.copy_null_sequence),
-                         self.input()['insert_source'].open('r'), decoder='utf-8')
+        if isinstance(self.columns[0], basestring):
+            column_names = ','.join([name for name in self.columns])
+        elif len(self.columns[0]) == 2:
+            column_names = ','.join([name for name, _type in self.columns])
+        else:
+            raise Exception('columns must consist of column strings or '
+                            '(column string, type string) tuples (was %r ...)'
+                            % (self.columns[0],))
+
+        with self.input()['insert_source'].open('r') as insert_source_file:
+            log.debug("Running copy_stream from source file")
+            cursor.copy_stream(
+                "COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
+                    schema=self.schema,
+                    table=self.table,
+                    cols=column_names,
+                    delim=self.copy_delimiter,
+                    null=self.copy_null_sequence
+                ),
+                insert_source_file
+            )
 
     def run(self):
         """
@@ -236,7 +287,9 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
             # We commit only if both operations completed successfully.
             connection.commit()
-        except Exception:
+            log.debug("Committed transaction.")
+        except Exception as exc:
+            log.debug("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()
             raise
         finally:
@@ -253,13 +306,13 @@ class CredentialFileVerticaTarget(VerticaTarget):
     Represents a table in Vertica, is complete when the update_id is the same as a previous successful execution.
 
     Arguments:
+
         credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
             that will be used to connect to the database.
         database_name (str): The name of the database that the table exists in. Note this database need not exist.
         table (str): The name of the table in the database that is being modified.
         update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
             values will not be executed.
-
     """
 
     def __init__(self, credentials_target, schema, table, update_id):

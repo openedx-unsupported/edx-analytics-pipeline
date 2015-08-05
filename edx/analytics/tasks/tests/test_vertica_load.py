@@ -64,7 +64,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def create_task(self, credentials=None, source=None, overwrite=False, cls=CopyToVerticaDummyTable):
         """
-         Emulate execution of a generic VerticaTask.
+         Emulate execution of a generic VerticaCopyTask.
         """
         # Make sure to flush the instance cache so we create
         # a new task object.
@@ -129,7 +129,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         self.create_task().create_table(connection)
         connection.cursor().execute.assert_called_once_with(
             "CREATE TABLE IF NOT EXISTS testing.dummy_table "
-            "(id AUTO_INCREMENT PRIMARY KEY,course_id VARCHAR(255),"
+            "(id AUTO_INCREMENT,course_id VARCHAR(255),"
             "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
             "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
         )
@@ -155,7 +155,8 @@ class VerticaCopyTaskTest(unittest.TestCase):
 
     def _get_expected_query(self):
         """Returns query that should be generated for copying into the table."""
-        query = ("COPY {schema}.dummy_table FROM STDIN DELIMITER AS E'\t' NULL AS '\\N' DIRECT NO COMMIT;"
+        query = ("COPY {schema}.dummy_table (course_id,interval_start,interval_end,label,count) "
+                 "FROM STDIN DELIMITER AS E'\t' NULL AS '\\N' DIRECT NO COMMIT;"
                  .format(schema=self.create_task().schema))
         return query
 
@@ -174,39 +175,36 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task = self.create_task(source=self._get_source_string(1))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_multiple_rows(self):
         task = self.create_task(source=self._get_source_string(4))
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     def test_copy_to_predefined_table(self):
         task = self.create_task(cls=CopyToPredefinedVerticaDummyTable)
         cursor = MagicMock()
         task.copy_data_table_from_target(cursor)
-        query = cursor.copy_file.call_args[0][0]
+        query = cursor.copy_stream.call_args[0][0]
         self.assertEquals(query, self._get_expected_query())
-        file_to_copy = cursor.copy_file.call_args[0][1]
+        file_to_copy = cursor.copy_stream.call_args[0][1]
         with task.input()['insert_source'].open('r') as expected_data:
             expected_source = expected_data.read()
-        with file_to_copy as sent_data:
-            sent_source = sent_data.read()
+        sent_source = file_to_copy.read()
         self.assertEquals(sent_source, expected_source)
 
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
@@ -219,7 +217,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
             call(
                 "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
-                "(id AUTO_INCREMENT PRIMARY KEY,course_id VARCHAR(255),"
+                "(id AUTO_INCREMENT,course_id VARCHAR(255),"
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             )
