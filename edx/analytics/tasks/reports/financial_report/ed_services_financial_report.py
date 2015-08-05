@@ -103,17 +103,17 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def insert_query(self):
         return """
             SELECT
-                VP_COURSES.course_id,
-                VP_COURSES.mode_slug, -- first one of the modes, if any are set up
-                VP_COURSES.suggested_prices,
+                courses.course_id,
+                COALESCE(VP_COURSES.mode_slug, ""),
+                COALESCE(VP_COURSES.suggested_prices, ""),
                 COALESCE(VP_COURSES.min_price, ""),
                 COALESCE(CAST(VP_COURSES.expiration_datetime AS STRING), ""),
-                ALL_ENROLLS.total_currently_enrolled,
-                ALL_ENROLLS.audit_currently_enrolled,
-                ALL_ENROLLS.honor_currently_enrolled,
-                ALL_ENROLLS.verified_currently_enrolled,
-                ALL_ENROLLS.professional_currently_enrolled,
-                ALL_ENROLLS.no_id_professional_currently_enrolled,
+                COALESCE(ALL_ENROLLS.total_currently_enrolled, 0),
+                COALESCE(ALL_ENROLLS.audit_currently_enrolled, 0),
+                COALESCE(ALL_ENROLLS.honor_currently_enrolled, 0),
+                COALESCE(ALL_ENROLLS.verified_currently_enrolled, 0),
+                COALESCE(ALL_ENROLLS.professional_currently_enrolled, 0),
+                COALESCE(ALL_ENROLLS.no_id_professional_currently_enrolled, 0),
                 COALESCE(seats.refunded_seats,0) refunded_seat_count,
                 COALESCE(seats.refunded_amount,0) refunded_amount,
                 COALESCE(seats.net_amount,0) net_seat_revenue,
@@ -123,17 +123,28 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
             FROM
             (
-                -- Course Information --
-                select
-                    cmc.*
-                from
-                    course_modes_coursemode cmc
-                where
-                    cmc.mode_slug in ('verified', 'professional', 'no-id-professional')
-            ) VP_COURSES
+                SELECT DISTINCT
+                    order_course_id AS course_id
+                FROM reconciled_order_transactions
+            ) courses
+
+            -- Course Information --
+            LEFT OUTER JOIN
+            (
+                SELECT
+                    course_id,
+                    mode_slug,
+                    suggested_prices,
+                    min_price,
+                    expiration_datetime
+                FROM
+                    course_modes_coursemode
+                WHERE
+                    mode_slug in ('verified', 'professional', 'no-id-professional')
+            ) VP_COURSES ON VP_COURSES.course_id = courses.course_id
 
             -- Enrollment --
-            INNER JOIN
+            LEFT OUTER JOIN
             (
                 select ce.course_id, count(*) total_currently_enrolled
                     , sum( case when ce.mode = 'audit' then 1 else 0 end ) audit_currently_enrolled
@@ -145,10 +156,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 from student_courseenrollment ce
                 where  ce.is_active=1
                 group by ce.course_id
-            ) ALL_ENROLLS on VP_COURSES.course_id = ALL_ENROLLS.course_id
+            ) ALL_ENROLLS on courses.course_id = ALL_ENROLLS.course_id
 
 
-            -- Transactions --
+            -- Seat Transactions --
             LEFT OUTER JOIN
             (
                 SELECT
@@ -175,10 +186,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                         order_processor
                 ) item
                 GROUP BY item.order_course_id
-            ) seats ON seats.order_course_id = VP_COURSES.course_id
+            ) seats ON seats.order_course_id = courses.course_id
 
 
-            -- 'Other' transactions, donations, etc.
+            -- Donation Transactions --
             LEFT OUTER JOIN
             (
                 SELECT
@@ -200,6 +211,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 ) donation_item
                 GROUP BY
                     donation_item.order_course_id
-            ) donations ON donations.order_course_id = VP_COURSES.course_id
+            ) donations ON donations.order_course_id = courses.course_id
             ;
         """
