@@ -1,0 +1,4 @@
+course_id,course_org_id,course_number,course_run,course_start,course_end,course_name
+edX/Open_DemoX/edx_demo_course,edX,DemoX,2T2015,2015-08-21 00:00:00,2016-08-30 00:00:00,EdX Demo Course
+course-v1:edX+Open_DemoX+edx_demo_course2,edX,OpenDemoX,,2015-08-21 00:00:00,2016-08-30 00:00:00,EdX Demo Course 2
+course-v1:edX+Open_DemoX+edx_demo_course3,None,None,None,None,None,None

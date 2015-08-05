@@ -110,6 +110,10 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'event-logs': {
                 'source': self.test_src
+            },
+            'course-structure': {
+                'api_root': 'acceptance.test',
+                'access_token': 'acceptance'
             }
         }
 
