@@ -1,4 +1,4 @@
-"""Collect the course catalog from the course catalog API for processing of course metadata like subjects or types"""
+"""Collect the course catalog from the course catalog API for processing of course metadata like subjects or types."""
 import requests
 import datetime
 
@@ -140,7 +140,7 @@ class DailyLoadSubjectsToVerticaTask(PullCatalogMixin, VerticaCopyTask):
     @property
     def auto_primary_key(self):
         """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
-        return None
+        return ('row_number', 'AUTO_INCREMENT')
 
     @property
     def default_columns(self):
@@ -150,7 +150,6 @@ class DailyLoadSubjectsToVerticaTask(PullCatalogMixin, VerticaCopyTask):
     @property
     def columns(self):
         return [
-            ('row_number', 'AUTO_INCREMENT PRIMARY KEY'),
             ('course_id', 'VARCHAR(200)'),
             ('date', 'DATE'),
             ('subject_uri', 'VARCHAR(200)'),
