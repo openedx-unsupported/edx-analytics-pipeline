@@ -130,6 +130,71 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
+class ProblemAttemptsPerUserTask(EventLogSelectionMixin, MapReduceJobTask):
+    """
+    In the given time interval, for each active student, make a list of the
+    unique problem IDs attempted.
+    """
+    output_root = luigi.Parameter()
+
+    def mapper(self, line):
+        """ Filter events and separate them by username and course """
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, date_string = value
+
+        if event.get('event_type') != PROBLEM_CHECK or event.get('event_source') != 'server':
+            return  # We don't care about this type of event
+
+        course_id = eventlog.get_course_id(event)
+        if not course_id:
+            return
+
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            return
+
+        username = event.get('username', '').strip()
+        if not username:
+            return
+
+        try:
+            usage_key = UsageKey.from_string(event_data.get('problem_id', ''))
+        except InvalidKeyError:
+            return
+        block_type = usage_key.block_type
+        block_id = usage_key.block_id
+
+        if not block_type or not block_id:
+            return
+
+        yield ((course_id, username), (block_type, block_id))
+
+    def reducer(self, key, block_keys):
+        """ Save only the unique blocks associated with each block. """
+        course_id, username = key
+
+        blocks_included = set()
+
+        for block_key in block_keys:
+            if block_key in blocks_included:
+                continue
+            blocks_included.add(block_key)
+            block_type, block_id = block_key
+
+            yield (
+                # Output to be read by Hive must be encoded as UTF-8.
+                course_id.encode('utf-8'),
+                username.encode('utf-8'),
+                block_type.encode('utf-8'),
+                block_id.encode('utf-8'),
+            )
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+
 class TrajectoryDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the tasks below."""
     pass
@@ -157,6 +222,37 @@ class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
 
     def requires(self):
         return ChapterAssociationTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.partition_location,
+        )
+
+
+class ProblemAttemptsPerUserTableTask(TrajectoryDownstreamMixin, HiveTableTask):
+    """ Hive table that stores the output of ProblemAttemptsPerUserTask """
+
+    @property
+    def table(self):
+        return 'user_problem_attempts'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('username', 'STRING'),
+            ('block_type', 'STRING'),
+            ('block_id', 'STRING'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    def requires(self):
+        return ProblemAttemptsPerUserTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -220,6 +316,63 @@ class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTable
         )
 
 
+class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTableFromQueryTask):
+    """
+    Join the chapter-module association table data with per-student problem attempts data
+    """
+
+    @property
+    def table(self):
+        return 'per_student_problems_per_chapter'
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+            ('username', 'STRING'),
+            ('problem_id', 'STRING'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT
+            ca.course_id,
+            ca.chapter_id,
+            probs.username,
+            CONCAT(probs.block_type, '|', probs.block_id)
+        FROM chapter_association ca
+        INNER JOIN user_problem_attempts probs
+            ON (
+                ca.course_id = probs.course_id AND
+                ca.block_type = probs.block_type AND
+                ca.block_id = probs.block_id
+            )
+        WHERE ca.dt >= '{start_date}' AND ca.dt <= '{end_date}'
+        """.format(
+            start_date = self.interval.date_a.isoformat(),
+            end_date = self.interval.date_b.isoformat(),
+        )
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'overwrite': self.overwrite,
+        }
+        yield (
+            ChapterAssociationTableTask(**kwargs),
+            ProblemAttemptsPerUserTableTask(**kwargs),
+        )
+
 
 class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
     """ Run all the trajectory tasks and output the reports to MySQL. """
@@ -234,4 +387,5 @@ class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
         }
         yield (
             JoinedStudentChapterVideoActivityTask(**kwargs),
+            JoinedStudentChapterProblemActivityTask(**kwargs),
         )
