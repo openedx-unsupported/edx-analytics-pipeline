@@ -281,6 +281,7 @@ class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTable
             ('course_id', 'STRING'),
             ('chapter_id', 'STRING'),
             ('username', 'STRING'),
+            ('merge_key', 'STRING'),
             ('video_id', 'STRING'),
         ]
 
@@ -291,6 +292,7 @@ class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTable
             ca.course_id,
             ca.chapter_id,
             vids.username,
+            CONCAT(ca.course_id, '|', ca.chapter_id, '|', vids.username),
             vids.encoded_module_id
         FROM chapter_association ca
         INNER JOIN video_usage_per_user vids
@@ -335,6 +337,7 @@ class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTab
             ('course_id', 'STRING'),
             ('chapter_id', 'STRING'),
             ('username', 'STRING'),
+            ('merge_key', 'STRING'),
             ('problem_id', 'STRING'),
         ]
 
@@ -345,6 +348,7 @@ class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTab
             ca.course_id,
             ca.chapter_id,
             probs.username,
+            CONCAT(ca.course_id, '|', ca.chapter_id, '|', probs.username),
             CONCAT(probs.block_type, '|', probs.block_id)
         FROM chapter_association ca
         INNER JOIN user_problem_attempts probs
@@ -374,8 +378,91 @@ class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTab
         )
 
 
-class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
-    """ Run all the trajectory tasks and output the reports to MySQL. """
+class MergeTrajectorySourceDataTask(TrajectoryDownstreamMixin, HiveTableFromQueryTask):
+    """
+    Take the per-user, per-chapter data from the two Joined tasks,
+    count the unique videos and problems from each user, and output to a new
+    table.
+
+    The source data for this query in Hive was created in date
+    partitions, but those date parittion boundaries will inevitably fall into
+    the middle of some students' progress through certain chapters. So we query
+    for a list of all the chapter IDs that changed during our current time
+    interval, then update the data related to those chapters regardless of
+    source partiition. If we'd already processed those chapters, we will process
+    them again and overwrite the results.
+
+    For example, if this task is run weekly and in week 1 a student does half
+    of the problems in Chapter A, then the student will be marked as having done
+    "some" problems. If in week 2 the student does the rest of the problems,
+    we will re-calculate that chapter's data for that student and update the
+    MySQL data to mark the student as having done "all" problems.
+    """
+    @property
+    def table(self):
+        return "trajectory_source_data"
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+            ('username', 'STRING'),
+            ('num_videos', 'INT'),
+            ('num_problems', 'INT'),
+        ]
+
+    @property
+    def insert_query(self):
+        # The query here is complex but is equivalent to the following:
+        # 1. Select the distinct (course_id, chapter_id, username) (i.e. the "merge_key") values
+        #    that changed during the current time interval.
+        # 2. For each (course_id, chapter_id, username) tuple, select the number of videos
+        #    watched (num_videos) and problems attempted (num_problems) over all time
+        return """
+        SELECT
+            COALESCE(vids.course_id, probs.course_id),
+            COALESCE(vids.chapter_id, probs.chapter_id),
+            COALESCE(vids.username, probs.username),
+            COALESCE(num_videos, 0),
+            COALESCE(num_problems, 0)
+        FROM (
+            SELECT
+                course_id,
+                chapter_id,
+                username,
+                merge_key,
+                COUNT(DISTINCT video_id) as num_videos
+            FROM per_student_videos_per_chapter vids_middle
+            WHERE merge_key IN (
+                SELECT DISTINCT merge_key FROM per_student_videos_per_chapter
+                WHERE dt >= '{start_date}' AND dt <= '{end_date}'
+            )
+            GROUP BY merge_key, course_id, chapter_id, username
+        ) vids
+        FULL OUTER JOIN (
+            SELECT
+                course_id,
+                chapter_id,
+                username,
+                merge_key,
+                COUNT(DISTINCT problem_id) as num_problems
+            FROM per_student_problems_per_chapter probs_middle
+            WHERE merge_key IN (
+                SELECT DISTINCT merge_key FROM per_student_problems_per_chapter
+                WHERE dt >= '{start_date}' AND dt <= '{end_date}'
+            )
+            GROUP BY merge_key, course_id, chapter_id, username
+        ) probs
+        ON vids.merge_key = probs.merge_key
+        """.format(
+            start_date = self.interval.date_a.isoformat(),
+            end_date = self.interval.date_b.isoformat(),
+        )
 
     def requires(self):
         kwargs = {
@@ -388,4 +475,74 @@ class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
         yield (
             JoinedStudentChapterVideoActivityTask(**kwargs),
             JoinedStudentChapterProblemActivityTask(**kwargs),
+        )
+
+
+class ComputeTrajectoryMaxPerChapterTask(TrajectoryDownstreamMixin, HiveTableFromQueryTask):
+    """
+    Take the updated per-student per-chapter data (num_videos and num_problems),
+    and compute the maximum # of videos watched and problems attempted by any
+    student for each chapter.
+
+    The analysis is only done within the current date-based Hive partition.
+    """
+    @property
+    def table(self):
+        return "trajectory_max_data"
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+            ('max_videos', 'INT'),
+            ('max_problems', 'INT'),
+        ]
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT
+            course_id,
+            chapter_id,
+            MAX(num_videos),
+            MAX(num_problems)
+        FROM trajectory_source_data
+        WHERE dt >= '{start_date}' AND dt <= '{end_date}'
+        GROUP BY course_id, chapter_id
+        """.format(
+            start_date = self.interval.date_a.isoformat(),
+            end_date = self.interval.date_b.isoformat(),
+        )
+
+    def requires(self):
+        kwargs = {
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            MergeTrajectorySourceDataTask(**kwargs),
+        )
+
+
+class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
+    """ Run all the trajectory tasks and output the reports to MySQL. """
+
+    def requires(self):
+        kwargs = {
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            ComputeTrajectoryMaxPerChapterTask(**kwargs),
         )
