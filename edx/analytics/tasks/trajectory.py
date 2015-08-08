@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Trajectory: Categorizes students into specific 'types' for each section of each course
 
@@ -15,11 +16,17 @@ There are nine types:
 
 The final data report is broken down by course and by section, not by date.
 
-All events are computed on a weekly basis for efficiency (it would be preferable to always
-re-compute the data over all time, since the resulting information is not date-specific, but
-that would obviously not be feasible). Since there is currently no way for analytics tasks to
-know the structure of each course (especially in cases where it varies from student to student),
-we make a number of assumptions:
+All events are computed on arbitrary time intervals (e.g. weekly) for efficiency (it would be
+preferable to always re-compute the data over all time, since the resulting information is not
+date-specific, but that would not be feasible). However, for any chapter-user pair that has had
+activity during that interval, the user's "type" of behavior in that chapter is re-computed
+over all time. That way, if a user is marked as "watched some videos" in Chapter 1 during one
+run of the pipeline, then later watches the rest of the videos, we will later re-evaluate that
+user's activity over all time and mark them as "watched all videos" (when the pipeline is next
+run).
+
+Since there is currently no way for analytics tasks to know the structure of each course
+(especially in cases where it varies from student to student), we make a number of assumptions:
    * That every student will have access to the same # of videos in each section
    * That every student will have access to the same # of problems in each section
      (if you are using content splits per cohort or randomized content, this could be false)
@@ -27,13 +34,44 @@ we make a number of assumptions:
      starts/attempts all of the videos and problems that can be seen that week.
    * That every video/problem module ID occurs in only one place in the course (i.e. no two
      course sections contain the exact same video module as a descendant)
+
+
+The pipeline tasks that compute the trajectory are as follows:
+
+UserVideoViewingTask
+        ▼
+        ▼
+PerUserVideoViewTask           ChapterAssociationTask           ProblemAttemptsPerUserTask
+        ▼                                ▼                                 ▼
+        ▼                                ▼                                 ▼
+PerUserVideoViewTableTask      ChapterAssociationTableTask      ProblemAttemptsPerUserTableTask
+        ▼                        ▼                   ▼                     ▼
+        ▼                        ▼                   ▼                     ▼
+    JoinedStudentChapterVideoActivityTask        JoinedStudentChapterProblemActivityTask
+                                 ▼                   ▼
+                                 ▼                   ▼
+                               MergeTrajectorySourceDataTask
+                                         ▼
+                                         ▼
+                               ComputeTrajectoryMaxPerChapterTask
+                                         ▼
+                                         ▼
+                               MergeTrajectorySourceToMySQL
+                                         ▼
+                                         ▼
+                               TrajectoryPipelineTask
 """
-import datetime
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveTableFromQueryTask
+from edx.analytics.tasks.util.hive import (
+    WarehouseMixin,
+    HivePartition,
+    HiveTableTask,
+    HiveTableFromQueryTask,
+    HiveQueryToMysqlTask,
+)
 import logging
 import luigi
 from opaque_keys import InvalidKeyError
@@ -68,7 +106,7 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, date_string = value
+        event, _date_string = value
 
         event_type = event.get('event_type')
         if event_type not in (VIDEO_PLAYED, PROBLEM_CHECK):
@@ -112,7 +150,7 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
         """ Save only the chapter ID associated with each block. """
         course_id, block_type, block_id = key
         chapter_ids = set(chapter_ids)
-        
+
         if len(chapter_ids) > 1:
             log.error('Found multiple chapter IDs for %s with ID %s in course %s', block_type, block_id, course_id)
 
@@ -142,7 +180,7 @@ class ProblemAttemptsPerUserTask(EventLogSelectionMixin, MapReduceJobTask):
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, date_string = value
+        event, _date_string = value
 
         if event.get('event_type') != PROBLEM_CHECK or event.get('event_source') != 'server':
             return  # We don't care about this type of event
@@ -197,7 +235,10 @@ class ProblemAttemptsPerUserTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class TrajectoryDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the tasks below."""
-    pass
+    @property
+    def partition(self):
+        """ Hive Partition used to store the new data being generated """
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
 
 class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
@@ -215,10 +256,6 @@ class ChapterAssociationTableTask(TrajectoryDownstreamMixin, HiveTableTask):
             ('block_id', 'STRING'),
             ('chapter_id', 'STRING'),
         ]
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return ChapterAssociationTask(
@@ -247,10 +284,6 @@ class ProblemAttemptsPerUserTableTask(TrajectoryDownstreamMixin, HiveTableTask):
             ('block_id', 'STRING'),
         ]
 
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-
     def requires(self):
         return ProblemAttemptsPerUserTask(
             mapreduce_engine=self.mapreduce_engine,
@@ -270,10 +303,6 @@ class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTable
     @property
     def table(self):
         return 'per_student_videos_per_chapter'
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -299,8 +328,8 @@ class JoinedStudentChapterVideoActivityTask(TrajectoryDownstreamMixin, HiveTable
             ON (ca.course_id = vids.course_id AND ca.block_id = vids.encoded_module_id)
         WHERE ca.block_type = 'video' AND ca.dt >= '{start_date}' AND ca.dt <= '{end_date}'
         """.format(
-            start_date = self.interval.date_a.isoformat(),
-            end_date = self.interval.date_b.isoformat(),
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
         )
 
     def requires(self):
@@ -326,10 +355,6 @@ class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTab
     @property
     def table(self):
         return 'per_student_problems_per_chapter'
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -359,8 +384,8 @@ class JoinedStudentChapterProblemActivityTask(TrajectoryDownstreamMixin, HiveTab
             )
         WHERE ca.dt >= '{start_date}' AND ca.dt <= '{end_date}'
         """.format(
-            start_date = self.interval.date_a.isoformat(),
-            end_date = self.interval.date_b.isoformat(),
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
         )
 
     def requires(self):
@@ -401,10 +426,6 @@ class MergeTrajectorySourceDataTask(TrajectoryDownstreamMixin, HiveTableFromQuer
     @property
     def table(self):
         return "trajectory_source_data"
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -460,8 +481,8 @@ class MergeTrajectorySourceDataTask(TrajectoryDownstreamMixin, HiveTableFromQuer
         ) probs
         ON vids.merge_key = probs.merge_key
         """.format(
-            start_date = self.interval.date_a.isoformat(),
-            end_date = self.interval.date_b.isoformat(),
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
         )
 
     def requires(self):
@@ -491,10 +512,6 @@ class ComputeTrajectoryMaxPerChapterTask(TrajectoryDownstreamMixin, HiveTableFro
         return "trajectory_max_data"
 
     @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-
-    @property
     def columns(self):
         return [
             ('course_id', 'STRING'),
@@ -515,8 +532,8 @@ class ComputeTrajectoryMaxPerChapterTask(TrajectoryDownstreamMixin, HiveTableFro
         WHERE dt >= '{start_date}' AND dt <= '{end_date}'
         GROUP BY course_id, chapter_id
         """.format(
-            start_date = self.interval.date_a.isoformat(),
-            end_date = self.interval.date_b.isoformat(),
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
         )
 
     def requires(self):
@@ -532,6 +549,91 @@ class ComputeTrajectoryMaxPerChapterTask(TrajectoryDownstreamMixin, HiveTableFro
         )
 
 
+class MergeTrajectorySourceToMySQL(TrajectoryDownstreamMixin, HiveQueryToMysqlTask):
+    """
+    Combine the per-user trajectory data with the max-per-chapter data to
+    generate the final trajectory table data.
+    """
+    table = "trajectory"
+    # Because we process the incoming data in date-partitioned chunks, sometimes the new data
+    # requires that we update a user's standing in a given chapter, bumping them from having
+    # done "Some" problems/videos to "All".
+    # We let MySQL handle this for us, by adding a constraint to the table and specifying
+    # "REPLACE" instead of "INSERT"
+    insert_query_template = "REPLACE INTO {table} ({column_names}) VALUES {values}"
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def hive_columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+            ('username', 'STRING'),
+            ('video_type', 'INT'),
+            ('problem_type', 'INT'),
+        ]
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('chapter_id', 'VARCHAR(255) NOT NULL'),
+            ('username', 'VARCHAR(255) NOT NULL'),
+            ('video_type', 'TINYINT'),
+            ('problem_type', 'TINYINT'),
+        ]
+
+    @property
+    def default_columns(self):
+        """ Columns and constraints that are managed by MySQL """
+        return [
+            ('created', 'TIMESTAMP DEFAULT NOW()'),
+            ('CONSTRAINT ccu', 'UNIQUE (course_id, chapter_id, username)'),
+        ]
+
+    @property
+    def query(self):
+        return """
+        SELECT
+            ts.course_id,
+            ts.chapter_id,
+            ts.username,
+            CASE
+                WHEN num_videos = 0 THEN {none_value}
+                WHEN num_videos = max_videos THEN {all_value}
+                ELSE {some_value}
+            END,
+            CASE
+                WHEN num_problems = 0 THEN {none_value}
+                WHEN num_problems = max_problems THEN {all_value}
+                ELSE {some_value}
+            END
+        FROM trajectory_source_data ts
+        INNER JOIN trajectory_max_data mx ON ts.course_id = mx.course_id AND ts.chapter_id = mx.chapter_id
+        WHERE ts.dt >= '{start_date}' AND ts.dt <= '{end_date}'
+        """.format(
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
+            all_value=2, some_value=1, none_value=0,
+        )
+
+    @property
+    def required_table_tasks(self):
+        kwargs = {
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            ComputeTrajectoryMaxPerChapterTask(**kwargs),
+        )
+
+
 class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
     """ Run all the trajectory tasks and output the reports to MySQL. """
 
@@ -544,5 +646,5 @@ class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
             'warehouse_path': self.warehouse_path,
         }
         yield (
-            ComputeTrajectoryMaxPerChapterTask(**kwargs),
+            MergeTrajectorySourceToMySQL(**kwargs),
         )

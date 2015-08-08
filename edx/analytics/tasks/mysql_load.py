@@ -260,7 +260,8 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         # traditional python "%" operator.
         parameters = "(" + ",".join(["%s"] * num_cols) + ")"
         all_parameters = ",".join([parameters] * num_rows)
-        query = "INSERT INTO {table} ({column_names}) VALUES {values}".format(
+        query_template = getattr(self, "insert_query_template", "INSERT INTO {table} ({column_names}) VALUES {values}")
+        query = query_template.format(
             table=self.table, column_names=column_names, values=all_parameters
         )
         cursor.execute(query, list(chain.from_iterable(value_list)))
