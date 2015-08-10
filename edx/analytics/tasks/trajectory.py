@@ -30,8 +30,6 @@ Since there is currently no way for analytics tasks to know the structure of eac
    * That every student will have access to the same # of videos in each section
    * That every student will have access to the same # of problems in each section
      (if you are using content splits per cohort or randomized content, this could be false)
-   * That for every week where some students are active, there is at least one student who
-     starts/attempts all of the videos and problems that can be seen that week.
    * That every video/problem module ID occurs in only one place in the course (i.e. no two
      course sections contain the exact same video module as a descendant)
 
