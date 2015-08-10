@@ -59,6 +59,9 @@ PerUserVideoViewTableTask      ChapterAssociationTableTask      ProblemAttemptsP
                                MergeTrajectorySourceToMySQL
                                          ▼
                                          ▼
+                               TrajectoryCountsTask
+                                         ▼
+                                         ▼
                                TrajectoryPipelineTask
 """
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
@@ -552,19 +555,15 @@ class ComputeTrajectoryMaxPerChapterTask(TrajectoryDownstreamMixin, HiveTableFro
 class MergeTrajectorySourceToMySQL(TrajectoryDownstreamMixin, HiveQueryToMysqlTask):
     """
     Combine the per-user trajectory data with the max-per-chapter data to
-    generate the final trajectory table data.
+    generate the per-user per-chapter trajectory table data.
     """
-    table = "trajectory"
+    table = "trajectory_detail"
     # Because we process the incoming data in date-partitioned chunks, sometimes the new data
     # requires that we update a user's standing in a given chapter, bumping them from having
     # done "Some" problems/videos to "All".
     # We let MySQL handle this for us, by adding a constraint to the table and specifying
     # "REPLACE" instead of "INSERT"
     insert_query_template = "REPLACE INTO {table} ({column_names}) VALUES {values}"
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
     def hive_columns(self):
@@ -634,6 +633,76 @@ class MergeTrajectorySourceToMySQL(TrajectoryDownstreamMixin, HiveQueryToMysqlTa
         )
 
 
+class TrajectoryCountsTask(TrajectoryDownstreamMixin, HiveQueryToMysqlTask):
+    """
+    For every chapter with activity during the specified time interval, update
+    the summary data in the 'trajectory' MySQL table using the data in the
+    'trajectory_detail' MySQL table (we also use some data from Hive to limit
+    the update to chapters that were active during the given interval).
+
+    This step essentially eliminates the per-user data and stores only aggregate
+    user counts.
+    """
+    table = "trajectory"
+    insert_query_template = """
+        REPLACE INTO {table} (course_id, chapter_id, video_type, problem_type, num_users)
+        SELECT course_id, chapter_id, video_type, problem_type, COUNT(username)
+        FROM trajectory_detail WHERE ({column_names}) IN ({values})
+        GROUP BY course_id, chapter_id, video_type, problem_type
+    """
+
+    @property
+    def required_table_tasks(self):
+        kwargs = {
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            MergeTrajectorySourceToMySQL(**kwargs),
+        )
+
+    @property
+    def hive_columns(self):
+        # All we need from Hive is the set of chapter IDs that changed during the current interval
+        return [
+            ('course_id', 'STRING'),
+            ('chapter_id', 'STRING'),
+        ]
+
+    @property
+    def columns(self):
+        """ Columns whose data comes from Hive """
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('chapter_id', 'VARCHAR(255) NOT NULL'),
+        ]
+
+    @property
+    def default_columns(self):
+        """ Columns whose data comes from MySQL, plus constraints """
+        return [
+            ('video_type', 'TINYINT NOT NULL'),
+            ('problem_type', 'TINYINT NOT NULL'),
+            ('num_users', 'INTEGER NOT NULL'),
+            ('created', 'TIMESTAMP DEFAULT NOW()'),
+            ('CONSTRAINT ccu', 'UNIQUE (course_id, chapter_id, video_type, problem_type)'),
+        ]
+
+    @property
+    def query(self):
+        return """
+        SELECT DISTINCT ts.course_id, ts.chapter_id
+        FROM trajectory_source_data ts
+        WHERE ts.dt >= '{start_date}' AND ts.dt <= '{end_date}'
+        """.format(
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
+        )
+
+
 class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
     """ Run all the trajectory tasks and output the reports to MySQL. """
 
@@ -646,5 +715,5 @@ class TrajectoryPipelineTask(TrajectoryDownstreamMixin, luigi.WrapperTask):
             'warehouse_path': self.warehouse_path,
         }
         yield (
-            MergeTrajectorySourceToMySQL(**kwargs),
+            TrajectoryCountsTask(**kwargs),
         )
