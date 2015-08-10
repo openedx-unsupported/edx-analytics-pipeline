@@ -564,6 +564,7 @@ class MergeTrajectorySourceToMySQL(TrajectoryDownstreamMixin, HiveQueryToMysqlTa
     # We let MySQL handle this for us, by adding a constraint to the table and specifying
     # "REPLACE" instead of "INSERT"
     insert_query_template = "REPLACE INTO {table} ({column_names}) VALUES {values}"
+    overwrite = luigi.BooleanParameter(default=False)
 
     @property
     def hive_columns(self):
@@ -643,6 +644,7 @@ class TrajectoryCountsTask(TrajectoryDownstreamMixin, HiveQueryToMysqlTask):
     This step essentially eliminates the per-user data and stores only aggregate
     user counts.
     """
+    overwrite = luigi.BooleanParameter(default=False)
     table = "trajectory"
     insert_query_template = """
         REPLACE INTO {table} (course_id, chapter_id, video_type, problem_type, num_users)
