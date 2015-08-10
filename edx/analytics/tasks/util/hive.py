@@ -211,6 +211,10 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
     table = luigi.Parameter()
     columns = luigi.Parameter(is_list=True)
     partition = HivePartitionParameter()
+    required_table_tasks = luigi.Parameter(is_list=True)
+
+    def requires(self):
+        return self.required_table_tasks
 
 
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
@@ -239,14 +243,8 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
             columns=self.hive_columns,
             partition=self.partition,
             overwrite=self.hive_overwrite,
+            required_table_tasks=list(self.required_table_tasks),
         )
-
-    def requires(self):
-        # MysqlInsertTask customizes requires() somewhat, so don't clobber that logic. Instead allow subclasses to
-        # extend the requirements with their own.
-        requirements = super(HiveQueryToMysqlTask, self).requires()
-        requirements['other_tables'] = self.required_table_tasks
-        return requirements
 
     @property
     def table(self):
