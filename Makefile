@@ -15,6 +15,11 @@ uninstall:
 install: requirements uninstall
 	python setup.py install --force
 
+bootstrap: uninstall
+	$(PIP_INSTALL) -U -r requirements/pre.txt
+	$(PIP_INSTALL) -U -r requirements/base.txt
+	python setup.py install --force
+
 develop: requirements
 	python setup.py develop
 
@@ -24,6 +29,7 @@ system-requirements:
 	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
 
 requirements:
+	$(PIP_INSTALL) -U -r requirements/pre.txt
 	$(PIP_INSTALL) -U -r requirements/default.txt
 
 test-requirements: requirements

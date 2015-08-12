@@ -1,14 +1,17 @@
 ---
 
 - name: Configure luigi
-  hosts: "mr_{{ name }}_master"
+  hosts: "{{ name }}"
   gather_facts: False
   sudo: True
+  vars:
+    write_luigi_config: "yes"
   roles:
-    - luigi
+    - role: luigi
+      when: write_luigi_config|bool
 
 - name: Run a task
-  hosts: "mr_{{ name }}_master"
+  hosts: "{{ name }}"
   gather_facts: False
 
   vars:
