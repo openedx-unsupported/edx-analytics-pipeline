@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--shell', help='execute a shell command on the cluster and exit', default=None)
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
-    parser.add_argument('--wheel-url', help='url of the wheelhouse', default=os.getenv('WHEEL_URL'))
+    parser.add_argument('--wheel-url', help='url of the wheelhouse', default=None)
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
