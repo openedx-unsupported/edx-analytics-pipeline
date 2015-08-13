@@ -92,7 +92,7 @@ def run_task_playbook(inventory, arguments, uid):
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 
-    command = 'cd {data_dir}/repo && . /home/{sudo_user}/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
+    command = 'cd {data_dir}/repo && . $HOME/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
         env_vars=env_var_string + ' ' if env_var_string else '',
         data_dir=data_dir,
         task_arguments=' '.join(arguments.launch_task_arguments),
