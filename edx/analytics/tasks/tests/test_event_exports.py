@@ -8,6 +8,7 @@ from collections import defaultdict
 from itertools import chain
 
 from luigi.date_interval import Year
+import luigi.task
 from mock import MagicMock, patch
 import yaml
 
@@ -40,7 +41,7 @@ class EventExportTestCaseBase(InitializeOpaqueKeysMixin, unittest.TestCase):
             **kwargs
         )
 
-        task.input_local = MagicMock(return_value=FakeTarget(self.CONFIGURATION))
+        task.input_local = MagicMock(return_value=FakeTarget(value=self.CONFIGURATION))
         return task
 
     def run_mapper_for_server_file(self, server, event_string):
@@ -330,7 +331,7 @@ class EventExportTestCase(EventExportTestCaseBase):
         self.assertEquals(self.task.requires_local().url, 'test://config/default.yaml')
 
     def test_hadoop_requirements(self):
-        requirements = self.task.requires_hadoop()
+        requirements = luigi.task.flatten(self.task.requires_hadoop())
         for task in requirements:
             if hasattr(task, 'url') and task.url == 'test://config/default.yaml':
                 self.fail('Expected config task to be excluded from the hadoop requirements.')
