@@ -29,7 +29,6 @@ class BuildFinancialReportsTask(luigi.WrapperTask):
         #     'output_root': self.partition_location,
         # }
 
-
     # Transaction Report Requires
     # def requires(self):
     #     return ReconcileOrdersAndTransactionsTask(
@@ -48,6 +47,8 @@ class BuildFinancialReportsTask(luigi.WrapperTask):
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
+            'database': self.database,
+            'credentials': self.credentials,
         }
         yield (
             BuildEdServicesReportTask(
