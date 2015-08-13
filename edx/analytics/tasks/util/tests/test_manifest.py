@@ -1,114 +1,82 @@
 """Ensure manifest files are created appropriately."""
 
 import luigi
+import luigi.hdfs
 from mock import patch
 
-from edx.analytics.tasks.url import UncheckedExternalURL
-from edx.analytics.tasks.util.manifest import URLManifestTask, convert_tasks_to_manifest_if_necessary
+from edx.analytics.tasks.util.manifest import (
+    create_manifest_target, convert_to_manifest_input_if_necessary, ManifestInputTargetMixin
+)
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
 from edx.analytics.tasks.tests.target import FakeTarget
 
 
-class URLManifestTaskTest(unittest.TestCase):
+class ManifestInputTargetTest(unittest.TestCase):
     """Ensure manifest files are created appropriately."""
 
-    SOURCE_URL = 's3://foo/bar'
-    MANIFEST_BASE_PATH = '/tmp/manifest'
+    MANIFEST_ID = 'test'
 
     def setUp(self):
-        self.task = URLManifestTask(urls=[self.SOURCE_URL])
-        self.expected_path = '{0}/{1}.manifest'.format(self.MANIFEST_BASE_PATH, hash(self.task))
+        patcher = patch('edx.analytics.tasks.util.manifest.get_target_class_from_url')
+        self.get_target_class_from_url_mock = patcher.start()
+        self.addCleanup(patcher.stop)
+        self.get_target_class_from_url_mock.side_effect = lambda url: (FakeTarget, (url,), {})
 
     @with_luigi_config(
-        ('manifest', 'path', MANIFEST_BASE_PATH),
+        ('manifest', 'path', '/tmp/manifest'),
         ('manifest', 'lib_jar', '/tmp/foo.jar'),
         ('manifest', 'input_format', 'com.example.SimpleFormat')
     )
     def test_annotate_output_target(self):
-        target = self.task.output()
+        target = create_manifest_target(self.MANIFEST_ID, [luigi.LocalTarget('/tmp/foo')])
 
-        self.assertEquals(target.path, self.expected_path)
+        self.assertEquals(target.path, '/tmp/manifest/test.manifest')
         self.assertEquals(target.lib_jar, ['/tmp/foo.jar'])
         self.assertEquals(target.input_format, 'com.example.SimpleFormat')
 
     @with_luigi_config(
-        ('manifest', 'path', MANIFEST_BASE_PATH),
+        ('manifest', 'path', '/tmp/manifest'),
         ('manifest', 'lib_jar', OPTION_REMOVED),
         ('manifest', 'input_format', OPTION_REMOVED)
     )
     def test_parameters_not_configured(self):
-        target = self.task.output()
+        target = create_manifest_target(self.MANIFEST_ID, [luigi.LocalTarget('/tmp/foo')])
 
-        self.assertEquals(target.path, self.expected_path)
+        self.assertEquals(target.path, '/tmp/manifest/test.manifest')
         self.assertFalse(hasattr(target, 'lib_jar'))
         self.assertFalse(hasattr(target, 'input_format'))
 
-    @patch('edx.analytics.tasks.util.manifest.get_target_from_url')
-    def test_manifest_file_construction(self, get_target_from_url_mock):
-        fake_target = FakeTarget()
-        get_target_from_url_mock.return_value = fake_target
-
-        self.task.run()
-
-        content = fake_target.buffer.read()
-        self.assertEquals(content, self.SOURCE_URL + '\n')
-
-    def test_requirements(self):
-        self.assertItemsEqual(self.task.requires(), [UncheckedExternalURL(self.SOURCE_URL)])
-
-
-class ConversionTest(unittest.TestCase):
-    """Ensure large numbers of inputs are correctly converted into manifest tasks when appropriate."""
+    def test_manifest_file_construction(self):
+        target = create_manifest_target(self.MANIFEST_ID, [luigi.hdfs.HdfsTarget('s3://foo/bar')])
+        self.assertEquals(target.value, 's3://foo/bar\n')
 
     @with_luigi_config('manifest', 'threshold', 1)
     def test_over_threshold(self):
-        tasks = convert_tasks_to_manifest_if_necessary([FakeTask(), FakeTask()])
+        targets = convert_to_manifest_input_if_necessary(self.MANIFEST_ID, [
+            luigi.LocalTarget('/tmp/foo'),
+            luigi.LocalTarget('/tmp/foo2')
+        ])
 
-        self.assertEquals(len(tasks), 1)
-        self.assertIsInstance(tasks[0], URLManifestTask)
+        self.assertEquals(len(targets), 1)
+        self.assertIsInstance(targets[0], ManifestInputTargetMixin)
 
     @with_luigi_config('manifest', 'threshold', 3)
     def test_under_threshold(self):
-        tasks = convert_tasks_to_manifest_if_necessary([FakeTask(), FakeTask()])
+        self.assert_no_conversion()
 
-        self.assertEquals(len(tasks), 2)
-        self.assertIsInstance(tasks[0], FakeTask)
-        self.assertIsInstance(tasks[1], FakeTask)
-
-    @with_luigi_config('manifest', 'threshold', 2)
-    def test_task_with_many_targets(self):
-        class MultiTargetTask(luigi.ExternalTask):
-            """A fake task with multiple outputs."""
-            def output(self):
-                return [
-                    luigi.LocalTarget('/tmp/foo'),
-                    luigi.LocalTarget('/tmp/bar'),
-                ]
-
-        tasks = convert_tasks_to_manifest_if_necessary(MultiTargetTask())
-
-        self.assertEquals(len(tasks), 1)
-        self.assertIsInstance(tasks[0], URLManifestTask)
+    def assert_no_conversion(self):
+        original_targets = [
+            luigi.LocalTarget('/tmp/foo'),
+            luigi.LocalTarget('/tmp/foo2')
+        ]
+        targets = convert_to_manifest_input_if_necessary(self.MANIFEST_ID, original_targets)
+        self.assertEquals(original_targets, targets)
 
     @with_luigi_config('manifest', 'threshold', -1)
     def test_negative_threshold(self):
-        tasks = convert_tasks_to_manifest_if_necessary([FakeTask(), FakeTask()])
-
-        self.assertEquals(len(tasks), 2)
-        self.assertIsInstance(tasks[0], FakeTask)
-        self.assertIsInstance(tasks[1], FakeTask)
+        self.assert_no_conversion()
 
     @with_luigi_config('manifest', 'threshold', OPTION_REMOVED)
     def test_threshold_not_set(self):
-        tasks = convert_tasks_to_manifest_if_necessary([FakeTask(), FakeTask()])
-
-        self.assertEquals(len(tasks), 2)
-        self.assertIsInstance(tasks[0], FakeTask)
-        self.assertIsInstance(tasks[1], FakeTask)
-
-
-class FakeTask(luigi.ExternalTask):
-    """A fake task with a single output target."""
-    def output(self):
-        return luigi.LocalTarget('/tmp/foo')
+        self.assert_no_conversion()

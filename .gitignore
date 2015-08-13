@@ -55,3 +55,6 @@ override.cfg
 
 *.trace
 .eggs
+
+catalog_test.json
+course_structure.json
