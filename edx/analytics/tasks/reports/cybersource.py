@@ -5,16 +5,13 @@ import datetime
 import logging
 import requests
 import luigi
+from luigi.configuration import get_config
+from luigi import date_interval
 
 from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.url import url_path_join, UncheckedExternalURL
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
-# Tell urllib3 to switch the ssl backend to PyOpenSSL.
-# see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
-import urllib3.contrib.pyopenssl
-urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 log = logging.getLogger(__name__)
 
@@ -22,22 +19,19 @@ log = logging.getLogger(__name__)
 class PullFromCybersourceTaskMixin(OverwriteOutputMixin):
     """Define common parameters for Cybersource pull and downstream tasks."""
 
-    host = luigi.Parameter(
-        default_from_config={'section': 'cybersource', 'name': 'host'}
-    )
-    merchant_id = luigi.Parameter(
-        default_from_config={'section': 'cybersource', 'name': 'merchant_id'}
-    )
-    username = luigi.Parameter(
-        default_from_config={'section': 'cybersource', 'name': 'username'}
-    )
-    # Making this 'insignificant' means it won't be echoed in log files.
-    password = luigi.Parameter(
-        default_from_config={'section': 'cybersource', 'name': 'password'},
-        significant=False,
-    )
+    merchant_id = luigi.Parameter()
     # URL of location to write output.
     output_root = luigi.Parameter()
+
+    def __init__(self, *args, **kwargs):
+        super(PullFromCybersourceTaskMixin, self).__init__(*args, **kwargs)
+
+        config = get_config()
+        section_name = 'cybersource:' + self.merchant_id
+        self.host = config.get(section_name, 'host')
+        self.username = config.get(section_name, 'username')
+        self.password = config.get(section_name, 'password')
+        self.interval_start = luigi.DateParameter().parse(config.get(section_name, 'interval_start'))
 
 
 class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
@@ -188,10 +182,11 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
         return get_target_from_url(url_with_filename)
 
 
-class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.Task):
+class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Determines a set of dates to pull, and requires them."""
 
-    interval = luigi.DateIntervalParameter()
+    interval = luigi.DateIntervalParameter(default=None)
+    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
 
     # Overwrite parameter definition to make it optional.
     output_root = luigi.Parameter(default=None)
@@ -201,13 +196,11 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
         # Provide default for output_root at this level.
         if self.output_root is None:
             self.output_root = self.warehouse_path
+        if self.interval is None:
+            self.interval = date_interval.Custom(self.interval_start, self.interval_end)
 
-    required_tasks = None
-
-    def _get_required_tasks(self):
+    def requires(self):
         """Internal method to actually calculate required tasks once."""
-        start_date = self.interval.date_a  # pylint: disable=no-member
-        end_date = self.interval.date_b  # pylint: disable=no-member
         args = {
             'host': self.host,
             'merchant_id': self.merchant_id,
@@ -217,17 +210,17 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
             'overwrite': self.overwrite,
         }
 
-        current_date = start_date
-        while current_date < end_date:
-            args['run_date'] = current_date
+        for run_date in self.interval:
+            args['run_date'] = run_date
             yield DailyProcessFromCybersourceTask(**args)
-            current_date += datetime.timedelta(days=1)
-
-    def requires(self):
-        if not self.required_tasks:
-            self.required_tasks = [task for task in self._get_required_tasks()]
-
-        return self.required_tasks
+            # yield UncheckedExternalURL(
+            #     url_path_join(
+            #         self.output_root,
+            #         "payments",
+            #         "dt=" + run_date.isoformat(),
+            #         "cybersource_{}.tsv".format(self.merchant_id)
+            #     )
+            # )
 
     def output(self):
         return [task.output() for task in self.requires()]

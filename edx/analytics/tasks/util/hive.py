@@ -196,7 +196,7 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
         return create_table_statements + textwrap.dedent(full_insert_query)
 
     def output(self):
-        return get_target_from_url(self.partition_location)
+        return get_target_from_url(self.partition_location + '/')
 
     @property
     def insert_query(self):

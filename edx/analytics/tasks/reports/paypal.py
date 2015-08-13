@@ -15,17 +15,14 @@ from decimal import Decimal
 import time
 
 import luigi
+from luigi import date_interval
 from luigi.configuration import get_config
 import requests
 
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
-# Tell urllib3 to switch the ssl backend to PyOpenSSL.
-# see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
-import urllib3.contrib.pyopenssl
-urllib3.contrib.pyopenssl.inject_into_urllib3()
+from edx.analytics.tasks.util.hive import WarehouseMixin
 
 log = logging.getLogger(__name__)
 
@@ -669,11 +666,26 @@ class PaypalTimeoutError(PaypalError):
         )
 
 
-class PaypalTransactionsIntervalTask(PaypalTaskMixin, luigi.WrapperTask):
+class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Generate paypal transaction reports for each day in an interval."""
 
     date = None
-    interval = luigi.DateIntervalParameter()
+    interval = luigi.DateIntervalParameter(default=None)
+    interval_start = luigi.DateParameter(
+        default_from_config={'section': 'paypal', 'name': 'interval_start'},
+        significant=False
+    )
+    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
+    output_root = luigi.Parameter(default=None)
+
+    def __init__(self, *args, **kwargs):
+        super(PaypalTransactionsIntervalTask, self).__init__(*args, **kwargs)
+        # Provide default for output_root at this level.
+        if self.output_root is None:
+            self.output_root = self.warehouse_path
+
+        if self.interval is None:
+            self.interval = date_interval.Custom(self.interval_start, self.interval_end)
 
     def requires(self):
         for day in self.interval:
@@ -683,3 +695,6 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, luigi.WrapperTask):
                 date=day,
                 overwrite=self.overwrite,
             )
+
+    def output(self):
+        return [task.output() for task in self.requires()]

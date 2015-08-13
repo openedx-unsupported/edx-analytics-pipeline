@@ -2,7 +2,6 @@
 
 from collections import namedtuple, defaultdict
 import csv
-import datetime
 from decimal import Decimal
 import logging
 from operator import attrgetter
@@ -11,11 +10,12 @@ import luigi
 import luigi.date_interval
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
+from edx.analytics.tasks.reports.orders_import import OrderTableTask
+from edx.analytics.tasks.reports.payment import PaymentTask
 
 log = logging.getLogger(__name__)
 
@@ -100,26 +100,7 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
 class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     """Define parameters needed downstream for running ReconcileOrdersAndTransactionsTask."""
 
-    transaction_source = luigi.Parameter(
-        default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
-    )
-
-    order_source = luigi.Parameter(
-        default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'}
-    )
-
-    # Create a dummy default for this parameter, since it is parsed by EventLogSelectionTask
-    # but not actually used.
-    interval = luigi.DateIntervalParameter(
-        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
-            datetime.datetime.utcnow().date().isoformat()
-        ))
-    )
-
-    pattern = luigi.Parameter(
-        is_list=True,
-        default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
-    )
+    import_date = luigi.DateParameter()
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
@@ -136,14 +117,13 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     output_root = luigi.Parameter()
 
     def requires(self):
-        """Use EventLogSelectionTask to define inputs."""
-        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
-        order_partition = url_path_join(self.order_source, partition_path_spec)
-
-        return EventLogSelectionTask(
-            source=[self.transaction_source, order_partition],
-            pattern=self.pattern,
-            interval=self.interval,
+        yield (
+            OrderTableTask(
+                import_date=self.import_date
+            ),
+            PaymentTask(
+                import_date=self.import_date
+            )
         )
 
     def mapper(self, line):
@@ -755,25 +735,19 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
     @property
     def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            transaction_source=self.transaction_source,
-            order_source=self.order_source,
-            interval=self.interval,
-            pattern=self.pattern,
-            output_root=self.partition_location,
-            # overwrite=self.overwrite,
+            import_date=self.import_date,
+            output_root=self.partition_location
         )
 
 
-class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Task):
+class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, luigi.Task):
     """Generates CSV files containing transaction information."""
 
-    output_root = luigi.Parameter()
+    output_root = luigi.Parameter(default=None)
 
     COLUMNS = [
         'date',
@@ -791,20 +765,20 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         'org_id'
     ]
 
+    def __init__(self, *args, **kwargs):
+        super(TransactionReportTask, self).__init__(*args, **kwargs)
+        # Provide default for output_root at this level.
+        if self.output_root is None:
+            self.output_root = self.warehouse_path
+
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            transaction_source=self.transaction_source,
-            order_source=self.order_source,
-            interval=self.interval,
-            pattern=self.pattern,
+            import_date=self.import_date,
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
-                'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
             ) + '/',
-            # overwrite=self.overwrite,
         )
 
     def run(self):
@@ -846,6 +820,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         return get_target_from_url(url_path_join(
             self.output_root,
             'transaction',
-            'dt=' + self.interval.date_b.isoformat(),  # pylint: disable=no-member
+            'dt=' + self.import_date.isoformat(),  # pylint: disable=no-member
             'transactions.csv'
         ))

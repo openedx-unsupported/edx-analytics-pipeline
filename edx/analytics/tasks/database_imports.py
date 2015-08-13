@@ -47,15 +47,9 @@ class DatabaseImportMixin(object):
         default_from_config={'section': 'database-import', 'name': 'database'}
     )
 
-    import_date = luigi.DateParameter(default=None)
+    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
-
-    def __init__(self, *args, **kwargs):
-        super(DatabaseImportMixin, self).__init__(*args, **kwargs)
-
-        if not self.import_date:
-            self.import_date = datetime.datetime.utcnow().date()
 
 
 class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):

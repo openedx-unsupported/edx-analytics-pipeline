@@ -1,72 +1,29 @@
-import datetime
-import luigi
-import luigi.hdfs
-import luigi.date_interval
-
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
-    DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
+    DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
-
-
-class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
-    """
-    Builds the Course and Enrollment data to satisfy the Ed Services report.
-    """
-    def requires(self):
-        kwargs = {
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'overwrite': self.overwrite,
-        }
-        yield (
-            # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
-            # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
-            # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                interval=luigi.date_interval.Custom(datetime.date(2014, 01, 01), self.import_date)
-            ),
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
+from edx.analytics.tasks.url import url_path_join
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
-
     """
 
     def requires(self):
-        kwargs = {
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'overwrite': self.overwrite,
-        }
         yield (
-            ImportCourseAndEnrollmentTablesTask(
+            ImportCourseModeTask(
                 destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
+                import_date=self.import_date
             ),
+            ImportStudentCourseEnrollmentTask(
+                destination=self.destination,
+                import_date=self.import_date
+            ),
+            ReconciledOrderTransactionTableTask(
+                import_date=self.import_date
+            )
         )
 
     @property
