@@ -39,7 +39,8 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             ),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
-                interval=luigi.date_interval.Custom(datetime.date(2014, 01, 01), self.import_date)
+                #interval=luigi.date_interval.Custom(datetime.date(2014, 01, 01), self.import_date)
+                interval=self.interval
             ),
         )
 
@@ -54,6 +55,9 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
 
     def requires(self):
+
+        print "EDSERV-IMPORT_DATE:", self.import_date
+
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
