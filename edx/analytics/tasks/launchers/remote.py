@@ -277,7 +277,7 @@ def run_remote_shell(inventory, arguments, shell_command):
             port = split_host[1]
     sudo_user = arguments.sudo_user
     if sudo_user:
-        shell_command = 'sudo -u {0} /bin/bash -c {1}'.format(sudo_user, pipes.quote(shell_command))
+        shell_command = 'sudo -Hu {0} /bin/bash -c {1}'.format(sudo_user, pipes.quote(shell_command))
     command = [
         'ssh',
         '-tt',
