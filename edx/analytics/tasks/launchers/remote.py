@@ -39,7 +39,7 @@ def main():
     parser.add_argument('--shell', help='execute a shell command on the cluster and exit', default=None)
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
-    parser.add_argument('--wheel-url', help='url of the wheelhouse', default=os.getenv('WHEEL_URL'))
+    parser.add_argument('--wheel-url', help='url of the wheelhouse', default=None)
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
@@ -92,7 +92,7 @@ def run_task_playbook(inventory, arguments, uid):
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 
-    command = 'cd {data_dir}/repo && . /home/{sudo_user}/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
+    command = 'cd {data_dir}/repo && . $HOME/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
         env_vars=env_var_string + ' ' if env_var_string else '',
         data_dir=data_dir,
         task_arguments=' '.join(arguments.launch_task_arguments),
