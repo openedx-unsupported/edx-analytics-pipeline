@@ -460,10 +460,11 @@ class MergeTrajectorySourceDataTask(TrajectoryDownstreamMixin, HiveTableFromQuer
                 merge_key,
                 COUNT(DISTINCT video_id) as num_videos
             FROM per_student_videos_per_chapter vids_middle
-            WHERE merge_key IN (
-                SELECT DISTINCT merge_key FROM per_student_videos_per_chapter
-                WHERE dt >= '{start_date}' AND dt <= '{end_date}'
-            )
+            ------------------------ Optimization that requires Hive 0.13 + ----
+            ---WHERE merge_key IN (
+            ---    SELECT DISTINCT merge_key FROM per_student_videos_per_chapter
+            ---    WHERE dt >= '{start_date}' AND dt <= '{end_date}'
+            ---)
             GROUP BY merge_key, course_id, chapter_id, username
         ) vids
         FULL OUTER JOIN (
@@ -474,10 +475,11 @@ class MergeTrajectorySourceDataTask(TrajectoryDownstreamMixin, HiveTableFromQuer
                 merge_key,
                 COUNT(DISTINCT problem_id) as num_problems
             FROM per_student_problems_per_chapter probs_middle
-            WHERE merge_key IN (
-                SELECT DISTINCT merge_key FROM per_student_problems_per_chapter
-                WHERE dt >= '{start_date}' AND dt <= '{end_date}'
-            )
+            ------------------------ Optimization that requires Hive 0.13 + ----
+            ---WHERE merge_key IN (
+            ---    SELECT DISTINCT merge_key FROM per_student_problems_per_chapter
+            ---    WHERE dt >= '{start_date}' AND dt <= '{end_date}'
+            ---)
             GROUP BY merge_key, course_id, chapter_id, username
         ) probs
         ON vids.merge_key = probs.merge_key
