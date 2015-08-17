@@ -124,15 +124,19 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             FROM
             (
                 SELECT DISTINCT
-                    order_course_id AS course_id
-                FROM reconciled_order_transactions
-                UNION ALL
-                SELECT DISTINCT
                     course_id
-                FROM
-                    course_modes_coursemode
-                WHERE
-                    mode_slug in ('verified', 'professional', 'no-id-professional')
+                FROM (
+                    SELECT
+                        order_course_id AS course_id
+                    FROM reconciled_order_transactions
+                    UNION ALL
+                    SELECT
+                        course_id
+                    FROM
+                        course_modes_coursemode
+                    WHERE
+                        mode_slug in ('verified', 'professional', 'no-id-professional')
+                ) courses_inner
             ) courses
 
             -- Course Information --
