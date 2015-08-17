@@ -28,13 +28,6 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
     )
-    # Create a dummy default for this parameter, since it is parsed by EventLogSelectionTask
-    # but not actually used.
-    #import_date = luigi.DateIntervalParameter(default=datetime.datetime.utcnow().date().isoformat())
-    #interval = luigi.DateIntervalParameter(default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(import_date)))
-    #interval = luigi.DateIntervalParameter(default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(import_date)))
-
-    # interval=luigi.date_interval.Custom(datetime.date(2014, 01, 01), import_date)
 
     import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
@@ -62,11 +55,9 @@ class BuildFinancialReportsTask(
             'import_date': self.import_date,
             'mapreduce_engine': self.mapreduce_engine,
             'n_reduce_tasks': self.n_reduce_tasks,
-            'interval': self.interval,
+            'pattern': self.pattern,
         }
 
-        print "INTERVALLLLL:", self.interval
-        
 
     # Transaction Report Requires
     # def requires(self):
