@@ -53,13 +53,13 @@ class BuildFinancialReportsTask(
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
-            'mapreduce_engine': self.mapreduce_engine,
-            'n_reduce_tasks': self.n_reduce_tasks,
+            #'mapreduce_engine': self.mapreduce_engine,
+            #'n_reduce_tasks': self.n_reduce_tasks,
             # 'interval': self.interval,
             # 'pattern': self.pattern,
         }
 
-        
+
 
 
     # Transaction Report Requires
