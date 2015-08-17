@@ -65,6 +65,8 @@ class BuildFinancialReportsTask(
             'interval': self.interval,
         }
 
+        print "INTERVALLLLL:", self.interval
+        
 
     # Transaction Report Requires
     # def requires(self):
