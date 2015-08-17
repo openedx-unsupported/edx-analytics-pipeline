@@ -55,8 +55,11 @@ class BuildFinancialReportsTask(
             'import_date': self.import_date,
             'mapreduce_engine': self.mapreduce_engine,
             'n_reduce_tasks': self.n_reduce_tasks,
-            'pattern': self.pattern,
+            # 'interval': self.interval,
+            # 'pattern': self.pattern,
         }
+
+        
 
 
     # Transaction Report Requires
