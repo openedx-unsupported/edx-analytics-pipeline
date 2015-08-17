@@ -30,12 +30,13 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
     )
 
     import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    start_date = luigi.DateParameter(default="2014-01-01")
+    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
-
 
 
 class BuildFinancialReportsTask(
@@ -45,8 +46,12 @@ class BuildFinancialReportsTask(
 
     def requires(self):
 
+        # interval = luigi.DateIntervalParameter(
+        #     default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
+        #     )
+
         interval = luigi.DateIntervalParameter(
-            default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
+            default=luigi.date_interval.Custom.parse(format(self.start_date)."-".format(self.end_date))
             )
 
         print "INTERVVVVVVVVAAAAAALLLLLL:", self.interval
