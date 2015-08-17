@@ -44,17 +44,19 @@ class BuildFinancialReportsTask(
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
+    @property
     def requires(self):
 
-        # interval = luigi.DateIntervalParameter(
-        #     default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
-        #     )
-
         interval = luigi.DateIntervalParameter(
-            default=luigi.date_interval.Custom.parse(format(self.start_date)."-".format(self.end_date))
+            #default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
+            default=luigi.date_interval.Custom.parse(self.start_date + "-" + self.end_date)
             )
 
-        print "INTERVVVVVVVVAAAAAALLLLLL:", self.interval
+        # interval = luigi.DateIntervalParameter(
+        #     default=luigi.date_interval.Custom.parse(format(self.start_date)."-".format(self.end_date))
+        #     )
+
+        # print "INTERVVVVVVVVAAAAAALLLLLL:", self.interval
 
         kwargs = {
             'num_mappers': self.num_mappers,
