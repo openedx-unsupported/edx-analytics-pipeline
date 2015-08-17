@@ -49,6 +49,8 @@ class BuildFinancialReportsTask(
             default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
             )
 
+        print "INTERVVVVVVVVAAAAAALLLLLL:", self.interval
+
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
