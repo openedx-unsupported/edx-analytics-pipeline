@@ -1,4 +1,3 @@
-
 import luigi
 import luigi.hdfs
 import luigi.date_interval
@@ -10,7 +9,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 # from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
 from edx.analytics.tasks.reports.reconcile import ReconcileOrdersAndTransactionsDownstreamMixin
 # from edx.analytics.tasks.database_imports import (
-#     DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
+# DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
 # )
 
 class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
@@ -47,16 +46,13 @@ class BuildFinancialReportsTask(
     @property
     def requires(self):
 
+        format_interval = str(self.start_date) + "-" + str(self.end_date)
+
+        print "FORMATTTTTT INTERVAL:", format_interval
+
         interval = luigi.DateIntervalParameter(
-            #default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(self.import_date))
-            default=luigi.date_interval.Custom.parse(self.start_date + "-" + self.end_date)
+            default=luigi.date_interval.Custom.parse(format_interval)
             )
-
-        # interval = luigi.DateIntervalParameter(
-        #     default=luigi.date_interval.Custom.parse(format(self.start_date)."-".format(self.end_date))
-        #     )
-
-        # print "INTERVVVVVVVVAAAAAALLLLLL:", self.interval
 
         kwargs = {
             'num_mappers': self.num_mappers,
@@ -64,37 +60,36 @@ class BuildFinancialReportsTask(
             'import_date': self.import_date,
             #'mapreduce_engine': self.mapreduce_engine,
             #'n_reduce_tasks': self.n_reduce_tasks,
-            'interval': self.interval,
+            'interval': interval,
             # 'pattern': self.pattern,
         }
 
+        # Transaction Report Requires
+        # def requires(self):
+        #     return ReconcileOrdersAndTransactionsTask(
+        #         mapreduce_engine=self.mapreduce_engine,
+        #         n_reduce_tasks=self.n_reduce_tasks,
+        #         transaction_source=self.transaction_source,
+        #         order_source=self.order_source,
+        #         interval=self.interval,
+        #         pattern=self.pattern,
+        #         output_root=self.partition_location,
+        #         # overwrite=self.overwrite,
+        #     )
 
 
+        # yield (
+        #     BuildEdServicesReportTask(
+        #         destination=self.destination,
+        #         credentials=self.credentials,
+        #         database=self.database,
+        #         **kwargs
+        #     ),
+        # )
 
-    # Transaction Report Requires
-    # def requires(self):
-    #     return ReconcileOrdersAndTransactionsTask(
-    #         mapreduce_engine=self.mapreduce_engine,
-    #         n_reduce_tasks=self.n_reduce_tasks,
-    #         transaction_source=self.transaction_source,
-    #         order_source=self.order_source,
-    #         interval=self.interval,
-    #         pattern=self.pattern,
-    #         output_root=self.partition_location,
-    #         # overwrite=self.overwrite,
-    #     )
-
-        # kwargs = {
-        #     'num_mappers': self.num_mappers,
-        #     'verbose': self.verbose,
-        #     'import_date': self.import_date,
-        #     'overwrite': self.overwrite,
-        # }
-        yield (
-            BuildEdServicesReportTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
+        return BuildEdServicesReportTask(
+            destination=self.destination,
+            credentials=self.credentials,
+            database=self.database,
+            **kwargs
         )
