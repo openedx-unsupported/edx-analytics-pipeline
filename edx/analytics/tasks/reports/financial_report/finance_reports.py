@@ -48,11 +48,11 @@ class BuildFinancialReportsTask(
 
         format_interval = str(self.start_date) + "-" + str(self.end_date)
 
-        print "FORMATTTTTT INTERVAL:", format_interval
-
         interval = luigi.DateIntervalParameter(
             default=luigi.date_interval.Custom.parse(format_interval)
             )
+
+        print "FORMATTTTTT INTERVAL:", self.interval
 
         kwargs = {
             'num_mappers': self.num_mappers,
