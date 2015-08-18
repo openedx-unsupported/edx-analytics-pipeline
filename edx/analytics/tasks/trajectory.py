@@ -113,7 +113,7 @@ class ChapterAssociationTask(EventLogSelectionMixin, MapReduceJobTask):
         if event_type not in (VIDEO_PLAYED, PROBLEM_CHECK):
             return  # We don't care about this type of event
 
-        referer_info = re.match(self.COURSEWARE_URL_PATTERN, event.get('referer'))
+        referer_info = re.match(self.COURSEWARE_URL_PATTERN, event.get('referer', ''))
         if not referer_info:
             return
         chapter_id = referer_info.group('chapter_id')
