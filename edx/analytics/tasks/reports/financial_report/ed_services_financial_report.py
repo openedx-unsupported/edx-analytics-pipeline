@@ -88,7 +88,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
 
     def requires(self):
-
         print "IMPOOOORT DATE:", self.import_date
 
         kwargs = {
