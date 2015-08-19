@@ -57,10 +57,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     interval = luigi.DateIntervalParameter(default=None)
 
-    def required_table_tasks(self):
-        print "INTERVALLLLLLLLL: ", self.interval
-
-        yield(
+    def requires(self):
+        yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(
                 destination=self.destination,
@@ -78,8 +76,14 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
                 interval=self.interval
-            )
+            ),
         )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+
 
 class BuildEdServicesReportTaskOrig(DatabaseImportMixin, HiveTableFromQueryTask):
     """
