@@ -558,11 +558,9 @@ class EnrollmentSnapshotTask(EnrollmentTask):
                 ce.course_id,
                 ce.user_id
             FROM course_enrollment ce
-            JOIN (SELECT MAX(`date`) as max_date FROM course_enrollment WHERE dt='{partition_date}') md
-            WHERE at_end=1 AND dt='{partition_date}' AND ce.`date`=md.max_date;
-        """.format(
-            partition_date=self.interval.date_b.isoformat()
-        )
+            JOIN (SELECT MAX(`date`) as max_date FROM course_enrollment) md
+            WHERE at_end=1 AND ce.`date`=md.max_date;
+        """
 
     @property
     def columns(self):
