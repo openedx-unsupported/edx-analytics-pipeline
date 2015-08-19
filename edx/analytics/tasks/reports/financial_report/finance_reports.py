@@ -4,15 +4,11 @@ import luigi.date_interval
 import datetime
 from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import BuildEdServicesReportTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-
-# from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-# from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
 from edx.analytics.tasks.reports.reconcile import ReconcileOrdersAndTransactionsDownstreamMixin
-# from edx.analytics.tasks.database_imports import (
-# DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
-# )
+
 
 class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
+
     database = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'database'})
     credentials = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'credentials'})
     destination = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'destination'})
@@ -29,16 +25,46 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
     )
 
     import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    start_date = luigi.DateParameter(default="2014-01-01")
-    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    interval_start = luigi.DateParameter(default="2014-01-01")
+    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
+    # Make the interval be optional:
+    interval = luigi.DateIntervalParameter(default=None)
 
 class BuildFinancialReportsTask(
+    BuildFinancialReportsMixin,
+    ReconcileOrdersAndTransactionsDownstreamMixin,
+    luigi.WrapperTask):
+
+    def requires(self):
+
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
+        print 'WOOOOOOOOOOOOOOOOOOOOOOOOOOOO'
+
+        kwargs = {
+            'num_mappers': self.num_mappers,
+            'verbose': self.verbose,
+            #'import_date': self.import_date,
+            #'interval': self.interval,
+        }
+
+        return BuildEdServicesReportTask(
+            destination=self.destination,
+            credentials=self.credentials,
+            database=self.database,
+            **kwargs
+        )
+
+
+
+class BuildFinancialReportsTaskOrig(
     BuildFinancialReportsMixin,
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
@@ -46,11 +72,8 @@ class BuildFinancialReportsTask(
     @property
     def requires(self):
 
-        format_interval = str(self.start_date) + "-" + str(self.end_date)
-
-        interval = luigi.DateIntervalParameter(
-            default=luigi.date_interval.Custom.parse(format_interval)
-            )
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
         print "FORMATTTTTT INTERVAL:", self.interval
 
@@ -58,10 +81,8 @@ class BuildFinancialReportsTask(
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
-            #'mapreduce_engine': self.mapreduce_engine,
-            #'n_reduce_tasks': self.n_reduce_tasks,
-            'interval': self.interval,
-            # 'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+            #'interval': self.interval,
         }
 
         # Transaction Report Requires
