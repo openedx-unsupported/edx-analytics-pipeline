@@ -14,6 +14,8 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
+    interval = luigi.DateIntervalParameter(default=None)
+
     def requires(self):
         kwargs = {
             'num_mappers': self.num_mappers,
@@ -39,7 +41,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             ),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
-                interval=self.interval,
+                interval=self.interval
             ),
         )
 
@@ -48,39 +50,38 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
 
 
-# class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
-#     """
-#     Builds the financial report delivered to Ed Services.
-#
-#     """
-#
-#     print "IIIIIIIIIIIIIINNNNNNN"
-#
-#     def required_table_tasks(self):
-#         print "INTERVALLLLLLLLL: ", self.interval
-#
-#         yield(
-#             # Import Course Information: Mainly Course Mode & Suggested Prices
-#             ImportCourseModeTask(
-#                 destination=self.destination,
-#                 credentials=self.credentials,
-#                 database=self.database,
-#                 **kwargs
-#             ),
-#             # Import Student Enrollment Information
-#             ImportStudentCourseEnrollmentTask(
-#                 destination=self.destination,
-#                 credentials=self.credentials,
-#                 database=self.database,
-#                 **kwargs
-#             ),
-#             # Import Reconciled Orders and Transactions
-#             ReconciledOrderTransactionTableTask(
-#                 interval=self.interval
-#             )
-#         )
-
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+    """
+    Builds the financial report delivered to Ed Services.
+
+    """
+    interval = luigi.DateIntervalParameter(default=None)
+
+    def required_table_tasks(self):
+        print "INTERVALLLLLLLLL: ", self.interval
+
+        yield(
+            # Import Course Information: Mainly Course Mode & Suggested Prices
+            ImportCourseModeTask(
+                destination=self.destination,
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
+            # Import Student Enrollment Information
+            ImportStudentCourseEnrollmentTask(
+                destination=self.destination,
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
+            # Import Reconciled Orders and Transactions
+            ReconciledOrderTransactionTableTask(
+                interval=self.interval
+            )
+        )
+
+class BuildEdServicesReportTaskOrig(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
