@@ -56,6 +56,7 @@ class BuildFinancialReportsTask(
         }
 
         return BuildEdServicesReportTask(
+            interval=self.interval,
             destination=self.destination,
             credentials=self.credentials,
             database=self.database,
