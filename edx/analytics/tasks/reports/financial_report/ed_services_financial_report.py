@@ -10,7 +10,6 @@ from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
 )
 
-
 class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
@@ -40,7 +39,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             ),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
-                interval=self.interval
+                interval=self.interval,
             ),
         )
 
@@ -86,32 +85,23 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
+    interval = luigi.DateIntervalParameter(default=None)
 
     def requires(self):
-        print "IMPOOOORT DATE:", self.import_date
+        kwargs = {
+            'interval': self.interval,
+            # 'num_mappers': self.num_mappers,
+            # 'verbose': self.verbose,
+            # 'import_date': self.import_date,
+            # 'overwrite': self.overwrite,
+        }
 
-        # kwargs = {
-        #     'num_mappers': self.num_mappers,
-        #     'verbose': self.verbose,
-        #     'import_date': self.import_date,
-        #     'overwrite': self.overwrite,
-        #     'interval': self.interval,
-        # }
-        # yield (
-        #     ImportCourseAndEnrollmentTablesTask(
-        #         destination=self.destination,
-        #         credentials=self.credentials,
-        #         database=self.database,
-        #         **kwargs
-        #     ),
-        # )
         yield (
             ImportCourseAndEnrollmentTablesTask(
                 num_mappers=self.num_mappers,
                 verbose=self.verbose,
                 import_date=self.import_date,
                 overwrite=self.overwrite,
-                interval=self.interval,
                 destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,

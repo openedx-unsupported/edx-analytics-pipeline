@@ -33,8 +33,14 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
+    def __init__(self, *args, **kwargs):
+        super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
+
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
     # Make the interval be optional:
-    interval = luigi.DateIntervalParameter(default=None)
+    # interval = luigi.DateIntervalParameter(default=None)
 
 class BuildFinancialReportsTask(
     BuildFinancialReportsMixin,
@@ -43,18 +49,11 @@ class BuildFinancialReportsTask(
 
     def requires(self):
 
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
-
-        print 'WOOOOOOOOOOOOOOOOOOOOOOOOOOOO'
-
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             #'import_date': self.import_date,
-            #'interval': self.interval,
         }
-
         return BuildEdServicesReportTask(
             interval=self.interval,
             destination=self.destination,
@@ -62,8 +61,6 @@ class BuildFinancialReportsTask(
             database=self.database,
             **kwargs
         )
-
-
 
 class BuildFinancialReportsTaskOrig(
     BuildFinancialReportsMixin,
