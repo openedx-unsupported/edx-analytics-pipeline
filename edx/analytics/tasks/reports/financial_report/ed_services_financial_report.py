@@ -90,15 +90,28 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def requires(self):
         print "IMPOOOORT DATE:", self.import_date
 
-        kwargs = {
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'overwrite': self.overwrite,
-            'interval': self.interval,
-        }
+        # kwargs = {
+        #     'num_mappers': self.num_mappers,
+        #     'verbose': self.verbose,
+        #     'import_date': self.import_date,
+        #     'overwrite': self.overwrite,
+        #     'interval': self.interval,
+        # }
+        # yield (
+        #     ImportCourseAndEnrollmentTablesTask(
+        #         destination=self.destination,
+        #         credentials=self.credentials,
+        #         database=self.database,
+        #         **kwargs
+        #     ),
+        # )
         yield (
             ImportCourseAndEnrollmentTablesTask(
+                num_mappers=self.num_mappers,
+                verbose=self.verbose,
+                import_date=self.import_date,
+                overwrite=self.overwrite,
+                interval=self.interval,
                 destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,
