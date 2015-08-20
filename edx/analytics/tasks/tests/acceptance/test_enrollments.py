@@ -33,6 +33,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         self.validate_birth_year()
         self.validate_education_level()
         self.validate_mode()
+        self.validate_snapshot()
 
     def validate_gender(self):
         """Ensure the gender breakdown is correct."""
@@ -121,6 +122,25 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 0, 2),
+        ]
+        self.assertItemsEqual(expected, results)
+
+    def validate_snapshot(self):
+        """Ensure the snapshot is correct."""
+        with self.export_db.cursor() as cursor:
+            cursor.execute(
+                'SELECT course_id, user_id FROM course_enrollment_snapshot'
+                ' ORDER BY course_id, user_id ASC'
+            )
+            results = cursor.fetchall()
+
+        expected = [
+            ('edX/Open_DemoX/edx_demo_course', 1),
+            ('edX/Open_DemoX/edx_demo_course', 2),
+            ('edX/Open_DemoX/edx_demo_course', 3),
+            ('edX/Open_DemoX/edx_demo_course', 4),
+            ('course-v1:edX+Open_DemoX+edx_demo_course2', 1),
+            ('course-v1:edX+Open_DemoX+edx_demo_course2', 2),
         ]
         self.assertItemsEqual(expected, results)
 
