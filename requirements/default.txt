@@ -30,7 +30,7 @@ pycparser==2.13        # BSD
 requests==2.7.0     # Apache 2.0
 urllib3==1.10.4        # MIT
 psycopg2==2.6.1     # LGPL
+vertica-python==0.5.1   # MIT
 git+https://github.com/edx/luigi.git@v1.0.17-fork.edx.1#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/opaque-keys.git@33f2b099e92957046a866a9b6d48a71c484bb475#egg=opaque-keys
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
-git+https://github.com/jrowan/vertica-python#egg=vertica-python     # MIT
