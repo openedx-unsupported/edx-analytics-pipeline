@@ -75,7 +75,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,
-                **kwargs
             ),
         )
 
