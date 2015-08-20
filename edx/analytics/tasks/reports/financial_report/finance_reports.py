@@ -39,8 +39,6 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
         if not self.interval:
             self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
-    # Make the interval be optional:
-    # interval = luigi.DateIntervalParameter(default=None)
 
 class BuildFinancialReportsTask(
     BuildFinancialReportsMixin,
@@ -48,65 +46,12 @@ class BuildFinancialReportsTask(
     luigi.WrapperTask):
 
     def requires(self):
-
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
-            #'import_date': self.import_date,
         }
         return BuildEdServicesReportTask(
             interval=self.interval,
-            destination=self.destination,
-            credentials=self.credentials,
-            database=self.database,
-            **kwargs
-        )
-
-class BuildFinancialReportsTaskOrig(
-    BuildFinancialReportsMixin,
-    ReconcileOrdersAndTransactionsDownstreamMixin,
-    luigi.WrapperTask):
-
-    @property
-    def requires(self):
-
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
-
-        print "FORMATTTTTT INTERVAL:", self.interval
-
-        kwargs = {
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'warehouse_path': self.warehouse_path,
-            #'interval': self.interval,
-        }
-
-        # Transaction Report Requires
-        # def requires(self):
-        #     return ReconcileOrdersAndTransactionsTask(
-        #         mapreduce_engine=self.mapreduce_engine,
-        #         n_reduce_tasks=self.n_reduce_tasks,
-        #         transaction_source=self.transaction_source,
-        #         order_source=self.order_source,
-        #         interval=self.interval,
-        #         pattern=self.pattern,
-        #         output_root=self.partition_location,
-        #         # overwrite=self.overwrite,
-        #     )
-
-
-        # yield (
-        #     BuildEdServicesReportTask(
-        #         destination=self.destination,
-        #         credentials=self.credentials,
-        #         database=self.database,
-        #         **kwargs
-        #     ),
-        # )
-
-        return BuildEdServicesReportTask(
             destination=self.destination,
             credentials=self.credentials,
             database=self.database,

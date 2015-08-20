@@ -51,44 +51,44 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
 
 
+# class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+#     """
+#     Builds the financial report delivered to Ed Services.
+#
+#     """
+#     interval = luigi.DateIntervalParameter(default=None)
+#
+#     def requires(self):
+#
+#         yield (
+#             # Import Course Information: Mainly Course Mode & Suggested Prices
+#             ImportCourseModeTask(
+#                 destination=self.destination,
+#                 credentials=self.credentials,
+#                 database=self.database,
+#                 #**kwargs
+#             ),
+#             # Import Student Enrollment Information
+#             ImportStudentCourseEnrollmentTask(
+#                 destination=self.destination,
+#                 credentials=self.credentials,
+#                 database=self.database,
+#                 #**kwargs
+#             ),
+#             # Import Reconciled Orders and Transactions
+#             # ReconciledOrderTransactionTableTask(
+#             #     interval=self.interval,
+#             #     transaction_source=self.transaction_source
+#             # ),
+#         )
+#
+#     def output(self):
+#         return [task.output() for task in self.requires()]
+#
+
+
+
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
-    """
-    Builds the financial report delivered to Ed Services.
-
-    """
-    interval = luigi.DateIntervalParameter(default=None)
-
-    def requires(self):
-
-        yield (
-            # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                #**kwargs
-            ),
-            # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                #**kwargs
-            ),
-            # Import Reconciled Orders and Transactions
-            # ReconciledOrderTransactionTableTask(
-            #     interval=self.interval,
-            #     transaction_source=self.transaction_source
-            # ),
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
-
-
-
-
-class BuildEdServicesReportTaskOrig(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
@@ -103,7 +103,6 @@ class BuildEdServicesReportTaskOrig(DatabaseImportMixin, HiveTableFromQueryTask)
             # 'import_date': self.import_date,
             # 'overwrite': self.overwrite,
         }
-
         yield (
             ImportCourseAndEnrollmentTablesTask(
                 num_mappers=self.num_mappers,
