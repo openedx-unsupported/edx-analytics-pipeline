@@ -25,20 +25,28 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             'interval': self.interval,
         }
         yield (
-            # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
+            # # Import Course Information: Mainly Course Mode & Suggested Prices
+            # ImportCourseModeTask(
+            #     destination=self.destination,
+            #     credentials=self.credentials,
+            #     database=self.database,
+            #     **kwargs
+            # ),
+            # # Import Student Enrollment Information
+            # ImportStudentCourseEnrollmentTask(
+            #     destination=self.destination,
+            #     credentials=self.credentials,
+            #     database=self.database,
+            #     **kwargs
+            # ),
+            # # Import Reconciled Orders and Transactions
+            # ReconciledOrderTransactionTableTask(
+            #     interval=self.interval,
+            #     transaction_source=self.transaction_source,
+            # ),
+            ImportCourseModeTask(),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
+            ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
                 interval=self.interval,
