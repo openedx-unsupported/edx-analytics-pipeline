@@ -15,6 +15,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
     interval = luigi.DateIntervalParameter(default=None)
+    transaction_source = luigi.Parameter(default=None)
 
     def requires(self):
         kwargs = {
