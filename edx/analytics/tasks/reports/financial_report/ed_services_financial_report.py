@@ -67,13 +67,14 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     interval = luigi.DateIntervalParameter(default=None)
 
     def requires(self):
-        # kwargs = {
-        #     # 'interval': self.interval,
-        #     # 'num_mappers': self.num_mappers,
-        #     # 'verbose': self.verbose,
-        #     # 'import_date': self.import_date,
-        #     # 'overwrite': self.overwrite,
-        # }
+
+        kwargs = {
+            'interval': self.interval,
+            'num_mappers': self.num_mappers,
+            'verbose': self.verbose,
+            'import_date': self.import_date,
+            'overwrite': self.overwrite,
+        }
         yield (
             ImportCourseAndEnrollmentTablesTask(
                 interval=self.interval,
