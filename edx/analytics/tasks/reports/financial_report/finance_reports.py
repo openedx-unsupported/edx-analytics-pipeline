@@ -53,6 +53,9 @@ class BuildFinancialReportsTask(
             'verbose': self.verbose,
             'interval': self.interval,
         }
+        print "FFFFFFFFFFFFFFFUUUUUUCCCCCCCKKKKKKKKK", self.interval
+        
+
         return BuildEdServicesReportTask(
             destination=self.destination,
             credentials=self.credentials,
