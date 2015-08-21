@@ -19,6 +19,7 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
     overwrite = luigi.BooleanParameter(default=True)
 
+
     order_source = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'})
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
@@ -49,6 +50,8 @@ class BuildFinancialReportsTask(
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
+            'order_source': self.order_source,
+            'transaction_source': self.transaction_source,
         }
         return BuildEdServicesReportTask(
             interval=self.interval,
