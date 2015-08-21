@@ -2,19 +2,22 @@ import luigi
 import luigi.hdfs
 import luigi.date_interval
 import datetime
-from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import BuildEdServicesReportTask
+from edx.analytics.tasks.database_imports import DatabaseImportMixin
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.reports.reconcile import ReconcileOrdersAndTransactionsDownstreamMixin
+from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import BuildEdServicesReportTask
 
 
-class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
+class BuildFinancialReportsMixin(DatabaseImportMixin):
 
-    database = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'database'})
-    credentials = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'credentials'})
-    destination = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'destination'})
+    # database = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'database'})
+    # credentials = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'credentials'})
+    # destination = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'destination'})
+    # verbose = luigi.BooleanParameter(default=False)
+    # num_mappers = luigi.Parameter(default=None)
+    # import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+
     output_root = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'output_root'})
-    verbose = luigi.BooleanParameter(default=False)
-    num_mappers = luigi.Parameter(default=None)
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
     overwrite = luigi.BooleanParameter(default=True)
@@ -24,7 +27,6 @@ class BuildFinancialReportsMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
     )
 
-    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     interval_start = luigi.DateParameter(default="2014-01-01")
     interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
@@ -53,8 +55,6 @@ class BuildFinancialReportsTask(
             'verbose': self.verbose,
             'interval': self.interval,
         }
-        print "FFFFFFFFFFFFFFFUUUUUUCCCCCCCKKKKKKKKK", self.interval
-        
 
         return BuildEdServicesReportTask(
             destination=self.destination,
