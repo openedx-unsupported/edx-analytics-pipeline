@@ -9,7 +9,10 @@ import datetime
 import json
 
 import luigi
-import mysql.connector
+try:
+    import mysql.connector
+except ImportError:
+    pass  # Another .py file for a hadoop map reduce task could import this file when no mysql-connector is available
 from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
