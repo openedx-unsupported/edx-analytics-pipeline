@@ -141,7 +141,7 @@ class MysqlSelectTask(luigi.Task):
             output_file (file): A file-like object that the records will be written to.
         """
 
-        writer = csv.writer(output_file, delimiter="\t", quoting=csv.QUOTE_NONE)
+        writer = csv.writer(output_file, delimiter="\t", quoting=csv.QUOTE_NONE, quotechar=None)
 
         while True:
             row = cursor.fetchone()
