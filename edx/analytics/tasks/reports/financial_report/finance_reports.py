@@ -20,14 +20,15 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
     )
-
-    interval_start = luigi.DateParameter(default="2014-01-01")
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
+    interval_start = luigi.DateParameter(
+        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+    )
+    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     def __init__(self, *args, **kwargs):
         super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
