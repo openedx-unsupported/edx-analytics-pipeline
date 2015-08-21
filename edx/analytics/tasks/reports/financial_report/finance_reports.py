@@ -48,6 +48,9 @@ class BuildFinancialReportsTask(
     interval = luigi.DateIntervalParameter(default=None)
 
     def requires(self):
+
+        print "IIIII: ", self.interval
+
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
