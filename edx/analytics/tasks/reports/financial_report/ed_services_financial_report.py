@@ -47,7 +47,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             # ),
             ImportCourseModeTask(),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(),
+            # ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             # ReconciledOrderTransactionTableTask(
             #     interval=self.interval,
