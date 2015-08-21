@@ -310,7 +310,8 @@ class CredentialFileVerticaTarget(VerticaTarget):
         credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
             that will be used to connect to the database.
         database_name (str): The name of the database that the table exists in. Note this database need not exist.
-        table (str): The name of the table in the database that is being modified.
+        schema (str): The name of the schema in which the table being modified lies.
+        table (str): The name of the table in the schema that is being modified.
         update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
             values will not be executed.
     """

@@ -62,8 +62,7 @@ class VerticaService(object):
                                       database='', host=self.credentials.get('host'))
 
     def reset(self):
-        """Create a testing schema on the Vertica replacing any existing content with an empty database."""
-        # The testing Vertica user doesn't have create/delete schema privileges, so we pass here.
+        """Create a testing schema on the Vertica database replacing any existing content with an empty database."""
         with self.cursor() as cur:
-            cur.execute('DROP SCHEMA IF EXISTS {0} CASCADE;'.format(self.schema_name))
-            cur.execute('CREATE SCHEMA {0};'.format(self.schema_name))
+            reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}'.format(self.schema_name)
+            cur.execute(reset_query)
