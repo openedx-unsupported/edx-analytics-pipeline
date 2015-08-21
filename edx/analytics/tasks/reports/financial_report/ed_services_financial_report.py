@@ -16,7 +16,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     """
     interval = luigi.DateIntervalParameter(default=None)
     transaction_source = luigi.Parameter(default=None)
-    order_source = luigi.Parameter(default=None)
 
     def requires(self):
         kwargs = {
@@ -46,14 +45,13 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             #     interval=self.interval,
             #     transaction_source=self.transaction_source,
             # ),
-            # ImportCourseModeTask(),
+            ImportCourseModeTask(),
             # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(),
+            ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
                 interval=self.interval,
                 transaction_source=self.transaction_source,
-                order_source=self.order_source,
             ),
         )
 
