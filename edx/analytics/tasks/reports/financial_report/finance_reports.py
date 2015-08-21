@@ -10,19 +10,13 @@ from edx.analytics.tasks.reports.financial_report.ed_services_financial_report i
 
 class BuildFinancialReportsMixin(DatabaseImportMixin):
 
-    # database = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'database'})
-    # credentials = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'credentials'})
-    # destination = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'destination'})
-    # verbose = luigi.BooleanParameter(default=False)
-    # num_mappers = luigi.Parameter(default=None)
-    # import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-
     output_root = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'output_root'})
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
     overwrite = luigi.BooleanParameter(default=True)
 
-    order_source = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'})
+    order_source = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'})
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
     )

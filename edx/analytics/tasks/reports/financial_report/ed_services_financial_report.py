@@ -49,10 +49,10 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                interval=self.interval,
-                transaction_source=self.transaction_source,
-            ),
+            # ReconciledOrderTransactionTableTask(
+            #     interval=self.interval,
+            #     transaction_source=self.transaction_source,
+            # ),
         )
 
     def output(self):
