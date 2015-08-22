@@ -49,7 +49,7 @@ class BuildFinancialReportsTask(
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
-    interval = luigi.DateIntervalParameter(default=None)
+    interval = luigi.DateIntervalParameter()
 
     def requires(self):
         kwargs = {
