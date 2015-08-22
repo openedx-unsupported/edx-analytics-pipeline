@@ -11,13 +11,9 @@ We assume that some scheduled process is in place that computes offline grades
 import datetime
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_dump import MysqlSelectTask, mysql_datetime
+from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.util.hive import (
-    WarehouseMixin,
-    HivePartition,
-    HiveTableTask,
-    HiveQueryToMysqlTask,
-)
+from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask
 import json
 import logging
 import luigi
@@ -121,7 +117,7 @@ class LetterGradeBreakdownTask(GradesParametersMixin, MapReduceJobTask):
                 letter_grade,
                 num_students,
                 percent_of_students,
-                is_passing,
+                int(is_passing),
             )
 
     def output(self):
@@ -130,7 +126,10 @@ class LetterGradeBreakdownTask(GradesParametersMixin, MapReduceJobTask):
 
 class GradesTaskDownstreamMixin(GradesParametersMixin, WarehouseMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the tasks below."""
-    pass
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.today.isoformat())
 
 
 class LetterGradeBreakdownTableTask(GradesTaskDownstreamMixin, HiveTableTask):
@@ -148,12 +147,8 @@ class LetterGradeBreakdownTableTask(GradesTaskDownstreamMixin, HiveTableTask):
             ('letter_grade', 'STRING'),
             ('num_students', 'INT'),
             ('percent_students', 'DOUBLE'),
-            ('is_passing', 'BOOLEAN'),
+            ('is_passing', 'INT'),  # Actually boolean but hive booleans don't import automatically to MySQL
         ]
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.today.isoformat())
 
     def requires(self):
         return LetterGradeBreakdownTask(
@@ -165,7 +160,34 @@ class LetterGradeBreakdownTableTask(GradesTaskDownstreamMixin, HiveTableTask):
         )
 
     def output(self):
-        return self.requires().output()
+        return get_target_from_url(self.partition_location)
+
+
+class LetterGradeBreakdownToMysqlTask(GradesTaskDownstreamMixin, MysqlInsertTask):
+    """Imports grade breakdown data to MySQL."""
+    table = 'grade_breakdown'
+    overwrite = luigi.BooleanParameter(default=False)
+
+    @property
+    def insert_source_task(self):
+        return LetterGradeBreakdownTableTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+            today=self.today,
+            max_age_days=self.max_age_days,
+            n_reduce_tasks=self.n_reduce_tasks,
+        )
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('date', 'DATE NOT NULL'),
+            ('letter_grade', 'VARCHAR(64) NULL'),
+            ('num_students', 'INTEGER'),
+            ('percent_students', 'DOUBLE'),
+            ('is_passing', 'BOOLEAN'),
+        ]
 
 
 class GradesPipelineTask(GradesTaskDownstreamMixin, luigi.WrapperTask):
@@ -180,5 +202,5 @@ class GradesPipelineTask(GradesTaskDownstreamMixin, luigi.WrapperTask):
             'max_age_days': self.max_age_days,
         }
         yield (
-            LetterGradeBreakdownTableTask(**kwargs),
+            LetterGradeBreakdownToMysqlTask(**kwargs),
         )
