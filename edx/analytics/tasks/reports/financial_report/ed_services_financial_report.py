@@ -4,8 +4,9 @@ import luigi.date_interval
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
+from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
-    DatabaseImportMixin, ImportCourseModeTask
+    DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 
 class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
@@ -21,26 +22,26 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers
+            'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
             'destination': self.destination,
         }
         yield (
-            # # Import Course Information: Mainly Course Mode & Suggested Prices
+            # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(
                 credentials=self.credentials,
                 database=self.database,
                 **kwargs
             ),
-            # # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(
-            #     destination=self.destination,
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
+            # Import Student Enrollment Information
+            ImportStudentCourseEnrollmentTask(
+                destination=self.destination,
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
             # # Import Reconciled Orders and Transactions
             # ReconciledOrderTransactionTableTask(
             #     interval=self.interval,
@@ -77,7 +78,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         kwargs = {
             'interval': self.interval,
             'interval_end': self.interval_end,
-            'num_mappers': self.num_mappers
+            'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
