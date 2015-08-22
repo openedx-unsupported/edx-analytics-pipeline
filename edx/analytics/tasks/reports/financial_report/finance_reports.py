@@ -15,7 +15,7 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
     overwrite = luigi.BooleanParameter(default=True)
 
-    destination = luigi.DateParameter(
+    destination = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'destination'},
         significant=False,
     )
