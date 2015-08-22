@@ -17,10 +17,11 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
+    num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers,
+            'num_mappers': self.num_mappers
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
@@ -70,12 +71,13 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
     database = luigi.Parameter()
+    num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
             'interval': self.interval,
             'interval_end': self.interval_end,
-            'num_mappers': self.num_mappers,
+            'num_mappers': self.num_mappers
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,

@@ -35,6 +35,8 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
     )
     interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
+    num_mappers = luigi.Parameter(default=None)
+
     def __init__(self, *args, **kwargs):
         super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
 
@@ -51,7 +53,7 @@ class BuildFinancialReportsTask(
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers,
+            'num_mappers': self.num_mappers
             'verbose': self.verbose,
             'interval': self.interval,
             'destination': self.destination,
