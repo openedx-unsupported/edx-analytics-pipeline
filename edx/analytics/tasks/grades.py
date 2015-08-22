@@ -104,14 +104,16 @@ class LetterGradeBreakdownTask(GradesParametersMixin, MapReduceJobTask):
 
             letter_grade = gradeset['grade']
             if letter_grade is None:
-                # This user has not been graded yet (they have not done any course work)
+                # This user has not done any graded work yet or is not passing.
                 letter_grade = '\\N'  # Hive representation of NULL
             grade_breakdown[letter_grade] = grade_breakdown.get(letter_grade, 0) + 1
 
         for letter_grade, num_students in grade_breakdown.items():
-            # Note: the pass cutoff is not necessarily 50% so the only way to know if the
-            # student is passing is to look at the letter grade.
-            is_passing = letter_grade not in ('Fail', 'F', '\\N')
+            # Note: the pass cutoff is not necessarily 50%, so the only way to know if the
+            # student is passing is to look at the letter grade. Currently the LMS sets the
+            # letter grade to NULL (\N) when the student is not passing. (We also check for 'F'
+            # and 'Fail' since those are shown in the LMS UI, but they don't seem to be used.)
+            is_passing = letter_grade not in ('\\N', 'Fail', 'F')
             percent_of_students = float(num_students) / total_enrolled * 100
             yield (
                 course_id,
