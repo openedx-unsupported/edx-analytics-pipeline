@@ -1,21 +1,30 @@
-import datetime
 import luigi
 import luigi.hdfs
 import luigi.date_interval
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
-from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
-    DatabaseImportMixin, ImportStudentCourseEnrollmentTask, ImportCourseModeTask
+    DatabaseImportMixin, ImportCourseModeTask
 )
 
 class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    interval = luigi.DateIntervalParameter(default=None)
-    transaction_source = luigi.Parameter(default=None)
+    interval = luigi.DateIntervalParameter()
+    transaction_source = luigi.Parameter()
+    interval_end = luigi.DateParameter()
+    destination = luigi.Parameter()
+
+    # def __init__(self, num_mappers, verbose, interval, destination, interval_end, credentials, database):
+    #     self.num_mappers = num_mappers
+    #     self.verbose = verbose
+    #     self.interval = interval
+    #     self.destination = destination
+    #     self.interval_end = interval_end
+    #     self.credentials = credentials
+    #     self.database = database
 
     def requires(self):
         kwargs = {
@@ -60,11 +69,25 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+# class BuildEdServicesReportTask(object, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
     """
-    interval = luigi.DateIntervalParameter(default=None)
+    # def __init__(self, num_mappers, verbose, interval, destination, interval_end, credentials, database):
+    #     self.num_mappers = num_mappers
+    #     self.verbose = verbose
+    #     self.interval = interval
+    #     self.destination = destination
+    #     self.interval_end = interval_end
+    #     self.credentials = credentials
+    #     self.database = database
+
+    interval = luigi.DateIntervalParameter()
+    transaction_source = luigi.Parameter()
+    interval_end = luigi.DateParameter()
+    destination = luigi.Parameter()
+    database = luigi.Parameter()
 
     def requires(self):
         kwargs = {

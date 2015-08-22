@@ -8,6 +8,7 @@ from edx.analytics.tasks.reports.reconcile import ReconcileOrdersAndTransactions
 from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import BuildEdServicesReportTask
 
 
+
 class BuildFinancialReportsMixin(DatabaseImportMixin):
 
     output_root = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'output_root'})
@@ -54,6 +55,7 @@ class BuildFinancialReportsTask(
             'verbose': self.verbose,
             'interval': self.interval,
             'destination': self.destination,
+            'interval_end': self.interval_end,
         }
         return BuildEdServicesReportTask(
             credentials=self.credentials,
