@@ -15,7 +15,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    interval = luigi.DateIntervalParameter()
+    #interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
@@ -69,7 +69,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
-    interval = luigi.DateIntervalParameter()
+    #interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
@@ -79,7 +79,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     def requires(self):
         kwargs = {
-            'interval': self.interval,
+            #'interval': self.interval,
             'interval_end': self.interval_end,
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,

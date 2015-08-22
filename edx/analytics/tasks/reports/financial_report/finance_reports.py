@@ -37,11 +37,11 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
 
     num_mappers = luigi.Parameter(default=None)
 
-    def __init__(self, *args, **kwargs):
-        super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
-
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+    # def __init__(self, *args, **kwargs):
+    #     super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
+    #
+    #     if not self.interval:
+    #         self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
 class BuildFinancialReportsTask(
@@ -49,7 +49,8 @@ class BuildFinancialReportsTask(
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
-    interval = luigi.DateIntervalParameter()
+    # interval = luigi.DateIntervalParameter(default=None)
+    # print 'IIIIIIII:', self.interval
 
     def requires(self):
         kwargs = {
@@ -57,7 +58,7 @@ class BuildFinancialReportsTask(
             'verbose': self.verbose,
             'interval': self.interval,
             'destination': self.destination,
-            'interval_end': self.interval_end,
+            #'interval_end': self.interval_end,
             'transaction_source': self.transaction_source,
             'order_source': self.order_source,
         }
