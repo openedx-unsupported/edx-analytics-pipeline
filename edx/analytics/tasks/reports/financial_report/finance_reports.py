@@ -56,6 +56,8 @@ class BuildFinancialReportsTask(
             'interval': self.interval,
             'destination': self.destination,
             'interval_end': self.interval_end,
+            'transaction_source': self.transaction_source,
+            'order_source': self.order_source,
         }
         return BuildEdServicesReportTask(
             credentials=self.credentials,

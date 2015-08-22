@@ -18,15 +18,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
 
-    # def __init__(self, num_mappers, verbose, interval, destination, interval_end, credentials, database):
-    #     self.num_mappers = num_mappers
-    #     self.verbose = verbose
-    #     self.interval = interval
-    #     self.destination = destination
-    #     self.interval_end = interval_end
-    #     self.credentials = credentials
-    #     self.database = database
-
     def requires(self):
         kwargs = {
             'num_mappers': self.num_mappers,
@@ -72,20 +63,10 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
-# class BuildEdServicesReportTask(object, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
     """
-    # def __init__(self, num_mappers, verbose, interval, destination, interval_end, credentials, database):
-    #     self.num_mappers = num_mappers
-    #     self.verbose = verbose
-    #     self.interval = interval
-    #     self.destination = destination
-    #     self.interval_end = interval_end
-    #     self.credentials = credentials
-    #     self.database = database
-
     interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
