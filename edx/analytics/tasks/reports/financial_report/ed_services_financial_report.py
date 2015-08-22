@@ -4,21 +4,23 @@ import luigi.date_interval
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
+from edx.analytics.tasks.reports.financial_report.finance_reports import BuildFinancialReportsMixin
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 
-class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
+# class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
+class ImportCourseAndEnrollmentTablesTask(BuildFinancialReportsMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    interval = luigi.DateIntervalParameter()
-    transaction_source = luigi.Parameter()
-    order_source = luigi.Parameter()
-    interval_end = luigi.DateParameter()
-    destination = luigi.Parameter()
-    num_mappers = luigi.Parameter()
+    # interval = luigi.DateIntervalParameter()
+    # transaction_source = luigi.Parameter()
+    # order_source = luigi.Parameter()
+    # interval_end = luigi.DateParameter()
+    # destination = luigi.Parameter()
+    # num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
@@ -61,18 +63,19 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
         return [task.output() for task in self.requires()]
 
 
-class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+# class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+class BuildEdServicesReportTask(BuildFinancialReportsMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
     """
-    interval = luigi.DateIntervalParameter()
-    transaction_source = luigi.Parameter()
-    order_source = luigi.Parameter()
-    interval_end = luigi.DateParameter()
-    destination = luigi.Parameter()
-    database = luigi.Parameter()
-    num_mappers = luigi.Parameter()
+    # interval = luigi.DateIntervalParameter()
+    # transaction_source = luigi.Parameter()
+    # order_source = luigi.Parameter()
+    # interval_end = luigi.DateParameter()
+    # destination = luigi.Parameter()
+    # database = luigi.Parameter()
+    # num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
