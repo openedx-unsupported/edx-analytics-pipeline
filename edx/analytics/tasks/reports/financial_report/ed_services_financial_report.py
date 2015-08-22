@@ -89,6 +89,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportCourseAndEnrollmentTablesTask(
                 credentials=self.credentials,
                 database=self.database,
+                **kwargs
             ),
         )
 
