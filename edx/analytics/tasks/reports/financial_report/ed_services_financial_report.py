@@ -25,7 +25,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             'import_date': self.import_date,
             'overwrite': self.overwrite,
             'destination': self.destination,
-            'transaction_source': self.transaction_source,
         }
         yield (
             # # Import Course Information: Mainly Course Mode & Suggested Prices
