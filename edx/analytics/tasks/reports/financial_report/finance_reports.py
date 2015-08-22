@@ -56,9 +56,9 @@ class BuildFinancialReportsTask(
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
-            'interval': self.interval,
+            # 'interval': self.interval,
             'destination': self.destination,
-            #'interval_end': self.interval_end,
+            'interval_end': self.interval_end,
             'transaction_source': self.transaction_source,
             'order_source': self.order_source,
         }
