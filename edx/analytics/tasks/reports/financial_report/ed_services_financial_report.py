@@ -110,7 +110,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+        #return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_query(self):
