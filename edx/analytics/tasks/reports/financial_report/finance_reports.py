@@ -49,10 +49,9 @@ class BuildFinancialReportsTask(
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'interval': self.interval,
+            'destination': self.destination,
         }
-
         return BuildEdServicesReportTask(
-            destination=self.destination,
             credentials=self.credentials,
             database=self.database,
             **kwargs
