@@ -24,15 +24,15 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             'import_date': self.import_date,
             'overwrite': self.overwrite,
             'interval': self.interval,
+            'destination': self.destination,
         }
         yield (
             # # Import Course Information: Mainly Course Mode & Suggested Prices
-            # ImportCourseModeTask(
-            #     destination=self.destination,
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
+            ImportCourseModeTask(
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
             # # Import Student Enrollment Information
             # ImportStudentCourseEnrollmentTask(
             #     destination=self.destination,
@@ -45,7 +45,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             #     interval=self.interval,
             #     transaction_source=self.transaction_source,
             # ),
-            ImportCourseModeTask(),
+            # ImportCourseModeTask(),
             # Import Student Enrollment Information
             # ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
@@ -73,15 +73,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
+            'destination': self.destination,
         }
         yield (
             ImportCourseAndEnrollmentTablesTask(
-                interval=self.interval,
-                num_mappers=self.num_mappers,
-                verbose=self.verbose,
-                import_date=self.import_date,
-                overwrite=self.overwrite,
-                destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,
             ),
