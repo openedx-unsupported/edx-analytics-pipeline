@@ -24,7 +24,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
-            'interval': self.interval,
             'destination': self.destination,
             'transaction_source': self.transaction_source,
         }
