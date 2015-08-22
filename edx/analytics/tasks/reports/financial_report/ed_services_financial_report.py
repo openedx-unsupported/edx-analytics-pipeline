@@ -77,6 +77,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def requires(self):
         kwargs = {
             'interval': self.interval,
+            'interval_end': self.interval_end,
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
