@@ -14,6 +14,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
     """
     interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
+    order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
 
@@ -85,6 +86,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
+    order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
     database = luigi.Parameter()
@@ -97,6 +99,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             'import_date': self.import_date,
             'overwrite': self.overwrite,
             'destination': self.destination,
+            'transaction_source': self.transaction_source,
+            'order_source': self.order_source
         }
         yield (
             ImportCourseAndEnrollmentTablesTask(
