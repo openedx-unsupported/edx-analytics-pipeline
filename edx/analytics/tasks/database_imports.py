@@ -50,7 +50,8 @@ class DatabaseImportMixin(object):
 
 
     import_date = luigi.DateParameter(default=None)
-    num_mappers = luigi.Parameter(default=None, significant=False)
+    #num_mappers = luigi.Parameter(default=None, significant=False)
+    num_mappers = 2
     verbose = luigi.BooleanParameter(default=False, significant=False)
 
 
