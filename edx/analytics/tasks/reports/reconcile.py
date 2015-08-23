@@ -103,13 +103,18 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         import edx.analytics.tasks.mapreduce
         return [edx.analytics.tasks.mapreduce]
 
+class ReconcileOrdersAndTransactionsDownstreamMixinHack(MapReduceJobTaskMixin):
+
+    def extra_modules(self):
+        """edx.analytics.tasks is required by all tasks that load this file."""
+        import edx.analytics.tasks.mapreduce
+        return [edx.analytics.tasks.mapreduce]
 
 class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstreamMixin, MapReduceJobTask):
     """
     Compare orders and transactions.
 
     """
-
     output_root = luigi.Parameter()
 
     def requires(self):
@@ -479,11 +484,14 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,
-            # overwrite=self.overwrite,
+            overwrite=self.overwrite,
         )
 
 
 class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Task):
+    """
+    Creates transactions.csv.
+    """
 
     output_root = luigi.Parameter()
 
