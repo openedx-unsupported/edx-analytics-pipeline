@@ -44,8 +44,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
             #     database=self.database,
             #     **kwargs
             # ),
-
-
             # # Import Reconciled Orders and Transactions
             # ReconciledOrderTransactionTableTask(
             #     interval=self.interval,
@@ -72,6 +70,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     """
     #interval = luigi.DateIntervalParameter()
+
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()

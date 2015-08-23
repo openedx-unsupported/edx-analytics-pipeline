@@ -49,9 +49,6 @@ class BuildFinancialReportsTask(
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
-    # interval = luigi.DateIntervalParameter(default=None)
-    # print 'IIIIIIII:', self.interval
-
     def requires(self):
         kwargs = {
             'num_mappers': self.num_mappers,

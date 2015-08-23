@@ -47,9 +47,14 @@ class DatabaseImportMixin(object):
         default_from_config={'section': 'database-import', 'name': 'database'}
     )
 
+    print "DESTINATIONNNNNNNN: ", destination
+
+
     import_date = luigi.DateParameter(default=None)
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
+
+    print "NUMMMMMMM_MMMMAAPPP:", num_mappers
 
     def __init__(self, *args, **kwargs):
         super(DatabaseImportMixin, self).__init__(*args, **kwargs)
