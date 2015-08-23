@@ -51,7 +51,8 @@ class BuildFinancialReportsTask(
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers,
+            # 'num_mappers': self.num_mappers,
+            'num_mappers': 2,
             'verbose': self.verbose,
             # 'interval': self.interval,
             'destination': self.destination,
