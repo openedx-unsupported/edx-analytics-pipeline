@@ -190,7 +190,7 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
 
     def requires(self):
         print "ImportMysqlToHiveTableTask - Table name:", self.table_name
-        
+
         return SqoopImportFromMysql(
             table_name=self.table_name,
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
@@ -1006,6 +1006,7 @@ class ImportCourseModeTask(ImportMysqlToHiveTableTask):
     """
     @property
     def table_name(self):
+        print "TABLE NAMMMMMMMMME", self.table_name
         return 'course_modes_coursemode'
 
     @property
