@@ -24,7 +24,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers,
+            #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
