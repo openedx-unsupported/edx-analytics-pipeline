@@ -512,7 +512,7 @@ class StudentEngagementTableLocationTask(StudentEngagementTableTask):
     """Hive table that provides its location as the output instead of its partition."""
 
     def output(self):
-        return get_target_from_url(self.partition_location)
+        return get_target_from_url(self.table_location)
 
 
 class StudentEngagementToMysqlTask(
