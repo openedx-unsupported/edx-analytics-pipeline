@@ -45,17 +45,8 @@ class DatabaseService(object):
 
         """
         with self.cursor(explicit_db=True) as cur:
-            query_buffer = []
             with open(file_path, 'r') as sql_file:
-                for line in sql_file:
-                    line = line.strip()
-                    if line.startswith('--') or len(line) == 0:
-                        continue
-
-                    query_buffer.append(line)
-    
-                    if line.endswith(';'):
-                        cur.execute('\n'.join(query_buffer))
+                cur.execute(sql_file.read(), multi=True)
 
     def connect(self, explicit_db=True):
         """
