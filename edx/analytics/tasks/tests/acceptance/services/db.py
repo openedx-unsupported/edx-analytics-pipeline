@@ -46,7 +46,8 @@ class DatabaseService(object):
         """
         with self.cursor(explicit_db=True) as cur:
             with open(file_path, 'r') as sql_file:
-                cur.execute(sql_file.read(), multi=True)
+                for _ignored in cur.execute(sql_file.read(), multi=True):
+                    pass
 
     def connect(self, explicit_db=True):
         """
