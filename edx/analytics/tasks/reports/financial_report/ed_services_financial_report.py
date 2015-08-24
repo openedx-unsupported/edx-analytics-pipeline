@@ -38,17 +38,19 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
                 **kwargs
             ),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            ),
-            # # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                interval=self.interval,
-                transaction_source=self.transaction_source,
-            ),
+            # ImportStudentCourseEnrollmentTask(
+            #     destination=self.destination,
+            #     credentials=self.credentials,
+            #     database=self.database,
+            #     **kwargs
+            # ),
+            # # # Import Reconciled Orders and Transactions
+            # ReconciledOrderTransactionTableTask(
+            #     interval=self.interval,
+            #     transaction_source=self.transaction_source,
+            # ),
+
+
             # ImportCourseModeTask(),
             # Import Student Enrollment Information
             # ImportStudentCourseEnrollmentTask(),

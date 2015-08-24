@@ -1007,7 +1007,6 @@ class ImportCourseModeTask(ImportMysqlToHiveTableTask):
     """
     @property
     def table_name(self):
-        print "TABLE NAMMMMMMMMME", self.table_name
         return 'course_modes_coursemode'
 
     @property
