@@ -100,9 +100,9 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ),
         )
 
-    def complete(self):
-        import pdb; pdb.set_trace()
-        return super(BuildEdServicesReportTask, self).complete()
+    # def complete(self):
+    #     import pdb; pdb.set_trace()
+    #     return super(BuildEdServicesReportTask, self).complete()
 
     @property
     def table(self):
