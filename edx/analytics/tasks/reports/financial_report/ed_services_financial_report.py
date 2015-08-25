@@ -36,30 +36,35 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
                 credentials=self.credentials,
                 database=self.database,
                 **kwargs
-            ),
+            )
+        ),
+        yield (
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(
                 destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,
                 **kwargs
-            ),
-            # # # Import Reconciled Orders and Transactions
-            # ReconciledOrderTransactionTableTask(
-            #     interval=self.interval,
-            #     transaction_source=self.transaction_source,
-            # ),
-
-
-            # ImportCourseModeTask(),
-            # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(),
-            # Import Reconciled Orders and Transactions
-            # ReconciledOrderTransactionTableTask(
-            #     interval=self.interval,
-            #     transaction_source=self.transaction_source,
-            # ),
+            )
         )
+
+        # # # Import Reconciled Orders and Transactions
+        # ReconciledOrderTransactionTableTask(
+        #     interval=self.interval,
+        #     transaction_source=self.transaction_source,
+        # ),
+
+
+        # ImportCourseModeTask(),
+        # Import Student Enrollment Information
+        # ImportStudentCourseEnrollmentTask(),
+        # Import Reconciled Orders and Transactions
+        # ReconciledOrderTransactionTableTask(
+        #     interval=self.interval,
+        #     transaction_source=self.transaction_source,
+        # ),
+
+
 
     def output(self):
         return [task.output() for task in self.requires()]
