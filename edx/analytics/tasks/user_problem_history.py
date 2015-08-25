@@ -11,7 +11,7 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelecti
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.datetime_util import weekly_date_grouping_key
-from edx.analytics.tasks.util.hive import HivePartition, HiveQueryToMysqlTask, HiveTableTask, WarehouseMixin
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask, MysqlInsertTask, WarehouseMixin
 
 
 class UserProblemHistoryTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -132,30 +132,21 @@ class UserProblemHistoryTableTask(UserProblemHistoryMixin, HiveTableTask):
             output_root=self.partition_location,
         )
 
+    def output(self):
+        return get_target_from_url(self.partition_location)
 
-class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, HiveQueryToMysqlTask):
+
+class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, MysqlInsertTask):
     """ Transfer problem history from Hive To MySQL. """
 
-    @property
-    def table(self):
-        return 'user_problem_weekly_data'
+    table = 'user_problem_weekly_data'
 
     @property
-    def query(self):
-        return """
-            SELECT
-                week_ending,
-                course_id,
-                user_id,
-                problem_id,
-                num_attempts,
-                most_recent_score,
-                max_score
-            FROM user_problem_weekly_data up
-            WHERE up.dt >= '{start_date}' AND up.dt <= '{end_date}'
-        """.format(
-            start_date=self.interval.date_a.isoformat(),
-            end_date=self.interval.date_b.isoformat(),
+    def insert_source_task(self):
+        return UserProblemHistoryTableTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            interval=self.interval
         )
 
     @property
@@ -169,16 +160,3 @@ class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, HiveQueryToMysqlTas
             ('most_recent_score', 'INT NOT NULL'),
             ('max_score', 'INT NOT NULL'),
         ]
-
-    @property
-    def required_table_tasks(self):
-        kwargs = {
-            'n_reduce_tasks': self.n_reduce_tasks,
-            'source': self.source,
-            'interval': self.interval,
-            'pattern': self.pattern,
-            'warehouse_path': self.warehouse_path,
-        }
-        yield (
-            UserProblemHistoryTableTask(**kwargs),
-        )
