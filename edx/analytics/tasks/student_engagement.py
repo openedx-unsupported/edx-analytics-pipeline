@@ -5,23 +5,24 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 from itertools import groupby
 from operator import itemgetter
-import re
 
 import luigi
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
-    ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
+    ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
+)
 from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
+from edx.analytics.tasks.util.datetime_util import weekly_date_grouping_key
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
@@ -95,19 +96,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         date_grouping_key = date_string
 
         if self.interval_type == 'weekly':
-            last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            last_weekday = last_complete_date.isoweekday()
-
-            split_date = date_string.split('-')
-            event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
-            event_weekday = event_date.isoweekday()
-
-            days_until_end = last_weekday - event_weekday
-            if days_until_end < 0:
-                days_until_end += 7
-
-            end_of_week_date = event_date + datetime.timedelta(days=days_until_end)
-            date_grouping_key = end_of_week_date.isoformat()
+            date_grouping_key = weekly_date_grouping_key(date_string, self.interval.date_b)
 
         elif self.interval_type == 'all':
             # If gathering all data for a given user, use the last complete day of the interval

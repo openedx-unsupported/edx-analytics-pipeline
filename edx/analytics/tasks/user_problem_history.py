@@ -1,16 +1,18 @@
-""" Calculates problem history for individual users and stores it in Analytics DB. """
+"""
+Makes available the number of attempts, most recent score, and max
+possible score for each course, user, and problem that the user
+attempted in the course.
+"""
 
-import datetime
 import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.datetime_util import weekly_date_grouping_key
 from edx.analytics.tasks.util.hive import HivePartition, HiveQueryToMysqlTask, HiveTableTask, WarehouseMixin
 
-
-PROBLEM_CHECK = 'problem_check'
 
 class UserProblemHistoryTask(EventLogSelectionMixin, MapReduceJobTask):
     """
@@ -27,15 +29,11 @@ class UserProblemHistoryTask(EventLogSelectionMixin, MapReduceJobTask):
 
         event_time = event['time']
 
-        if event.get('event_type') != PROBLEM_CHECK or event.get('event_source') != 'server':
+        if event.get('event_type') != 'problem_check' or event.get('event_source') != 'server':
             return  # We don't care about this type of event
 
         course_id = eventlog.get_course_id(event)
         if not course_id:
-            return
-
-        username = event.get('username', None).strip()
-        if not username:
             return
 
         event_data = eventlog.get_event_data(event)
@@ -46,60 +44,41 @@ class UserProblemHistoryTask(EventLogSelectionMixin, MapReduceJobTask):
         if not problem_id:
             return
 
-        date_grouping_key = _date_string
-
-        last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-        last_weekday = last_complete_date.isoweekday()
-
-        split_date = _date_string.split('-')
-        event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
-        event_weekday = event_date.isoweekday()
-
-        days_until_end = last_weekday - event_weekday
-        if days_until_end < 0:
-            days_until_end += 7
-
-        end_of_week_date = event_date + datetime.timedelta(days=days_until_end)
-        date_grouping_key = end_of_week_date.isoformat()
+        date_grouping_key = weekly_date_grouping_key(_date_string, self.interval.date_b)
 
         user_id = event.get('context').get('user_id')
         if not user_id:
             return
 
-        grade = event_data.get('grade', None)
-        if grade is None:  # Can't use "if not grade" check here because grade might be 0
+        score = event_data.get('grade', None)
+        if score is None:  # Can't use "if not score" check here because score might be 0
             return
 
-        max_grade = event_data.get('max_grade', None)
-        if not max_grade:
+        max_score = event_data.get('max_grade', None)
+        if not max_score:
             return
 
-        yield ((date_grouping_key, course_id, username, problem_id), (user_id, max_grade, grade, event_time))
+        yield ((date_grouping_key, course_id, user_id, problem_id), (max_score, score, event_time))
 
     def reducer(self, key, attempts):
         """
         Calculate number of attempts and final score for events
         corresponding to user and course.
         """
-        date_grouping_key, course_id, username, problem_id = key  # date_grouping_key == week_ending
-        attempts = list(attempts)
-        num_attempts = len(attempts)
+        date_grouping_key, course_id, user_id, problem_id = key  # date_grouping_key == week_ending
+        num_attempts = 0
 
-        user_id = None
-        max_grade = None
+        max_score = None
         event_time = None
-        most_recent_grade = 0
+        most_recent_score = 0
 
         for attempt in attempts:
-            if not user_id:
-                user_id = attempt[0]
-            if not max_grade:
-                max_grade = attempt[1]
-            if not event_time or event_time < attempt[3]:
-                event_time = attempt[3]
-                most_recent_grade = attempt[2]
-
-        final_score = '{}/{}'.format(most_recent_grade, max_grade)
+            num_attempts += 1
+            if not max_score:
+                max_score = attempt[0]
+            if not event_time or event_time < attempt[2]:
+                event_time = attempt[2]
+                most_recent_score = attempt[1]
 
         yield (
             # Output to be read by Hive must be encoded as UTF-8.
@@ -108,7 +87,8 @@ class UserProblemHistoryTask(EventLogSelectionMixin, MapReduceJobTask):
             user_id,
             problem_id.encode('utf-8'),
             num_attempts,
-            final_score.encode('utf-8'),
+            most_recent_score,
+            max_score,
         )
 
     def output(self):
@@ -136,10 +116,11 @@ class UserProblemHistoryTableTask(UserProblemHistoryMixin, HiveTableTask):
         return [
             ('week_ending', 'STRING'),
             ('course_id', 'STRING'),
-            ('user_id', 'STRING'),
+            ('user_id', 'INT'),
             ('problem_id', 'STRING'),
             ('num_attempts', 'INT'),
-            ('final_score', 'STRING'),
+            ('most_recent_score', 'INT'),
+            ('max_score', 'INT'),
         ]
 
     def requires(self):
@@ -168,7 +149,8 @@ class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, HiveQueryToMysqlTas
                 user_id,
                 problem_id,
                 num_attempts,
-                final_score
+                most_recent_score,
+                max_score
             FROM user_problem_weekly_data up
             WHERE up.dt >= '{start_date}' AND up.dt <= '{end_date}'
         """.format(
@@ -179,12 +161,13 @@ class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, HiveQueryToMysqlTas
     @property
     def columns(self):
         return [
-            ('week_ending', 'VARCHAR(30) NOT NULL'),
+            ('week_ending', 'DATE NOT NULL'),
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('user_id', 'INT NOT NULL'),
             ('problem_id', 'VARCHAR(255) NOT NULL'),
             ('num_attempts', 'INT NOT NULL'),
-            ('final_score', 'VARCHAR(20) NOT NULL'),
+            ('most_recent_score', 'INT NOT NULL'),
+            ('max_score', 'INT NOT NULL'),
         ]
 
     @property
