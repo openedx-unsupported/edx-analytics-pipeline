@@ -38,12 +38,12 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
                 **kwargs
             ),
             # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(
-            #     destination=self.destination,
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
+            ImportStudentCourseEnrollmentTask(
+                destination=self.destination,
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
             # # # Import Reconciled Orders and Transactions
             # ReconciledOrderTransactionTableTask(
             #     interval=self.interval,
@@ -99,10 +99,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 **kwargs
             ),
         )
-
-    # def complete(self):
-    #     import pdb; pdb.set_trace()
-    #     return super(BuildEdServicesReportTask, self).complete()
 
     @property
     def table(self):
