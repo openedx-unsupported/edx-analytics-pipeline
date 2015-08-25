@@ -10,7 +10,7 @@ from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 
-class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
+class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask):
 # class ImportCourseAndEnrollmentTablesTask(BuildFinancialReportsMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
