@@ -38,15 +38,15 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, OverwriteOutputMi
                 **kwargs
             )
         ),
-        yield (
-            # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            )
-        )
+        # yield (
+        #     # Import Student Enrollment Information
+        #     ImportStudentCourseEnrollmentTask(
+        #         destination=self.destination,
+        #         credentials=self.credentials,
+        #         database=self.database,
+        #         **kwargs
+        #     )
+        # )
 
         # # # Import Reconciled Orders and Transactions
         # ReconciledOrderTransactionTableTask(
