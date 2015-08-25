@@ -27,7 +27,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
-            'overwrite': self.overwrite,
+            # 'overwrite': self.overwrite,
             'destination': self.destination,
         }
         yield (
