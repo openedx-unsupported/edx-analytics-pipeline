@@ -27,6 +27,8 @@ class OverwriteOutputMixin(object):
     overwrite = luigi.BooleanParameter(default=False)
     attempted_removal = False
 
+
+
     def complete(self):
         """
         Wrap Task.complete() to check for overwrite flag.
@@ -37,6 +39,9 @@ class OverwriteOutputMixin(object):
         # at task construction time, since side effects at task
         # definition are less intuitive than having all side effects
         # occur only during execution.
+
+        print "OOOOOOOVVVVERWRRRRITE:", self.overwrite
+
         if self.overwrite and not self.attempted_removal:
             return False
         else:
