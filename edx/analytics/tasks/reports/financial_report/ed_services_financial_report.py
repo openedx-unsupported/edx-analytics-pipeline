@@ -27,7 +27,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
-            # 'overwrite': self.overwrite,
             'destination': self.destination,
         }
         yield (
@@ -89,8 +88,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
-            'overwrite': self.overwrite,
-            'destination': self.destination,
+           'destination': self.destination,
             'transaction_source': self.transaction_source,
             'order_source': self.order_source
         }
