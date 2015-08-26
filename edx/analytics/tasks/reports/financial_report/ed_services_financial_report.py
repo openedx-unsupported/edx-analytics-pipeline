@@ -38,7 +38,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             ),
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
                 credentials=self.credentials,
                 database=self.database,
                 **kwargs
