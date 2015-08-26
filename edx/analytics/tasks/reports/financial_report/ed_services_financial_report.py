@@ -37,12 +37,12 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
                 **kwargs
             ),
             # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(
-            #     destination=self.destination,
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
+            ImportStudentCourseEnrollmentTask(
+                destination=self.destination,
+                credentials=self.credentials,
+                database=self.database,
+                **kwargs
+            ),
             # # # Import Reconciled Orders and Transactions
             # ReconciledOrderTransactionTableTask(
             #     interval=self.interval,
