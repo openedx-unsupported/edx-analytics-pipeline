@@ -160,3 +160,11 @@ class UserProblemHistoryToMySQLTask(UserProblemHistoryMixin, MysqlInsertTask):
             ('most_recent_score', 'INT NOT NULL'),
             ('max_score', 'INT NOT NULL'),
         ]
+
+    @property
+    def default_columns(self):
+        """ Columns and constraints that are managed by MySQL """
+        return [
+            ('created', 'TIMESTAMP DEFAULT NOW()'),
+            ('CONSTRAINT week_course_user_problem', 'UNIQUE (week_ending, course_id, user_id, problem_id)')
+        ]
