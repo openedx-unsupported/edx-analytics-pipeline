@@ -42,11 +42,11 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
                 database=self.database,
                 **kwargs
             ),
-            # # # Import Reconciled Orders and Transactions
-            # ReconciledOrderTransactionTableTask(
-            #     interval=self.interval,
-            #     transaction_source=self.transaction_source,
-            # ),
+            # Import Reconciled Orders and Transactions
+            ReconciledOrderTransactionTableTask(
+                interval=self.interval,
+                transaction_source=self.transaction_source,
+            ),
         )
 
 
