@@ -29,6 +29,7 @@ LetterGradeBreakdownToMysqlTask     PerStudentGradeBreakdownToMysqlTask
                        ▼              ▼
                       GradesPipelineTask
 """
+from collections import defaultdict
 import datetime
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_dump import MysqlSelectTask, mysql_datetime
@@ -177,7 +178,7 @@ class LetterGradeBreakdownTask(GradesParametersMixin, MapReduceJobTask):
         Output is designed to be loaded as a Hive table.
         """
         course_id = key[0]
-        grade_breakdown = {}  # key is the letter grade, value is the # of students with that grade
+        grade_breakdown = defaultdict(int)  # key is the letter grade, value is the # of students with that grade
         is_passing_map = {}   # key is the letter grade, value is boolean indicating if it's a passing grade
         total_enrolled = 0    # The offline grades table has an entry for each enrolled
                               # student, whether or not the student is active. This would only
@@ -186,7 +187,7 @@ class LetterGradeBreakdownTask(GradesParametersMixin, MapReduceJobTask):
 
         for _user_id, letter_grade, is_passing in entries:
             total_enrolled += 1
-            grade_breakdown[letter_grade] = grade_breakdown.get(letter_grade, 0) + 1
+            grade_breakdown[letter_grade] += 1
             if letter_grade not in is_passing_map:
                 is_passing_map[letter_grade] = is_passing
 
@@ -267,7 +268,7 @@ class LetterGradeBreakdownToMysqlTask(GradesParametersMixin, MysqlInsertTask):
         """ Columns and constraints that are managed by MySQL """
         return [
             ('created', 'TIMESTAMP DEFAULT NOW()'),
-            ('CONSTRAINT cdg', 'UNIQUE (course_id, date, letter_grade)'),
+            ('CONSTRAINT course_date_grade', 'UNIQUE (course_id, date, letter_grade)'),
         ]
 
 

@@ -7,7 +7,7 @@ import datetime
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 
 
-class EnrollmentAcceptanceTest(AcceptanceTestCase):
+class GradesImportAcceptanceTest(AcceptanceTestCase):
     """End to end test of grades import."""
     NUM_REDUCERS = 1
 
