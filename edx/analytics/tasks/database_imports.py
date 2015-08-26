@@ -61,10 +61,6 @@ class DatabaseImportMixin(object):
         if not self.import_date:
             self.import_date = datetime.datetime.utcnow().date()
 
-        print "DESTINATIONNNNNNNN: ", self.destination
-        print "NUMMMMMMM_MMMMAAPPP:", self.num_mappers
-
-
 class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
     """
     Abstract class to import data into a Hive table.
@@ -104,6 +100,8 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
             table_format=self.table_format,
             partition_date=self.partition_date,
         )
+
+        print "QUERY!!!!", query
 
         log.debug('Executing hive query: %s', query)
 
@@ -190,8 +188,6 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
         return self.import_date.isoformat()
 
     def requires(self):
-        print "ImportMysqlToHiveTableTask - Table name:", self.table_name
-
         return SqoopImportFromMysql(
             table_name=self.table_name,
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
