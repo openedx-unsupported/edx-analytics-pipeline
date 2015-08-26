@@ -17,6 +17,7 @@ class GradesImportAcceptanceTest(AcceptanceTestCase):
         self.task.launch([
             'GradesPipelineTask',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--today', '2015-08-22',
         ])
 
         self.maxDiff = None
