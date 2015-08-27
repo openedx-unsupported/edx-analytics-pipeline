@@ -81,29 +81,6 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
                 for course in courses_list:
                     # To maintain robustness, ignore any non-dictionary data that finds its way into the API response.
                     try:
-                    # Coerce the values into strings because sometimes we get a value of None, as in
-                    # the end date of self-paced courses.
-
-                    # OLD APPROACH:
-
-                    # timestamp_regex = r'^([^T]*)T([^Z]*)Z'
-                    # start_string = str(course.get('start', '\N'))
-                    # end_string = str(course.get('end', '\N'))
-                    # start_string_search = re.search(timestamp_regex, start_string)
-                    # end_string_search = re.search(timestamp_regex, end_string)
-                    # # If we can't make the required matches in the date string, we put in null values.
-                    # # IndexError and AttributeError each indicate that we do not have a match for a timestamp.
-                    # try:
-                    #     cleaned_start_string = start_string_search.group(1) + ' ' + start_string_search.group(2)
-                    # except (IndexError, AttributeError):
-                    #     cleaned_start_string = '\N'
-                    # try:
-                    #     cleaned_end_string = end_string_search.group(1) + ' ' + end_string_search.group(2)
-                    # except (IndexError, AttributeError):
-                    #     cleaned_end_string = '\N'
-
-                    # NEW APPROACH:
-
                         start_string = course.get('start')
                         end_string = course.get('end')
                         cleaned_start_string = ciso8601.parse_datetime(start_string)
@@ -119,7 +96,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
                         ]
                         output_file.write('\t'.join([v.encode('utf-8') for v in line]))
                         output_file.write('\n')
-                    except AttributeError:  # If it's not a dictionary, try the next one.
+                    except AttributeError:  # If the course is not a dictionary, move on to the next one.
                          continue
 
     def output(self):
