@@ -4,7 +4,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
-from edx.analytics.tasks.reports.financial_report.finance_reports import BuildFinancialReportsMixin
+# from edx.analytics.tasks.reports.financial_report.finance_reports import BuildFinancialReportsMixin
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
