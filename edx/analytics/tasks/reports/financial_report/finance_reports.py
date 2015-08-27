@@ -37,12 +37,6 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
 
     num_mappers = luigi.Parameter(default=None)
 
-    # def __init__(self, *args, **kwargs):
-    #     super(BuildFinancialReportsMixin, self).__init__(*args, **kwargs)
-    #
-    #     if not self.interval:
-    #         self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
-
 
 class BuildFinancialReportsTask(
     BuildFinancialReportsMixin,
@@ -60,7 +54,7 @@ class BuildFinancialReportsTask(
             'order_source': self.order_source,
         }
         return BuildEdServicesReportTask(
-            credentials=self.credentials,
+            # credentials=self.credentials,
             database=self.database,
             **kwargs
         )

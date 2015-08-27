@@ -50,8 +50,8 @@ class DatabaseImportMixin(object):
 
 
     import_date = luigi.DateParameter(default=None)
-    #num_mappers = luigi.Parameter(default=None, significant=False)
-    num_mappers = 2
+    num_mappers = luigi.Parameter(default=None, significant=False)
+    # num_mappers = 2
     verbose = luigi.BooleanParameter(default=False, significant=False)
 
 
@@ -165,7 +165,7 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
             self.table_name, self.partition, database=hive_database_name(), fail_missing_table=False
         )
 
-
+ImportIntoHiveTableTask
 class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
     """
     Dumps data from an RDBMS table, and imports into Hive.
