@@ -98,6 +98,9 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
+    interval_end = luigi.DateParameter()
+
+
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
         import edx.analytics.tasks.mapreduce
@@ -473,7 +476,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
     @property
     def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        # return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
