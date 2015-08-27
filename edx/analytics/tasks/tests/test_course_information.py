@@ -23,6 +23,8 @@ from edx.analytics.tasks.tests.target import FakeTarget
 
 from mock import MagicMock
 
+# pylint: disable-msg=anomalous-unicode-escape-in-string
+
 
 class TestCourseInformation(unittest.TestCase):
     """Tests for the task parsing the course structure information for use in the internal reporting course table."""
@@ -100,11 +102,11 @@ class TestCourseInformation(unittest.TestCase):
         # We expect nulls for the columns aside from course id and course org id.
         expected = {'course_id': 'foo',
                     'course_org_id': 'bar',
-                    'course_number': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'course_run': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'course_start': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'course_end': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'course_name': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
+                    'course_number': '\N',
+                    'course_run': '\N',
+                    'course_start': '\N',
+                    'course_end': '\N',
+                    'course_name': '\N'}
         self.check_structure_entry(data, 0, expected)
 
     def test_single_course(self):
@@ -158,7 +160,7 @@ class TestCourseInformation(unittest.TestCase):
                        '2016-08-25T00:00:00+00:00'}
         course2 = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
-                   'course_end': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
+                   'course_end': '\N'}
 
         self.check_structure_entry(data, 0, course1)
         self.check_structure_entry(data, 1, course2)
@@ -184,7 +186,7 @@ class TestCourseInformation(unittest.TestCase):
         self.assertEquals(data.shape[0], 1)
         expected = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
                     'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
-                    'course_end': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
+                    'course_end': '\N'}
         self.check_structure_entry(data, 0, expected)
 
     def test_unicode_course_name(self):
