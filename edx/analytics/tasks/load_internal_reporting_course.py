@@ -5,7 +5,7 @@ On the roadmap is to write a task that runs validation queries on the aggregated
 
 """
 import json
-import re
+import datetime
 import luigi
 import requests
 import ciso8601
@@ -14,7 +14,8 @@ from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportIntoHiveTableTask
+from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask
+from edx.analytics.tasks.util.hive import HiveTableTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 
 # pylint: disable-msg=anomalous-unicode-escape-in-string
@@ -83,21 +84,27 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
                     try:
                         start_string = course.get('start')
                         end_string = course.get('end')
-                        cleaned_start_string = ciso8601.parse_datetime(start_string)
-                        cleaned_end_string = ciso8601.parse_datetime(end_string)
+                        if start_string is None:
+                            cleaned_start_string = '\N'
+                        else:
+                            cleaned_start_string = ciso8601.parse_datetime(start_string)
+                        if end_string is None:
+                            cleaned_end_string = '\N'
+                        else:
+                            cleaned_end_string = ciso8601.parse_datetime(end_string)
                         line = [
                             course.get('id', '\N'),
                             course.get('org', '\N'),
                             course.get('course', '\N'),
                             course.get('run', '\N'),
-                            coerce_none_to_hive_null(cleaned_start_string),
-                            coerce_none_to_hive_null(cleaned_end_string),
+                            coerce_timestamp_for_hive(cleaned_start_string),
+                            coerce_timestamp_for_hive(cleaned_end_string),
                             course.get('name', '\N')
                         ]
                         output_file.write('\t'.join([v.encode('utf-8') for v in line]))
                         output_file.write('\n')
                     except AttributeError:  # If the course is not a dictionary, move on to the next one.
-                         continue
+                        continue
 
     def output(self):
         """
@@ -112,7 +119,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
         return get_target_from_url(url_with_filename)
 
 
-class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, ImportIntoHiveTableTask):
+class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveTableTask):
     """Load the processed course structure API data into Hive."""
     run_date = luigi.Parameter()
 
@@ -125,24 +132,12 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, Impor
         return ProcessCourseStructureAPIData(**kwargs)
 
     @property
-    def table_name(self):
-        """Provides name of Hive database table."""
+    def table(self):
         return 'course_structure'
 
     @property
-    def table_format(self):
-        """Provides name of Hive database table."""
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'"
-
-    @property
-    def table_location(self):
-        """Provides root location of Hive database table's data."""
-        return url_path_join(self.warehouse_path, self.table_name)
-
-    @property
-    def partition_date(self):
-        """Provides value to use in constructing the partition name of Hive database table."""
-        return self.run_date.strftime('%Y-%m-%d')
+    def partition(self):
+        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -217,8 +212,8 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
             ('course_org_id', 'STRING'),
             ('course_number', 'STRING'),
             ('course_run', 'STRING'),
-            ('course_start_string', 'STRING'),
-            ('course_end_string', 'STRING'),
+            ('course_start', 'STRING'),
+            ('course_end', 'STRING'),
             ('course_name', 'STRING'),
         ]
 
@@ -234,11 +229,11 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
             , cs.course_org_id
             , cs.course_number
             , cs.course_run
-            , cs.course_start_string
-            , cs.course_end_string
+            , cs.course_start
+            , cs.course_end
             , cs.course_name
-            FROM course_structure cs
-            RIGHT OUTER JOIN courses_with_enrollments sce ON cs.course_id = sce.course_id
+            FROM courses_with_enrollments sce
+            LEFT OUTER JOIN course_structure cs ON sce.course_id = cs.course_id
             SORT BY sce.course_id ASC
             """
 
@@ -293,9 +288,15 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseMixin, V
             ('course_name', 'VARCHAR(200)')
         ]
 
-def coerce_none_to_hive_null(field):
-    """Helper method to coerce python None values to the Hive null value, '\N'."""
-    if field is None:
+
+def coerce_timestamp_for_hive(timestamp):
+    """
+    Helper method to coerce python None values to the Hive null value, '\N' and datetime.datetime objects to
+    iso-formatted strings
+    """
+    if timestamp is None:
         return '\N'
+    elif isinstance(timestamp, datetime.datetime):
+        return timestamp.isoformat()
     else:
-        return field
+        return timestamp

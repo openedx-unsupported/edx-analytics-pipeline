@@ -125,7 +125,8 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see this course with the mock structure information.
         self.assertEquals(data.shape[0], 1)
         expected = {'course_id': 'foo', 'course_name': 'Foo', 'course_org_id': 'bar', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24 00:00:00', 'course_end': '2016-08-25 00:00:00'}
+                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
+                    'course_end': '2016-08-25T00:00:00+00:00'}
         self.check_structure_entry(data, 0, expected)
 
     def test_multiple_courses(self):
@@ -153,9 +154,10 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
         course1 = {'course_id': 'foo', 'course_name': 'Foo', 'course_org_id': 'bar', 'course_number': 'Baz',
-                   'course_run': '2T2015', 'course_start': '2015-08-24 00:00:00', 'course_end': '2016-08-25 00:00:00'}
+                   'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00', 'course_end':
+                       '2016-08-25T00:00:00+00:00'}
         course2 = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
-                   'course_run': '2T2015', 'course_start': '2015-08-24 00:00:00',
+                   'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
                    'course_end': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
 
         self.check_structure_entry(data, 0, course1)
@@ -181,7 +183,7 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see the second course, which is well-formed, but nothing from the first.
         self.assertEquals(data.shape[0], 1)
         expected = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24 00:00:00',
+                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
                     'course_end': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
         self.check_structure_entry(data, 0, expected)
 
@@ -205,5 +207,6 @@ class TestCourseInformation(unittest.TestCase):
         # but can't handle the unicode strings.  This "error" really indicates a test failure.
         self.assertEquals(data.shape[0], 1)
         expected = {'course_id': 'foo', 'course_name': 'Fo\xe2\x98\xba', 'course_org_id': 'bar', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24 00:00:00', 'course_end': '2016-08-25 00:00:00'}
+                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00', 'course_end':
+                        '2016-08-25T00:00:00+00:00'}
         self.check_structure_entry(data, 0, expected)
