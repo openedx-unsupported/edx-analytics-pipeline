@@ -8,6 +8,7 @@ import json
 import re
 import luigi
 import requests
+import ciso8601
 
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
@@ -17,28 +18,32 @@ from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTa
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 
 # pylint: disable-msg=anomalous-unicode-escape-in-string
+# To ensure the API call pulls all courses, set this to be larger than the number of courses
+PAGE_SIZE = 10000
 
 
-class LoadDCourseMixin(WarehouseMixin, OverwriteOutputMixin):
+class LoadInternalReportingCourseMixin(WarehouseMixin, OverwriteOutputMixin):
     """
     Mixin to handle parameters common to the tasks involved in loading the internal reporting course table,
     including calling the course structure API.
     """
     run_date = luigi.DateParameter()
-    api_root = luigi.Parameter(
-        config_path={'section': 'course-structure', 'name': 'api_root'}
+    api_root_url = luigi.Parameter(
+        config_path={'section': 'course-structure', 'name': 'api_root_url'}
     )
     api_access_token = luigi.Parameter(
         config_path={'section': 'course-structure', 'name': 'access_token'}, significant=False
     )
 
 
-class PullCourseStructureAPIData(LoadDCourseMixin, luigi.Task):
+class PullCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task):
     """Call the course structure API and place the resulting JSON on S3."""
 
     def run(self):
+        self.remove_output_on_overwrite()
         headers = {'authorization': ('Bearer ' + self.api_access_token), 'accept': 'application/json'}
-        api_url = url_path_join(self.api_root, 'api', 'course_structure', 'v0', 'courses', '?page_size=10000')
+        api_url = url_path_join(self.api_root_url, 'api', 'course_structure', 'v0', 'courses',
+                                '?page_size={size}'.format(size=PAGE_SIZE))
         response = requests.get(url=api_url, headers=headers)
         if response.status_code != requests.codes.ok:  # pylint: disable=no-member
             msg = "Encountered status {} on request to API for {}".format(response.status_code, self.run_date)
@@ -54,7 +59,7 @@ class PullCourseStructureAPIData(LoadDCourseMixin, luigi.Task):
         return get_target_from_url(url_with_filename)
 
 
-class ProcessCourseStructureAPIData(LoadDCourseMixin, luigi.Task):
+class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task):
     """Process the information from the course structure API and write it to a tsv."""
     run_date = luigi.DateParameter()
 
@@ -75,36 +80,47 @@ class ProcessCourseStructureAPIData(LoadDCourseMixin, luigi.Task):
                     return
                 for course in courses_list:
                     # To maintain robustness, ignore any non-dictionary data that finds its way into the API response.
-                    if not type(course) == dict:
-                        continue
-                    timestamp_regex = r'^([^T]*)T([^Z]*)Z'
+                    try:
                     # Coerce the values into strings because sometimes we get a value of None, as in
                     # the end date of self-paced courses.
-                    start_string = str(course.get('start', '\N'))
-                    end_string = str(course.get('end', '\N'))
-                    start_string_search = re.search(timestamp_regex, start_string)
-                    end_string_search = re.search(timestamp_regex, end_string)
-                    # If we can't make the required matches in the date string, we put in null values.
-                    # IndexError and AttributeError each indicate that we do not have a match for a timestamp.
-                    try:
-                        cleaned_start_string = start_string_search.group(1) + ' ' + start_string_search.group(2)
-                    except (IndexError, AttributeError):
-                        cleaned_start_string = '\N'
-                    try:
-                        cleaned_end_string = end_string_search.group(1) + ' ' + end_string_search.group(2)
-                    except (IndexError, AttributeError):
-                        cleaned_end_string = '\N'
-                    line = [
-                        course.get('id', '\N'),
-                        course.get('org', '\N'),
-                        course.get('course', '\N'),
-                        course.get('run', '\N'),
-                        cleaned_start_string,
-                        cleaned_end_string,
-                        course.get('name', '\N')
-                    ]
-                    output_file.write('\t'.join([v.encode('utf-8') for v in line]))
-                    output_file.write('\n')
+
+                    # OLD APPROACH:
+
+                    # timestamp_regex = r'^([^T]*)T([^Z]*)Z'
+                    # start_string = str(course.get('start', '\N'))
+                    # end_string = str(course.get('end', '\N'))
+                    # start_string_search = re.search(timestamp_regex, start_string)
+                    # end_string_search = re.search(timestamp_regex, end_string)
+                    # # If we can't make the required matches in the date string, we put in null values.
+                    # # IndexError and AttributeError each indicate that we do not have a match for a timestamp.
+                    # try:
+                    #     cleaned_start_string = start_string_search.group(1) + ' ' + start_string_search.group(2)
+                    # except (IndexError, AttributeError):
+                    #     cleaned_start_string = '\N'
+                    # try:
+                    #     cleaned_end_string = end_string_search.group(1) + ' ' + end_string_search.group(2)
+                    # except (IndexError, AttributeError):
+                    #     cleaned_end_string = '\N'
+
+                    # NEW APPROACH:
+
+                        start_string = course.get('start')
+                        end_string = course.get('end')
+                        cleaned_start_string = ciso8601.parse_datetime(start_string)
+                        cleaned_end_string = ciso8601.parse_datetime(end_string)
+                        line = [
+                            course.get('id', '\N'),
+                            course.get('org', '\N'),
+                            course.get('course', '\N'),
+                            course.get('run', '\N'),
+                            coerce_none_to_hive_null(cleaned_start_string),
+                            coerce_none_to_hive_null(cleaned_end_string),
+                            course.get('name', '\N')
+                        ]
+                        output_file.write('\t'.join([v.encode('utf-8') for v in line]))
+                        output_file.write('\n')
+                    except AttributeError:  # If it's not a dictionary, try the next one.
+                         continue
 
     def output(self):
         """
@@ -119,7 +135,7 @@ class ProcessCourseStructureAPIData(LoadDCourseMixin, luigi.Task):
         return get_target_from_url(url_with_filename)
 
 
-class LoadCourseStructureAPIDataIntoHive(LoadDCourseMixin, ImportIntoHiveTableTask):
+class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, ImportIntoHiveTableTask):
     """Load the processed course structure API data into Hive."""
     run_date = luigi.Parameter()
 
@@ -164,7 +180,7 @@ class LoadCourseStructureAPIDataIntoHive(LoadDCourseMixin, ImportIntoHiveTableTa
         ]
 
 
-class GetCoursesFromStudentCourseEnrollmentTask(LoadDCourseMixin, HiveTableFromQueryTask):
+class GetCoursesFromStudentCourseEnrollmentTask(LoadInternalReportingCourseMixin, HiveTableFromQueryTask):
     """
     Finds all courses from the LMS enrollments table to make sure we haven't left out any courses with enrollments
     which, for whatever reason, can't be found in the course structure API.
@@ -197,7 +213,7 @@ class GetCoursesFromStudentCourseEnrollmentTask(LoadDCourseMixin, HiveTableFromQ
             """
 
 
-class AggregateInternalReportingCourseTableHive(LoadDCourseMixin, HiveTableFromQueryTask):
+class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin, HiveTableFromQueryTask):
     """Aggregate the internal reporting course table in Hive."""
     n_reduce_tasks = luigi.Parameter()
 
@@ -250,7 +266,7 @@ class AggregateInternalReportingCourseTableHive(LoadDCourseMixin, HiveTableFromQ
             """
 
 
-class LoadInternalReportingCourseToWarehouse(LoadDCourseMixin, VerticaCopyTask):
+class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseMixin, VerticaCopyTask):
     """
     Loads the course table from Hive into the Vertica data warehouse.
     """
@@ -299,3 +315,10 @@ class LoadInternalReportingCourseToWarehouse(LoadDCourseMixin, VerticaCopyTask):
             ('course_end', 'TIMESTAMP'),
             ('course_name', 'VARCHAR(200)')
         ]
+
+def coerce_none_to_hive_null(field):
+    """Helper method to coerce python None values to the Hive null value, '\N'."""
+    if field is None:
+        return '\N'
+    else:
+        return field

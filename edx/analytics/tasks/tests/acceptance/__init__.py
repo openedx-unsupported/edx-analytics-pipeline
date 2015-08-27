@@ -112,7 +112,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'source': self.test_src
             },
             'course-structure': {
-                'api_root': 'acceptance.test',
+                'api_root_url': 'acceptance.test',
                 'access_token': 'acceptance'
             }
         }
