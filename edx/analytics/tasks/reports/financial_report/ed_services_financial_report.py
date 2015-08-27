@@ -15,7 +15,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    #interval = luigi.DateIntervalParameter()
+    interval = luigi.DateIntervalParameter()
 
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
