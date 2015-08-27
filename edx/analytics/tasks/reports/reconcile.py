@@ -93,13 +93,12 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         ))
     )
 
+    interval_end = luigi.DateParameter()
+
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
-
-    interval_end = luigi.DateParameter()
-
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
