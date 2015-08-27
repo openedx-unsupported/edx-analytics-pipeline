@@ -15,10 +15,11 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    interval = luigi.DateIntervalParameter()
+    # interval = luigi.DateIntervalParameter()
 
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
+    interval_start = luigi.DateParameter()
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
     num_mappers = luigi.Parameter()
@@ -44,11 +45,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             #     **kwargs
             # ),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                interval=self.interval,
-                transaction_source=self.transaction_source,
-                **kwargs
-            ),
+            ReconciledOrderTransactionTableTask(),
         )
 
     def output(self):
