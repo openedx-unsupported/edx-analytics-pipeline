@@ -95,7 +95,9 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
-    interval=luigi.date_interval.Custom(interval_start, interval_end)
+    interval = luigi.date_interval.Custom(interval_start, interval_end)
+
+    print "IIIIIIINNNNNNTEEERRRRVAL: ", interval
 
     pattern = luigi.Parameter(
         is_list=True,
@@ -529,7 +531,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
-                'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                #'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                'dt=' + self.interval_end.isoformat()  # pylint: disable=no-member
             ) + '/',
             # overwrite=self.overwrite,
         )
@@ -569,4 +572,5 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 })
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+        #return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval_end.isoformat(), 'transactions.csv'))
