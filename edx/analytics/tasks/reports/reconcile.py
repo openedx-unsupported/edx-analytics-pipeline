@@ -126,11 +126,12 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         partition_path_spec = HivePartition('dt', self.interval_end.isoformat()).path_spec  # pylint: disable=no-member
         order_partition = url_path_join(self.order_source, partition_path_spec)
 
-        interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+        self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
         return EventLogSelectionTask(
             source=[self.transaction_source, order_partition],
             pattern=self.pattern,
+            #interval=self.interval,
             interval=self.interval,
         )
 
