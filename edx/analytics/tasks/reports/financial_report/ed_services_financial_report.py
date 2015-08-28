@@ -17,7 +17,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     """
     # interval = luigi.DateIntervalParameter()
     transaction_source = luigi.Parameter()
-    order_source = luigi.Parameter()
+    # order_source = luigi.Parameter()
     interval_start = luigi.DateParameter()
     interval_end = luigi.DateParameter()
     destination = luigi.Parameter()
