@@ -95,7 +95,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
-    interval = luigi.date_interval.Custom(interval_start, interval_end)
 
     pattern = luigi.Parameter(
         is_list=True,
@@ -126,6 +125,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         #partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
         partition_path_spec = HivePartition('dt', self.interval_end.isoformat()).path_spec  # pylint: disable=no-member
         order_partition = url_path_join(self.order_source, partition_path_spec)
+
+        interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
         return EventLogSelectionTask(
             source=[self.transaction_source, order_partition],
