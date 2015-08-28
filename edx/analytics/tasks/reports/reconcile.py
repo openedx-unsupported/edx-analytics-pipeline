@@ -101,6 +101,9 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
+    def __init__(self):
+        self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
         import edx.analytics.tasks.mapreduce
@@ -126,13 +129,12 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         partition_path_spec = HivePartition('dt', self.interval_end.isoformat()).path_spec  # pylint: disable=no-member
         order_partition = url_path_join(self.order_source, partition_path_spec)
 
-        self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
 
         return EventLogSelectionTask(
             source=[self.transaction_source, order_partition],
             pattern=self.pattern,
-            #interval=self.interval,
-            interval=self.interval,
+            interval=self.interval
         )
 
     def mapper(self, line):
