@@ -94,6 +94,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     )
 
     interval_end = luigi.DateParameter()
+    interval_start = luigi.DateParameter
 
     pattern = luigi.Parameter(
         is_list=True,
