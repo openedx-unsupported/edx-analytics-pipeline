@@ -20,6 +20,16 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
     @property
     def insert_source_task(self):
+        print str(type(CourseEnrollmentTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=url_path_join(self.warehouse_path, 'course_enrollment/')
+            ).output()))
+        print str(CourseEnrollmentTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=url_path_join(self.warehouse_path, 'course_enrollment/')
+            ).output())
         return (
             CourseEnrollmentTask(
             n_reduce_tasks=self.n_reduce_tasks,
