@@ -21,11 +21,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     def insert_source_task(self):
         return (
             CourseEnrollmentTableTask(
-                mapreduce_engine = self.mapreduce_engine,
                 n_reduce_tasks = self.n_reduce_tasks,
-                source = self.source,
-                interval_end = self.interval_end,
-                pattern = self.pattern
             )
         )
 
