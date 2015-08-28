@@ -3,7 +3,7 @@ Loads the user_course table into the warehouse through the pipeline via Hive.
 
 """
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
+from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask, CourseEnrollmentTask
 import luigi
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 
@@ -20,8 +20,10 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     @property
     def insert_source_task(self):
         return (
-            CourseEnrollmentTableTask(
-                n_reduce_tasks = self.n_reduce_tasks,
+            CourseEnrollmentTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=self.warehouse_path,
             )
         )
 
