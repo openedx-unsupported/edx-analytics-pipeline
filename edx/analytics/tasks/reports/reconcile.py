@@ -104,7 +104,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     # def __init__(self,interval_start,interval_end):
     #     self.interval = luigi.date_interval.Custom(interval_start, interval_end)
 
-    interval = luigi.date_interval.Custom(interval_start, interval_end)
+    interval = luigi.DateIntervalParameter(interval_start, interval_end)
 
 
     def extra_modules(self):
