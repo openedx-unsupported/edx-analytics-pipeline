@@ -28,6 +28,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
         kwargs = {
             #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
+            'interval_start': self.interval_start,
             'import_date': self.import_date,
             'destination': self.destination,
         }
@@ -63,6 +64,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     transaction_source = luigi.Parameter()
     order_source = luigi.Parameter()
     interval_end = luigi.DateParameter()
+    interval_start = luigi.DateParameter()
     destination = luigi.Parameter()
     database = luigi.Parameter()
     num_mappers = luigi.Parameter()
@@ -71,6 +73,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         kwargs = {
             #'interval': self.interval,
             'interval_end': self.interval_end,
+            'interval_start': self.interval_start,
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
