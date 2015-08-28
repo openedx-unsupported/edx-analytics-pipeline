@@ -27,7 +27,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
         kwargs = {
             #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
-            'interval_start': self.interval_start,
+            'interval_end': self.interval_end,
             'import_date': self.import_date,
             # 'destination': self.destination,
         }
@@ -45,7 +45,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             #     **kwargs
             # ),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(),
+            ReconciledOrderTransactionTableTask(**kwargs),
         )
 
     def output(self):
