@@ -20,7 +20,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     # order_source = luigi.Parameter()
     interval_start = luigi.DateParameter()
     interval_end = luigi.DateParameter()
-    destination = luigi.Parameter()
+    # destination = luigi.Parameter()
     num_mappers = luigi.Parameter()
 
     def requires(self):
