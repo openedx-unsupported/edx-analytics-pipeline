@@ -29,7 +29,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             'verbose': self.verbose,
             'interval_start': self.interval_start,
             'import_date': self.import_date,
-            'destination': self.destination,
+            # 'destination': self.destination,
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
