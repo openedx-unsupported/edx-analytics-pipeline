@@ -101,8 +101,11 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
-    def __init__(self,interval_start,interval_end):
-        self.interval = luigi.date_interval.Custom(interval_start, interval_end)
+    # def __init__(self,interval_start,interval_end):
+    #     self.interval = luigi.date_interval.Custom(interval_start, interval_end)
+
+    interval = luigi.date_interval.Custom(interval_start, interval_end)
+
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
