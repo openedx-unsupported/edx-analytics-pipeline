@@ -488,6 +488,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             order_source=self.order_source,
             pattern=self.pattern,
             output_root=self.partition_location,
+            interval_end=self.interval_end,
+            interval_start=self.interval_start
         )
 
 
