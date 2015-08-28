@@ -52,3 +52,18 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
             ('enrollment_change', 'INTEGER'),
             ('enrollment_mode', 'VARCHAR(100)')
         ]
+
+    def run(self):
+        print "debug info:"
+        print str(type(CourseEnrollmentTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=url_path_join(self.warehouse_path, 'course_enrollment/')
+            ).output()))
+        print str(CourseEnrollmentTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=url_path_join(self.warehouse_path, 'course_enrollment/')
+            ).output())
+        super(LoadInternalReportingUserCourseToWarehouse, self).run()
+
