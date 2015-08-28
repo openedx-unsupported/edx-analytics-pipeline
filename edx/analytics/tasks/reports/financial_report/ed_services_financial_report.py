@@ -25,11 +25,8 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
 
     def requires(self):
         kwargs = {
-            #'num_mappers': self.num_mappers,
-            #'verbose': self.verbose,
             'interval_end': self.interval_end,
-            #'import_date': self.import_date,
-            # 'destination': self.destination,
+            'interval_start': self.interval_start,
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
