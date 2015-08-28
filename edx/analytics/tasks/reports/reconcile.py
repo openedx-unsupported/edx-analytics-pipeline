@@ -97,8 +97,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     interval_start = luigi.DateParameter()
     interval = luigi.date_interval.Custom(interval_start, interval_end)
 
-    print "IIIIIIINNNNNNTEEERRRRVAL: ", interval
-
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
