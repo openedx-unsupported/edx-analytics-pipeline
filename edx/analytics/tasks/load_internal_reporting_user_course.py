@@ -25,8 +25,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
                 n_reduce_tasks = self.n_reduce_tasks,
                 source = self.source,
                 interval_end = self.interval_end,
-                pattern = self.pattern,
-                overwrite = True
+                pattern = self.pattern
             )
         )
 
