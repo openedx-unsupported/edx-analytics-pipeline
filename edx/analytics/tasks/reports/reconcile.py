@@ -101,10 +101,11 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
-    # def __init__(self,interval_start,interval_end):
-    #     self.interval = luigi.date_interval.Custom(interval_start, interval_end)
+    def __init__(self, *args, **kwargs):
+        super(ReconcileOrdersAndTransactionsDownstreamMixin, self).__init__(*args, **kwargs)
 
-    interval = luigi.DateIntervalParameter(interval_start, interval_end)
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
     def extra_modules(self):
