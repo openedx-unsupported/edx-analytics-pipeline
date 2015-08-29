@@ -138,7 +138,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         return EventLogSelectionTask(
             source=[self.transaction_source, order_partition],
             pattern=self.pattern,
-            interval=self.interval
+            interval=self.interval,
         )
 
     def mapper(self, line):
@@ -499,7 +499,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             output_root=self.partition_location,
             interval_end=self.interval_end,
             interval_start=self.interval_start,
-            interval=self.interval,
+            #interval=self.interval,
         )
 
 
