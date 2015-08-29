@@ -33,7 +33,7 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
         default_from_config={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
     )
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    # interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     num_mappers = luigi.Parameter(default=None)
 
@@ -45,11 +45,11 @@ class BuildFinancialReportsTask(
 
     def requires(self):
         kwargs = {
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'destination': self.destination,
+            # 'num_mappers': self.num_mappers,
+            # 'verbose': self.verbose,
+            # 'destination': self.destination,
             'interval_start': self.interval_start,
-            'interval_end': self.interval_end,
+            # 'interval_end': self.interval_end,
         }
         return BuildEdServicesReportTask(
             database=self.database,
