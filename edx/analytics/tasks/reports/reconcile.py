@@ -104,8 +104,8 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     def __init__(self, *args, **kwargs):
         super(ReconcileOrdersAndTransactionsDownstreamMixin, self).__init__(*args, **kwargs)
 
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+        #if not self.interval:
+        self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
     def extra_modules(self):
