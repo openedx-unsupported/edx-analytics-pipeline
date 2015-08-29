@@ -15,13 +15,8 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    # interval = luigi.DateIntervalParameter()
-    # transaction_source = luigi.Parameter()
-    # order_source = luigi.Parameter()
     interval_start = luigi.DateParameter()
     interval_end = luigi.DateParameter()
-    # destination = luigi.Parameter()
-    # num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
@@ -30,19 +25,15 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
-            # ImportCourseModeTask(
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
-            # # Import Student Enrollment Information
-            # ImportStudentCourseEnrollmentTask(
-            #     credentials=self.credentials,
-            #     database=self.database,
-            #     **kwargs
-            # ),
+            ImportCourseModeTask(
+                **kwargs
+            ),
+            # Import Student Enrollment Information
+            ImportStudentCourseEnrollmentTask(
+                **kwargs
+            ),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(**kwargs),
+            # ReconciledOrderTransactionTableTask(**kwargs),
         )
 
     def output(self):
@@ -55,30 +46,18 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
-    #interval = luigi.DateIntervalParameter()
-    # transaction_source = luigi.Parameter()
-    # order_source = luigi.Parameter()
+
     interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
-    # destination = luigi.Parameter()
-    # database = luigi.Parameter()
-    # num_mappers = luigi.Parameter()
 
     def requires(self):
         kwargs = {
-            #'interval': self.interval,
             'interval_end': self.interval_end,
             'interval_start': self.interval_start,
-            #'num_mappers': self.num_mappers,
             'verbose': self.verbose,
-            #'import_date': self.import_date,
-            #'destination': self.destination,
-            #'transaction_source': self.transaction_source,
-            #'order_source': self.order_source
         }
         yield (
             ImportCourseAndEnrollmentTablesTask(
-                #credentials=self.credentials,
                 database=self.database,
                 **kwargs
             ),
