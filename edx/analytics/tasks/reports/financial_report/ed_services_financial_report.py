@@ -40,13 +40,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
-
-    interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
 
     def requires(self):
         kwargs = {
-            'interval_end': self.interval_end,
             'interval_start': self.interval_start,
             'verbose': self.verbose,
         }

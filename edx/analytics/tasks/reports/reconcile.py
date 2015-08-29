@@ -80,7 +80,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
     )
-
     order_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'}
     )
@@ -128,8 +127,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def requires(self):
         """Use EventLogSelectionTask to define inputs."""
-        #partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
-        partition_path_spec = HivePartition('dt', self.interval_end.isoformat()).path_spec  # pylint: disable=no-member
+        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
+        # partition_path_spec = HivePartition('dt', self.interval_end.isoformat()).path_spec  # pylint: disable=no-member
         order_partition = url_path_join(self.order_source, partition_path_spec)
 
 
@@ -485,8 +484,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
     @property
     def partition(self):
-        # return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-        return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        # return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
@@ -576,5 +575,5 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 })
 
     def output(self):
-        #return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
-        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval_end.isoformat(), 'transactions.csv'))
+        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+        #return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval_end.isoformat(), 'transactions.csv'))
