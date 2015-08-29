@@ -92,7 +92,8 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     #     ))
     # )
 
-    interval_end = luigi.DateParameter()
+    import_date = luigi.DateParameter()
+    # interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
 
     pattern = luigi.Parameter(
@@ -103,7 +104,9 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     def __init__(self, *args, **kwargs):
         super(ReconcileOrdersAndTransactionsDownstreamMixin, self).__init__(*args, **kwargs)
 
-        self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+        # self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+        self.interval = luigi.date_interval.Custom(self.interval_start, self.import_date)
+
 
 
     def extra_modules(self):
@@ -534,8 +537,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
-                #'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
-                'dt=' + self.interval_end.isoformat()  # pylint: disable=no-member
+                'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                #'dt=' + self.interval_end.isoformat()  # pylint: disable=no-member
             ) + '/',
             # overwrite=self.overwrite,
         )
