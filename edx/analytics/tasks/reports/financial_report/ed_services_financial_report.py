@@ -25,15 +25,14 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(
-                **kwargs
-            ),
+            ImportCourseModeTask(),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                **kwargs
-            ),
+            ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
-            # ReconciledOrderTransactionTableTask(**kwargs),
+            ReconciledOrderTransactionTableTask(
+                interval_start=self.interval_start,
+                interval_end=self.interval_end
+            ),
         )
 
     def output(self):
