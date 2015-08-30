@@ -38,12 +38,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
-    interval_start = luigi.DateParameter()
     interval = luigi.DateIntervalParameter()
 
     def requires(self):
         kwargs = {
-            'interval_start': self.interval_start,
             'verbose': self.verbose,
         }
         yield (
@@ -80,7 +78,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        # self.interval.date_b.isoformat()).
         # return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
