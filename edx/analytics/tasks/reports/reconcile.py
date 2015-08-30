@@ -493,7 +493,6 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             pattern=self.pattern,
             output_root=self.partition_location,
             interval_start=self.interval_start,
-            import_date=self.import_date,
         )
 
 

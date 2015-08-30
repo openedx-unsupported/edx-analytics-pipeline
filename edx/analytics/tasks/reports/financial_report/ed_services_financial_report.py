@@ -26,9 +26,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                interval_start=self.interval_start,
-            ),
+            ReconciledOrderTransactionTableTask(),
         )
 
     def output(self):
