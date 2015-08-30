@@ -14,11 +14,8 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     """
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
-    interval_start = luigi.DateParameter()
-
     def requires(self):
         kwargs = {
-            'interval_start': self.interval_start,
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
