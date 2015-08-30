@@ -53,9 +53,9 @@ class BuildFinancialReportsTask(
             # 'num_mappers': self.num_mappers,
             # 'verbose': self.verbose,
             # 'destination': self.destination,
-            'interval_start': self.interval_start,
             # 'import_date': self.import_date,
             # 'interval_end': self.interval_end,
             'interval': self.interval,
         }
+        print "IIIINNNNN:", self.interval
         return BuildEdServicesReportTask(**kwargs)
