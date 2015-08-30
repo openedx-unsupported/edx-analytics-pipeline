@@ -39,7 +39,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     """
     interval_start = luigi.DateParameter()
-    import_date = luigi.DateParameter()
+    # import_date = luigi.DateParameter()
 
     def requires(self):
         kwargs = {
@@ -81,7 +81,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+        # self.interval.date_b.isoformat()).
+        # return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
 
     @property
     def insert_query(self):
