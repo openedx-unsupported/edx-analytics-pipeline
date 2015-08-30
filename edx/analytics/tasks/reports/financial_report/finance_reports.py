@@ -24,6 +24,10 @@ class BuildFinancialReportsTask(
     luigi.WrapperTask):
 
     def requires(self):
+        # Ingest the data into HIVE needed to build the financial reports
+        kwargs = {
+            'interval': self.interval,
+        }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(),
@@ -31,13 +35,9 @@ class BuildFinancialReportsTask(
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(),
+
+            BuildEdServicesReportTask(**kwargs)
         )
 
     def output(self):
         return [task.output() for task in self.requires()]
-
-    def requires(self):
-        kwargs = {
-            'interval': self.interval,
-        }
-        return BuildEdServicesReportTask(**kwargs)
