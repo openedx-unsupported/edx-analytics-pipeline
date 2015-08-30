@@ -21,39 +21,39 @@ from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTabl
 
 
 
-# class BuildFinancialReportsMixin(DatabaseImportMixin):
-#
-#     output_root = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'output_root'})
-#
-#     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
-#     overwrite = luigi.BooleanParameter(default=True)
-#
-#     destination = luigi.Parameter(
-#         default_from_config={'section': 'payment-reconciliation', 'name': 'destination'},
-#         significant=False,
-#     )
-#     order_source = luigi.Parameter(
-#         default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'})
-#     transaction_source = luigi.Parameter(
-#         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
-#     )
-#     pattern = luigi.Parameter(
-#         is_list=True,
-#         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
-#     )
-#     interval_start = luigi.DateParameter(
-#         default_from_config={'section': 'enrollments', 'name': 'interval_start'},
-#         significant=False,
-#     )
-#     # interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-#
-#     num_mappers = luigi.Parameter(default=None)
-#
-#     interval = luigi.DateIntervalParameter(
-#         default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
-#             datetime.datetime.utcnow().date().isoformat()
-#         ))
-#     )
+class BuildFinancialReportsMixin(DatabaseImportMixin):
+
+    output_root = luigi.Parameter(default_from_config={'section': 'database-export', 'name': 'output_root'})
+
+    # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
+    overwrite = luigi.BooleanParameter(default=True)
+
+    destination = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'destination'},
+        significant=False,
+    )
+    order_source = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'order_source'})
+    transaction_source = luigi.Parameter(
+        default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
+    )
+    pattern = luigi.Parameter(
+        is_list=True,
+        default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
+    )
+    interval_start = luigi.DateParameter(
+        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+    )
+    # interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+
+    num_mappers = luigi.Parameter(default=None)
+
+    interval = luigi.DateIntervalParameter(
+        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
+            datetime.datetime.utcnow().date().isoformat()
+        ))
+    )
 
 # class BuildFinancialReportsTask(
 #     BuildFinancialReportsMixin,
@@ -73,7 +73,7 @@ from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTabl
 #         return BuildEdServicesReportTask(**kwargs)
 
 class BuildFinancialReportsTask(
-    # BuildFinancialReportsMixin,
+    BuildFinancialReportsMixin,
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
