@@ -37,6 +37,11 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
 
     num_mappers = luigi.Parameter(default=None)
 
+    interval = luigi.DateIntervalParameter(
+        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
+            datetime.datetime.utcnow().date().isoformat()
+        ))
+    )
 
 class BuildFinancialReportsTask(
     BuildFinancialReportsMixin,
@@ -54,5 +59,6 @@ class BuildFinancialReportsTask(
         }
         return BuildEdServicesReportTask(
             database=self.database,
+            interval=self.interval,
             **kwargs
         )
