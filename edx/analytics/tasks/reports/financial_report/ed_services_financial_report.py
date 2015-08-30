@@ -38,14 +38,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     Builds the financial report delivered to Ed Services.
 
     """
-    interval = luigi.DateIntervalParameter(
-        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
-            datetime.datetime.utcnow().date().isoformat()
-        ))
-    )
-
     interval_start = luigi.DateParameter()
-    # import_date = luigi.DateParameter()
     interval = luigi.DateParameter
 
     def requires(self):
