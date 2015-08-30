@@ -73,7 +73,7 @@ from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTabl
 #         return BuildEdServicesReportTask(**kwargs)
 
 class BuildFinancialReportsTask(
-    BuildFinancialReportsMixin,
+    # BuildFinancialReportsMixin,
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
