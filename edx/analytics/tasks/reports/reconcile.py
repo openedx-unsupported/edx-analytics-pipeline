@@ -91,9 +91,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
             datetime.datetime.utcnow().date().isoformat()
         ))
     )
-
-    interval_start = luigi.DateParameter()
-
     pattern = luigi.Parameter(
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
@@ -484,7 +481,6 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             order_source=self.order_source,
             pattern=self.pattern,
             output_root=self.partition_location,
-            interval_start=self.interval_start,
         )
 
 
