@@ -77,6 +77,7 @@ class BuildFinancialReportsTask(
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
 
+
     def requires(self):
         # Ingest required data into HIVE needed to build the financial reports
 
@@ -88,14 +89,14 @@ class BuildFinancialReportsTask(
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(),
 
-            BuildEdServicesReportTask(**kwargs)
+            # BuildEdServicesReportTask(**kwargs)
         )
 
     def run(self):
         kwargs = {
             'interval': self.interval,
         }
-        BuildEdServicesReportTask(**kwargs)
+        return BuildEdServicesReportTask(**kwargs)
 
     def output(self):
         return [task.output() for task in self.requires()]
