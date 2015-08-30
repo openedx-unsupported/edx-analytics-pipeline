@@ -86,11 +86,11 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     # Create a dummy default for this parameter, since it is parsed by EventLogSelectionTask
     # but not actually used.
-    # interval = luigi.DateIntervalParameter(
-    #     default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
-    #         datetime.datetime.utcnow().date().isoformat()
-    #     ))
-    # )
+    interval = luigi.DateIntervalParameter(
+        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
+            datetime.datetime.utcnow().date().isoformat()
+        ))
+    )
 
     import_date = luigi.DateParameter()
     interval_start = luigi.DateParameter()
@@ -100,11 +100,12 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
 
-    def __init__(self, *args, **kwargs):
-        super(ReconcileOrdersAndTransactionsDownstreamMixin, self).__init__(*args, **kwargs)
+    #def __init__(self, *args, **kwargs):
+    #    super(ReconcileOrdersAndTransactionsDownstreamMixin, self).__init__(*args, **kwargs)
 
+        #self.interval = self.inter
         # self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
-        self.interval = luigi.date_interval.Custom(self.interval_start, self.import_date)
+        # self.interval = luigi.date_interval.Custom(self.interval_start, )
 
 
     def extra_modules(self):
