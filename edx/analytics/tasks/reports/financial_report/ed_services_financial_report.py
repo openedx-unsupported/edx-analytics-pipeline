@@ -19,7 +19,7 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(),
+            # ReconciledOrderTransactionTableTask(),
         )
 
     def output(self):
@@ -33,10 +33,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     interval = luigi.DateIntervalParameter()
 
-    def requires(self):
-        yield (
-            ImportCourseAndEnrollmentTablesTask(),
-        )
+    # def requires(self):
+    #     yield (
+    #         ImportCourseAndEnrollmentTablesTask(),
+    #     )
 
     @property
     def table(self):
