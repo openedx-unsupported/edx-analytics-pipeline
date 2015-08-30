@@ -40,6 +40,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     interval_start = luigi.DateParameter()
     # import_date = luigi.DateParameter()
+    interval = luigi.DateParameter
 
     def requires(self):
         kwargs = {
@@ -48,7 +49,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         }
         yield (
             ImportCourseAndEnrollmentTablesTask(
-                database=self.database,
                 **kwargs
             ),
         )
