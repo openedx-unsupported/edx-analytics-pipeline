@@ -57,5 +57,4 @@ class BuildFinancialReportsTask(
             # 'interval_end': self.interval_end,
             'interval': self.interval,
         }
-        print "IIIINNNNN:", self.interval
         return BuildEdServicesReportTask(**kwargs)

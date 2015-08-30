@@ -2,9 +2,7 @@ import luigi
 import luigi.hdfs
 import luigi.date_interval
 
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
-# from edx.analytics.tasks.reports.financial_report.finance_reports import BuildFinancialReportsMixin
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
@@ -15,8 +13,6 @@ class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask
     Builds the Course and Enrollment data to satisfy the Ed Services report.
     """
     def requires(self):
-        kwargs = {
-        }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(),
@@ -38,13 +34,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     interval = luigi.DateIntervalParameter()
 
     def requires(self):
-        kwargs = {
-            'verbose': self.verbose,
-        }
         yield (
-            ImportCourseAndEnrollmentTablesTask(
-                **kwargs
-            ),
+            ImportCourseAndEnrollmentTablesTask(),
         )
 
     @property
@@ -75,7 +66,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        # return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
 
