@@ -93,7 +93,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     # )
 
     import_date = luigi.DateParameter()
-    # interval_end = luigi.DateParameter()
     interval_start = luigi.DateParameter()
 
     pattern = luigi.Parameter(
@@ -106,7 +105,6 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
         # self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
         self.interval = luigi.date_interval.Custom(self.interval_start, self.import_date)
-
 
 
     def extra_modules(self):
@@ -488,7 +486,6 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
     @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-        # return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
@@ -500,6 +497,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             output_root=self.partition_location,
             # interval_end=self.interval_end,
             interval_start=self.interval_start,
+            import_date=self.import_date,
         )
 
 
