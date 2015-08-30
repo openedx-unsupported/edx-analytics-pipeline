@@ -39,7 +39,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     """
     interval_start = luigi.DateParameter()
-    interval = luigi.date_interval()
+    interval = luigi.DateIntervalParameter()
 
     def requires(self):
         kwargs = {
