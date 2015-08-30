@@ -79,11 +79,8 @@ class BuildFinancialReportsTask(
 
 
     def requires(self):
-        # Ingest required data into HIVE needed to build the financial reports
 
-        # kwargs = {
-        #     'interval': self.interval,
-        # }
+        # Ingest required data into HIVE needed to build the financial reports
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(),
@@ -92,14 +89,11 @@ class BuildFinancialReportsTask(
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(),
 
-            # BuildEdServicesReportTask(**kwargs)
+            BuildEdServicesReportTask(interval=self.interval)
         )
 
-    def run(self):
-        kwargs = {
-            'interval': self.interval,
-        }
-        return BuildEdServicesReportTask(**kwargs)
+    # def run(self):
+    #     return BuildEdServicesReportTask(interval=self.interval)
 
     def output(self):
         return [task.output() for task in self.requires()]
