@@ -49,6 +49,7 @@ class BuildFinancialReportsTask(
             # 'verbose': self.verbose,
             # 'destination': self.destination,
             'interval_start': self.interval_start,
+            'import_date': self.import_date,
             # 'interval_end': self.interval_end,
         }
         return BuildEdServicesReportTask(
