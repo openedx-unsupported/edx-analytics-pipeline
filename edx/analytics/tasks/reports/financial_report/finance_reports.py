@@ -130,8 +130,8 @@ class BuildFinancialReportsTask(
             log.debug('Reconciling orders and transactions.'),
             ReconciledOrderTransactionTableTask(),
 
-            log.debug('Building ed services report.'),
-            BuildEdServicesReportTask(**kwargs),
+            # log.debug('Building ed services report.'),
+            # BuildEdServicesReportTask(**kwargs),
 
             # log.debug('Building transaction report.')
             # TransactionReportTask(**kwargs)
@@ -142,3 +142,6 @@ class BuildFinancialReportsTask(
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+    def run(self):
+        return BuildEdServicesReportTask(interval=self.interval)
