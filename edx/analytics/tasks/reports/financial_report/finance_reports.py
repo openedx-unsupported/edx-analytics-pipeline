@@ -128,7 +128,7 @@ class BuildFinancialReportsTask(
 
             # Import Reconciled Orders and Transactions
             log.debug('Reconciling orders and transactions.'),
-            ReconciledOrderTransactionTableTask(),
+            ReconciledOrderTransactionTableTask(**kwargs),
 
             # log.debug('Building ed services report.'),
             # BuildEdServicesReportTask(**kwargs),
