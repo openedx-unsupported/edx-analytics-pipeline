@@ -42,10 +42,10 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
     #     is_list=True,
     #     default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     # )
-    # interval_start = luigi.DateParameter(
-    #     default_from_config={'section': 'enrollments', 'name': 'interval_start'},
-    #     significant=False,
-    # )
+    start_date = luigi.DateParameter(
+        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+    )
     # # interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     #
     # num_mappers = luigi.Parameter(default=None)
@@ -95,6 +95,7 @@ class BuildFinancialReportsTask(
 
             # Import payment provider data: PayPal
             PaypalTransactionsByDayTask(
+                start_date=self.start_date,
                 **kwargs
             ),
 

@@ -20,9 +20,9 @@ log = logging.getLogger(__name__)
 
 class PaypalTaskMixin(OverwriteOutputMixin):
 
-    start_date = luigi.DateParameter(
-        default_from_config={'section': 'paypal', 'name': 'start_date'}
-    )
+    # start_date = luigi.DateParameter(
+    #     default_from_config={'section': 'paypal', 'name': 'start_date'}
+    # )
     client_mode = luigi.Parameter(
         default_from_config={'section': 'paypal', 'name': 'client_mode'}
     )
@@ -46,6 +46,9 @@ class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
     """
 
     output_root = luigi.Parameter()
+    start_date = luigi.DateParameter(
+        default_from_config={'section': 'paypal', 'name': 'start_date'}
+    )
 
     def initialize(self):
         log.debug('Initializing paypalrestsdk')
@@ -103,7 +106,9 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
 
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
-
+    start_date = luigi.DateParameter(
+        default_from_config={'section': 'paypal', 'name': 'start_date'}
+    )
     marker = luigi.Parameter(
         default_from_config={'section': 'map-reduce', 'name': 'marker'},
         significant=False
