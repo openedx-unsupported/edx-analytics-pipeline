@@ -119,7 +119,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
         return get_target_from_url(url_with_filename)
 
 
-class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, ImportIntoHiveTableTask):
+class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveTableTask):
     """Load the processed course structure API data into Hive."""
     run_date = luigi.Parameter()
 
@@ -132,24 +132,12 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, Impor
         return ProcessCourseStructureAPIData(**kwargs)
 
     @property
-    def table_name(self):
+    def table:
         return 'course_structure'
 
     @property
-    def table_format(self):
-        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
-
-    @property
-    def table_location(self):
-        return url_path_join(self.warehouse_path, self.table_name)
-
-    @property
-    def partition_date(self):
-        return self.run_date.isoformat()
-
-    # @property
-    # def partition(self):
-    #     return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
+    def partition(self):
+        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
