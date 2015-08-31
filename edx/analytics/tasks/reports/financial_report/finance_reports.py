@@ -18,8 +18,8 @@ from edx.analytics.tasks.database_imports import (
 )
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.reports.orders_import import OrderTableTask
-
-
+from edx.analytics.tasks.reports.paypal import PaypalTransactionsByDayTask
+from edx.analytics.tasks.reports.cybersource import IntervalPullFromCybersourceTask
 
 
 class BuildFinancialReportsMixin(DatabaseImportMixin):
@@ -49,6 +49,10 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
     # # interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date())
     #
     # num_mappers = luigi.Parameter(default=None)
+
+    output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
+
+    merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
     interval = luigi.DateIntervalParameter(
         default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
@@ -80,11 +84,31 @@ class BuildFinancialReportsTask(
 
 
     def requires(self):
-
+        kwargs = {
+            'interval': self.interval,
+            'output_root': self.output_root,
+        }
         # Ingest required data into HIVE needed to build the financial reports
         yield (
             # Import Order data
             OrderTableTask(),
+
+            # Import payment provider data: PayPal
+            PaypalTransactionsByDayTask(
+                **kwargs
+            ),
+
+            # Import payment provider data: CyberSource - edx.org
+            IntervalPullFromCybersourceTask(
+                merchant_id=self.merchant_id,
+                **kwargs
+            ),
+
+            # Import payment provider data: CyberSource - edx.org
+            # IntervalPullFromCybersourceTask(
+            #     merchant_id='mit_corp_edx',
+            #     **kwargs
+            # ),
 
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(),
@@ -93,7 +117,7 @@ class BuildFinancialReportsTask(
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(),
 
-            BuildEdServicesReportTask(interval=self.interval)
+            BuildEdServicesReportTask(**kwargs)
         )
 
     # def run(self):
