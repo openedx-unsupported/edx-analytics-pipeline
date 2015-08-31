@@ -208,7 +208,8 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
         """
         return [GetCoursesFromStudentCourseEnrollmentTask(n_reduce_tasks=self.n_reduce_tasks,
                                                           warehouse_path=self.warehouse_path, run_date=self.run_date),
-                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path)]
+                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
+                                                   overwrite=True)]
 
     @property
     def table(self):
