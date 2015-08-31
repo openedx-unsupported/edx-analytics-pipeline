@@ -6,6 +6,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.enrollments import CourseEnrollmentTask
 import luigi
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
+from edx.analytics.tasks.url import url_path_join
 
 class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask):
 
