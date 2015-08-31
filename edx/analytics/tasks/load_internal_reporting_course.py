@@ -194,13 +194,9 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
         This task reads from student_coursenrollment as well as course structure API results, so require that they be
         loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
         """
-        print str(LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
-                                                     overwrite=True).output())
         return [GetCoursesFromStudentCourseEnrollmentTask(n_reduce_tasks=self.n_reduce_tasks,
-                                                          warehouse_path=self.warehouse_path, run_date=self.run_date,
-                                                          overwrite=self.overwrite),
-                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
-                                                   overwrite=True)]
+                                                          warehouse_path=self.warehouse_path, run_date=self.run_date),
+                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path)]
 
     @property
     def table(self):
