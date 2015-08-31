@@ -141,7 +141,7 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, Impor
 
     @property
     def table_location(self):
-        return url_path_join(self.destination, self.table_name)
+        return url_path_join(self.warehouse_path, self.table_name)
 
     @property
     def partition_date(self):
@@ -208,7 +208,7 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
         """
         return [GetCoursesFromStudentCourseEnrollmentTask(n_reduce_tasks=self.n_reduce_tasks,
                                                           warehouse_path=self.warehouse_path, run_date=self.run_date),
-                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, destination=self.warehouse_path,
+                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
                                                    overwrite=True)]
 
     @property
