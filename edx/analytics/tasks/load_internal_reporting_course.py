@@ -132,7 +132,7 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveT
         return ProcessCourseStructureAPIData(**kwargs)
 
     @property
-    def table:
+    def table(self):
         return 'course_structure'
 
     @property
