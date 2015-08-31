@@ -86,7 +86,6 @@ class BuildFinancialReportsTask(
     def requires(self):
         kwargs = {
             'interval': self.interval,
-            'output_root': self.output_root,
         }
         # Ingest required data into HIVE needed to build the financial reports
         yield (
@@ -96,18 +95,21 @@ class BuildFinancialReportsTask(
             # Import payment provider data: PayPal
             PaypalTransactionsByDayTask(
                 start_date=self.start_date,
+                output_root=self.output_root,
                 **kwargs
             ),
 
             # Import payment provider data: CyberSource - edx.org
             IntervalPullFromCybersourceTask(
                 merchant_id=self.merchant_id,
+                output_root=self.output_root,
                 **kwargs
             ),
 
             # Import payment provider data: CyberSource - edx.org
             # IntervalPullFromCybersourceTask(
             #     merchant_id='mit_corp_edx',
+            #     output_root=self.output_root,
             #     **kwargs
             # ),
 
