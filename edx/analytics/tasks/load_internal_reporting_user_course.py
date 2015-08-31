@@ -20,8 +20,10 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     @property
     def insert_source_task(self):
         return (
-            CourseEnrollmentTableTask(
+            CourseEnrollmentTask(
                 n_reduce_tasks = self.n_reduce_tasks,
+                interval = self.interval,
+                output_root = url_path_join(self.warehouse_path, 'course_enrollment/')
             )
         )
 
@@ -36,6 +38,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
             ('date', 'DATE'),
             ('course_id', 'VARCHAR(200)'),
             ('user_id', 'INTEGER'),
+            ('enrollment_is_active', 'VARCHAR(45)'),
             ('enrollment_change', 'INTEGER'),
             ('enrollment_mode', 'VARCHAR(100)')
         ]
