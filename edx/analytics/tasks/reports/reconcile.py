@@ -490,6 +490,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     """
 
     output_root = luigi.Parameter()
+    interval = luigi.DateIntervalParameter()
 
     COLUMNS = [
         'date',
@@ -560,4 +561,3 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
-        #return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval_end.isoformat(), 'transactions.csv'))

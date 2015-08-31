@@ -93,23 +93,23 @@ class BuildFinancialReportsTask(
         yield (
             # Import Order data
             log.debug('Importing order data.'),
-            OrderTableTask(),
+            # OrderTableTask(),
 
             # Import payment provider data: PayPal
             # log.debug('Importing PayPal data')
-            PaypalTransactionsByDayTask(
-                start_date=self.start_date,
-                output_root=self.output_root,
-                **kwargs
-            ),
-
-            # Import payment provider data: CyberSource - edx.org
-            # log.debug('Importing cybersource - edx.org data.')
-            IntervalPullFromCybersourceTask(
-                merchant_id=self.merchant_id,
-                output_root=self.output_root,
-                **kwargs
-            ),
+            # PaypalTransactionsByDayTask(
+            #     start_date=self.start_date,
+            #     output_root=self.output_root,
+            #     **kwargs
+            # ),
+            #
+            # # Import payment provider data: CyberSource - edx.org
+            # # log.debug('Importing cybersource - edx.org data.')
+            # IntervalPullFromCybersourceTask(
+            #     merchant_id=self.merchant_id,
+            #     output_root=self.output_root,
+            #     **kwargs
+            # ),
 
             # Import payment provider data: CyberSource - MIT Corp edX
             # IntervalPullFromCybersourceTask(
@@ -134,7 +134,7 @@ class BuildFinancialReportsTask(
             BuildEdServicesReportTask(**kwargs),
 
             # log.debug('Building transaction report.')
-            TransactionReportTask(**kwargs)
+            # TransactionReportTask(**kwargs)
         )
 
     # def run(self):
