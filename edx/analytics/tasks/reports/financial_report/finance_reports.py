@@ -144,4 +144,4 @@ class BuildFinancialReportsTask(
         return [task.output() for task in self.requires()]
 
     def run(self):
-        return BuildEdServicesReportTask(interval=self.interval)
+        BuildEdServicesReportTask(interval=self.interval)
