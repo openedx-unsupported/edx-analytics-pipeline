@@ -119,18 +119,18 @@ class BuildFinancialReportsTask(
             # ),
 
             # Import Course Information: Mainly Course Mode & Suggested Prices
-            # log.debug('Importing course mode & suggested price data.')
+            log.debug('Importing course mode & suggested price data.'),
             ImportCourseModeTask(),
 
             # Import Student Enrollment Information
-            # log.debug('Importing student course enrollment data.')
+            log.debug('Importing student course enrollment data.'),
             ImportStudentCourseEnrollmentTask(),
 
             # Import Reconciled Orders and Transactions
-            # log.debug('Reconciling orders and transactions.')
+            log.debug('Reconciling orders and transactions.'),
             ReconciledOrderTransactionTableTask(),
 
-            # log.debug('Building ed services report.')
+            log.debug('Building ed services report.'),
             BuildEdServicesReportTask(**kwargs),
 
             # log.debug('Building transaction report.')
