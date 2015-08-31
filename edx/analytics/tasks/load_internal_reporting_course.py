@@ -14,7 +14,7 @@ from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask
+from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportIntoHiveTableTask
 from edx.analytics.tasks.util.hive import HiveTableTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 
@@ -119,7 +119,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
         return get_target_from_url(url_with_filename)
 
 
-class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveTableTask):
+class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, ImportIntoHiveTableTask):
     """Load the processed course structure API data into Hive."""
     run_date = luigi.Parameter()
 
@@ -132,12 +132,24 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveT
         return ProcessCourseStructureAPIData(**kwargs)
 
     @property
-    def table(self):
+    def table_name(self):
         return 'course_structure'
 
     @property
-    def partition(self):
-        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
+    def table_format(self):
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+
+    @property
+    def table_location(self):
+        return url_path_join(self.destination, self.table_name)
+
+    @property
+    def partition_date(self):
+        return self.run_date.isoformat()
+
+    # @property
+    # def partition(self):
+    #     return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
