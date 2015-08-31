@@ -146,8 +146,8 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, HiveT
             ('course_org_id', 'STRING'),
             ('course_number', 'STRING'),
             ('course_run', 'STRING'),
-            ('course_start_string', 'STRING'),
-            ('course_end_string', 'STRING'),
+            ('course_start', 'STRING'),
+            ('course_end', 'STRING'),
             ('course_name', 'STRING')
         ]
 
@@ -197,7 +197,8 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
         print str(LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
                                                      overwrite=True).output())
         return [GetCoursesFromStudentCourseEnrollmentTask(n_reduce_tasks=self.n_reduce_tasks,
-                                                          warehouse_path=self.warehouse_path, run_date=self.run_date),
+                                                          warehouse_path=self.warehouse_path, run_date=self.run_date,
+                                                          overwrite=self.overwrite),
                 LoadCourseStructureAPIDataIntoHive(run_date=self.run_date, warehouse_path=self.warehouse_path,
                                                    overwrite=True)]
 
