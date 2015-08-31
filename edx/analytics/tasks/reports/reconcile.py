@@ -114,6 +114,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     """
     output_root = luigi.Parameter()
+    interval = luigi.DateIntervalParameter()
 
     def requires(self):
         """Use EventLogSelectionTask to define inputs."""
@@ -426,6 +427,7 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
     output_root = None
+    interval = luigi.DateIntervalParameter()
 
     @property
     def table(self):
@@ -481,6 +483,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             order_source=self.order_source,
             pattern=self.pattern,
             output_root=self.partition_location,
+            interval=self.interval,
         )
 
 
