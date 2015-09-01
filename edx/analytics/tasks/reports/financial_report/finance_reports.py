@@ -35,22 +35,6 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
         ))
     )
 
-
-# class BuildFinancialReportsTask(
-#     BuildFinancialReportsMixin,
-#     ReconcileOrdersAndTransactionsDownstreamMixin,
-#     luigi.WrapperTask):
-#
-#     def requires(self):
-#         # Ingest required data into HIVE needed to build the financial reports
-#         yield (
-#             ImportCourseAndEnrollmentTablesTask(),
-#             ImportOrdersAndTransactionsTask()
-#         )
-#
-#     def output(self):
-#         return [task.output() for task in self.requires()]
-#
 class TransactionReport(BuildFinancialReportsMixin,luigi.WrapperTask):
 
     def requires(self):
