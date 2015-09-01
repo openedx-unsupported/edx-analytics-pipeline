@@ -35,35 +35,12 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
         ))
     )
 
-
-class TransactionReport(BuildFinancialReportsMixin,luigi.WrapperTask):
-    def requires(self):
-        # Ingest required data into HIVE needed to build the financial reports
-        yield (
-            TransactionReportTask()
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
-
-
-class EdServicesReport(BuildFinancialReportsMixin, luigi.WrapperTask):
-    def requires(self):
-        # Ingest required data into HIVE needed to build the financial reports
-        yield (
-            BuildEdServicesReportTask(interval=self.interval),
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
-
-
 class BuildFinancialReportsTask(BuildFinancialReportsMixin, luigi.WrapperTask):
     def requires(self):
         # Ingest required data into HIVE needed to build the financial reports
         yield (
-            TransactionReport(),
-            EdServicesReport()
+            TransactionReportTask(),
+            BuildEdServicesReportTask(interval=self.interval),
         )
 
 class BuildFinancialReportsTaskOrig(BuildFinancialReportsMixin, luigi.WrapperTask):

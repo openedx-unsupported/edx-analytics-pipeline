@@ -124,11 +124,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     Compare orders and transactions.
 
     """
-    output_root = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
-
-# CHANGE THIS
-
     def requires(self):
         OrderTableTask(),
         PaymentTableTask(),
