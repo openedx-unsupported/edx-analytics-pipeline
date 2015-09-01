@@ -16,6 +16,11 @@ from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
+from edx.analytics.tasks.reports.orders_import import OrderTableTask
+from edx.analytics.tasks.reports.paypal import PaypalTransactionsByDayTask
+from edx.analytics.tasks.reports.cybersource import IntervalPullFromCybersourceTask
+
+
 log = logging.getLogger(__name__)
 
 
@@ -95,6 +100,12 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         is_list=True,
         default_from_config={'section': 'payment-reconciliation', 'name': 'pattern'}
     )
+    start_date = luigi.DateParameter(
+        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+    )
+    output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
+    merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
@@ -116,16 +127,22 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     output_root = luigi.Parameter()
     interval = luigi.DateIntervalParameter()
 
-    def requires(self):
-        """Use EventLogSelectionTask to define inputs."""
-        partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
-        order_partition = url_path_join(self.order_source, partition_path_spec)
+# CHANGE THIS
 
-        return EventLogSelectionTask(
-            source=[self.transaction_source, order_partition],
-            pattern=self.pattern,
-            interval=self.interval,
-        )
+    def requires(self):
+        OrderTableTask(),
+        PaymentTableTask(),
+
+        # """Use EventLogSelectionTask to define inputs."""
+        # partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
+        # order_partition = url_path_join(self.order_source, partition_path_spec)
+        #
+        # return EventLogSelectionTask(
+        #     source=[self.transaction_source, order_partition],
+        #     pattern=self.pattern,
+        #     interval=self.interval,
+        # )
+
 
     def mapper(self, line):
         fields = line.split('\t')
@@ -492,9 +509,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     Creates transactions.csv.
     """
 
-    output_root = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
-
     COLUMNS = [
         'date',
         'transaction_id',
@@ -523,7 +537,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 self.output_root,
                 'reconciled_order_transactions',
                 'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
-                #'dt=' + self.interval_end.isoformat()  # pylint: disable=no-member
             ) + '/',
             # overwrite=self.overwrite,
         )
@@ -564,3 +577,29 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+
+
+class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.WrapperTask):
+    def requires(self):
+        # Import payment provider data: PayPal
+        # log.debug('Importing PayPal data')
+        PaypalTransactionsByDayTask(
+            start_date=self.start_date,
+            output_root=self.output_root,
+            interval=self.interval,
+        ),
+
+        # # Import payment provider data: CyberSource - edx.org
+        # # log.debug('Importing cybersource - edx.org data.')
+        # IntervalPullFromCybersourceTask(
+        #     merchant_id=self.merchant_id,
+        #     output_root=self.output_root,
+        #     **kwargs
+        # ),
+
+        # Import payment provider data: CyberSource - MIT Corp edX
+        IntervalPullFromCybersourceTask(
+            merchant_id='mit_corp_edx',
+            output_root=self.output_root,
+            interval=self.interval,
+        ),

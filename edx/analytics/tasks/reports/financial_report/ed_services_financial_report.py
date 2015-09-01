@@ -8,22 +8,23 @@ from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 
-class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask):
-    """
-    Builds the Course and Enrollment data to satisfy the Ed Services report.
-    """
-    def requires(self):
-        yield (
-            # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(),
-            # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(),
-            # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(),
-        )
 
-    def output(self):
-        return [task.output() for task in self.requires()]
+# class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask):
+#     """
+#     Builds the Course and Enrollment data to satisfy the Ed Services report.
+#     """
+#     def requires(self):
+#         yield (
+#             # Import Course Information: Mainly Course Mode & Suggested Prices
+#             ImportCourseModeTask(),
+#             # Import Student Enrollment Information
+#             ImportStudentCourseEnrollmentTask(),
+#             # Import Reconciled Orders and Transactions
+#             ReconciledOrderTransactionTableTask(),
+#         )
+#
+#     def output(self):
+#         return [task.output() for task in self.requires()]
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
@@ -33,10 +34,18 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     interval = luigi.DateIntervalParameter()
 
-    # def requires(self):
-    #     yield (
-    #         ImportCourseAndEnrollmentTablesTask(),
-    #     )
+    def requires(self):
+        # yield (
+        #     ImportCourseAndEnrollmentTablesTask(),
+        # )
+        yield (
+            # Import Course Information: Mainly Course Mode & Suggested Prices
+            ImportCourseModeTask(),
+            # Import Student Enrollment Information
+            ImportStudentCourseEnrollmentTask(),
+            # Import Reconciled Orders and Transactions
+            ReconciledOrderTransactionTableTask(),
+        )
 
     @property
     def table(self):

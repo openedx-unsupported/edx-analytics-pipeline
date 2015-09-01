@@ -4,7 +4,8 @@ import luigi.hdfs
 import luigi.date_interval
 import datetime
 from edx.analytics.tasks.reports.reconcile import ReconcileOrdersAndTransactionsDownstreamMixin, TransactionReportTask
-from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import BuildEdServicesReportTask
+from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import (
+    BuildEdServicesReportTask, ImportCourseAndEnrollmentTablesTask)
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
@@ -13,7 +14,6 @@ from edx.analytics.tasks.reports.orders_import import OrderTableTask
 from edx.analytics.tasks.reports.paypal import PaypalTransactionsByDayTask
 from edx.analytics.tasks.reports.cybersource import IntervalPullFromCybersourceTask
 
-log = logging.getLogger(__name__)
 
 class BuildFinancialReportsMixin(DatabaseImportMixin):
     #
@@ -35,11 +35,52 @@ class BuildFinancialReportsMixin(DatabaseImportMixin):
         ))
     )
 
-class BuildFinancialReportsTask(
+
+# class BuildFinancialReportsTask(
+#     BuildFinancialReportsMixin,
+#     ReconcileOrdersAndTransactionsDownstreamMixin,
+#     luigi.WrapperTask):
+#
+#     def requires(self):
+#         # Ingest required data into HIVE needed to build the financial reports
+#         yield (
+#             ImportCourseAndEnrollmentTablesTask(),
+#             ImportOrdersAndTransactionsTask()
+#         )
+#
+#     def output(self):
+#         return [task.output() for task in self.requires()]
+#
+class TransactionReport(BuildFinancialReportsMixin,luigi.WrapperTask):
+
+    def requires(self):
+        # Ingest required data into HIVE needed to build the financial reports
+        yield (
+            TransactionReportTask()
+        )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+class EdServicesReport(BuildFinancialReportsMixin, luigi.WrapperTask):
+
+    def requires(self):
+        # Ingest required data into HIVE needed to build the financial reports
+        yield (
+            BuildEdServicesReportTask(interval=self.interval),
+        )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+
+
+class BuildFinancialReportsTaskOrig(
     BuildFinancialReportsMixin,
     ReconcileOrdersAndTransactionsDownstreamMixin,
     luigi.WrapperTask):
-
 
     def requires(self):
         kwargs = {
@@ -98,6 +139,3 @@ class BuildFinancialReportsTask(
 
     def output(self):
         return [task.output() for task in self.requires()], BuildEdServicesReportTask(interval=self.interval)
-
-    def run(self):
-        BuildEdServicesReportTask(interval=self.interval)
