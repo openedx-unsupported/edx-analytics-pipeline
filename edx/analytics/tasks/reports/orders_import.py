@@ -47,6 +47,8 @@ class PullFromShoppingCartTablesTask(DatabaseImportMixin, OverwriteOutputMixin, 
             'credentials': self.credentials,
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
+            # JAB!!
+            # 'import_date': self.import_date,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
             'database': self.database,
@@ -78,6 +80,7 @@ class PullFromEcommerceTablesTask(DatabaseImportMixin, OverwriteOutputMixin, lui
     database = luigi.Parameter(
         default_from_config={'section': 'otto-database-import', 'name': 'database'}
     )
+    import_date = luigi.DateParameter()
 
     def requires(self):
         kwargs = {
@@ -135,12 +138,15 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     otto_database = luigi.Parameter(
         default_from_config={'section': 'otto-database-import', 'name': 'database'}
     )
+    interval = luigi.DateIntervalParameter()
 
     def requires(self):
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
-            'import_date': self.import_date,
+            'import_date': self.interval.date_b.isoformat(),
+            # JAB
+            # 'import_date': self.import_date,
             'overwrite': self.overwrite,
         }
         yield (
@@ -190,7 +196,6 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def partition(self):
         # return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
         return HivePartition('dt', self.interval.date_b.isoformat()) # pylint: disable=no-member
-
 
     @property
     def insert_query(self):

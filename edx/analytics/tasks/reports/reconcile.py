@@ -130,11 +130,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     output_root = luigi.Parameter()
 
     def requires(self):
-        print "iNNNNNNNTERRRRVALLL:", self.interval
-
-
-        OrderTableTask(),
-        PaymentTableTask(),
+        OrderTableTask(interval=self.interval),
+        PaymentTableTask(interval=self.interval),
 
         # """Use EventLogSelectionTask to define inputs."""
         # partition_path_spec = HivePartition('dt', self.interval.date_b.isoformat()).path_spec  # pylint: disable=no-member
