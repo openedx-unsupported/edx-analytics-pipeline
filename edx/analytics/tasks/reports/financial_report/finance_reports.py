@@ -32,5 +32,5 @@ class BuildFinancialReportsTask(BuildFinancialReportsMixin, luigi.WrapperTask):
         # Ingest required data into HIVE needed to build the financial reports
         yield (
             TransactionReportTask(),
-            BuildEdServicesReportTask(interval=self.interval),
+            BuildEdServicesReportTask(),
         )

@@ -439,7 +439,6 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
     output_root = None
-    interval = luigi.DateIntervalParameter()
 
     @property
     def table(self):
