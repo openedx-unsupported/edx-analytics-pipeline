@@ -107,6 +107,8 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
+
+
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
         import edx.analytics.tasks.mapreduce
@@ -124,6 +126,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     Compare orders and transactions.
 
     """
+    interval = luigi.DateIntervalParameter()
+    output_root = luigi.Parameter()
+
     def requires(self):
         print "iNNNNNNNTERRRRVALLL:", self.interval
 
@@ -490,14 +495,18 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
+        # return ReconcileOrdersAndTransactionsTask(
+        #     mapreduce_engine=self.mapreduce_engine,
+        #     n_reduce_tasks=self.n_reduce_tasks,
+        #     transaction_source=self.transaction_source,
+        #     order_source=self.order_source,
+        #     pattern=self.pattern,
+        #     output_root=self.partition_location,
+        #     interval=self.interval,
+        # )
         return ReconcileOrdersAndTransactionsTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            transaction_source=self.transaction_source,
-            order_source=self.order_source,
-            pattern=self.pattern,
-            output_root=self.partition_location,
             interval=self.interval,
+            output_root=self.output_root,
         )
 
 
@@ -505,6 +514,9 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     """
     Creates transactions.csv.
     """
+
+    interval = luigi.DateParameter()
+    output_root = luigi.Parameter()
 
     COLUMNS = [
         'date',
@@ -523,19 +535,27 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     ]
 
     def requires(self):
+        # return ReconcileOrdersAndTransactionsTask(
+        #     mapreduce_engine=self.mapreduce_engine,
+        #     n_reduce_tasks=self.n_reduce_tasks,
+        #     transaction_source=self.transaction_source,
+        #     order_source=self.order_source,
+        #     interval=self.interval,
+        #     pattern=self.pattern,
+        #     output_root=url_path_join(
+        #         self.output_root,
+        #         'reconciled_order_transactions',
+        #         'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+        #     ) + '/',
+        #     # overwrite=self.overwrite,
+
         return ReconcileOrdersAndTransactionsTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            transaction_source=self.transaction_source,
-            order_source=self.order_source,
             interval=self.interval,
-            pattern=self.pattern,
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
                 'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
-            ) + '/',
-            # overwrite=self.overwrite,
+                ) + '/',
         )
 
     def run(self):
@@ -577,11 +597,15 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
 
 class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.WrapperTask):
+
+    interval = luigi.DateParameter()
+    output_root = luigi.Parameter()
+
     def requires(self):
         # Import payment provider data: PayPal
         # log.debug('Importing PayPal data')
         PaypalTransactionsByDayTask(
-            start_date=self.start_date,
+            start_date=self.interval.date_a.isoformat(),
             output_root=self.output_root,
             interval=self.interval,
         ),
