@@ -125,6 +125,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     """
     def requires(self):
+        print "iNNNNNNNTERRRRVALLL:", self.interval
+
+
         OrderTableTask(),
         PaymentTableTask(),
 
