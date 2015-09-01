@@ -110,19 +110,24 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
     #     default_from_config={'section': 'paypal', 'name': 'start_date'}
     # )
 
-    start_date = interval.date_a.isoformat()
+
+
 
     marker = luigi.Parameter(
         default_from_config={'section': 'map-reduce', 'name': 'marker'},
         significant=False
     )
 
+    start_date = {}
     def run(self):
+
+        start_date = self.interval.date_a.isoformat()
+
         output_files = {}
 
         # interval_start_date_string = self.start_date.isoformat()
 
-        interval_start_date_string = self.start_date
+        interval_start_date_string = start_date
         interval_end_date_string = self.interval.date_b.isoformat()
 
         for input_target in self.input():
