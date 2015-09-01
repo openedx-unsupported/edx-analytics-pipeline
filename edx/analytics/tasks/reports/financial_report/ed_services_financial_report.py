@@ -9,29 +9,16 @@ from edx.analytics.tasks.database_imports import (
 )
 
 
-# class ImportCourseAndEnrollmentTablesTask(DatabaseImportMixin, luigi.WrapperTask):
-#     """
-#     Builds the Course and Enrollment data to satisfy the Ed Services report.
-#     """
-#     def requires(self):
-#         yield (
-#             # Import Course Information: Mainly Course Mode & Suggested Prices
-#             ImportCourseModeTask(),
-#             # Import Student Enrollment Information
-#             ImportStudentCourseEnrollmentTask(),
-#             # Import Reconciled Orders and Transactions
-#             ReconciledOrderTransactionTableTask(),
-#         )
-#
-#     def output(self):
-#         return [task.output() for task in self.requires()]
-
-
 class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
 
     """
+    interval = luigi.DateIntervalParameter(
+        default=luigi.date_interval.Custom.parse("2014-01-01-{}".format(
+            datetime.datetime.utcnow().date().isoformat()
+        ))
+    )
     def requires(self):
         # yield (
         #     ImportCourseAndEnrollmentTablesTask(),
