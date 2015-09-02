@@ -106,6 +106,7 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
 
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
+
     # start_date = luigi.DateParameter(
     #     default_from_config={'section': 'paypal', 'name': 'start_date'}
     # )
@@ -122,6 +123,8 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
     def run(self):
 
         start_date = self.interval.date_a.isoformat()
+
+        print 'START_DATE', start_date
 
         output_files = {}
 

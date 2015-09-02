@@ -570,6 +570,11 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         #     # overwrite=self.overwrite,
 
         return ReconcileOrdersAndTransactionsTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            transaction_source=self.transaction_source,
+            order_source=self.order_source,
+
             interval=self.interval,
             output_root=url_path_join(
                 self.output_root,
