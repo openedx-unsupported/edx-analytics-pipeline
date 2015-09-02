@@ -152,8 +152,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         #     interval=self.interval,
         # )
 
-        EventLogSelectionTask()
-
     def mapper(self, line):
         fields = line.split('\t')
         # If we put the "payment_ref_id" in the front of all these fields, or
