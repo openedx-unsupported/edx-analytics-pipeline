@@ -140,10 +140,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     )
     interval = luigi.DateIntervalParameter()
 
-    print "OOOOOOORDDDDDDER:", interval
+
 
 
     def requires(self):
+        print "OOOOOOORDDDDDDER:", self.interval.date_b.isoformat()
+
         kwargs = {
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
