@@ -135,7 +135,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         }
 
         print "IIIIINNNNNTTTTERRRVAAL", self.interval
-
         print "OUTPUTTTTTT ROOOOOT", self.output_root
 
 
@@ -622,7 +621,6 @@ class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Wrap
         # Import payment provider data: PayPal
         # log.debug('Importing PayPal data')
         PaypalTransactionsByDayTask(
-            start_date=self.interval.date_a.isoformat(),
             output_root=self.output_root,
             interval=self.interval,
         ),
