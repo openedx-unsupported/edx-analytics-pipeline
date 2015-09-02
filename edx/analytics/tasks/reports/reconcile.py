@@ -518,8 +518,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     Creates transactions.csv.
     """
 
-    interval = luigi.DateParameter()
-    output_root = luigi.Parameter()
+    # interval = luigi.DateParameter()
+    # output_root = luigi.Parameter()
 
     COLUMNS = [
         'date',
@@ -539,7 +539,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def requires(self):
 
-        print "in TransactionReportTask, Output Root: ", self.output_root
+        # print "in TransactionReportTask, Output Root: ", self.output_root
 
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
@@ -559,7 +559,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
-                'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                # 'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
+                'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
                 ) + '/',
         )
 
@@ -598,7 +599,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
                 })
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.interval.date_b.isoformat(), 'transactions.csv'))
+        return get_target_from_url(url_path_join(self.output_root, 'transaction', 'dt=' + self.import_date.isoformat(), 'transactions.csv'))
 
 
 class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.WrapperTask):

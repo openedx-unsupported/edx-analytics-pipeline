@@ -43,6 +43,8 @@ class PaypalTaskMixin(OverwriteOutputMixin):
 
     output_root = luigi.Parameter()
 
+    import_date = luigi.DateParameter()
+
 
 class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
     """
@@ -110,7 +112,6 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
     start_date = luigi.DateParameter(
         default_from_config={'section': 'paypal', 'name': 'start_date'}
     )
-
     marker = luigi.Parameter(
         default_from_config={'section': 'map-reduce', 'name': 'marker'},
         significant=False
@@ -122,7 +123,7 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
 
         # interval_start_date_string = start_date
         interval_start_date_string = self.start_date.isoformat()
-        interval_end_date_string = self.interval.date_b.isoformat()
+        interval_end_date_string = self.import_date.isoformat()
 
         for input_target in self.input():
             with input_target.open('r') as input_file:
@@ -193,7 +194,7 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
             output_file.write('OK')
 
     def requires(self):
-        for run_date in DateInterval(self.start_date, self.interval.date_b):
+        for run_date in DateInterval(self.start_date, self.import_date):
             yield RawPaypalTransactionLogTask(
                 output_root=self.output_root,
                 start_date=self.start_date,
