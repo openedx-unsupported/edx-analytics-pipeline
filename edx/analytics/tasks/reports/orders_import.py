@@ -132,6 +132,8 @@ class PullFromEcommerceTablesTask(DatabaseImportMixin, OverwriteOutputMixin, lui
 
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
+    print "OOOOOOORDDDDDDER:", interval
+
     otto_credentials = luigi.Parameter(
         default_from_config={'section': 'otto-database-import', 'name': 'credentials'}
     )

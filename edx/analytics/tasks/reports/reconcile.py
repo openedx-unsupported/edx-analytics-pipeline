@@ -129,6 +129,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
 
+    print "FOOOOOO:", interval
+
+
     def requires(self):
         kwargs = {
             'interval': self.interval,
@@ -149,6 +152,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         #     interval=self.interval,
         # )
 
+        EventLogSelectionTask()
 
     def mapper(self, line):
         fields = line.split('\t')
