@@ -29,7 +29,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
-                interval=self.interval
+                interval=self.interval,
+                output_root=self.output_root,
             ),
         )
 

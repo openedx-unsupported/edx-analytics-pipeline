@@ -104,7 +104,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
         default_from_config={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
     )
-    output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
+    # output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
 
@@ -137,6 +137,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         print "IIIIINNNNNTTTTERRRVAAL", self.interval
         print "OUTPUTTTTTT ROOOOOT", self.output_root
 
+        print self.output_root
 
         yield {
             OrderTableTask(**kwargs),
@@ -455,7 +456,7 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
-    output_root = None
+    output_root = luigi.Parameter()
     interval = luigi.DateIntervalParameter()
 
     @property
