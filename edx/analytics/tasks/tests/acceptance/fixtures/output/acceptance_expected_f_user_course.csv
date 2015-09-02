@@ -1,0 +1,5 @@
+record_number,date,course_id,user_id,enrollment_is_active,enrollment_change,enrollment_mode
+1,2014-04-18,edX/Open_DemoX/edx_demo_course,1,1,0,honor
+2,2014-04-18,edX/Open_DemoX/edx_demo_course,2,1,0,audit
+3,2014-04-18,edX/Open_DemoX/edx_demo_course,3,1,0,verified
+4,2014-04-18,edX/Open_DemoX/edx_demo_course,4,1,0,honor
