@@ -506,6 +506,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
+        print "INNNNNN REEEEQQQQURIIIIESS (interval):", self.interval
+
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
         #     n_reduce_tasks=self.n_reduce_tasks,
