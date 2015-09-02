@@ -39,13 +39,16 @@ class PaypalTaskMixin(OverwriteOutputMixin):
 
     overwrite = luigi.BooleanParameter(default=True)
 
+    interval = luigi.DateIntervalParameter()
+
+    output_root = luigi.Parameter()
+
 
 class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
     """
     A task that reads out of a remote Paypal account and writes to a file in raw JSON lines format.
     """
 
-    output_root = luigi.Parameter()
     start_date = luigi.DateParameter(
         default_from_config={'section': 'paypal', 'name': 'start_date'}
     )
@@ -104,33 +107,21 @@ class RawPaypalTransactionLogTask(PaypalTaskMixin, luigi.Task):
 
 class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
 
-    interval = luigi.DateIntervalParameter()
-    output_root = luigi.Parameter()
-
-    # start_date = luigi.DateParameter(
-    #     default_from_config={'section': 'paypal', 'name': 'start_date'}
-    # )
-
-
-
+    start_date = luigi.DateParameter(
+        default_from_config={'section': 'paypal', 'name': 'start_date'}
+    )
 
     marker = luigi.Parameter(
         default_from_config={'section': 'map-reduce', 'name': 'marker'},
         significant=False
     )
 
-    start_date = {}
     def run(self):
-
-        start_date = self.interval.date_a.isoformat()
-
-        print 'START_DATE', start_date
 
         output_files = {}
 
-        # interval_start_date_string = self.start_date.isoformat()
-
-        interval_start_date_string = start_date
+        # interval_start_date_string = start_date
+        interval_start_date_string = self.start_date.isoformat()
         interval_end_date_string = self.interval.date_b.isoformat()
 
         for input_target in self.input():

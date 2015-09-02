@@ -33,7 +33,6 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 output_root=self.output_root,
             ),
         )
-# HERE
 
     @property
     def table(self):

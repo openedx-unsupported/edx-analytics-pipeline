@@ -107,7 +107,8 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     # output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
-
+    output_root = luigi.Parameter()
+    import_date = luigi.DateParameter()
 
     def extra_modules(self):
         """edx.analytics.tasks is required by all tasks that load this file."""
@@ -126,25 +127,13 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     Compare orders and transactions.
 
     """
-    interval = luigi.DateIntervalParameter()
-    output_root = luigi.Parameter()
-
     def requires(self):
-        kwargs = {
-            'interval': self.interval,
-        }
-
         print "IIIIINNNNNTTTTERRRVAAL", self.interval
         print "OUTPUTTTTTT ROOOOOT", self.output_root
 
-        print self.output_root
-
         yield {
-            OrderTableTask(**kwargs),
-            PaymentTableTask(
-                output_root=self.output_root,
-                **kwargs
-            ),
+            OrderTableTask(),
+            PaymentTableTask(),
         }
 
         # """Use EventLogSelectionTask to define inputs."""
@@ -456,8 +445,8 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
-    output_root = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
+    # output_root = luigi.Parameter()
+    # interval = luigi.DateIntervalParameter()
 
     @property
     def table(self):
@@ -503,7 +492,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
     @property
     def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        # return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):
         print "INNNNNN REEEEQQQQURIIIIESS (interval):", self.interval
@@ -566,7 +556,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         #     # overwrite=self.overwrite,
 
         return ReconcileOrdersAndTransactionsTask(
-            interval=self.interval,
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
