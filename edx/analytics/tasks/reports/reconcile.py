@@ -551,6 +551,9 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     ]
 
     def requires(self):
+
+        print "in TransactionReportTask, Output Root: ", self.output_root
+
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
         #     n_reduce_tasks=self.n_reduce_tasks,
