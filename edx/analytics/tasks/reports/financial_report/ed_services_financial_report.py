@@ -29,14 +29,11 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                transaction_source=self.transaction_source,
-                order_source=self.order_source,
                 interval=self.interval,
                 output_root=self.output_root,
             ),
         )
+# HERE
 
     @property
     def table(self):
