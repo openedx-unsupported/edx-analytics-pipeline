@@ -1,15 +1,15 @@
 
-import hashlib
 import logging
 import re
+import gzip
 
 import cjson
 import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalUrl
-from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.util import eventlog, opaque_key_util
 
 
 log = logging.getLogger(__name__)
@@ -22,7 +22,7 @@ class SimpleGrep(MapReduceJobTask):
     search = luigi.Parameter(is_list=True)
 
     def requires(self):
-        return ExternalUrl(self.input_path)
+        return ExternalURL(self.input_path)
 
     def mapper(self, line):
         for p in self.search:
@@ -255,3 +255,39 @@ class ProblemCheckEventCount(EventCounter):
             return (date_string,)
 
         return None
+
+
+class GatherEventsByCourse(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
+
+    output_root = luigi.Parameter()
+    course_id = luigi.Parameter(is_list=True)
+
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, date_string = value
+
+        course_id = eventlog.get_course_id(event)
+        if not course_id or course_id not in self.course_id:
+            return
+
+        yield (course_id.encode('utf8'), line.strip())
+
+    def multi_output_reducer(self, course_id, lines, output_file):
+        outfile = gzip.GzipFile(mode='wb', fileobj=output_file)
+        try:
+            for line in lines:
+                outfile.write(line.strip())
+                outfile.write('\n')
+                # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+                # Do not remove it.
+                self.incr_counter('Event Export', 'Raw Bytes Written', len(line) + 1)
+        finally:
+            outfile.close()
+
+    def output_path_for_key(self, course_id):
+        filename = "{course_id}-events.gz".format(
+            course_id=opaque_key_util.get_filename_safe_course_id(course_id, '-')
+        )
+        return url_path_join(self.output_root, filename)
