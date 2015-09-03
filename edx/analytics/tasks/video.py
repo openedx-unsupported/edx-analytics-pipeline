@@ -538,7 +538,17 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
     @property
     def query(self):
         return """
-            SELECT DISTINCT
+            SELECT
+                pipeline_video_id,
+                course_id,
+                encoded_module_id,
+                duration,
+                segment_length,
+                users_at_start,
+                users_at_end,
+                sum(num_views) * segment_length
+            FROM video_usage
+            GROUP BY
                 pipeline_video_id,
                 course_id,
                 encoded_module_id,
@@ -546,7 +556,6 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
                 segment_length,
                 users_at_start,
                 users_at_end
-            FROM video_usage
         """
 
     @property
@@ -559,6 +568,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
             ('segment_length', 'INTEGER'),
             ('users_at_start', 'INTEGER'),
             ('users_at_end', 'INTEGER'),
+            ('total_viewed_seconds', 'INTEGER'),
         ]
 
     @property
