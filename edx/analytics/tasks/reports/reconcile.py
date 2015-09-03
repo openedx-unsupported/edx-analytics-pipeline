@@ -553,6 +553,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
         #     # overwrite=self.overwrite,
 
         return ReconcileOrdersAndTransactionsTask(
+            import_date=self.import_date,
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
