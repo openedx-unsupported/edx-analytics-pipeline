@@ -47,12 +47,18 @@ class DatabaseImportMixin(object):
         default_from_config={'section': 'database-import', 'name': 'database'}
     )
 
-    import_date = luigi.DateParameter(default=None)
+    # import_date = luigi.DateParameter(default=None)
+    import_date = luigi.DateParameter()
+
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
+    interval = luigi.DateIntervalParameter()
+    output_root = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
         super(DatabaseImportMixin, self).__init__(*args, **kwargs)
+
+        print "IMMMMMMPORT DATE: ", self.import_date
 
         if not self.import_date:
             self.import_date = datetime.datetime.utcnow().date()
@@ -161,7 +167,6 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
             self.table_name, self.partition, database=hive_database_name(), fail_missing_table=False
         )
 
-ImportIntoHiveTableTask
 class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
     """
     Dumps data from an RDBMS table, and imports into Hive.
