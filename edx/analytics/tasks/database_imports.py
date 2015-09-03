@@ -63,6 +63,8 @@ class DatabaseImportMixin(object):
         if not self.import_date:
             self.import_date = datetime.datetime.utcnow().date()
 
+            print "IMMMMMMPORT DATEIIII: ", self.import_date
+
 class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
     """
     Abstract class to import data into a Hive table.
