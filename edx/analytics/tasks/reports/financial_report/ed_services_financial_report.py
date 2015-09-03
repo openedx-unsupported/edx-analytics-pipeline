@@ -25,17 +25,18 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         # yield (
         #     ImportCourseAndEnrollmentTablesTask(),
         # )
+        kwargs = {
+            'output_root': self.output_root,
+            'interval': self.interval,
+            'import_date': self.import_date,
+        }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(),
             # Import Student Enrollment Information
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(
-                import_date=self.import_date,
-                interval=self.interval,
-                output_root=self.output_root,
-            ),
+            ReconciledOrderTransactionTableTask(**kwargs),
         )
 
     @property
@@ -66,7 +67,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
 
     @property
