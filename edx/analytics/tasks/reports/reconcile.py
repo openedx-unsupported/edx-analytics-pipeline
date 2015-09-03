@@ -518,9 +518,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     Creates transactions.csv.
     """
 
-    # interval = luigi.DateParameter()
-    # output_root = luigi.Parameter()
-
     COLUMNS = [
         'date',
         'transaction_id',

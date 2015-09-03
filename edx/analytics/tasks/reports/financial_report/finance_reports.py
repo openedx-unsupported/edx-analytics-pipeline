@@ -35,6 +35,6 @@ class BuildFinancialReportsTask(BuildFinancialReportsMixin, luigi.WrapperTask):
             'interval': self.interval,
         }
         yield (
-            TransactionReportTask(**kwargs),
-            BuildEdServicesReportTask(**kwargs),
+            TransactionReportTask(),
+            BuildEdServicesReportTask(),
         )
