@@ -331,6 +331,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 yield self.format_transaction_table_output(code, transaction, orderitems[0])
 
     def output(self):
+        print "OUTPUT ROOT:", self.output_root
+
         return get_target_from_url(self.output_root)
 
     def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None):
