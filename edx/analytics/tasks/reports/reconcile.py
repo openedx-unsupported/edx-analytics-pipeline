@@ -12,7 +12,7 @@ import luigi.date_interval
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 
@@ -80,7 +80,7 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
 )
 
 
-class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
+class ReconcileOrdersAndTransactionsDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):
 
     transaction_source = luigi.Parameter(
         default_from_config={'section': 'payment-reconciliation', 'name': 'transaction_source'}
@@ -107,7 +107,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     # output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
-    output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
+    output_root = luigi.Parameter(default=None)
     import_date = luigi.DateParameter()
 
     def extra_modules(self):
@@ -127,6 +127,16 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     Compare orders and transactions.
 
     """
+    def __init__(self, *args, **kwargs):
+        super(ReconcileOrdersAndTransactionsTask, self).__init__(*args, **kwargs)
+
+        if not self.output_root:
+            self.output_root =url_path_join(
+                self.warehouse_path,
+                'reconciled_order_transactions',
+                'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
+                ) + '/'
+
 
     def requires(self):
         yield {
@@ -507,7 +517,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             import_date=self.import_date,
             interval=self.interval,
             # output_root=self.output_root,
-            output_root=self.partition_location
+            # output_root=self.partition_location
         )
 
 
@@ -554,11 +564,11 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
         return ReconcileOrdersAndTransactionsTask(
             import_date=self.import_date,
-            output_root=url_path_join(
-                self.output_root,
-                'reconciled_order_transactions',
-                'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
-                ) + '/',
+            # output_root=url_path_join(
+            #     self.output_root,
+            #     'reconciled_order_transactions',
+            #     'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
+            #     ) + '/',
         )
 
     def run(self):
