@@ -446,6 +446,8 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
+    import_date = luigi.DateParameter()
+
     @property
     def table(self):
         return 'reconciled_order_transactions'
@@ -490,7 +492,6 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
 
     @property
     def partition(self):
-        # return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
         return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):

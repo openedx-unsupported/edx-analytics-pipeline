@@ -17,8 +17,11 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     """
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
+    import_date = luigi.DateParameter()
+
 
     def requires(self):
+
         # yield (
         #     ImportCourseAndEnrollmentTablesTask(),
         # )
@@ -29,6 +32,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportStudentCourseEnrollmentTask(),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
+                import_date=self.import_date,
                 interval=self.interval,
                 output_root=self.output_root,
             ),
