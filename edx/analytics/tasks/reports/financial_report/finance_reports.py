@@ -33,8 +33,9 @@ class BuildFinancialReportsTask(BuildFinancialReportsMixin, luigi.WrapperTask):
         kwargs = {
             # 'output_root': self.output_root,
             'interval': self.interval,
+            'import_date': self.import_date,
         }
         yield (
-            TransactionReportTask(import_date=self.import_date),
-            BuildEdServicesReportTask(),
+            TransactionReportTask(**kwargs),
+            BuildEdServicesReportTask(**kwargs),
         )
