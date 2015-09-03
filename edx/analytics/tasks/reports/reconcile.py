@@ -506,7 +506,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
         return ReconcileOrdersAndTransactionsTask(
             import_date=self.import_date,
             interval=self.interval,
-            output_root=self.output_root,
+            # output_root=self.output_root,
+            output_root=self.partition_location
         )
 
 
