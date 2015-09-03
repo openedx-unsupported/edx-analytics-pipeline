@@ -445,9 +445,6 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
 class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, HiveTableTask):
 
-    # output_root = luigi.Parameter()
-    # interval = luigi.DateIntervalParameter()
-
     @property
     def table(self):
         return 'reconciled_order_transactions'
@@ -535,6 +532,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     ]
 
     def requires(self):
+
         # print "in TransactionReportTask, Output Root: ", self.output_root
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
