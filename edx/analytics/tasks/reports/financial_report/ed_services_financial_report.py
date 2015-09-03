@@ -33,9 +33,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
             # Import Course Information: Mainly Course Mode & Suggested Prices
             ImportCourseModeTask(**kwargs),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(
-                interval=self.interval,
-                **kwargs),
+            ImportStudentCourseEnrollmentTask(**kwargs),
             # Import Reconciled Orders and Transactions
             ReconciledOrderTransactionTableTask(
                 interval=self.interval,
