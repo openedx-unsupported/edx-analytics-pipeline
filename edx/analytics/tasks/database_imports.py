@@ -52,7 +52,7 @@ class DatabaseImportMixin(object):
 
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
-    interval = luigi.DateIntervalParameter()
+    # interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
 
     # def __init__(self, *args, **kwargs):
