@@ -27,16 +27,19 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         # )
         kwargs = {
             'output_root': self.output_root,
-            'interval': self.interval,
             'import_date': self.import_date,
         }
         yield (
             # Import Course Information: Mainly Course Mode & Suggested Prices
-            ImportCourseModeTask(),
+            ImportCourseModeTask(**kwargs),
             # Import Student Enrollment Information
-            ImportStudentCourseEnrollmentTask(),
+            ImportStudentCourseEnrollmentTask(
+                interval=self.interval,
+                **kwargs),
             # Import Reconciled Orders and Transactions
-            ReconciledOrderTransactionTableTask(**kwargs),
+            ReconciledOrderTransactionTableTask(
+                interval=self.interval,
+                **kwargs),
         )
 
     @property
