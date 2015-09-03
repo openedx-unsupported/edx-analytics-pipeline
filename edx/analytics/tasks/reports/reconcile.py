@@ -127,6 +127,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     Compare orders and transactions.
 
     """
+
     def requires(self):
         # print "IIIIINNNNNTTTTERRRVAAL", self.interval
         # print "OUTPUTTTTTT ROOOOOT", self.output_root
@@ -515,6 +516,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     Creates transactions.csv.
     """
 
+
+
     COLUMNS = [
         'date',
         'transaction_id',
@@ -533,7 +536,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def requires(self):
 
-        import_date = luigi.DateParameter()
 
         # print "in TransactionReportTask, Output Root: ", self.output_root
         # return ReconcileOrdersAndTransactionsTask(

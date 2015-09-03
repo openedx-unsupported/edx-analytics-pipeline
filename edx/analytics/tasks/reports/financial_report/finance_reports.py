@@ -31,7 +31,7 @@ class BuildFinancialReportsTask(BuildFinancialReportsMixin, luigi.WrapperTask):
     def requires(self):
         # Ingest required data into HIVE needed to build the financial reports
         kwargs = {
-            # 'output_root': self.output_root,
+            'output_root': self.output_root,
             'interval': self.interval,
             'import_date': self.import_date,
         }
