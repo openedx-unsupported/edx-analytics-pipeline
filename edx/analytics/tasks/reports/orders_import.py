@@ -69,6 +69,8 @@ class PullFromShoppingCartTablesTask(DatabaseImportMixin, OverwriteOutputMixin, 
 class PullFromEcommerceTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of ecommerce tables from an external database into a destination directory."""
 
+
+    print "IN ECOMM PULL TASK"
     destination = luigi.Parameter(
         default_from_config={'section': 'otto-database-import', 'name': 'destination'}
     )

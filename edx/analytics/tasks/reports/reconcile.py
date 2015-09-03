@@ -129,9 +129,6 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     """
 
     def requires(self):
-        # print "IIIIINNNNNTTTTERRRVAAL", self.interval
-        # print "OUTPUTTTTTT ROOOOOT", self.output_root
-
         yield {
             OrderTableTask(),
             PaymentTableTask(),
@@ -495,8 +492,6 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
         return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        print "INNNNNN REEEEQQQQURIIIIESS (interval):", self.interval
-
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
         #     n_reduce_tasks=self.n_reduce_tasks,
