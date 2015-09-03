@@ -107,7 +107,7 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     # output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     merchant_id = luigi.Parameter(default_from_config={'section': 'cybersource', 'name': 'merchant_id'})
 
-    output_root = luigi.Parameter()
+    output_root = luigi.Parameter(default_from_config={'section': 'payment-reconciliation', 'name': 'destination'})
     import_date = luigi.DateParameter()
 
     def extra_modules(self):
@@ -128,8 +128,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     """
     def requires(self):
-        print "IIIIINNNNNTTTTERRRVAAL", self.interval
-        print "OUTPUTTTTTT ROOOOOT", self.output_root
+        # print "IIIIINNNNNTTTTERRRVAAL", self.interval
+        # print "OUTPUTTTTTT ROOOOOT", self.output_root
 
         yield {
             OrderTableTask(),
@@ -535,9 +535,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
     ]
 
     def requires(self):
-
         # print "in TransactionReportTask, Output Root: ", self.output_root
-
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
         #     n_reduce_tasks=self.n_reduce_tasks,
@@ -556,7 +554,6 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',
-                # 'dt=' + self.interval.date_b.isoformat()  # pylint: disable=no-member
                 'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
                 ) + '/',
         )
