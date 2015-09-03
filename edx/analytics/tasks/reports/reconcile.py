@@ -507,6 +507,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
         #     interval=self.interval,
         # )
         return ReconcileOrdersAndTransactionsTask(
+            import_date=self.import_date,
             interval=self.interval,
             output_root=self.output_root,
         )
@@ -602,6 +603,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
 class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.WrapperTask):
 
+
+    # TODO: CHANGE THIS
     interval = luigi.DateParameter()
     output_root = luigi.Parameter()
 
