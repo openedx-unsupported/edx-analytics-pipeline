@@ -533,6 +533,8 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi
 
     def requires(self):
 
+        import_date = luigi.DateParameter()
+
         # print "in TransactionReportTask, Output Root: ", self.output_root
         # return ReconcileOrdersAndTransactionsTask(
         #     mapreduce_engine=self.mapreduce_engine,
