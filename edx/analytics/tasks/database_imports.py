@@ -48,22 +48,24 @@ class DatabaseImportMixin(object):
     )
 
     # import_date = luigi.DateParameter(default=None)
-    import_date = luigi.DateParameter()
+    import_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
     interval = luigi.DateIntervalParameter()
     output_root = luigi.Parameter()
 
-    def __init__(self, *args, **kwargs):
-        super(DatabaseImportMixin, self).__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs):
+    #     super(DatabaseImportMixin, self).__init__(*args, **kwargs)
+    #
+    #     print "IMMMMMMPORT DATE: ", self.import_date
+    #
+    #     if not self.import_date:
+    #         self.import_date = datetime.datetime.utcnow().date()
+    #
+    #         print "IMMMMMMPORT DATEIIII: ", self.import_date
 
-        print "IMMMMMMPORT DATE: ", self.import_date
 
-        if not self.import_date:
-            self.import_date = datetime.datetime.utcnow().date()
-
-            print "IMMMMMMPORT DATEIIII: ", self.import_date
 
 class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
     """
