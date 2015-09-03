@@ -21,7 +21,13 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
+from edx.analytics.tasks.util.hive import (
+    HivePartition,
+    HiveQueryToMysqlTask,
+    HiveTableFromQueryTask,
+    HiveTableTask,
+    WarehouseMixin,
+)
 
 log = logging.getLogger(__name__)
 
@@ -67,6 +73,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
         entity_id = ''
         info = {}
+        forum_post_voted = None
         if event_type == 'problem_check':
             if event_source != 'server':
                 return
@@ -91,6 +98,13 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             info['path'] = event_type
             info['timestamp'] = timestamp
             event_type = SUBSECTION_VIEWED_MARKER
+        else:
+            forum_post_voted = re.match(r'edx\.forum\.(?P<post_type>\w+)\.voted', event_type)
+            if forum_post_voted:
+                info['vote_value'] = event_data.get('vote_value')
+                if info['vote_value'] not in ['up', 'down']:
+                    return
+                info['undo_vote'] = event_data.get('undo_vote', False)
 
         date_grouping_key = date_string
 
@@ -117,6 +131,15 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 
         yield ((date_grouping_key, course_id, username), (entity_id, event_type, json.dumps(info), date_string))
 
+        if forum_post_voted:
+            # We emit two events for each "voted" event - one for the voting user and one for the
+            # user receiving the vote.
+            username = event_data.get('target_username')
+            if not username:
+                return
+            event_type = 'edx.forum.{}.vote_received'.format(forum_post_voted.group('post_type'))
+            yield ((date_grouping_key, course_id, username), (entity_id, event_type, json.dumps(info), date_string))
+
     def reducer(self, key, events):
         """Calculate counts for events corresponding to user and course in a given time period."""
         date_grouping_key, course_id, username = key
@@ -133,6 +156,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         num_forum_comments = 0
         num_forum_responses = 0
         num_forum_posts = 0
+        num_forum_upvotes_given = 0
+        num_forum_downvotes_given = 0
+        num_forum_upvotes_received = 0
+        num_forum_downvotes_received = 0
         num_textbook_pages = 0
         dates_active = set()
         max_timestamp = None
@@ -158,6 +185,20 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
                     num_forum_responses += 1
                 elif event_type == 'edx.forum.thread.created':
                     num_forum_posts += 1
+                elif event_type in ('edx.forum.response.voted', 'edx.forum.thread.voted'):
+                    vote_count = 1
+                    if info['undo_vote']:
+                        vote_count = -1
+                    if info['vote_value'] == 'up':
+                        num_forum_upvotes_given += vote_count
+                    else:
+                        num_forum_downvotes_given += vote_count
+                elif event_type in ('edx.forum.response.vote_received', 'edx.forum.thread.vote_received'):
+                    vote_count = [1, -1][info['undo_vote']]
+                    if info['vote_value'] == 'up':
+                        num_forum_upvotes_received += vote_count
+                    else:
+                        num_forum_downvotes_received += vote_count
                 elif event_type == 'book':
                     num_textbook_pages += 1
                 elif event_type == SUBSECTION_VIEWED_MARKER:
@@ -187,6 +228,10 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             num_forum_posts,
             num_forum_responses,
             num_forum_comments,
+            num_forum_upvotes_given,
+            num_forum_downvotes_given,
+            num_forum_upvotes_received,
+            num_forum_downvotes_received,
             num_textbook_pages,
             last_subsection_viewed.encode('utf-8'),
         )
@@ -229,6 +274,10 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
             ('forum_posts', 'INT'),
             ('forum_responses', 'INT'),
             ('forum_comments', 'INT'),
+            ('forum_upvotes_given', 'INT'),
+            ('forum_downvotes_given', 'INT'),
+            ('forum_upvotes_received', 'INT'),
+            ('forum_downvotes_received', 'INT'),
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'STRING'),
         ]
@@ -284,6 +333,10 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ('forum_posts', 'INT'),
             ('forum_responses', 'INT'),
             ('forum_comments', 'INT'),
+            ('forum_upvotes_given', 'INT'),
+            ('forum_downvotes_given', 'INT'),
+            ('forum_upvotes_received', 'INT'),
+            ('forum_downvotes_received', 'INT'),
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'STRING'),
         ]
@@ -325,6 +378,10 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.forum_posts, 0),
             COALESCE(ser.forum_responses, 0),
             COALESCE(ser.forum_comments, 0),
+            COALESCE(ser.forum_upvotes_given, 0),
+            COALESCE(ser.forum_downvotes_given, 0),
+            COALESCE(ser.forum_upvotes_received, 0),
+            COALESCE(ser.forum_downvotes_received, 0),
             COALESCE(ser.textbook_pages_viewed, 0),
             COALESCE(ser.last_subsection_viewed, '')
         FROM course_enrollment ce
@@ -467,6 +524,10 @@ class StudentEngagementCsvFileTask(
             'Discussion Posts',
             'Discussion Responses',
             'Discussion Comments',
+            'Discussion Upvotes Given',
+            'Discussion Downvotes Given',
+            'Discussion Upvotes Received',
+            'Discussion Downvotes Received',
             'Textbook Pages Viewed',
             'URL of Last Subsection Viewed',
         ]
@@ -502,3 +563,60 @@ class StudentEngagementCsvFileTask(
             # TSV's are assumed to be written (by Hive) in UTF-8 encoding,
             # so we should not encode the values of row_data before outputting.
             writer.writerow(row_dict)
+
+
+class StudentForumEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQueryToMysqlTask):
+    """
+    Copy the student forum engagement data from Hive to a MySQL table.
+    """
+
+    @property
+    def table(self):
+        return 'student_forum_engagement_{}'.format(self.interval_type)
+
+    columns = [
+        ('end_date', 'DATE'),
+        ('course_id','VARCHAR(255) NOT NULL'),
+        ('username', 'VARCHAR(255) NOT NULL'),
+        ('forum_posts', 'INT'),
+        ('forum_responses', 'INT'),
+        ('forum_comments', 'INT'),
+        ('forum_upvotes_given', 'INT'),
+        ('forum_downvotes_given', 'INT'),
+        ('forum_upvotes_received', 'INT'),
+        ('forum_downvotes_received', 'INT'),
+    ]
+
+    default_columns = [
+        ('created', 'TIMESTAMP DEFAULT NOW()'),
+        ('CONSTRAINT ecu', 'UNIQUE (end_date, course_id, username)'),
+    ]
+
+    @property
+    def required_table_tasks(self):
+        return StudentEngagementTableTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            overwrite=self.overwrite,
+            interval_type=self.interval_type,
+        )
+
+    @property
+    def query(self):
+        return """
+            SELECT {columns}
+            FROM student_engagement_raw_{interval_type}
+            WHERE end_date >= '{start_date}' AND end_date < '{end_date}'
+        """.format(
+            columns=', '.join(name for name, unused_type in self.columns),
+            interval_type=self.interval_type,
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat(),
+        )
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
