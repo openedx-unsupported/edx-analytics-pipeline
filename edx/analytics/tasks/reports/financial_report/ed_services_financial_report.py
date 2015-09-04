@@ -26,7 +26,7 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
         #     ImportCourseAndEnrollmentTablesTask(),
         # )
         kwargs = {
-            # 'output_root': self.output_root,
+            'output_root': self.output_root,
             'import_date': self.import_date,
         }
         yield (
