@@ -627,6 +627,7 @@ class PaymentTableTask(ReconcileOrdersAndTransactionsDownstreamMixin, luigi.Wrap
         # Import payment provider data: PayPal
         # log.debug('Importing PayPal data')
         PaypalTransactionsByDayTask(
+            import_date=self.import_date,
             output_root=self.output_root,
             interval=self.interval,
         ),
