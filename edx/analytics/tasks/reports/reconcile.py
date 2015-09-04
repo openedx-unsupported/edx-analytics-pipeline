@@ -140,7 +140,10 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def requires(self):
         yield {
-            OrderTableTask(output_root=self.output_root),
+            OrderTableTask(
+                output_root=self.output_root,
+                import_date=self.import_date
+            ),
             PaymentTableTask(),
         }
 
