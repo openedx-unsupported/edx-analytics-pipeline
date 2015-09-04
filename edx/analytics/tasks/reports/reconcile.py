@@ -144,7 +144,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 output_root=self.output_root,
                 import_date=self.import_date
             ),
-            PaymentTableTask(import_date=self.import_date),
+            PaymentTableTask(import_date=self.import_date,
+                             interval=self.interval
+            ),
         }
 
         # """Use EventLogSelectionTask to define inputs."""
