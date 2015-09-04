@@ -1,9 +1,16 @@
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
+import datetime
+import luigi
+import luigi.hdfs
+import luigi.date_interval
+
 from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin
+from edx.analytics.tasks.vertica_load import VerticaCopyTask
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, HiveTableFromQueryTask):
@@ -181,3 +188,54 @@ class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, Hive
             ) donations ON donations.order_course_id = courses.course_id
             ;
         """
+
+
+class LoadInternalReportingEdServicesReportToWarehouse(DatabaseImportMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads Ed Services Report table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+        return (
+            BuildEdServicesReportTask(
+                import_date=self.import_date,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'ed_services_report'
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('course_id', 'VARCHAR(255)'),
+            ('mode_slug', 'VARCHAR(100)'),
+            ('suggested_prices', 'VARCHAR(255)'),  # a CommaSeparatedIntegerField in LMS CourseMode
+            ('min_price', 'DECIMAL(12,2)'),  # an Integer in LMS CourseMode
+            ('expiration_datetime', 'TIMESTAMP'),
+            ('total_currently_enrolled', 'INTEGER'),
+            ('audit_currently_enrolled', 'INTEGER'),
+            ('honor_currently_enrolled', 'INTEGER'),
+            ('verified_currently_enrolled', 'INTEGER'),
+            ('professional_currently_enrolled', 'INTEGER'),
+            ('no_id_professional_currently_enrolled', 'INTEGER'),
+            ('refunded_seat_count', 'INTEGER'),
+            ('refunded_amount', 'DECIMAL(12,2)'),
+            ('net_seat_revenue', 'DECIMAL(12,2)'),
+            ('net_seat_count', 'INTEGER'),
+            ('donation_count', 'INTEGER'),
+            ('net_donation_revenue', 'DECIMAL(12,2)'),
+        ]
