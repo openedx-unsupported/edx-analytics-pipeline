@@ -12,7 +12,6 @@ class BuildFinancialReportsTask(DatabaseImportMixin, luigi.WrapperTask):
     def requires(self):
         yield (
             BuildEdServicesReportTask(
-                destination=self.destination,
                 import_date=self.import_date,
             ),
             TransactionReportTask(

@@ -202,10 +202,7 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
     def requires(self):
         """Internal method to actually calculate required tasks once."""
         args = {
-            'host': self.host,
             'merchant_id': self.merchant_id,
-            'username': self.username,
-            'password': self.password,
             'output_root': self.warehouse_path,
             'overwrite': self.overwrite,
         }

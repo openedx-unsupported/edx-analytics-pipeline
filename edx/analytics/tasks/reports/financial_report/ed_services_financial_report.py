@@ -14,11 +14,9 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def requires(self):
         yield (
             ImportCourseModeTask(
-                destination=self.destination,
                 import_date=self.import_date
             ),
             ImportStudentCourseEnrollmentTask(
-                destination=self.destination,
                 import_date=self.import_date
             ),
             ReconciledOrderTransactionTableTask(
