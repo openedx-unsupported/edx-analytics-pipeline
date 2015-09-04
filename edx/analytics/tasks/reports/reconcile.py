@@ -140,7 +140,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def requires(self):
         yield {
-            OrderTableTask(),
+            OrderTableTask(output_root=self.output_root),
             PaymentTableTask(),
         }
 
