@@ -121,6 +121,7 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
             'run_date': self.run_date,
             'output_root': self.output_root,
             'overwrite': self.overwrite,
+            'merchant_id': self.merchant_id,
         }
         return DailyPullFromCybersourceTask(**args)
 
