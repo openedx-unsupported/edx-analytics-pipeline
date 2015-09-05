@@ -119,10 +119,6 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
     def requires(self):
         args = {
             'run_date': self.run_date,
-            'host': self.host,
-            'merchant_id': self.merchant_id,
-            'username': self.username,
-            'password': self.password,
             'output_root': self.output_root,
             'overwrite': self.overwrite,
         }
