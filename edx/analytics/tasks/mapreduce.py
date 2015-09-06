@@ -117,8 +117,11 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
             'input_format': input_format,
         }
 
-    def input_hadoop(self):
-        return luigi.task.getpaths(convert_tasks_to_manifest_if_necessary(self.requires_hadoop()))
+    def requires_hadoop(self):
+        return convert_tasks_to_manifest_if_necessary(self.requires())
+
+    def deps(self):
+        return super(MapReduceJobTask, self).deps() + luigi.task.flatten(self.requires())
 
 
 class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
