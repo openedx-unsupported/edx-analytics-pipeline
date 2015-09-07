@@ -13,7 +13,7 @@ import luigi
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
-    ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
+    ImportAuthUserTask, ImportAuthUserProfileTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
 from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
@@ -262,7 +262,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
 
     @property
     def table(self):
-        return 'student_engagement_joined_{}'.format(self.interval_type)
+        return 'student_engagement_summary_{}'.format(self.interval_type)
 
     @property
     def partition(self):
@@ -275,6 +275,8 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ('course_id', 'STRING'),
             ('username', 'STRING'),
             ('email', 'STRING'),
+            ('name', 'STRING'),
+            ('enrollment_mode', 'STRING'),
             ('cohort', 'STRING'),
             ('days_active', 'INT'),
             ('problems_attempted', 'INT'),
@@ -286,6 +288,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ('forum_comments', 'INT'),
             ('textbook_pages_viewed', 'INT'),
             ('last_subsection_viewed', 'STRING'),
+            ('segments', 'STRING'),
         ]
 
     @property
@@ -316,6 +319,8 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ce.course_id,
             au.username,
             au.email,
+            aup.name,
+            ce.mode,
             COALESCE(cohort.name, ''),
             COALESCE(ser.days_active, 0),
             COALESCE(ser.problems_attempted, 0),
@@ -326,13 +331,36 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.forum_responses, 0),
             COALESCE(ser.forum_comments, 0),
             COALESCE(ser.textbook_pages_viewed, 0),
-            COALESCE(ser.last_subsection_viewed, '')
+            COALESCE(ser.last_subsection_viewed, ''),
+            concat_ws(",",
+                CASE WHEN ser.days_active = 0 THEN "inactive" END,
+                CASE WHEN (
+                    (ser.problem_attempts > 0 AND ser.problems_correct = 0)
+                    OR (
+                        ser.problems_correct > 0
+                        AND ((ser.problem_attempts / ser.problems_correct) > perc.attempts_per_correct_80)
+                    )
+                ) THEN "struggling" END
+            )
         FROM course_enrollment ce
         {calendar_join}
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
+        INNER JOIN auth_userprofile aup
+            ON (au.id = aup.user_id)
         LEFT OUTER JOIN student_engagement_raw_{interval_type} ser
             ON (au.username = ser.username AND ce.date = ser.end_date and ce.course_id = ser.course_id)
+        LEFT OUTER JOIN (
+                SELECT
+                    end_date,
+                    course_id,
+                    percentile_approx(
+                        CASE WHEN problems_correct > 0 THEN (problem_attempts / problems_correct) ELSE 0.0 END,
+                        0.8
+                    ) AS attempts_per_correct_80
+                FROM student_engagement_raw_{interval_type}
+                GROUP BY end_date, course_id
+            ) perc ON (ce.course_id = perc.course_id AND ce.date = perc.end_date)
         LEFT OUTER JOIN (
             SELECT
                 cugu.user_id,
@@ -380,6 +408,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
             CourseEnrollmentTableTask(**kwargs_for_enrollment),
+            ImportAuthUserProfileTask(**kwargs_for_db_import),
         )
         # Only the weekly requires use of the calendar.
         if self.interval_type == "weekly":
@@ -388,6 +417,32 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                     warehouse_path=self.warehouse_path,
                 )
             )
+
+
+class StudentEngagementIndexTask(
+        StudentEngagementTableDownstreamMixin,
+        OverwriteOutputMixin,
+        MapReduceJobTask):
+    """
+    Groups student engagement information by course, producing a different file for each.
+    """
+
+    def requires(self):
+        return JoinedStudentEngagementTableTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            overwrite=self.overwrite,
+            interval_type=self.interval_type,
+        )
+
+    def mapper(self, line):
+        pass
+
+    def reducer(self, key, values):
+        pass
 
 
 class StudentEngagementCsvFileTask(
@@ -502,3 +557,108 @@ class StudentEngagementCsvFileTask(
             # TSV's are assumed to be written (by Hive) in UTF-8 encoding,
             # so we should not encode the values of row_data before outputting.
             writer.writerow(row_dict)
+
+
+class StudentModuleEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
+
+    output_root = luigi.Parameter()
+
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, date_string = value
+
+        username = event.get('username', '').strip()
+        if not username:
+            return
+
+        event_type = event.get('event_type')
+        if event_type is None:
+            return
+
+        course_id = eventlog.get_course_id(event)
+        if not course_id:
+            return
+
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            return
+
+        event_source = event.get('event_source')
+
+        entity_id = None
+        entity_type = None
+        if event_type == 'problem_check':
+            if event_source != 'server':
+                return
+
+            entity_type = 'problem'
+            entity_id = event_data.get('problem_id')
+        elif event_type == 'play_video':
+            entity_type = 'video'
+            entity_id = event_data.get('id')
+        elif event_type.startswith('edx.forum.'):
+            entity_type = 'forum'
+            entity_id = event_data.get('commentable_id')
+
+        if not entity_id or not entity_type:
+            return
+
+        key = tuple([k.encode('utf8') for k in (date_string, course_id, username, entity_type, entity_id)])
+
+        yield (key, 1)
+
+    def reducer(self, key, values):
+        yield ('\t'.join(key + [str(sum(values))]),)
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+
+from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
+
+class InsertStudentModuleEngagementIntoMysqlTask(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin, MysqlInsertTask):
+
+    output_root = luigi.Parameter()
+
+    @property
+    def table(self):
+        return "student_module_engagement"
+
+    @property
+    def auto_primary_key(self):
+        return None
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('username', 'VARCHAR(30) NOT NULL'),
+            ('date', 'DATE NOT NULL'),
+            ('module_category', 'VARCHAR(10) NOT NULL'),
+            ('encoded_module_id', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INT'),
+            ('PRIMARY KEY', '(course_id, username, date, module_category, encoded_module_id)')
+        ]
+
+    @property
+    def insert_source_task(self):
+        return StudentModuleEngagementTask(
+            n_reduce_tasks=self.n_reduce_tasks,
+            interval=self.interval,
+            output_root=self.output_root
+        )
+
+from luigi import date_interval
+
+class IntervalStudentModuleEngagement(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin, MysqlInsertTaskMixin, WarehouseMixin, luigi.WrapperTask):
+
+    def requires(self):
+        for date in self.interval:
+            yield InsertStudentModuleEngagementIntoMysqlTask(
+                n_reduce_tasks=self.n_reduce_tasks,
+                interval=date_interval.Date.from_date(date),
+                output_root=url_path_join(self.warehouse_path, 'student_module_engagement', 'dt=' + date.isoformat()),
+                overwrite=self.overwrite,
+            )
