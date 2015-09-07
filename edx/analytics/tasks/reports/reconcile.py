@@ -774,6 +774,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, Wareh
     def requires(self):
         return ReconcileOrdersAndTransactionsTask(
             import_date=self.import_date,
+            n_reduce_tasks=self.n_reduce_tasks,
             output_root=url_path_join(
                 self.output_root,
                 'reconciled_order_transactions',

@@ -3,10 +3,10 @@ from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTabl
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
 
 
-class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
+class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, HiveTableFromQueryTask):
     """
     Builds the financial report delivered to Ed Services.
     """
@@ -20,7 +20,8 @@ class BuildEdServicesReportTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 import_date=self.import_date
             ),
             ReconciledOrderTransactionTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks
             )
         )
 
