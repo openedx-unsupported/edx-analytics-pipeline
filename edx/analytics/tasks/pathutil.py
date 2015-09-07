@@ -186,7 +186,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 
     def _get_hdfs_urls(self, source):
         """Recursively list all files inside the source directory on the hdfs filesystem."""
-        for source in luigi.hdfs.listdir(source):
+        for source in luigi.hdfs.listdir(source, recursive=True):
             yield source
 
     def _get_local_urls(self, source):
