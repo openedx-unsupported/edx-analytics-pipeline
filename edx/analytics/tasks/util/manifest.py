@@ -3,6 +3,7 @@
 import logging
 
 import luigi
+import luigi.hdfs
 from luigi import configuration
 from luigi import task
 
@@ -74,3 +75,48 @@ def convert_tasks_to_manifest_if_necessary(input_tasks):  # pylint: disable=inva
             'Directly processing files since %d inputs are less than the threshold %d', len(targets), threshold
         )
         return all_input_tasks
+
+
+def convert_to_manifest_input_if_necessary(manifest_id, targets):
+    threshold = configuration.get_config().getint(CONFIG_SECTION, 'threshold', -1)
+    if threshold > 0 and len(targets) >= threshold:
+        log.debug(
+            'Using manifest since %d inputs are greater than or equal to the threshold %d', len(targets), threshold
+        )
+        manifest_target = ManifestInputTarget.from_existing_targets(manifest_id, targets)
+        return [manifest_target]
+    else:
+        log.debug(
+            'Directly processing files since %d inputs are less than the threshold %d', len(targets), threshold
+        )
+        return targets
+
+
+class ManifestInputTarget(luigi.hdfs.HdfsTarget):
+
+    def __init__(self, manifest_id):
+        config = configuration.get_config()
+        base_url = config.get(CONFIG_SECTION, 'path')
+        self.manifest_id = manifest_id
+
+        super(ManifestInputTarget, self).__init__(path=url_path_join(base_url, manifest_id + '.manifest'))
+
+        lib_jar = config.get(CONFIG_SECTION, 'lib_jar', None)
+        if lib_jar:
+            self.lib_jar = [lib_jar]
+        input_format = config.get(CONFIG_SECTION, 'input_format', None)
+        if input_format:
+            self.input_format = input_format
+
+    @classmethod
+    def from_existing_targets(cls, manifest_id, other_targets):
+        manifest_target = ManifestInputTarget(manifest_id)
+        if not manifest_target.exists():
+            with manifest_target.open('w') as manifest_file:
+                for target in other_targets:
+                    manifest_file.write(target.path)
+                    manifest_file.write('\n')
+        else:
+            log.debug('Reusing existing manifest found at %s', manifest_target.path)
+
+        return manifest_target
