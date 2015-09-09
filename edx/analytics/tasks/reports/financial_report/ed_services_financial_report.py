@@ -190,16 +190,22 @@ class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, Hive
         """
 
 
-class LoadInternalReportingEdServicesReportToWarehouse(DatabaseImportMixin, WarehouseMixin, VerticaCopyTask):
+class LoadInternalReportingEdServicesReportToWarehouse(MapReduceJobTaskMixin, WarehouseMixin, VerticaCopyTask):
     """
     Loads Ed Services Report table from Hive into the Vertica data warehouse.
     """
+    # Instead of importing all of DatabaseImportMixin at this level, we just define
+    # what we need and are willing to pass through.  That way the use of "credentials"
+    # for the output of the report data is not conflicting.
+    import_date = luigi.DateParameter()
+
     @property
     def insert_source_task(self):
         # This gets added to what requires() yields in VerticaCopyTask.
         return (
             BuildEdServicesReportTask(
                 import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
                 # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
                 # to just apply to the writing to Vertica, not to anything further upstream.
                 # overwrite=self.overwrite,
