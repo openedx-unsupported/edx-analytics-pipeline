@@ -58,7 +58,7 @@ class SqoopImportFromMysqlTestCase(unittest.TestCase):
                     "password": "example password"
                 }'''
         fake_input = {
-            'credentials': FakeTarget(textwrap.dedent(credentials))
+            'credentials': FakeTarget(value=textwrap.dedent(credentials))
         }
         task.input = MagicMock(return_value=fake_input)
 

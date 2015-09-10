@@ -43,8 +43,11 @@ class DatabaseImportMixin(object):
     credentials = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'credentials'}
     )
-    import_date = luigi.DateParameter(default=None)
+    database = luigi.Parameter(
+        default_from_config={'section': 'database-import', 'name': 'database'}
+    )
 
+    import_date = luigi.DateParameter(default=None)
     num_mappers = luigi.Parameter(default=None, significant=False)
     verbose = luigi.BooleanParameter(default=False, significant=False)
 
@@ -190,6 +193,7 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             num_mappers=self.num_mappers,
             verbose=self.verbose,
             overwrite=self.overwrite,
+            database=self.database,
             # Hive expects NULL to be represented by the string "\N" in the data. You have to pass in "\\N" to sqoop
             # since it uses that string directly in the generated Java code, so "\\N" actually looks like "\N" to the
             # Java code. In order to get "\\N" onto the command line we have to use another set of escapes to tell the
@@ -250,9 +254,11 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
 
 class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
+    """
+    Imports user demographic information from an external LMS DB to both a
+    destination directory and a HIVE metastore.
 
-    """Imports user demographic information from an external LMS DB to a destination directory."""
-
+    """
     @property
     def table_name(self):
         return 'auth_userprofile'
@@ -268,8 +274,11 @@ class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
 
 
 class ImportCourseUserGroupTask(ImportMysqlToHiveTableTask):
-    """Imports course cohort information from an external LMS DB to a destination directory."""
+    """
+    Imports course cohort information from an external LMS DB to both a
+    destination directory and a HIVE metastore.
 
+    """
     @property
     def table_name(self):
         return 'course_groups_courseusergroup'
@@ -285,8 +294,11 @@ class ImportCourseUserGroupTask(ImportMysqlToHiveTableTask):
 
 
 class ImportCourseUserGroupUsersTask(ImportMysqlToHiveTableTask):
-    """Imports user cohort information from an external LMS DB to a destination directory."""
+    """
+    Imports user cohort information from an external LMS DB to both a
+    destination directory and a HIVE metastore.
 
+    """
     @property
     def table_name(self):
         return 'course_groups_courseusergroup_users'
@@ -299,8 +311,715 @@ class ImportCourseUserGroupUsersTask(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportShoppingCartOrder(ImportMysqlToHiveTableTask):
+    """
+    Imports orders from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_order'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('user_id', 'INT'),
+            ('currency', 'STRING'),
+            ('status', 'STRING'),
+            ('purchase_time', 'TIMESTAMP'),
+            ('bill_to_first', 'STRING'),
+            ('bill_to_last', 'STRING'),
+            ('bill_to_street1', 'STRING'),
+            ('bill_to_street2', 'STRING'),
+            ('bill_to_city', 'STRING'),
+            ('bill_to_state', 'STRING'),
+            ('bill_to_postalcode', 'STRING'),
+            ('bill_to_country', 'STRING'),
+            ('bill_to_ccnum', 'STRING'),
+            ('bill_to_cardtype', 'STRING'),
+            ('processor_reply_dump', 'STRING'),
+            ('refunded_time', 'STRING'),
+            ('company_name', 'STRING'),
+            ('company_contact_name', 'STRING'),
+            ('company_contact_email', 'STRING'),
+            ('recipient_name', 'STRING'),
+            ('recipient_email', 'STRING'),
+            ('customer_reference_number', 'STRING'),
+            ('order_type', 'STRING'),
+        ]
+
+
+class ImportShoppingCartOrderItem(ImportMysqlToHiveTableTask):
+    """
+    Imports individual order items from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_orderitem'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('order_id', 'INT'),
+            ('user_id', 'INT'),
+            ('status', 'STRING'),
+            ('qty', 'int'),
+            ('unit_cost', 'DECIMAL'),
+            ('line_desc', 'STRING'),
+            ('currency', 'STRING'),
+            ('fulfilled_time', 'TIMESTAMP'),
+            ('report_comments', 'STRING'),
+            ('refund_requested_time', 'TIMESTAMP'),
+            ('service_fee', 'DECIMAL'),
+            ('list_price', 'DECIMAL'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportShoppingCartCertificateItem(ImportMysqlToHiveTableTask):
+    """
+    Imports certificate items from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_certificateitem'
+
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('course_enrollment_id', 'INT'),
+            ('mode', 'STRING'),
+        ]
+
+
+class ImportShoppingCartPaidCourseRegistration(ImportMysqlToHiveTableTask):
+    """
+    Imports paid course registrations from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_paidcourseregistration'
+
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+            ('course_enrollment_id', 'INT'),
+        ]
+
+
+class ImportShoppingCartDonation(ImportMysqlToHiveTableTask):
+    """
+    Imports donations from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_donation'
+
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT'),
+            ('donation_type', 'STRING'),
+            ('course_id', 'STRING'),
+        ]
+
+
+class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
+    """
+    Imports course registration codes from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_courseregcodeitem'
+
+    @property
+    def columns(self):
+        return [
+            ('orderitem_ptr_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+        ]
+
+
+class ImportEcommerceUser(ImportMysqlToHiveTableTask):
+    """Ecommerce: Users: Imports users from an external ecommerce table to a destination dir."""
+
+    @property
+    def table_name(self):
+        return 'ecommerce_user'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('username', 'STRING'),
+            ('email', 'STRING'),
+        ]
+
+
+class ImportProductCatalog(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Products: Imports product catalog from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'catalogue_product'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('structure', 'STRING'),
+            ('upc', 'STRING'),
+            ('title', 'STRING'),
+            ('slug', 'STRING'),
+            ('description', 'STRING'),
+            ('rating', 'STRING'),
+            ('date_created', 'TIMESTAMP'),
+            ('date_updated', 'TIMESTAMP'),
+            ('is_discountable', 'STRING'),
+            ('parent_id', 'INT'),
+            ('product_class_id', 'INT'),
+        ]
+
+
+class ImportProductCatalogClass(ImportMysqlToHiveTableTask):
+    """Ecommerce: Products: Imports product catalog classes from an external ecommerce table to a destination dir."""
+
+    @property
+    def table_name(self):
+        return 'catalogue_productclass'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('slug', 'STRING'),
+            ('requires_shipping', 'TINYINT'),
+            ('track_stock', 'TINYINT'),
+        ]
+
+
+class ImportProductCatalogAttributes(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Products: Imports product catalog attributes from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'catalogue_productattribute'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('code', 'STRING'),
+            ('type', 'STRING'),
+            ('required', 'INT'),
+            ('option_group_id', 'INT'),
+            ('product_class_id', 'INT'),
+        ]
+
+
+class ImportProductCatalogAttributeValues(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Products: Imports product catalog attribute values from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'catalogue_productattributevalue'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('value_text', 'STRING'),
+            ('value_integer', 'INT'),
+            ('value_boolean', 'BOOLEAN'),
+            ('value_float', 'STRING'),
+            ('value_richtext', 'STRING'),
+            ('value_date', 'TIMESTAMP'),
+            ('value_file', 'STRING'),
+            ('value_image', 'STRING'),
+            ('entity_object_id', 'INT'),
+            ('attribute_id', 'INT'),
+            ('entity_content_type_id', 'INT'),
+            ('product_id', 'INT'),
+            ('value_option_id', 'INT'),
+        ]
+
+
+class ImportOrderOrderHistory(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: History: Imports order history from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_historicalorder'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('number', 'STRING'),
+            ('currency', 'STRING'),
+            ('total_incl_tax', 'DECIMAL'),
+            ('total_excl_tax', 'DECIMAL'),
+            ('shipping_incl_tax', 'DECIMAL'),
+            ('shipping_excl_tax', 'DECIMAL'),
+            ('shipping_method', 'STRING'),
+            ('shipping_code', 'STRING'),
+            ('status', 'STRING'),
+            ('guest_email', 'STRING'),
+            ('date_placed', 'TIMESTAMP'),
+            ('history_id', 'INT'),
+            ('history_date', 'TIMESTAMP'),
+            ('history_type', 'STRING'),
+            ('basket_id', 'INT'),
+            ('billing_address_id', 'INT'),
+            ('history_user_id', 'INT'),
+            ('shipping_address_id', 'INT'),
+            ('site_id', 'INT'),
+            ('user_id', 'INT'),
+        ]
+
+
+class ImportOrderHistoricalLine(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: History: Imports order history line items from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_historicalline'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('partner_name', 'STRING'),
+            ('partner_sku', 'STRING'),
+            ('partner_line_reference', 'STRING'),
+            ('partner_line_notes', 'STRING'),
+            ('title', 'STRING'),
+            ('upc', 'STRING'),
+            ('quantity', 'INT'),
+            ('line_price_incl_tax', 'DECIMAL'),
+            ('line_price_excl_tax', 'DECIMAL'),
+            ('line_price_before_discounts_incl_tax', 'DECIMAL'),
+            ('line_price_before_discounts_excl_tax', 'DECIMAL'),
+            ('unit_cost_price', 'DECIMAL'),
+            ('unit_price_incl_tax', 'DECIMAL'),
+            ('unit_price_excl_tax', 'DECIMAL'),
+            ('unit_retail_price', 'DECIMAL'),
+            ('status', 'STRING'),
+            ('est_dispatch_date', 'TIMESTAMP'),
+            ('history_id', 'INT'),
+            ('history_date', 'TIMESTAMP'),
+            ('history_type', 'STRING'),
+            ('history_user_id', 'INT'),
+            ('order_id', 'INT'),
+            ('partner_id', 'INT'),
+            ('product_id', 'INT'),
+            ('stockrecord_id', 'INT'),
+        ]
+
+
+class ImportRefundHistoricalRefund(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: History: Imports historical refunds from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'refund_historicalrefund'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('total_credit_excl_tax', 'DECIMAL'),
+            ('status', 'STRING'),
+            ('history_id', 'INT'),
+            ('history_date', 'TIMESTAMP'),
+            ('history_type', 'STRING'),
+            ('history_user_id', 'INT'),
+            ('order_id', 'INT'),
+            ('user_id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('currency', 'STRING'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportRefundHistoricalRefundLine(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: History: Imports historical refunds line items from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'refund_historicalrefundline'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('line_credit_excl_tax', 'DECIMAL'),
+            ('quantity', 'INT'),
+            ('status', 'STRING'),
+            ('history_id', 'INT'),
+            ('history_date', 'TIMESTAMP'),
+            ('history_type', 'STRING'),
+            ('history_user_id', 'INT'),
+            ('order_line_id', 'INT'),
+            ('refund_id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportCurrentBasketState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current basket line items from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'basket_basket'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('status', 'STRING'),
+            ('date_created', 'TIMESTAMP'),
+            ('date_merged', 'TIMESTAMP'),
+            ('date_submitted', 'TIMESTAMP'),
+            ('owner_id', 'INT'),
+        ]
+
+
+class ImportCurrentRefundRefundState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current refund items from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'refund_refund'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('total_credit_excl_tax', 'DECIMAL'),
+            ('status', 'STRING'),
+            ('order_id', 'INT'),
+            ('user_id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('currency', 'STRING'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportCurrentRefundRefundLineState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current refund line items from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'refund_refundline'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('line_credit_excl_tax', 'DECIMAL'),
+            ('quantity', 'INT'),
+            ('status', 'STRING'),
+            ('order_line_id', 'INT'),
+            ('refund_id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportCurrentOrderState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce Current: Imports current orders from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_order'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('number', 'STRING'),
+            ('currency', 'STRING'),
+            ('total_incl_tax', 'DECIMAL'),
+            ('total_excl_tax', 'DECIMAL'),
+            ('shipping_incl_tax', 'DECIMAL'),
+            ('shipping_excl_tax', 'DECIMAL'),
+            ('shipping_method', 'STRING'),
+            ('shipping_code', 'STRING'),
+            ('status', 'STRING'),
+            ('guest_email', 'STRING'),
+            ('date_placed', 'TIMESTAMP'),
+            ('basket_id', 'INT'),
+            ('billing_address_id', 'INT'),
+            ('shipping_address_id', 'INT'),
+            ('site_id', 'INT'),
+            ('user_id', 'INT'),
+        ]
+
+
+class ImportCurrentOrderLineState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current order line items from an ecommerce table to a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_line'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('partner_name', 'STRING'),
+            ('partner_sku', 'STRING'),
+            ('partner_line_reference', 'STRING'),
+            ('partner_line_notes', 'STRING'),
+            ('title', 'STRING'),
+            ('upc', 'STRING'),
+            ('quantity', 'INT'),
+            ('line_price_incl_tax', 'DECIMAL'),
+            ('line_price_excl_tax', 'DECIMAL'),
+            ('line_price_before_discounts_incl_tax', 'DECIMAL'),
+            ('line_price_before_discounts_excl_tax', 'DECIMAL'),
+            ('unit_cost_price', 'DECIMAL'),
+            ('unit_price_incl_tax', 'DECIMAL'),
+            ('unit_price_excl_tax', 'DECIMAL'),
+            ('unit_retail_price', 'DECIMAL'),
+            ('status', 'STRING'),
+            ('est_dispatch_date', 'TIMESTAMP'),
+            ('order_id', 'INT'),
+            ('partner_id', 'INT'),
+            ('product_id', 'INT'),
+            ('stockrecord_id', 'INT'),
+        ]
+
+
+class ImportCurrentOrderLineAttributeState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current order line attributes from an ecommerce table to a
+    both a destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_lineattribute'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('type', 'STRING'),
+            ('value', 'STRING'),
+            ('line_id', 'INT'),
+            ('option_id', 'INT'),
+        ]
+
+
+class ImportCurrentOrderLinePriceState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current order line price items from an ecommerce table to both a
+    destination directory and a HIVE metastore
+
+    """
+    @property
+    def table_name(self):
+        return 'order_lineprice'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('quantity', 'INT'),
+            ('price_incl_tax', 'DECIMAL'),
+            ('price_excl_tax', 'DECIMAL'),
+            ('shipping_incl_tax', 'DECIMAL'),
+            ('shipping_excl_tax', 'DECIMAL'),
+            ('line_id', 'INT'),
+            ('order_id', 'INT'),
+        ]
+
+
+class ImportOrderPaymentEvent(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Payment: Imports order payment events from an ecommerce table to a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_paymentevent'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('amount', 'DECIMAL'),
+            ('reference', 'STRING'),
+            ('date_created', 'TIMESTAMP'),
+            ('event_type_id', 'INT'),
+            ('order_id', 'INT'),
+            ('shipping_event_id', 'INT'),
+            ('processor_name', 'STRING'),
+        ]
+
+
+class ImportPaymentSource(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Payment: Imports payment source information from an ecommerce table to a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'payment_source'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('currency', 'STRING'),
+            ('amount_allocated', 'DECIMAL'),
+            ('amount_debited', 'DECIMAL'),
+            ('amount_refunded', 'DECIMAL'),
+            ('reference', 'STRING'),
+            ('label', 'STRING'),
+            ('order_id', 'INT'),
+            ('source_type_id', 'INT'),
+            ('card_type', 'STRING'),
+        ]
+
+
+class ImportPaymentTransactions(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Payment: Imports payment transaction information from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'payment_transaction'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('txn_type', 'STRING'),
+            ('amount', 'DECIMAL'),
+            ('reference', 'STRING'),
+            ('status', 'STRING'),
+            ('date_created', 'TIMESTAMP'),
+            ('source_id', 'INT'),
+        ]
+
+
+class ImportPaymentProcessorResponse(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Payment: Imports payment processor response from an ecommerce table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'payment_paymentprocessorresponse'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('processor_name', 'STRING'),
+            ('transaction_id', 'STRING'),
+            ('response', 'STRING'),
+            ('created', 'TIMESTAMP'),
+            ('basket_id', 'INT'),
+        ]
+
+
+class ImportCourseModeTask(ImportMysqlToHiveTableTask):
+    """
+    Course Information: Imports course_modes table to both a destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'course_modes_coursemode'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('course_id', 'STRING'),
+            ('mode_slug', 'STRING'),
+            ('mode_display_name', 'STRING'),
+            ('min_price', 'INT'),
+            ('suggested_prices', 'STRING'),
+            ('currency', 'STRING'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('expiration_datetime', 'TIMESTAMP'),
+            ('description', 'STRING'),
+            ('sku', 'STRING'),
+        ]
+
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
+
     def requires(self):
         kwargs = {
             'destination': self.destination,

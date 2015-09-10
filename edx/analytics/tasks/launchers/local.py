@@ -19,10 +19,16 @@ import opaque_keys
 import bson
 import pyinstrument
 import stevedore
+import requests
 
 import luigi
 import luigi.configuration
 import luigi.hadoop
+
+# Tell urllib3 to switch the ssl backend to PyOpenSSL.
+# see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
+import urllib3.contrib.pyopenssl
+urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 
 log = logging.getLogger(__name__)
@@ -51,7 +57,7 @@ def main():
     # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
     #   - dependencies of opaque_keys:  bson, stevedore
-    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601)
+    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, requests)
 
     # TODO: setup logging for tasks or configured logging mechanism
 

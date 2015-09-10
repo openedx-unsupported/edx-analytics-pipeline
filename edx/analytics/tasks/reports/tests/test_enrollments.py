@@ -43,16 +43,16 @@ class TestEnrollmentsByWeek(unittest.TestCase):
             return textwrap.dedent(string).strip().replace(' ', '\t')
 
         input_targets = {
-            'source': FakeTarget(reformat(source)),
+            'source': FakeTarget(value=reformat(source)),
         }
 
         # Mock offsets only if specified.
         if offset:
-            input_targets.update({'offsets': FakeTarget(reformat(offset))})
+            input_targets.update({'offsets': FakeTarget(value=reformat(offset))})
 
         # Mock statuses only if specified.
         if statuses:
-            input_targets.update({'statuses': FakeTarget(reformat(statuses))})
+            input_targets.update({'statuses': FakeTarget(value=reformat(statuses))})
 
         task.input = MagicMock(return_value=input_targets)
 
