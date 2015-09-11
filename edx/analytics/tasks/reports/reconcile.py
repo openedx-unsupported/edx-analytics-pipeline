@@ -16,6 +16,7 @@ from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.reports.orders_import import OrderTableTask
 from edx.analytics.tasks.reports.payment import PaymentTask
+from edx.analytics.tasks.vertica_load import VerticaCopyTask
 
 log = logging.getLogger(__name__)
 
@@ -824,3 +825,80 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, Wareh
             'dt=' + self.import_date.isoformat(),  # pylint: disable=no-member
             'transactions.csv'
         ))
+
+
+class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads order-transaction table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            ReconcileOrdersAndTransactionsTask(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                # Get the location of the Hive table, so it can be opened and read.
+                output_root=url_path_join(
+                    self.warehouse_path,
+                    'reconciled_order_transactions',
+                    'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
+                ) + '/',
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'f_orderitem_transactions'
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('order_audit_code', 'VARCHAR(255)'),
+            ('orderitem_audit_code', 'VARCHAR(255)'),
+            ('transaction_audit_code', 'VARCHAR(255)'),
+            ('payment_ref_id', 'VARCHAR(128)'),
+            ('order_id', 'INTEGER'),
+            ('unique_order_id', 'VARCHAR(255)'),
+            ('order_timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('transaction_date', 'VARCHAR(128)'),
+            ('transaction_id', 'VARCHAR(128)'),
+            ('unique_transaction_id', 'VARCHAR(255)'),
+            ('transaction_payment_gateway_id', 'VARCHAR(128)'),
+            ('transaction_payment_gateway_account_id', 'VARCHAR(128)'),
+            ('transaction_type', 'VARCHAR(255)'),
+            ('transaction_payment_method', 'VARCHAR(128)'),
+            ('transaction_amount', 'DECIMAL(12,2)'),
+            ('transaction_iso_currency_code', 'VARCHAR(12)'),
+            ('transaction_fee', 'DECIMAL(12,2)'),
+            ('transaction_amount_per_item', 'DECIMAL(12,2)'),
+            ('transaction_fee_per_item', 'DECIMAL(12,2)'),
+            ('order_line_item_id', 'INTEGER'),
+            ('unique_order_line_item_id', 'VARCHAR(255)'),
+            ('order_line_item_product_id', 'INTEGER'),
+            ('order_line_item_price', 'DECIMAL(12,2)'),
+            ('order_line_item_unit_price', 'DECIMAL(12,2)'),
+            ('order_line_item_quantity', 'INTEGER'),
+            ('order_refunded_amount', 'DECIMAL(12,2)'),
+            ('order_refunded_quantity', 'INTEGER'),
+            ('order_user_id', 'INTEGER'),
+            ('order_username', 'VARCHAR(30)'),
+            ('order_user_email', 'VARCHAR(254)'),
+            ('order_product_class', 'VARCHAR(128)'),
+            ('order_product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('order_course_id', 'VARCHAR(255)'),  # originally longtext
+            ('order_org_id', 'VARCHAR(128)'),  # pulled from course_id
+            ('order_processor', 'VARCHAR(32)'),
+        ]
