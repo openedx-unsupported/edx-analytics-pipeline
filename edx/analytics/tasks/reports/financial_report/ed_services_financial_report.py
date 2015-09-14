@@ -64,10 +64,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, Hive
         return """
             SELECT
                 courses.course_id,
-                COALESCE(VP_COURSES.mode_slug, ""),
-                COALESCE(VP_COURSES.suggested_prices, ""),
-                COALESCE(VP_COURSES.min_price, ""),
-                COALESCE(CAST(VP_COURSES.expiration_datetime AS STRING), ""),
+                COALESCE(VP_COURSES.mode_slug, "\\\\N"),
+                COALESCE(VP_COURSES.suggested_prices, "\\\\N"),
+                COALESCE(VP_COURSES.min_price, "\\\\N"),
+                COALESCE(CAST(VP_COURSES.expiration_datetime AS STRING), "\\\\N"),
                 COALESCE(ALL_ENROLLS.total_currently_enrolled, 0),
                 COALESCE(ALL_ENROLLS.audit_currently_enrolled, 0),
                 COALESCE(ALL_ENROLLS.honor_currently_enrolled, 0),

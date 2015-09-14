@@ -578,11 +578,12 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                                         transaction_fee_per_item=None):
         """Generate an output row from an orderitem and transaction."""
 
+        # Handle cases where per-item values are defaulted.
         if transaction:
             if transaction_amount_per_item is None:
                 transaction_amount_per_item = transaction.amount
-
-        NULL = "\\N"  # pylint: disable=invalid-name
+            if transaction_fee_per_item is None:
+                transaction_fee_per_item = transaction.transaction_fee
 
         org_id = None
         if orderitem:
@@ -593,40 +594,40 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             audit_code[1],
             audit_code[2],
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
-            orderitem.order_id if orderitem else NULL,
-            encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else NULL,
-            orderitem.date_placed if orderitem else NULL,
+            orderitem.order_id if orderitem else None,
+            encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else None,
+            orderitem.date_placed if orderitem else None,
             # transaction information
-            transaction.date if transaction else NULL,
-            transaction.transaction_id if transaction else NULL,
-            encode_id(transaction.payment_gateway_id, "transaction_id", transaction.transaction_id) if transaction else NULL,
-            transaction.payment_gateway_id if transaction else NULL,
-            transaction.payment_gateway_account_id if transaction else NULL,
-            transaction.transaction_type if transaction else NULL,
-            transaction.payment_method if transaction else NULL,
-            transaction.amount if transaction else NULL,
-            transaction.iso_currency_code if transaction else NULL,
-            transaction.transaction_fee if transaction else NULL,
+            transaction.date if transaction else None,
+            transaction.transaction_id if transaction else None,
+            encode_id(transaction.payment_gateway_id, "transaction_id", transaction.transaction_id) if transaction else None,
+            transaction.payment_gateway_id if transaction else None,
+            transaction.payment_gateway_account_id if transaction else None,
+            transaction.transaction_type if transaction else None,
+            transaction.payment_method if transaction else None,
+            transaction.amount if transaction else None,
+            transaction.iso_currency_code if transaction else None,
+            transaction.transaction_fee if transaction else None,
             # mapping information: part of transaction that applies to this orderitem
-            str(transaction_amount_per_item) if transaction_amount_per_item is not None else NULL,
-            str(transaction_fee_per_item) if transaction_fee_per_item is not None else NULL,
+            str(transaction_amount_per_item) if transaction_amount_per_item is not None else None,
+            str(transaction_fee_per_item) if transaction_fee_per_item is not None else None,
             # orderitem information
-            orderitem.line_item_id if orderitem else NULL,
-            encode_id(orderitem.order_processor, "line_item_id", orderitem.line_item_id) if orderitem else NULL,
-            orderitem.line_item_product_id if orderitem else NULL,
-            orderitem.line_item_price if orderitem else NULL,
-            orderitem.line_item_unit_price if orderitem else NULL,
-            orderitem.line_item_quantity if orderitem else NULL,
-            orderitem.refunded_amount if orderitem else NULL,
-            orderitem.refunded_quantity if orderitem else NULL,
-            orderitem.user_id if orderitem else NULL,
-            orderitem.username if orderitem else NULL,
-            orderitem.user_email if orderitem else NULL,
-            orderitem.product_class if orderitem else NULL,
-            orderitem.product_detail if orderitem else NULL,
-            orderitem.course_id if orderitem else NULL,
-            org_id if org_id is not None else NULL,
-            orderitem.order_processor if orderitem else NULL,
+            orderitem.line_item_id if orderitem else None,
+            encode_id(orderitem.order_processor, "line_item_id", orderitem.line_item_id) if orderitem else None,
+            orderitem.line_item_product_id if orderitem else None,
+            orderitem.line_item_price if orderitem else None,
+            orderitem.line_item_unit_price if orderitem else None,
+            orderitem.line_item_quantity if orderitem else None,
+            orderitem.refunded_amount if orderitem else None,
+            orderitem.refunded_quantity if orderitem else None,
+            orderitem.user_id if orderitem else None,
+            orderitem.username if orderitem else None,
+            orderitem.user_email if orderitem else None,
+            orderitem.product_class if orderitem else None,
+            orderitem.product_detail if orderitem else None,
+            orderitem.course_id if orderitem else None,
+            org_id if org_id is not None else None,
+            orderitem.order_processor if orderitem else None,
         ]
         return (OrderTransactionRecord(*result).to_tsv(),)
 
@@ -675,7 +676,7 @@ class OrderTransactionRecord(OrderTransactionRecordBase):
 
     def to_tsv(self):
         """Serializes the record to a TSV-formatted string."""
-        return '\t'.join([str(v) if v is not None else "" for v in self])
+        return '\t'.join([str(v) if v is not None else "\\N" for v in self])
 
     @staticmethod
     def from_job_output(tsv_str):
