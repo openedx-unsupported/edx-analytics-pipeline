@@ -3,7 +3,6 @@
 import sys
 import json
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-import luigi
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.overall_events import TotalEventsDailyTask

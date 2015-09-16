@@ -292,7 +292,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         with self.input()['insert_source'].open('r') as insert_source_file:
             log.debug("Running stream copy from source file")
             cursor.copy(
-                "COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT NO COMMIT;".format(
+                "COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
                     schema=self.schema,
                     table=self.table,
                     cols=column_names,

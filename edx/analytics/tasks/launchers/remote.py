@@ -121,6 +121,7 @@ def run_task_playbook(inventory, arguments, uid):
 def get_ansible_inventory_host(arguments):
     return 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
 
+
 def convert_args_to_extra_vars(arguments, uid):
     """
     Generate the set of variables that need to be passed in to ansible since they are expected to be set by the
@@ -160,6 +161,7 @@ def convert_args_to_extra_vars(arguments, uid):
         extra_vars['write_luigi_config'] = False
     return json.dumps(extra_vars)
 
+
 def parse_vagrant_ssh_config(arguments):
     log('Connecting to vagrant container in {0}'.format(arguments.vagrant_path))
     command = 'vagrant ssh-config'
@@ -195,6 +197,7 @@ def parse_vagrant_ssh_config(arguments):
             arguments.private_key = value
 
     arguments.host = hostname + ':' + port
+
 
 def get_ansible_inventory():
     """

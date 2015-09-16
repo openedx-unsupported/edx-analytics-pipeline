@@ -16,7 +16,7 @@ from luigi.configuration import get_config
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import ExternalURL, IgnoredTarget
+from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 import edx.analytics.tasks.util.eventlog as eventlog
@@ -1000,6 +1000,7 @@ def get_problem_check_event(line):
     value = (problem_data.get('timestamp'), problem_data_json)
 
     return key, value
+
 
 def _check_answer_ids(answer_dict):
     if not isinstance(answer_dict, dict):

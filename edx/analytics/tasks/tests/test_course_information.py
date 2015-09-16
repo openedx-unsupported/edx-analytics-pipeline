@@ -100,67 +100,92 @@ class TestCourseInformation(unittest.TestCase):
         # We expect an entry in the list of courses, since there is a course in the list.
         self.assertEquals(data.shape[0], 1)
         # We expect nulls for the columns aside from course id and course org id.
-        expected = {'course_id': 'foo',
-                    'course_org_id': 'bar',
-                    'course_number': '\N',
-                    'course_run': '\N',
-                    'course_start': '\N',
-                    'course_end': '\N',
-                    'course_name': '\N'}
+        expected = {
+            'course_id': 'foo',
+            'course_org_id': 'bar',
+            'course_number': '\N',
+            'course_run': '\N',
+            'course_start': '\N',
+            'course_end': '\N',
+            'course_name': '\N'
+        }
         self.check_structure_entry(data, 0, expected)
 
     def test_single_course(self):
         """With a course with one all the necessary information, we expect to see that course."""
-        input_data = {"results":
-                          [{"id": "foo",
-                            "name": "Foo",
-                            "org": "bar",
-                            "course": "Baz",
-                            "run": "2T2015",
-                            "start": "2015-08-24T00:00:00Z",
-                            "end": "2016-08-25T00:00:00Z"
-                            }
-                           ]
-                      }
+        input_data = {
+            "results": [
+                {
+                    "id": "foo",
+                    "name": "Foo",
+                    "org": "bar",
+                    "course": "Baz",
+                    "run": "2T2015",
+                    "start": "2015-08-24T00:00:00Z",
+                    "end": "2016-08-25T00:00:00Z"
+                }
+            ]
+        }
 
         data = self.run_task(json.dumps(input_data))
         # We expect to see this course with the mock structure information.
         self.assertEquals(data.shape[0], 1)
-        expected = {'course_id': 'foo', 'course_name': 'Foo', 'course_org_id': 'bar', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
-                    'course_end': '2016-08-25T00:00:00+00:00'}
+        expected = {
+            'course_id': 'foo',
+            'course_name': 'Foo',
+            'course_org_id': 'bar',
+            'course_number': 'Baz',
+            'course_run': '2T2015',
+            'course_start': '2015-08-24T00:00:00+00:00',
+            'course_end': '2016-08-25T00:00:00+00:00'
+        }
         self.check_structure_entry(data, 0, expected)
 
     def test_multiple_courses(self):
         """With two courses, we expect to see both of them."""
-        input_data = {"results":
-                          [{"id": "foo",
-                            "name": "Foo",
-                            "org": "bar",
-                            "course": "Baz",
-                            "run": "2T2015",
-                            "start": "2015-08-24T00:00:00Z",
-                            "end": "2016-08-25T00:00:00Z"
-                            },
-                           {"id": "foo2",
-                            "name": "Foo2",
-                            "org": "bar2",
-                            "course": "Baz",
-                            "run": "2T2015",
-                            "start": "2015-08-24T00:00:00Z"
-                            }
-                           ]
-                      }
+        input_data = {
+            "results": [
+                {
+                    "id": "foo",
+                    "name": "Foo",
+                    "org": "bar",
+                    "course": "Baz",
+                    "run": "2T2015",
+                    "start": "2015-08-24T00:00:00Z",
+                    "end": "2016-08-25T00:00:00Z"
+                },
+                {
+                    "id": "foo2",
+                    "name": "Foo2",
+                    "org": "bar2",
+                    "course": "Baz",
+                    "run": "2T2015",
+                    "start": "2015-08-24T00:00:00Z"
+                }
+            ]
+        }
 
         data = self.run_task(json.dumps(input_data))
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
-        course1 = {'course_id': 'foo', 'course_name': 'Foo', 'course_org_id': 'bar', 'course_number': 'Baz',
-                   'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00', 'course_end':
-                       '2016-08-25T00:00:00+00:00'}
-        course2 = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
-                   'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
-                   'course_end': '\N'}
+        course1 = {
+            'course_id': 'foo',
+            'course_name': 'Foo',
+            'course_org_id': 'bar',
+            'course_number': 'Baz',
+            'course_run': '2T2015',
+            'course_start': '2015-08-24T00:00:00+00:00',
+            'course_end': '2016-08-25T00:00:00+00:00'
+        }
+        course2 = {
+            'course_id': 'foo2',
+            'course_name': 'Foo2',
+            'course_org_id': 'bar2',
+            'course_number': 'Baz',
+            'course_run': '2T2015',
+            'course_start': '2015-08-24T00:00:00+00:00',
+            'course_end': '\N'
+        }
 
         self.check_structure_entry(data, 0, course1)
         self.check_structure_entry(data, 1, course2)
@@ -170,45 +195,61 @@ class TestCourseInformation(unittest.TestCase):
         If a single course in the API response is malformed, we want to skip over the malformed course without
         throwing an error and load the rest of the courses.
         """
-        input_data = {"results":
-                          [[],
-                           {"id": "foo2",
-                            "name": "Foo2",
-                            "org": "bar2",
-                            "course": "Baz",
-                            "run": "2T2015",
-                            "start": "2015-08-24T00:00:00Z"
-                            }
-                           ]
-                      }
+        input_data = {
+            "results": [
+                [],
+                {
+                    "id": "foo2",
+                    "name": "Foo2",
+                    "org": "bar2",
+                    "course": "Baz",
+                    "run": "2T2015",
+                    "start": "2015-08-24T00:00:00Z"
+                }
+            ]
+        }
         data = self.run_task(json.dumps(input_data))
         # We expect to see the second course, which is well-formed, but nothing from the first.
         self.assertEquals(data.shape[0], 1)
-        expected = {'course_id': 'foo2', 'course_name': 'Foo2', 'course_org_id': 'bar2', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00',
-                    'course_end': '\N'}
+        expected = {
+            'course_id': 'foo2',
+            'course_name': 'Foo2',
+            'course_org_id': 'bar2',
+            'course_number': 'Baz',
+            'course_run': '2T2015',
+            'course_start': '2015-08-24T00:00:00+00:00',
+            'course_end': '\N'
+        }
         self.check_structure_entry(data, 0, expected)
 
     def test_unicode_course_name(self):
         """Unicode course names should be handled properly, so that they appear correctly in the database."""
-        input_data = {"results":
-                          [{"id": "foo",
-                            "name": u"Fo\u263a",
-                            "org": "bar",
-                            "course": "Baz",
-                            "run": "2T2015",
-                            "start": "2015-08-24T00:00:00Z",
-                            "end": "2016-08-25T00:00:00Z"
-                            }
-                           ]
-                      }
+        input_data = {
+            "results": [
+                {
+                    "id": "foo",
+                    "name": u"Fo\u263a",
+                    "org": "bar",
+                    "course": "Baz",
+                    "run": "2T2015",
+                    "start": "2015-08-24T00:00:00Z",
+                    "end": "2016-08-25T00:00:00Z"
+                }
+            ]
+        }
         data = self.run_task(json.dumps(input_data))
         # We expect to see this course with the mock structure information.
         # NB: if the test fails, you may get an error from nose about "'ascii' codec can't decode byte 0xe2";
         # this arises from the fact that nose is trying to print the difference between the result data and expected
         # but can't handle the unicode strings.  This "error" really indicates a test failure.
         self.assertEquals(data.shape[0], 1)
-        expected = {'course_id': 'foo', 'course_name': 'Fo\xe2\x98\xba', 'course_org_id': 'bar', 'course_number': 'Baz',
-                    'course_run': '2T2015', 'course_start': '2015-08-24T00:00:00+00:00', 'course_end':
-                        '2016-08-25T00:00:00+00:00'}
+        expected = {
+            'course_id': 'foo',
+            'course_name': 'Fo\xe2\x98\xba',
+            'course_org_id': 'bar',
+            'course_number': 'Baz',
+            'course_run': '2T2015',
+            'course_start': '2015-08-24T00:00:00+00:00',
+            'course_end': '2016-08-25T00:00:00+00:00'
+        }
         self.check_structure_entry(data, 0, expected)
