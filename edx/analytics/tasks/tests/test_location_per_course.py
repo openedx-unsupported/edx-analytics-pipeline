@@ -146,7 +146,6 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
 
-
 class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
     """Tests to validate ImportLastCountryOfUserToHiveTask."""
 

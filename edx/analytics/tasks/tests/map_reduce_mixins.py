@@ -4,6 +4,7 @@ import datetime
 
 import luigi
 
+
 class MapperTestMixin(object):
     """
     Base class for map function tests.

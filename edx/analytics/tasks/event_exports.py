@@ -14,7 +14,6 @@ from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
-from edx.analytics.tasks.util import eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 

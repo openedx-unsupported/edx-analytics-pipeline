@@ -65,7 +65,7 @@ class DailyProcessFromCatalogSubjectTask(PullCatalogMixin, luigi.Task):
             'run_date': self.run_date,
             'catalog_path': self.catalog_path,
             'warehouse_path': self.warehouse_path,
-            'overwrite': self.overwrite
+            'overwrite': self.overwrite,
         }
         return DailyPullCatalogTask(**kwargs)
 
@@ -130,7 +130,8 @@ class DailyLoadSubjectsToVerticaTask(PullCatalogMixin, VerticaCopyTask):
 
     @property
     def insert_source_task(self):
-        return(DailyProcessFromCatalogSubjectTask(run_date=self.run_date, catalog_path=self.catalog_path))
+        # Note: don't pass overwrite down from here.  Use it only for overwriting when copying to Vertica.
+        return DailyProcessFromCatalogSubjectTask(run_date=self.run_date, catalog_path=self.catalog_path)
 
     @property
     def table(self):
@@ -166,7 +167,8 @@ class CourseCatalogWorkflow(PullCatalogMixin, VerticaCopyTaskMixin, luigi.Wrappe
             'schema': self.schema,
             'credentials': self.credentials,
             'run_date': self.run_date,
-            'catalog_path': self.catalog_path
+            'catalog_path': self.catalog_path,
+            'overwrite': self.overwrite,
         }
         kwargs2.update(kwargs2)
 

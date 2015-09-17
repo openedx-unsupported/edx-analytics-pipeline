@@ -9,7 +9,7 @@ import luigi.task
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 

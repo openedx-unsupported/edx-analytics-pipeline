@@ -141,7 +141,6 @@ class CourseEnrollmentValidationTaskLegacyMapTest(InitializeLegacyKeysMixin, Cou
 class BaseCourseEnrollmentValidationTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     """Provide common methods for testing CourseEnrollmentValidationTask reducer."""
 
-
     def setUp(self):
         self.task_class = CourseEnrollmentValidationTask
         super(BaseCourseEnrollmentValidationTaskReducerTest, self).setUp()
@@ -575,6 +574,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
         ]
         # expect no event.
         self.assert_no_output(inputs)
+
 
 class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidationTaskReducerTest):
     """
