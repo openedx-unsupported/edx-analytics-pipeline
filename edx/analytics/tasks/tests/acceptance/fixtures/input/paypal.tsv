@@ -1,0 +1,2 @@
+2015-09-01	paypal	test	EDX-1234	USD	50.00	1.75	sale	instant_transfer	paypal	3B123456AB123456H
+2015-09-01	paypal	test	EDX-1234	USD	-50.00	-1.75	refund	instant_transfer	paypal	3B123456AB123456I

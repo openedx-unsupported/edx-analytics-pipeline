@@ -5,8 +5,10 @@ End to end test of answer distribution.
 import os
 import logging
 
+from luigi.s3 import S3Target
+
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.url import url_path_join
 
 
 log = logging.getLogger(__name__)
@@ -16,7 +18,7 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
     """Base class for setting up answer dist acceptance tests"""
 
     INPUT_FILE = 'answer_dist_acceptance_tracking.log'
-    DEFAULT_INPUT_FORMAT = 'oddjob.ManifestTextInputFormat'
+    INPUT_FORMAT = 'oddjob.ManifestTextInputFormat'
     NUM_REDUCERS = 1
 
     def setUp(self):
@@ -33,9 +35,7 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
         dst = url_path_join(self.test_src, self.INPUT_FILE)
 
         # Upload test data file
-        with open(src, 'r') as src_file:
-            with get_target_from_url(dst).open('w') as dst_file:
-                dst_file.write(src_file.read())
+        self.s3_client.put(src, dst)
 
 
 class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
@@ -50,22 +50,22 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
             '--output-root', self.test_out,
             '--include', '"*"',
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
-            '--base-input-format', self.config.get('manifest_input_format', self.DEFAULT_INPUT_FORMAT),
+            '--base-input-format', self.INPUT_FORMAT,
             '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
         self.validate_output()
 
     def validate_output(self):
-        output_root_target = get_target_from_url(self.test_out)
-        outputs = list(output_root_target.fs.listdir(self.test_out))
+        outputs = self.s3_client.list(self.test_out)
+        outputs = [url_path_join(self.test_out, p) for p in outputs]
 
         # There are 3 courses in the test data
         self.assertEqual(len(outputs), 3)
 
         # Check that the results have data
         for output in outputs:
-            with get_target_from_url(output + '/').open() as f:
+            with S3Target(output).open() as f:
                 lines = [l for l in f][1:]  # Skip header
                 self.assertTrue(len(lines) > 0)
 
@@ -85,7 +85,7 @@ class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTes
             '--name', 'test',
             '--include', '"*"',
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
-            '--base-input-format', self.config.get('manifest_input_format', self.DEFAULT_INPUT_FORMAT),
+            '--base-input-format', self.INPUT_FORMAT,
             '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--credentials', self.export_db.credentials_file_url,

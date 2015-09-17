@@ -7,14 +7,15 @@ from contextlib import contextmanager
 import vertica_python
 
 from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.tests import unittest
 
 
 class VerticaService(object):
     """Service object to be used as a member of a class to enable that class to write to and read from Vertica."""
 
     def __init__(self, config, schema_name):
-        self.vertica_creds_url = config.get('vertica_creds_url', '')
-        if len(self.vertica_creds_url) == 0:
+        self.vertica_creds_url = config.get('vertica_creds_url')
+        if not self.vertica_creds_url:
             self.disabled = True
         else:
             self.disabled = False
@@ -63,7 +64,7 @@ class VerticaService(object):
         Connect to the Vertica server.
         """
         if self.disabled:
-            raise RuntimeError('The vertica service is disabled')
+            raise unittest.SkipTest('The vertica service is disabled')
         return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 

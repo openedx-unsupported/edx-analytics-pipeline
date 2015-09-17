@@ -8,7 +8,7 @@ from edx.analytics.tasks.reports.paypal import PaypalTransactionsIntervalTask
 class PaymentTask(luigi.WrapperTask):
 
     import_date = luigi.DateParameter()
-    merchant_id = luigi.Parameter(
+    cybersource_merchant_ids = luigi.Parameter(
         default_from_config={'section': 'payment', 'name': 'cybersource_merchant_ids'},
         is_list=True
     )
@@ -17,7 +17,7 @@ class PaymentTask(luigi.WrapperTask):
         yield PaypalTransactionsIntervalTask(
             interval_end=self.import_date
         )
-        for merchant_id in self.merchant_id:
+        for merchant_id in self.cybersource_merchant_ids:
             yield IntervalPullFromCybersourceTask(
                 interval_end=self.import_date,
                 merchant_id=merchant_id

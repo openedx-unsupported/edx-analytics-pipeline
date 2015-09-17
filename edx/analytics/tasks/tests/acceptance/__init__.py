@@ -1,6 +1,7 @@
 import json
 import logging
 import hashlib
+from luigi.s3 import S3Client
 import os
 import sys
 import shutil
@@ -23,6 +24,11 @@ class AcceptanceTestCase(unittest.TestCase):
     NUM_REDUCERS = 2
 
     def setUp(self):
+        try:
+            self.s3_client = S3Client()
+        except Exception:
+            self.s3_client = None
+
         config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
         try:
             with open(config_json, 'r') as config_json_file:
@@ -51,8 +57,6 @@ class AcceptanceTestCase(unittest.TestCase):
         assert('identifier' in self.config)
         # A URL to a JSON file that contains most of the connection information for the MySQL database.
         assert('credentials_file_url' in self.config)
-        # A URL to a JSON file that contains most of the connection information for the Veritca database.
-        assert('vertica_creds_url' in self.config)
         # A URL to a build of the oddjob third party library
         assert 'oddjob_jar' in self.config
         # A URL to a maxmind compatible geolocation database file
@@ -72,9 +76,9 @@ class AcceptanceTestCase(unittest.TestCase):
         self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
         schema = 'test_' + self.identifier
-        import_database_name = 'reports_import_' + database_name
-        export_database_name = 'reports_export_' + database_name
-        otto_database_name = 'reports_otto_' + database_name
+        import_database_name = 'acceptance_import_' + database_name
+        export_database_name = 'acceptance_export_' + database_name
+        otto_database_name = 'acceptance_otto_' + database_name
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
         task_config_override = {
             'hive': {
@@ -101,10 +105,6 @@ class AcceptanceTestCase(unittest.TestCase):
                 'credentials': self.config['credentials_file_url'],
                 'database': otto_database_name
             },
-            'vertica-export': {
-                'credentials': self.config['vertica_creds_url'],
-                'schema': schema
-            },
             'course-catalog': {
                 'catalog_path': self.catalog_path
             },
@@ -119,6 +119,11 @@ class AcceptanceTestCase(unittest.TestCase):
                 'access_token': 'acceptance'
             }
         }
+        if 'vertica_creds_url' in self.config:
+            task_config_override['vertica-export'] = {
+                'credentials': self.config['vertica_creds_url'],
+                'schema': schema
+            }
         if 'manifest_input_format' in self.config:
             task_config_override['manifest']['input_format'] = self.config['manifest_input_format']
 
@@ -137,6 +142,9 @@ class AcceptanceTestCase(unittest.TestCase):
             self.reset_external_state()
 
     def reset_external_state(self):
+        # The machine running the acceptance test suite may not have hadoop installed on it, so convert S3 paths (which
+        # are normally handled by the hadoop DFS client) to S3+https paths, which are handled by the python native S3
+        # client.
         root_target = get_target_from_url(self.test_root.replace('s3://', 's3+https://'))
         if root_target.exists():
             root_target.remove()
