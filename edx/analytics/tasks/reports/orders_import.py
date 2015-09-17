@@ -19,112 +19,11 @@ from edx.analytics.tasks.database_imports import (
     ImportProductCatalogClass,
     ImportProductCatalogAttributes,
     ImportProductCatalogAttributeValues,
-    ImportOrderOrderHistory,
-    ImportOrderHistoricalLine,
-    ImportCurrentBasketState,
     ImportCurrentOrderState,
     ImportCurrentOrderLineState,
-    ImportCurrentOrderLineAttributeState,
-    ImportCurrentOrderLinePriceState,
-    ImportOrderPaymentEvent,
-    ImportPaymentSource,
-    ImportPaymentTransactions,
-    ImportPaymentProcessorResponse,
-    ImportCurrentRefundRefundState,
     ImportCurrentRefundRefundLineState,
-    ImportRefundHistoricalRefund,
-    ImportRefundHistoricalRefundLine,
     ImportAuthUserTask,
 )
-
-
-class PullFromShoppingCartTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
-    """Imports a set of shopping cart database tables from an external LMS RDBMS into a destination directory."""
-
-    def requires(self):
-        kwargs = {
-            'destination': self.destination,
-            'credentials': self.credentials,
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'overwrite': self.overwrite,
-            'database': self.database,
-        }
-        yield (
-            # Original shopping cart tables.
-            ImportShoppingCartOrder(**kwargs),
-            ImportShoppingCartOrderItem(**kwargs),
-            ImportShoppingCartCertificateItem(**kwargs),
-            ImportShoppingCartPaidCourseRegistration(**kwargs),
-            ImportShoppingCartDonation(**kwargs),
-            ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
-            ImportAuthUserTask(**kwargs),
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
-
-
-class PullFromEcommerceTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
-    """Imports a set of ecommerce tables from an external database into a destination directory."""
-
-    destination = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'destination'}
-    )
-    credentials = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'credentials'}
-    )
-    database = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'database'}
-    )
-
-    def requires(self):
-        kwargs = {
-            'destination': self.destination,
-            'credentials': self.credentials,
-            'num_mappers': self.num_mappers,
-            'verbose': self.verbose,
-            'import_date': self.import_date,
-            'overwrite': self.overwrite,
-            'database': self.database,
-        }
-        yield (
-            # Otto User Table
-            ImportEcommerceUser(**kwargs),
-
-            # Otto Product Tables.
-            ImportProductCatalog(**kwargs),
-            ImportProductCatalogClass(**kwargs),
-            ImportProductCatalogAttributes(**kwargs),
-            ImportProductCatalogAttributeValues(**kwargs),
-
-            # Otto Order History Tables.
-            ImportOrderOrderHistory(**kwargs),
-            ImportOrderHistoricalLine(**kwargs),
-
-            # Otto Current State and Line Item Tables.
-            ImportCurrentBasketState(**kwargs),
-            ImportCurrentOrderState(**kwargs),
-            ImportCurrentOrderLineState(**kwargs),
-            ImportCurrentOrderLineAttributeState(**kwargs),
-            ImportCurrentOrderLinePriceState(**kwargs),
-
-            # Otto Payment Tables.
-            ImportOrderPaymentEvent(**kwargs),
-            ImportPaymentSource(**kwargs),
-            ImportPaymentTransactions(**kwargs),
-            ImportPaymentProcessorResponse(**kwargs),
-
-            # Otto Refund Tables.
-            ImportCurrentRefundRefundState(**kwargs),
-            ImportCurrentRefundRefundLineState(**kwargs),
-            ImportRefundHistoricalRefund(**kwargs),
-            ImportRefundHistoricalRefundLine(**kwargs),
-        )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
 
 
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
@@ -138,24 +37,45 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     def requires(self):
         kwargs = {
+            'destination': self.destination,
             'num_mappers': self.num_mappers,
             'verbose': self.verbose,
             'import_date': self.import_date,
             'overwrite': self.overwrite,
+            'credentials': self.otto_credentials,
+            'database': self.otto_database,
         }
         yield (
-            PullFromEcommerceTablesTask(
-                destination=self.destination,
-                credentials=self.otto_credentials,
-                database=self.otto_database,
-                **kwargs
-            ),
-            PullFromShoppingCartTablesTask(
-                destination=self.destination,
-                credentials=self.credentials,
-                database=self.database,
-                **kwargs
-            )
+            # Otto User Table
+            ImportEcommerceUser(**kwargs),
+
+            # Otto Product Tables.
+            ImportProductCatalog(**kwargs),
+            ImportProductCatalogClass(**kwargs),
+            ImportProductCatalogAttributes(**kwargs),
+            ImportProductCatalogAttributeValues(**kwargs),
+
+            # Otto Current State and Line Item Tables.
+            ImportCurrentOrderState(**kwargs),
+            ImportCurrentOrderLineState(**kwargs),
+
+            # Otto Refund Tables.
+            ImportCurrentRefundRefundLineState(**kwargs),
+        )
+
+        kwargs['credentials'] = self.credentials
+        kwargs['database'] = self.database
+        yield (
+            # Shopping cart tables.
+            ImportShoppingCartOrder(**kwargs),
+            ImportShoppingCartOrderItem(**kwargs),
+            ImportShoppingCartCertificateItem(**kwargs),
+            ImportShoppingCartPaidCourseRegistration(**kwargs),
+            ImportShoppingCartDonation(**kwargs),
+            ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
+
+            # Other LMS tables.
+            ImportAuthUserTask(**kwargs),
         )
 
     @property
@@ -189,6 +109,15 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     @property
     def partition(self):
         return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+
+    def hiveconfs(self):
+        # TODO: This shouldn't be necessary. Hive is throwing an error when running from the acceptance tests. It does
+        # not throw an error when running with production data, but the presence of the error is concerning. The error
+        # is generated by the map-join optimization, disabling that optimization allows the job to complete
+        # successfully.
+        jcs = super(OrderTableTask, self).hiveconfs()
+        jcs['hive.auto.convert.join'] = 'false'
+        return jcs
 
     @property
     def insert_query(self):
