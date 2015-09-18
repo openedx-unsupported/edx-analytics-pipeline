@@ -50,3 +50,24 @@ def mysql_datetime_to_isoformat(mysql_datetime):
         date_parts[6] = tenths * 100000
     timestamp = datetime.datetime(*date_parts).isoformat()
     return ensure_microseconds(timestamp)
+
+
+def weekly_date_grouping_key(date_string, interval_end):
+    """
+    Return date to be used as a grouping key for weekly information.
+    """
+    last_complete_date = interval_end - datetime.timedelta(days=1)
+    last_weekday = last_complete_date.isoweekday()
+
+    split_date = date_string.split('-')
+    event_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
+    event_weekday = event_date.isoweekday()
+
+    days_until_end = last_weekday - event_weekday
+    if days_until_end < 0:
+        days_until_end += 7
+
+    end_of_week_date = event_date + datetime.timedelta(days=days_until_end)
+    date_grouping_key = end_of_week_date.isoformat()
+
+    return date_grouping_key
