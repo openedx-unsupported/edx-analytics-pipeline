@@ -252,7 +252,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
         }), ]
         self._check_output(inputs, {
             'order_audit_code': 'ORDER_BALANCED',
-            'orderitem_audit_code': 'ERROR_WRONGSTATUS_NO_COST',
+            'orderitem_audit_code': 'NO_COST',
             'transaction_audit_code': 'NO_TRANSACTION',
             'transaction_id': None,
         })
