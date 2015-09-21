@@ -228,7 +228,10 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             elif orderitem.line_item_unit_price == 0.0:
                 order_audit_code = 'ORDER_BALANCED'
                 orderitem_audit_code = 'NO_COST'
-            orderitem_audit_code = self._check_orderitem_wrongstatus(orderitem, orderitem_audit_code)
+            # Note that we don't call "check_orderitem_wrongstatus" here, as the
+            # existing status is generally sufficient.  In the case of "NO_COST"
+            # honor enrollment orders, they may in fact be refunded when a user unenrolls,
+            # but the refund is zero.
             audit_code = (order_audit_code, orderitem_audit_code, transaction_audit_code)
             yield audit_code, orderitem
 
