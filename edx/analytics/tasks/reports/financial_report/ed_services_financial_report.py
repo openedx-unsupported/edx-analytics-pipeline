@@ -88,7 +88,10 @@ class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, Hive
                 FROM (
                     SELECT
                         order_course_id AS course_id
-                    FROM reconciled_order_transactions
+                    FROM
+                        reconciled_order_transactions
+                    WHERE
+                        order_course_id is not NULL
                     UNION ALL
                     SELECT
                         course_id
