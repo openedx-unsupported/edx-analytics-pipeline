@@ -4,7 +4,7 @@ import luigi
 from edx.analytics.tasks.reports.reconcile import (
     TransactionReportTask, LoadInternalReportingOrderTransactionsToWarehouse
 )
-from edx.analytics.tasks.reports.financial_report.ed_services_financial_report import (
+from edx.analytics.tasks.reports.ed_services_financial_report import (
     LoadInternalReportingEdServicesReportToWarehouse
 )
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin

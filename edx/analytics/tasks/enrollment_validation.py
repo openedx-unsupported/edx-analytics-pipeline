@@ -152,11 +152,14 @@ class CourseEnrollmentValidationTask(
 
         earliest_timestamp_value = None
         if self.earliest_timestamp is not None:
-            earliest_timestamp_value = ensure_microseconds(self.earliest_timestamp.isoformat())
+            earliest_timestamp_value = ensure_microseconds(
+                self.earliest_timestamp.isoformat()  # pylint: disable=no-member
+            )
         expected_validation_value = None
         if self.expected_validation is not None:
-            expected_validation_value = ensure_microseconds(self.expected_validation.isoformat())
-
+            expected_validation_value = ensure_microseconds(
+                self.expected_validation.isoformat()  # pylint: disable=no-member
+            )
         options = {
             'tuple_output': self.tuple_output,
             'include_nonstate_changes': self.include_nonstate_changes,
@@ -794,6 +797,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
 
 
 class CreateEnrollmentValidationEventsForTodayTask(CreateEnrollmentValidationEventsTask):
+    """Task that makes sure there's a dump of course enrollment for today before making events."""
 
     credentials = luigi.Parameter(default=None)
 
@@ -837,8 +841,8 @@ class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMi
 
     def _get_required_tasks(self):
         """Internal method to actually calculate required tasks once."""
-        start_date = self.interval.date_a
-        end_date = self.interval.date_b
+        start_date = self.interval.date_a  # pylint: disable=no-member
+        end_date = self.interval.date_b  # pylint: disable=no-member
         table_name = "student_courseenrollment"
         source_root = url_path_join(self.warehouse_path, table_name)
         today_datestring = datetime.datetime.utcnow().strftime('%Y-%m-%d')

@@ -185,6 +185,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
                 yield url_path_join(source, key_path)
 
     def _get_hdfs_urls(self, source):
+        """Recursively list all files inside the source directory on the hdfs filesystem."""
         for source in luigi.hdfs.listdir(source):
             yield source
 
@@ -247,8 +248,8 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
     def init_local(self):
         """Convert intervals to date strings for alpha-numeric comparison."""
         super(EventLogSelectionMixin, self).init_local()
-        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')
-        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')
+        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
     def get_event_and_date_string(self, line):
         """Default mapper implementation, that always outputs the log line, but with a configurable key."""
@@ -272,6 +273,7 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         return event, date_string
 
     def get_event_time(self, event):
+        """Returns time information from event if present, else returns None."""
         try:
             return event['time']
         except KeyError:

@@ -119,11 +119,11 @@ def run_task_playbook(inventory, arguments, uid):
 
 
 def get_ansible_inventory_host(arguments):
+    """Get or creates a hostname for inventory."""
     if arguments.host:
         return 'all'
     else:
         return 'mr_{0}_master'.format(arguments.job_flow_id or arguments.job_flow_name)
-
 
 
 def convert_args_to_extra_vars(arguments, uid):
@@ -164,6 +164,7 @@ def convert_args_to_extra_vars(arguments, uid):
 
 
 def parse_vagrant_ssh_config(arguments):
+    """Runs 'vagrant ssh-config' and parses results to find argument values for host, user, port, etc."""
     log('Connecting to vagrant container in {0}'.format(arguments.vagrant_path))
     command = 'vagrant ssh-config'
     log('Running command = {0}'.format(command))
