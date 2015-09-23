@@ -59,7 +59,8 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
     def output(self):
         return get_target_from_url(
             url_path_join(
-                self.user_country_output, 'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))
+                self.user_country_output,
+                'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
             )
         )
 
@@ -131,7 +132,7 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
         # Because this data comes from EventLogSelectionDownstreamMixin,
         # we will use the end of the interval used to calculate
         # the country information.
-        return self.interval.date_b.strftime('%Y-%m-%d')
+        return self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
     def requires(self):
         return LastCountryOfUser(
@@ -284,7 +285,7 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
         )
 
 
-class InsertToMysqlCourseEnrollByCountryTaskBase(MysqlInsertTask):
+class InsertToMysqlCourseEnrollByCountryTaskBase(MysqlInsertTask):  # pylint: disable=abstract-method
     """
     Define course_enrollment_location_current table.
     """
