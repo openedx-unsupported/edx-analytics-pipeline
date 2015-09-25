@@ -59,8 +59,8 @@ URL_SCHEME_TO_TARGET_CLASS = {
 }
 
 
-def get_target_from_url(url):
-    """Returns a luigi target based on the url scheme"""
+def get_target_class_from_url(url):
+    """Returns a luigi target class based on the url scheme"""
     parsed_url = urlparse.urlparse(url)
     target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
     kwargs = {}
@@ -74,7 +74,15 @@ def get_target_from_url(url):
         kwargs['client'] = ScalableS3Client()
 
     url = url.rstrip('/')
-    return target_class(url, **kwargs)
+    args = (url,)
+
+    return target_class, args, kwargs
+
+
+def get_target_from_url(url):
+    """Returns a luigi target based on the url scheme"""
+    cls, args, kwargs = get_target_class_from_url(url)
+    return cls(*args, **kwargs)
 
 
 def url_path_join(url, *extra_path):

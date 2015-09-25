@@ -112,6 +112,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
             return values[0].encode('utf8')
 
     def reducer(self, key, values):
+        """Cumulate number of events per key."""
         num_events = sum(values)
         if num_events > 0:
             yield key, num_events
@@ -165,12 +166,13 @@ class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryToMysqlTask):
     @property
     def query(self):
         return self.activity_query.format(
-            interval_start=self.interval.date_a.isoformat(),
-            interval_end=self.interval.date_b.isoformat(),
+            interval_start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
+            interval_end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
         )
 
     @property
     def activity_query(self):
+        """Defines the query to be made, using "{interval_start}" and "{interval_end}"."""
         raise NotImplementedError
 
     @property
@@ -238,7 +240,8 @@ class CourseActivityWeeklyTask(CourseActivityTask):
         return luigi.date_interval.Custom(starting_week.monday(), ending_week.monday())
 
     def get_iso_week_containing_date(self, date):
-        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        """Returns a Week object corresponding to the given date."""
+        iso_year, iso_weekofyear, _iso_weekday = date.isocalendar()
         return Week(iso_year, iso_weekofyear)
 
     @property
@@ -356,7 +359,7 @@ class CourseActivityMonthlyTask(CourseActivityTask):
         if self.months == 0:
             raise ValueError('Number of months to process must be greater than 0')
 
-        ending_date = self.end_date.replace(day=1)
+        ending_date = self.end_date.replace(day=1)  # pylint: disable=no-member
         starting_date = ending_date - relativedelta(months=self.months)
 
         return luigi.date_interval.Custom(starting_date, ending_date)

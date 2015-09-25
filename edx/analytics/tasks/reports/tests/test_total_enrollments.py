@@ -71,21 +71,21 @@ class TestWeeklyAllUsersAndEnrollments(unittest.TestCase):
                 """
 
         input_targets = {
-            'enrollments': FakeTarget(reformat(enrollments)),
-            'registrations': FakeTarget(reformat(registrations))
+            'enrollments': FakeTarget(value=reformat(enrollments)),
+            'registrations': FakeTarget(value=reformat(registrations))
         }
 
         # Mock offsets only if specified.
         if offset:
-            input_targets.update({'offsets': FakeTarget(reformat(offset))})
+            input_targets.update({'offsets': FakeTarget(value=reformat(offset))})
 
         # Mock history only if specified.
         if history:
-            input_targets.update({'history': FakeTarget(reformat(history))})
+            input_targets.update({'history': FakeTarget(value=reformat(history))})
 
         # Mock blacklist only if specified.
         if blacklist:
-            input_targets.update({'blacklist': FakeTarget(reformat(blacklist))})
+            input_targets.update({'blacklist': FakeTarget(value=reformat(blacklist))})
 
         task.input = MagicMock(return_value=input_targets)
 

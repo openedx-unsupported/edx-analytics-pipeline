@@ -57,13 +57,13 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
             return textwrap.dedent(string).strip().replace(' ', '\t')
 
         input_targets = {
-            'enrollments': FakeTarget(reformat(enrollments)),
-            'registrations': FakeTarget(reformat(registrations)),
+            'enrollments': FakeTarget(value=reformat(enrollments)),
+            'registrations': FakeTarget(value=reformat(registrations)),
         }
 
         # Mock blacklist only if specified.
         if blacklist:
-            input_targets.update({'blacklist': FakeTarget(reformat(blacklist))})
+            input_targets.update({'blacklist': FakeTarget(value=reformat(blacklist))})
 
         task.input = MagicMock(return_value=input_targets)
 
@@ -327,13 +327,13 @@ class TestDailyRegistrationsEnrollmentsAndCourses(unittest.TestCase):
             return textwrap.dedent(string).strip().replace(' ', '\t')
 
         input_targets = {
-            'enrollments': FakeTarget(reformat(enrollments)),
-            'registrations': FakeTarget(reformat(registrations)),
+            'enrollments': FakeTarget(value=reformat(enrollments)),
+            'registrations': FakeTarget(value=reformat(registrations)),
         }
 
         # Mock blacklist only if specified.
         if blacklist:
-            input_targets.update({'blacklist': FakeTarget(reformat(blacklist))})
+            input_targets.update({'blacklist': FakeTarget(value=reformat(blacklist))})
 
         task.input = MagicMock(return_value=input_targets)
 

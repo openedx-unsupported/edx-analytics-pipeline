@@ -97,8 +97,8 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
             source = self._get_source_string(1)
 
         fake_input = {
-            'credentials': FakeTarget(textwrap.dedent(credentials)),
-            'insert_source': FakeTarget(textwrap.dedent(source))
+            'credentials': FakeTarget(value=textwrap.dedent(credentials)),
+            'insert_source': FakeTarget(value=textwrap.dedent(source))
         }
 
         task.input = MagicMock(return_value=fake_input)

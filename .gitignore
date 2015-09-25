@@ -57,3 +57,5 @@ override.cfg
 .eggs
 
 *.swp
+catalog_test.json
+course_structure.json
