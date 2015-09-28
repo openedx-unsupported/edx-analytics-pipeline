@@ -333,6 +333,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
     """Aggregates usage statistics for video segments across individual user 'viewings'."""
 
     output_root = luigi.Parameter()
+    dropoff_threshold = luigi.FloatParameter(config_path={'section': 'videos', 'name': 'dropoff_threshold'})
 
     def requires(self):
         # Define path so that data could be loaded into Hive, without actually requiring the load to be performed.
@@ -408,7 +409,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         # If we don't know the duration of the video, just use the final segment that was
         # actually viewed to determine users_at_end.
         if video_duration == VIDEO_UNKNOWN_DURATION:
-            final_segment = max(usage_map.keys())
+            final_segment = self.get_final_segment(usage_map)
         else:
             final_segment = self.snap_to_last_segment_boundary(float(video_duration))
 
@@ -429,6 +430,25 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 len(stats.get('users', [])),
                 stats.get('views', 0),
             )
+            if video_duration == VIDEO_UNKNOWN_DURATION and segment == final_segment: break
+
+
+    def get_final_segment(self, usage_map):
+        """
+        Identifies the final segment by looking for a sharp drop in number of users per segment.
+        Needed as some events appear after the actual end of videos.
+        """
+        final_segment = last_segment = max(usage_map.keys())
+        last_segment_num_users = len(usage_map[last_segment]['users'])
+        for segment in sorted(usage_map.keys(), reverse=True)[1:]:
+            stats = usage_map[segment]
+            current_segment_num_users = len(stats.get('users', []))
+            if last_segment_num_users <= current_segment_num_users * self.dropoff_threshold:
+                final_segment = segment
+                break
+            last_segment_num_users = current_segment_num_users
+            last_segment = segment
+        return final_segment
 
     def snap_to_last_segment_boundary(self, second):
         """Maps a time_offset to a segment index."""

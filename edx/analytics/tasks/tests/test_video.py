@@ -4,6 +4,7 @@ import json
 
 from mock import patch, MagicMock
 from ddt import ddt, data, unpack
+from mock import sentinel
 
 from edx.analytics.tasks.video import (
     UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION
@@ -11,7 +12,6 @@ from edx.analytics.tasks.video import (
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-
 
 @ddt
 class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
@@ -1013,3 +1013,48 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 UsageColumns.USERS_AT_END: 1,
             }
         ])
+
+@ddt
+class GetFinalSegmentTest(unittest.TestCase):
+
+    def setUp(self):
+        self.task = VideoUsageTask(interval=sentinel.ignored, output_root=sentinel.ignored)
+        self.usage_map = self.generate_usage_map(20)
+
+    def generate_segment(self, num_users, num_views):
+        return {
+            'users': ['user{}'.format(i) for i in range(num_users)],
+            'views': num_views
+        }
+
+    def generate_usage_map(self, num_segments):
+        usage_map = {}
+        for i in range(num_segments):
+            usage_map[i] = self.generate_segment(20, 20)
+        return usage_map
+
+    @data(
+        (15, 25, 14),
+        (20, 30, 19),
+    )
+    @unpack
+    def test_with_sudden_dropoff(self, start, end, result):
+        """Sharp drop-off in num_users(20 to 1), triggers the cutoff"""
+        for i in range(start, end):
+            self.usage_map[i] =  self.generate_segment(1,1)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), result)
+
+    def test_without_dropoff(self):
+        """No dropoff"""
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 19)
+
+    def test_with_gradual_dropoff(self):
+        """Gradual dropoff of num_users, does not trigger the cutoff"""
+        for i, j in zip(range(20, 39), range(19, 0, -1)):
+            self.usage_map[i] = self.generate_segment(j, j)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 38)
+
+    def test_with_dropoff_no_cutoff(self):
+        """Drop-off from 20 to 2 num_users, however, cutoff won't trigger as it does not meet the threshold."""
+        self.usage_map[30] = self.generate_segment(2,2)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 30)
