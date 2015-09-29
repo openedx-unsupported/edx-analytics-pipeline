@@ -410,19 +410,20 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         # actually viewed to determine users_at_end.
         if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = self.get_final_segment(usage_map)
+            video_duration = (final_segment + 1) * VIDEO_VIEWING_SECONDS_PER_SEGMENT
         else:
             final_segment = self.snap_to_last_segment_boundary(float(video_duration))
 
         # Output stats.
         users_at_start = len(usage_map.get(0, {}).get('users', []))
-        users_at_end = len(usage_map.get(final_segment, {}).get('users', []))
+        users_at_end = len(usage_map.get(self.complete_end_segment(video_duration), {}).get('users', []))
         for segment in sorted(usage_map.keys()):
             stats = usage_map[segment]
             yield (
                 pipeline_video_id,
                 course_id,
                 encoded_module_id,
-                int(video_duration) if video_duration != VIDEO_UNKNOWN_DURATION else '\\N',
+                int(video_duration),
                 VIDEO_VIEWING_SECONDS_PER_SEGMENT,
                 users_at_start,
                 users_at_end,
@@ -430,8 +431,16 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 len(stats.get('users', [])),
                 stats.get('views', 0),
             )
-            if video_duration == VIDEO_UNKNOWN_DURATION and segment == final_segment: break
+            if segment == final_segment: break
 
+    def complete_end_segment(self, duration):
+        """
+        Calculates a complete end segment(if the user has watched till this segment,
+        we consider the user to have watched the complete video) by cutting off the minimum of
+        30 seconds and 5% of duration. Needed to cut off video credits etc.
+        """
+        complete_end_time = max(duration - 30, duration * 0.95)
+        return self.snap_to_last_segment_boundary(complete_end_time)
 
     def get_final_segment(self, usage_map):
         """
