@@ -28,6 +28,8 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelecti
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, IgnoredTarget
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveTableFromQueryTask
 
@@ -700,9 +702,6 @@ class StudentModuleEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
     def output(self):
         return get_target_from_url(self.output_root)
 
-
-from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
-
 class InsertStudentModuleEngagementIntoMysqlTask(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin, MysqlInsertTask):
 
     output_root = luigi.Parameter()
@@ -735,15 +734,97 @@ class InsertStudentModuleEngagementIntoMysqlTask(EventLogSelectionDownstreamMixi
             output_root=self.output_root
         )
 
-from luigi import date_interval
 
-class IntervalStudentModuleEngagement(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin, MysqlInsertTaskMixin, WarehouseMixin, luigi.WrapperTask):
+class StudentEngagementToVerticaTask(
+        StudentEngagementTableDownstreamMixin,
+        VerticaCopyTask):
 
-    def requires(self):
-        for date in self.interval:
-            yield InsertStudentModuleEngagementIntoMysqlTask(
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        return (
+            JoinedStudentEngagementTableTask(
+                mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
-                interval=date_interval.Date.from_date(date),
-                output_root=url_path_join(self.warehouse_path, 'student_module_engagement', 'dt=' + date.isoformat()),
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
                 overwrite=self.overwrite,
+                interval_type=self.interval_type,
             )
+        )
+
+    @property
+    def table(self):
+        return 'd_student_engagement_{}'.format(self.interval_type)
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        return None
+
+    @property
+    def columns(self):
+        return [
+            ('end_date', 'DATE'),
+            ('course_id', 'VARCHAR(255)'),
+            ('username', 'VARCHAR(30)'),
+            ('email', 'VARCHAR(255)'),
+            ('name', 'VARCHAR(255)'),
+            ('enrollment_mode', 'VARCHAR(255)'),
+            ('cohort', 'STRING'),
+            ('days_active', 'INT'),
+            ('problems_attempted', 'INT'),
+            ('problem_attempts', 'INT'),
+            ('problems_correct', 'INT'),
+            ('videos_played', 'INT'),
+            ('forum_posts', 'INT'),
+            ('forum_responses', 'INT'),
+            ('forum_comments', 'INT'),
+            ('textbook_pages_viewed', 'INT'),
+            ('last_subsection_viewed', 'VARCHAR(255)'),
+            ('segments', 'VARCHAR(255)'),
+        ]
+
+
+class StudentModuleEngagementToVerticaTask(
+        StudentEngagementTableDownstreamMixin,
+        VerticaCopyTask):
+
+    output_root = luigi.Parameter()
+
+    @property
+    def insert_source_task(self):
+        return (
+            StudentModuleEngagementTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                output_root=self.output_root,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'f_student_module_engagement'
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        return None
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255)'),
+            ('username', 'VARCHAR(30)'),
+            ('date', 'DATE'),
+            ('module_category', 'VARCHAR(10)'),
+            ('encoded_module_id', 'VARCHAR(255)'),
+            ('count', 'INT'),
+        ]
