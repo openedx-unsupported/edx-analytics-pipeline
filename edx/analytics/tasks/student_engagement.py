@@ -423,9 +423,10 @@ class StudentEngagementIndexTask(
         StudentEngagementTableDownstreamMixin,
         OverwriteOutputMixin,
         MapReduceJobTask):
-    """
-    Groups student engagement information by course, producing a different file for each.
-    """
+
+    elasticsearch_host = luigi.Parameter(
+        config_path={'section': 'elasticsearch', 'name': 'host'}
+    )
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -439,10 +440,17 @@ class StudentEngagementIndexTask(
         )
 
     def mapper(self, line):
-        pass
+        split_line = line.split('\t')
+
+        yield(split_line[0], line)
 
     def reducer(self, key, values):
-        pass
+        from elasticsearch_dsl.connections import connections
+        connections.create_connection(hosts=[self.elasticsearch_host])
+
+    def extra_modules(self):
+        import elasticsearch_dsl
+        return [elasticsearch_dsl]
 
 
 class StudentEngagementCsvFileTask(
