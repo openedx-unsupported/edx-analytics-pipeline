@@ -10,8 +10,11 @@ from operator import itemgetter
 import re
 
 import luigi
-from elasticsearch_dsl import Index, DocType, String
-from elasticsearch_dsl.connections import connections
+try:
+    from elasticsearch_dsl import DocType, String
+    from elasticsearch_dsl.connections import connections
+except ImportError:
+    pass
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
