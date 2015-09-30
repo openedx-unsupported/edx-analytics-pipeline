@@ -13,8 +13,9 @@ import luigi
 try:
     from elasticsearch_dsl import DocType, String
     from elasticsearch_dsl.connections import connections
+    elasticsearch_available = True
 except ImportError:
-    pass
+    elasticsearch_available = False
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
@@ -476,7 +477,7 @@ class StudentEngagementIndexTask(
         return IgnoredTarget()
 
 
-if DocType is not None:
+if elasticsearch_available:
     class RosterEntry(DocType):
 
         course_id = String(index='not_analyzed')
