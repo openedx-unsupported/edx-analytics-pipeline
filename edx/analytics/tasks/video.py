@@ -250,6 +250,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 )
 
             if event_type == VIDEO_PLAYED:
+                # We should check first to see if there is already a viewing in progress, and
+                # log when it is being overwritten.  Just so we know...
+                if viewing is not None:
+                    log.warning('Replacing existing viewing with new viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
                 viewing = start_viewing()
                 last_viewing_end_event = None
             elif viewing:
@@ -268,17 +272,18 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     if record:
                         yield record
                     # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
-                    # data and untrustworthy.
+                    # data and untrustworthy.  (The reason should already be logged.)
                     viewing = None
                     last_viewing_end_event = event
             else:
                 # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
+                log.warning('Video event without existing viewing: %r', viewing, event, key)
                 pass
 
         # This happens too often!  Comment out for now...
-        # if viewing is not None:
-        #     log.error('Unexpected viewing started with no matching end.\n'
-        #               'Viewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
+        if viewing is not None:
+            log.error('Unexpected viewing started with no matching end.\n'
+                      'Viewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
 
     def output(self):
         return get_target_from_url(self.output_root)
