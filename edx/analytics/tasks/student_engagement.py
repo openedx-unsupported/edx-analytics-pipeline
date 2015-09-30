@@ -697,7 +697,7 @@ class StudentModuleEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
         yield (key, 1)
 
     def reducer(self, key, values):
-        yield ('\t'.join(key + [str(sum(values))]),)
+        yield ('\t'.join(key),)
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -722,7 +722,6 @@ class InsertStudentModuleEngagementIntoMysqlTask(EventLogSelectionDownstreamMixi
             ('username', 'VARCHAR(30) NOT NULL'),
             ('module_category', 'VARCHAR(10) NOT NULL'),
             ('encoded_module_id', 'VARCHAR(255) NOT NULL'),
-            ('count', 'INT'),
             ('PRIMARY KEY', '(course_id, username, date, module_category, encoded_module_id)')
         ]
 
@@ -826,5 +825,4 @@ class StudentModuleEngagementToVerticaTask(
             ('username', 'VARCHAR(30)'),
             ('module_category', 'VARCHAR(10)'),
             ('encoded_module_id', 'VARCHAR(255)'),
-            ('count', 'INT'),
         ]
