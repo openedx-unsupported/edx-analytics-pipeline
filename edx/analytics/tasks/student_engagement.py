@@ -98,7 +98,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             timestamp = eventlog.get_event_time_string(event)
             if timestamp is None:
                 return
-            info['path'] = event_type
+            info['path'] = event_type.rstrip("\\")
             info['timestamp'] = timestamp
             event_type = SUBSECTION_VIEWED_MARKER
 
