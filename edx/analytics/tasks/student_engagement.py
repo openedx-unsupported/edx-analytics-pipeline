@@ -464,9 +464,10 @@ class StudentEngagementIndexTask(
             entry.save(index='roster')
 
     def extra_modules(self):
+        import urllib3
         import elasticsearch
         import elasticsearch_dsl
-        return [elasticsearch, elasticsearch_dsl]
+        return [urllib3, elasticsearch, elasticsearch_dsl]
 
     def output(self):
         return IgnoredTarget()
