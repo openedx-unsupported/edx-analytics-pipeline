@@ -353,7 +353,8 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                         ser.problems_correct > 0
                         AND ((ser.problem_attempts / ser.problems_correct) > perc.attempts_per_correct_80)
                     )
-                ) THEN "struggling" END
+                ) THEN "struggling" END,
+                "enrolled"
             )
         FROM course_enrollment ce
         {calendar_join}
