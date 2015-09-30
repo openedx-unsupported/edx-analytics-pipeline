@@ -439,6 +439,7 @@ class StudentEngagementIndexTask(
         MapReduceJobTask):
 
     elasticsearch_host = luigi.Parameter(
+        is_list=True,
         config_path={'section': 'elasticsearch', 'name': 'host'}
     )
     elasticsearch_index = luigi.Parameter(
@@ -457,7 +458,7 @@ class StudentEngagementIndexTask(
         )
 
     def init_local(self):
-        es = Elasticsearch(hosts=[self.elasticsearch_host])
+        es = Elasticsearch(hosts=self.elasticsearch_host)
         ix_client = IndicesClient(es)
         if not ix_client.exists(index=self.elasticsearch_index):
             ix_client.create(index=self.elasticsearch_index)
@@ -487,7 +488,7 @@ class StudentEngagementIndexTask(
         yield (bucket, line)
 
     def reducer(self, _key, records):
-        es = Elasticsearch(hosts=[self.elasticsearch_host])
+        es = Elasticsearch(hosts=self.elasticsearch_host)
 
         def record_generator():
             for record in records:
