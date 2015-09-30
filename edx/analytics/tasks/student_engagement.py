@@ -476,15 +476,16 @@ class StudentEngagementIndexTask(
         return IgnoredTarget()
 
 
-class RosterEntry(DocType):
+if DocType is not None:
+    class RosterEntry(DocType):
 
-    course_id = String(index='not_analyzed')
-    username = String()
-    email = String()
-    name = String()
-    enrollment_mode = String(index='not_analyzed')
-    cohort = String(index='not_analyzed')
-    segments = String(index='not_analyzed', multi=True)
+        course_id = String(index='not_analyzed')
+        username = String()
+        email = String()
+        name = String()
+        enrollment_mode = String(index='not_analyzed')
+        cohort = String(index='not_analyzed')
+        segments = String(index='not_analyzed', multi=True)
 
 
 class StudentEngagementCsvFileTask(
