@@ -464,8 +464,9 @@ class StudentEngagementIndexTask(
             entry.save(index='roster')
 
     def extra_modules(self):
+        import elasticsearch
         import elasticsearch_dsl
-        return [elasticsearch_dsl]
+        return [elasticsearch, elasticsearch_dsl]
 
     def output(self):
         return IgnoredTarget()
