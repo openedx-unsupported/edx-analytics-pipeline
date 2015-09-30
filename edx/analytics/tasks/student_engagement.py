@@ -10,6 +10,8 @@ from operator import itemgetter
 import re
 
 import luigi
+from elasticsearch_dsl import Index, DocType, String
+from elasticsearch_dsl.connections import connections
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
@@ -440,17 +442,41 @@ class StudentEngagementIndexTask(
         )
 
     def mapper(self, line):
-        split_line = line.split('\t')
+        hashed_line = hashlib.sha1(line).hexdigest()
+        bucket = int(hashed_line[:3], 16) % self.n_reduce_tasks
 
-        yield(split_line[0], line)
+        yield (bucket, line)
 
-    def reducer(self, key, values):
-        from elasticsearch_dsl.connections import connections
+    def reducer(self, _key, records):
         connections.create_connection(hosts=[self.elasticsearch_host])
+
+        for record in records:
+            split_record = record.split('\t')
+            entry = RosterEntry(
+                course_id=split_record[1],
+                username=split_record[2],
+                email=split_record[3],
+                name=split_record[4],
+                enrollment_mode=split_record[5],
+                cohort=split_record[6],
+                segments=split_record[-1]
+            )
+            entry.save(index='roster')
 
     def extra_modules(self):
         import elasticsearch_dsl
         return [elasticsearch_dsl]
+
+
+class RosterEntry(DocType):
+
+    course_id = String(index='not_analyzed')
+    username = String()
+    email = String()
+    name = String()
+    enrollment_mode = String(index='not_analyzed')
+    cohort = String(index='not_analyzed')
+    segments = String(index='not_analyzed', multi=True)
 
 
 class StudentEngagementCsvFileTask(
