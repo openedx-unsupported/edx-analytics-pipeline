@@ -297,6 +297,11 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ('segments', 'STRING'),
         ]
 
+    def hiveconfs(self):
+        jcs = super(JoinedStudentEngagementTableTask, self).hiveconfs()
+        jcs['hive.auto.convert.join'] = 'false'
+        return jcs
+
     @property
     def insert_query(self):
         # Join with calendar data only if calculating weekly engagement.
