@@ -717,9 +717,9 @@ class InsertStudentModuleEngagementIntoMysqlTask(EventLogSelectionDownstreamMixi
     @property
     def columns(self):
         return [
+            ('date', 'DATE NOT NULL'),
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('username', 'VARCHAR(30) NOT NULL'),
-            ('date', 'DATE NOT NULL'),
             ('module_category', 'VARCHAR(10) NOT NULL'),
             ('encoded_module_id', 'VARCHAR(255) NOT NULL'),
             ('count', 'INT'),
@@ -821,9 +821,9 @@ class StudentModuleEngagementToVerticaTask(
     @property
     def columns(self):
         return [
+            ('date', 'DATE'),
             ('course_id', 'VARCHAR(255)'),
             ('username', 'VARCHAR(30)'),
-            ('date', 'DATE'),
             ('module_category', 'VARCHAR(10)'),
             ('encoded_module_id', 'VARCHAR(255)'),
             ('count', 'INT'),
