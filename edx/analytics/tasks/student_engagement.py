@@ -774,7 +774,7 @@ class StudentEngagementToVerticaTask(
             ('email', 'VARCHAR(255)'),
             ('name', 'VARCHAR(255)'),
             ('enrollment_mode', 'VARCHAR(255)'),
-            ('cohort', 'STRING'),
+            ('cohort', 'VARCHAR(255)'),
             ('days_active', 'INT'),
             ('problems_attempted', 'INT'),
             ('problem_attempts', 'INT'),
