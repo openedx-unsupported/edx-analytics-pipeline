@@ -346,7 +346,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.textbook_pages_viewed, 0),
             COALESCE(ser.last_subsection_viewed, ''),
             concat_ws(",",
-                CASE WHEN ser.days_active = 0 THEN "inactive" END,
+                CASE WHEN (ser.days_active = 0 OR ser.days_active IS NULL) THEN "inactive" END,
                 CASE WHEN (
                     (ser.problem_attempts > 0 AND ser.problems_correct = 0)
                     OR (
@@ -491,12 +491,15 @@ class StudentEngagementIndexTask(
         def record_generator():
             for record in records:
                 split_record = record.split('\t')
+                course_id = split_record[1]
+                username = split_record[2]
                 yield {
                     '_index': self.elasticsearch_index,
                     '_type': 'roster_entry',
+                    '_id': '|'.join([course_id, username]),
                     '_source': {
-                        'course_id': split_record[1],
-                        'username': split_record[2],
+                        'course_id': course_id,
+                        'username': username,
                         'email': split_record[3],
                         'name': split_record[4],
                         'enrollment_mode': split_record[5],
@@ -509,10 +512,17 @@ class StudentEngagementIndexTask(
         sys.stderr.write(str(results))
         sys.stderr.write('\n')
 
+        yield ('', '')
+
     def extra_modules(self):
         import urllib3
         import elasticsearch
         return [urllib3, elasticsearch]
+
+    def jobconfs(self):
+        jcs = super(StudentEngagementIndexTask, self).jobconfs()
+        jcs.append('mapred.reduce.tasks.speculative.execution=false')
+        return jcs
 
     def output(self):
         return IgnoredTarget()
