@@ -8,14 +8,16 @@ import logging
 from itertools import groupby
 from operator import itemgetter
 import re
+import sys
 
 import luigi
 try:
-    from elasticsearch_dsl import DocType, String
-    from elasticsearch_dsl.connections import connections
-    elasticsearch_available = True
+    from elasticsearch import Elasticsearch
+    from elasticsearch.client import IndicesClient
+    from elasticsearch.exceptions import NotFoundError
+    from elasticsearch import helpers
 except ImportError:
-    elasticsearch_available = False
+    pass
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.database_imports import (
@@ -438,6 +440,9 @@ class StudentEngagementIndexTask(
     elasticsearch_host = luigi.Parameter(
         config_path={'section': 'elasticsearch', 'name': 'host'}
     )
+    elasticsearch_index = luigi.Parameter(
+        config_path={'section': 'student-engagement', 'name': 'index'}
+    )
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -450,6 +455,30 @@ class StudentEngagementIndexTask(
             interval_type=self.interval_type,
         )
 
+    def init_local(self):
+        es = Elasticsearch(hosts=[self.elasticsearch_host])
+        ix_client = IndicesClient(es)
+        if not ix_client.exists(index=self.elasticsearch_index):
+            ix_client.create(index=self.elasticsearch_index)
+
+        doc_type = 'roster_entry'
+        try:
+            ix_client.get_mapping(index=self.elasticsearch_index, doc_type=doc_type)
+        except NotFoundError:
+            ix_client.put_mapping(index=self.elasticsearch_index, doc_type=doc_type, body={
+                'roster_entry': {
+                    'properties': {
+                        'course_id': {'type': 'string', 'index': 'not_analyzed'},
+                        'username': {'type': 'string', 'index': 'not_analyzed'},
+                        'email': {'type': 'string', 'index': 'not_analyzed'},
+                        'name': {'type': 'string'},
+                        'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
+                        'cohort': {'type': 'string', 'index': 'not_analyzed'},
+                        'segments': {'type': 'string', 'index_name': 'segments'}
+                    }
+                }
+            })
+
     def mapper(self, line):
         hashed_line = hashlib.sha1(line).hexdigest()
         bucket = int(hashed_line[:3], 16) % self.n_reduce_tasks
@@ -457,41 +486,36 @@ class StudentEngagementIndexTask(
         yield (bucket, line)
 
     def reducer(self, _key, records):
-        connections.create_connection(hosts=[self.elasticsearch_host])
+        es = Elasticsearch(hosts=[self.elasticsearch_host])
 
-        for record in records:
-            split_record = record.split('\t')
-            entry = RosterEntry(
-                course_id=split_record[1],
-                username=split_record[2],
-                email=split_record[3],
-                name=split_record[4],
-                enrollment_mode=split_record[5],
-                cohort=split_record[6],
-                segments=split_record[-1]
-            )
-            entry.save(index='roster')
+        def record_generator():
+            for record in records:
+                split_record = record.split('\t')
+                yield {
+                    '_index': self.elasticsearch_index,
+                    '_type': 'roster_entry',
+                    '_source': {
+                        'course_id': split_record[1],
+                        'username': split_record[2],
+                        'email': split_record[3],
+                        'name': split_record[4],
+                        'enrollment_mode': split_record[5],
+                        'cohort': split_record[6],
+                        'segments': split_record[-1].split(',')
+                    }
+                }
+
+        results = helpers.bulk(es, record_generator())
+        sys.stderr.write(str(results))
+        sys.stderr.write('\n')
 
     def extra_modules(self):
         import urllib3
         import elasticsearch
-        import elasticsearch_dsl
-        return [urllib3, elasticsearch, elasticsearch_dsl]
+        return [urllib3, elasticsearch]
 
     def output(self):
         return IgnoredTarget()
-
-
-if elasticsearch_available:
-    class RosterEntry(DocType):
-
-        course_id = String(index='not_analyzed')
-        username = String()
-        email = String()
-        name = String()
-        enrollment_mode = String(index='not_analyzed')
-        cohort = String(index='not_analyzed')
-        segments = String(index='not_analyzed', multi=True)
 
 
 class StudentEngagementCsvFileTask(
