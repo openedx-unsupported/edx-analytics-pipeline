@@ -521,7 +521,7 @@ class StudentEngagementIndexTask(
                 if problems_completed > 0:
                     attempts_per_problem_completed = float(problem_attempts) / float(problems_completed)
                 else:
-                    attempts_per_problem_completed = float(problem_attempts)
+                    attempts_per_problem_completed = None
 
                 document = {
                     '_index': self.elasticsearch_index,
@@ -536,7 +536,6 @@ class StudentEngagementIndexTask(
                         'problems_attempted': problems_attempted,
                         'discussion_activity': discussion_activity,
                         'problems_completed': problems_completed,
-                        'attempts_per_problem_completed': attempts_per_problem_completed,
                         'videos_watched': int(split_record[11]),
                         'segments': split_record[-1].split(','),
                         'name_suggest': {
@@ -549,6 +548,9 @@ class StudentEngagementIndexTask(
 
                 if cohort is not None:
                     document['cohort'] = cohort
+
+                if attempts_per_problem_completed is not None:
+                    document['attempts_per_problem_completed'] = attempts_per_problem_completed
 
                 yield document
 
