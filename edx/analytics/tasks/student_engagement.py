@@ -552,7 +552,8 @@ class StudentEngagementIndexTask(
                 if attempts_per_problem_completed is not None:
                     document['attempts_per_problem_completed'] = attempts_per_problem_completed
 
-                yield document
+                for _ in range(100):
+                    yield document
 
         results = helpers.bulk(es, record_generator())
         sys.stderr.write(str(results))
