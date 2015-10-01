@@ -336,7 +336,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             au.email,
             aup.name,
             ce.mode,
-            COALESCE(cohort.name, ''),
+            cohort.name,
             COALESCE(ser.days_active, 0),
             COALESCE(ser.problems_attempted, 0),
             COALESCE(ser.problem_attempts, 0),
@@ -346,13 +346,14 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             COALESCE(ser.forum_responses, 0),
             COALESCE(ser.forum_comments, 0),
             COALESCE(ser.textbook_pages_viewed, 0),
-            COALESCE(ser.last_subsection_viewed, ''),
+            ser.last_subsection_viewed,
             concat_ws(",",
-                CASE WHEN (ser.days_active = 0 OR ser.days_active IS NULL) THEN "inactive" END,
+                CASE WHEN (COALESCE(ser.days_active, 0) = 0) THEN "inactive" END,
                 CASE WHEN (
                     (ser.problem_attempts > 0 AND ser.problems_correct = 0)
                     OR (
-                        ser.problems_correct > 0
+                        ser.problem_attempts > 0
+                        AND ser.problems_correct > 0
                         AND ((ser.problem_attempts / ser.problems_correct) > perc.attempts_per_correct_80)
                     )
                 ) THEN "struggling" END,
