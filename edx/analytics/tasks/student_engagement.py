@@ -372,7 +372,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                     end_date,
                     course_id,
                     percentile_approx(
-                        CASE WHEN problems_correct > 0 THEN (problem_attempts / problems_correct) ELSE 0.0 END,
+                        CASE WHEN problems_correct > 0 THEN (problem_attempts / problems_correct) ELSE problem_attempts END,
                         0.8
                     ) AS attempts_per_correct_80
                 FROM student_engagement_raw_{interval_type}
@@ -474,9 +474,16 @@ class StudentEngagementIndexTask(
                 'roster_entry': {
                     'properties': {
                         'course_id': {'type': 'string', 'index': 'not_analyzed'},
+                        'username': {'type': 'string', 'index': 'not_analyzed'},
+                        'email': {'type': 'string', 'index': 'not_analyzed'},
                         'name': {'type': 'string'},
                         'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
                         'cohort': {'type': 'string', 'index': 'not_analyzed'},
+                        'problems_attempted': {'type': 'integer', 'index': 'not_analyzed'},
+                        'discussion_activity': {'type': 'integer', 'index': 'not_analyzed'},
+                        'problems_completed': {'type': 'integer', 'index': 'not_analyzed'},
+                        'attempts_per_problem_completed': {'type': 'float', 'index': 'not_analyzed'},
+                        'videos_watched': {'type': 'integer', 'index': 'not_analyzed'},
                         'segments': {'type': 'string', 'index_name': 'segments'},
                         'name_suggest': {
                             'type': 'completion',
@@ -504,15 +511,33 @@ class StudentEngagementIndexTask(
                 username = split_record[2]
                 email = split_record[3]
                 name = split_record[4]
-                yield {
+                cohort = split_record[6]
+                if cohort == "\\N":
+                    cohort = None
+                problems_attempted = int(split_record[8])
+                problem_attempts = int(split_record[9])
+                discussion_activity = sum(int(x) for x in split_record[12:15])
+                problems_completed = int(split_record[10])
+                if problems_completed > 0:
+                    attempts_per_problem_completed = float(problem_attempts) / float(problems_completed)
+                else:
+                    attempts_per_problem_completed = float(problem_attempts)
+
+                document = {
                     '_index': self.elasticsearch_index,
                     '_type': 'roster_entry',
                     '_id': '|'.join([course_id, username]),
                     '_source': {
                         'course_id': course_id,
+                        'username': username,
+                        'email': email,
                         'name': name,
                         'enrollment_mode': split_record[5],
-                        'cohort': split_record[6],
+                        'problems_attempted': problems_attempted,
+                        'discussion_activity': discussion_activity,
+                        'problems_completed': problems_completed,
+                        'attempts_per_problem_completed': attempts_per_problem_completed,
+                        'videos_watched': int(split_record[11]),
                         'segments': split_record[-1].split(','),
                         'name_suggest': {
                             'input': [name, username, email],
@@ -521,6 +546,9 @@ class StudentEngagementIndexTask(
                         }
                     }
                 }
+
+                if cohort is not None:
+                    document['cohort'] = cohort
 
         results = helpers.bulk(es, record_generator())
         sys.stderr.write(str(results))
