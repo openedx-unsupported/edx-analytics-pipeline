@@ -229,13 +229,13 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     return None
 
                 if end_time < viewing.start_offset:
-                    log.error('End time is before the start time.\nViewing Start: %r\nEvent: %r\nKey:%r',
-                              viewing, event, key)
+                    log.error('End time is before the start time:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                              (viewing.start_offset - end_time), viewing, event, key)
                     return None
 
                 if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
-                    log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
-                              viewing, event, key)
+                    log.error('Viewing too short and discarded:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                              (end_time - viewing.start_offset), viewing, event, key)
                     return None
 
                 return (
@@ -251,9 +251,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             if event_type == VIDEO_PLAYED:
                 # We should check first to see if there is already a viewing in progress, and
-                # log when it is being overwritten.  Just so we know...
+                # log when it is being overwritten.  Just so we know when we have sequential play events.
                 if viewing is not None:
-                    log.warning('Replacing existing viewing with new viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
+                    log.warning('Replacing existing viewing with new viewing: change = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                                (event[2] - viewing.start_offset), viewing, event, key)
                 viewing = start_viewing()
                 last_viewing_end_event = None
             elif viewing:
@@ -272,18 +273,25 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     if record:
                         yield record
                     # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
-                    # data and untrustworthy.  (The reason should already be logged.)
+                    # data and untrustworthy.  (The reason should already be logged by end_viewing().)
                     viewing = None
                     last_viewing_end_event = event
             else:
                 # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
-                log.warning('Video event without existing viewing: %r', viewing, event, key)
-                pass
+                if event_type == VIDEO_PAUSED:
+                    log.warning('Video paused event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                elif event_type == VIDEO_STOPPED:
+                    log.warning('Video stopped event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                elif event_type == VIDEO_SEEK:
+                    # I don't understand why we don't set last_viewing_end_event in this case as well.
+                    # Even if it weren't immediately preceded by a play event, it may be the seek event
+                    # before another play event, and presumably that's more important.
+                    log.warning('Video seek event without preceding played event: \nEvent: %r\nKey:%r', event, key)
 
         # This happens too often!  Comment out for now...
         if viewing is not None:
             log.error('Unexpected viewing started with no matching end.\n'
-                      'Viewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
+                      'Viewing Start: %r\nKey:%r', viewing, key)
 
     def output(self):
         return get_target_from_url(self.output_root)
