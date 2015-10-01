@@ -550,6 +550,8 @@ class StudentEngagementIndexTask(
                 if cohort is not None:
                     document['cohort'] = cohort
 
+                yield document
+
         results = helpers.bulk(es, record_generator())
         sys.stderr.write(str(results))
         sys.stderr.write('\n')
