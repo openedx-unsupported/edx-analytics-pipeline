@@ -795,7 +795,6 @@ class StudentEngagementToVerticaTask(
                 source=self.source,
                 interval=self.interval,
                 pattern=self.pattern,
-                overwrite=self.overwrite,
                 interval_type=self.interval_type,
             )
         )
