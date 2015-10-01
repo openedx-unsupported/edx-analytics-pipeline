@@ -334,7 +334,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ce.course_id,
             au.username,
             au.email,
-            regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', '')
+            regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', ''),
             ce.mode,
             cohort.name,
             COALESCE(ser.days_active, 0),
