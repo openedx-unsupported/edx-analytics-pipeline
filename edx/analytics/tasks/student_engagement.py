@@ -448,6 +448,7 @@ class StudentEngagementIndexTask(
     elasticsearch_index = luigi.Parameter(
         config_path={'section': 'student-engagement', 'name': 'index'}
     )
+    scale_factor = luigi.IntParameter(default=1)
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -512,16 +513,10 @@ class StudentEngagementIndexTask(
                 email = split_record[3]
                 name = split_record[4]
                 cohort = split_record[6]
-                if cohort == "\\N":
-                    cohort = None
                 problems_attempted = int(split_record[8])
                 problem_attempts = int(split_record[9])
                 discussion_activity = sum(int(x) for x in split_record[12:15])
                 problems_completed = int(split_record[10])
-                if problems_completed > 0:
-                    attempts_per_problem_completed = float(problem_attempts) / float(problems_completed)
-                else:
-                    attempts_per_problem_completed = None
 
                 document = {
                     '_index': self.elasticsearch_index,
@@ -546,14 +541,16 @@ class StudentEngagementIndexTask(
                     }
                 }
 
-                if cohort is not None:
+                if cohort != "\\N":
                     document['cohort'] = cohort
 
-                if attempts_per_problem_completed is not None:
-                    document['attempts_per_problem_completed'] = attempts_per_problem_completed
+                if problems_completed > 0:
+                    document['attempts_per_problem_completed'] = float(problem_attempts) / float(problems_completed)
 
-                for i in range(100):
-                    document['_id'] += '|' + str(i)
+                original_id = document['_id']
+                for i in range(self.scale_factor):
+                    if i > 0:
+                        document['_id'] = original_id + '|' + str(i)
                     yield document
 
         results = helpers.bulk(es, record_generator())
