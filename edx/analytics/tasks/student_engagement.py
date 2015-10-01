@@ -498,7 +498,7 @@ class StudentEngagementIndexTask(
 
     def mapper(self, line):
         hashed_line = hashlib.sha1(line).hexdigest()
-        bucket = int(hashed_line[:3], 16) % self.n_reduce_tasks
+        bucket = int(hashed_line[:3], 16) % int(self.n_reduce_tasks)
 
         yield (bucket, line)
 
