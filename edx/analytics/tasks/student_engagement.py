@@ -356,7 +356,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                         AND ((ser.problem_attempts / ser.problems_correct) > perc.attempts_per_correct_80)
                     )
                 ) THEN "struggling" END,
-                "enrolled"
+                CASE WHEN ce.at_end = 1 THEN "enrolled" ELSE "unenrolled" END
             )
         FROM course_enrollment ce
         {calendar_join}
@@ -387,7 +387,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                 ON (cugu.courseusergroup_id = cug.id)
         ) cohort
             ON (au.id = cohort.user_id AND ce.course_id = cohort.course_id)
-        WHERE ce.at_end = 1 AND {date_where}
+        WHERE {date_where}
         """.format(
             calendar_join=calendar_join,
             interval_type=self.interval_type,
@@ -473,12 +473,16 @@ class StudentEngagementIndexTask(
                 'roster_entry': {
                     'properties': {
                         'course_id': {'type': 'string', 'index': 'not_analyzed'},
-                        'username': {'type': 'string', 'index': 'not_analyzed'},
-                        'email': {'type': 'string', 'index': 'not_analyzed'},
                         'name': {'type': 'string'},
                         'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
                         'cohort': {'type': 'string', 'index': 'not_analyzed'},
-                        'segments': {'type': 'string', 'index_name': 'segments'}
+                        'segments': {'type': 'string', 'index_name': 'segments'},
+                        'name_suggest': {
+                            'type': 'completion',
+                            'index_analyzer': 'simple',
+                            'search_analyzer': 'simple',
+                            'payloads': True
+                        }
                     }
                 }
             })
@@ -497,18 +501,23 @@ class StudentEngagementIndexTask(
                 split_record = record.split('\t')
                 course_id = split_record[1]
                 username = split_record[2]
+                email = split_record[3]
+                name = split_record[4]
                 yield {
                     '_index': self.elasticsearch_index,
                     '_type': 'roster_entry',
                     '_id': '|'.join([course_id, username]),
                     '_source': {
                         'course_id': course_id,
-                        'username': username,
-                        'email': split_record[3],
-                        'name': split_record[4],
+                        'name': name,
                         'enrollment_mode': split_record[5],
                         'cohort': split_record[6],
-                        'segments': split_record[-1].split(',')
+                        'segments': split_record[-1].split(','),
+                        'name_suggest': {
+                            'input': [name, username, email],
+                            'output': name,
+                            'payload': {'course_id': course_id, 'username': username}
+                        }
                     }
                 }
 
