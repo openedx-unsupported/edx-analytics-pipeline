@@ -780,6 +780,8 @@ class StudentEngagementToVerticaTask(
         StudentEngagementTableDownstreamMixin,
         VerticaCopyTask):
 
+    overwrite = True
+
     @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
