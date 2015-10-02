@@ -410,7 +410,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         # actually viewed to determine users_at_end.
         if video_duration == VIDEO_UNKNOWN_DURATION:
             final_segment = self.get_final_segment(usage_map)
-            video_duration = (final_segment + 1) * VIDEO_VIEWING_SECONDS_PER_SEGMENT
+            video_duration = ((final_segment + 1) * VIDEO_VIEWING_SECONDS_PER_SEGMENT) - 1
         else:
             final_segment = self.snap_to_last_segment_boundary(float(video_duration))
 
@@ -431,7 +431,8 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                 len(stats.get('users', [])),
                 stats.get('views', 0),
             )
-            if segment == final_segment: break
+            if segment == final_segment:
+                break
 
     def complete_end_segment(self, duration):
         """
