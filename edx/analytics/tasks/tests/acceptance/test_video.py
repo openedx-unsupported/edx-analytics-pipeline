@@ -43,7 +43,7 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 'course-v1:edX+DemoX+Test_2014|0b9e39477cf34507a7a48f74be381fdd',
                 'course-v1:edX+DemoX+Test_2014',
                 '0b9e39477cf34507a7a48f74be381fdd',
-                None,
+                5,
                 5,
                 1,
                 1,
@@ -53,7 +53,7 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 'edX/DemoX/Demo_Course|i4x-edX-DemoX-video-3cb54a11efae4ccc8a0aade24d14b255',
                 'edX/DemoX/Demo_Course',
                 'i4x-edX-DemoX-video-3cb54a11efae4ccc8a0aade24d14b255',
-                None,
+                25,
                 5,
                 2,
                 2,
@@ -63,13 +63,14 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 'edX/DemoX/Demo_Course|i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f',
                 'edX/DemoX/Demo_Course',
                 'i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f',
-                None,
+                25,
                 5,
                 0,
                 1,
                 15,
             ),
         ]
+
         self.assertItemsEqual(expected, results)
 
     def validate_video_timeline(self):
