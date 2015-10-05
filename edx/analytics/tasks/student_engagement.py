@@ -10,6 +10,7 @@ from operator import itemgetter
 import re
 import sys
 import time
+import random
 
 import luigi
 try:
@@ -500,10 +501,7 @@ class StudentEngagementIndexTask(
             })
 
     def mapper(self, line):
-        hashed_line = hashlib.sha1(line).hexdigest()
-        bucket = int(hashed_line[-3:], 16) % int(self.n_reduce_tasks)
-
-        yield (bucket, line)
+        yield (random.randrange(0, int(self.n_reduce_tasks)), line)
 
     def reducer(self, _key, records):
         es = Elasticsearch(hosts=self.elasticsearch_host)
