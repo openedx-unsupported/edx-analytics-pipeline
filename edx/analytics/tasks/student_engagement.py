@@ -451,6 +451,7 @@ class StudentEngagementIndexTask(
     )
     scale_factor = luigi.IntParameter(default=1)
     throttle = luigi.FloatParameter(default=0)
+    batch_size = luigi.IntParameter(default=1000)
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -507,7 +508,7 @@ class StudentEngagementIndexTask(
     def reducer(self, _key, records):
         es = Elasticsearch(hosts=self.elasticsearch_host)
 
-        j = 0
+        self.batch_index = 0
 
         def record_generator():
             for record in records:
@@ -557,7 +558,16 @@ class StudentEngagementIndexTask(
                         document['_id'] = original_id + '|' + str(i)
                     yield document
 
+                    self.batch_index += 1
+                    if self.batch_size is not None and self.batch_index >= self.batch_size:
+                        self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
+                        self.batch_index = 0
+                        if self.throttle:
+                            time.sleep(self.throttle)
+
         results = helpers.bulk(es, record_generator())
+        if self.batch_index > 0:
+            self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
         sys.stderr.write(str(results))
         sys.stderr.write('\n')
 
