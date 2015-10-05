@@ -9,6 +9,7 @@ from itertools import groupby
 from operator import itemgetter
 import re
 import sys
+import time
 
 import luigi
 try:
@@ -372,7 +373,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
                     end_date,
                     course_id,
                     percentile_approx(
-                        CASE WHEN problems_correct > 0 THEN (problem_attempts / problems_correct) ELSE problem_attempts END,
+                        CASE WHEN problems_correct > 0 THEN (problem_attempts / problems_correct) ELSE CAST(problem_attempts AS DOUBLE) END,
                         0.8
                     ) AS attempts_per_correct_80
                 FROM student_engagement_raw_{interval_type}
@@ -449,6 +450,7 @@ class StudentEngagementIndexTask(
         config_path={'section': 'student-engagement', 'name': 'index'}
     )
     scale_factor = luigi.IntParameter(default=1)
+    throttle = luigi.FloatParameter(default=0)
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -504,6 +506,8 @@ class StudentEngagementIndexTask(
 
     def reducer(self, _key, records):
         es = Elasticsearch(hosts=self.elasticsearch_host)
+
+        j = 0
 
         def record_generator():
             for record in records:
