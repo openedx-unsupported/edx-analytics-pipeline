@@ -570,7 +570,7 @@ class StudentEngagementIndexTask(
         self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
         sys.stderr.write('Number of errors: {0}\n'.format(num_errors))
         for error in errors:
-            sys.stderr.write(error)
+            sys.stderr.write(str(error))
             sys.stderr.write('\n')
 
         yield ('', '')
