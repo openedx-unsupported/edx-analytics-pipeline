@@ -206,8 +206,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
                 if last_viewing_end_event is not None and last_viewing_end_event[1] == VIDEO_SEEK:
                     start_offset = last_viewing_end_event[2]
+                    self.incr_counter('Video Viewings', 'Get start_offset from preceding seek event', 1)
                 else:
                     start_offset = current_time
+                    self.incr_counter('Video Viewings', 'Get start_offset from current played event', 1)
 
                 return VideoViewing(
                     start_timestamp=parsed_timestamp,
@@ -224,18 +226,21 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 # Note that duration may be an int, and end_time may be a float,
                 # so just add +1 to avoid these round-off errors (instead of actually checking types).
                 if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > (viewing.video_duration + 1):
-                    log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
-                              viewing, event, key)
+                    #log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
+                    #          viewing, event, key)
+                    self.incr_counter('Video Viewings', 'reject end time beyond duration', 1)
                     return None
 
                 if end_time < viewing.start_offset:
-                    log.error('End time is before the start time:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
-                              (viewing.start_offset - end_time), viewing, event, key)
+                    # log.error('End time is before the start time:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                    # (viewing.start_offset - end_time), viewing, event, key)
+                    self.incr_counter('Video Viewings', 'reject end time before viewing start', 1)
                     return None
 
                 if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
-                    log.error('Viewing too short and discarded:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
-                              (end_time - viewing.start_offset), viewing, event, key)
+                    # log.error('Viewing too short and discarded:  difference = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                    # (end_time - viewing.start_offset), viewing, event, key)
+                    self.incr_counter('Video Viewings', 'reject end time too close to viewing start', 1)
                     return None
 
                 return (
@@ -249,12 +254,15 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     event_type,
                 )
 
+            self.incr_counter('Video Viewings', event_type, 1)
+
             if event_type == VIDEO_PLAYED:
                 # We should check first to see if there is already a viewing in progress, and
                 # log when it is being overwritten.  Just so we know when we have sequential play events.
                 if viewing is not None:
-                    log.warning('Replacing existing viewing with new viewing: change = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
-                                (event[2] - viewing.start_offset), viewing, event, key)
+                    #log.warning('Replacing existing viewing with new viewing: change = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
+                    #            (event[2] - viewing.start_offset), viewing, event, key)
+                    self.incr_counter('Video Viewings', 'drop previous play after second play', 1)
                 viewing = start_viewing()
                 last_viewing_end_event = None
             elif viewing:
@@ -262,11 +270,17 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
                     # play -> pause or play -> stop
                     viewing_end_time = current_time
+                    if event_type == VIDEO_PAUSED:
+                        self.incr_counter('Video Viewings', 'Played to Paused', 1)
+                    else:
+                        self.incr_counter('Video Viewings', 'Played to Stopped', 1)
                 elif event_type == VIDEO_SEEK:
                     # play -> seek
                     viewing_end_time = old_time
+                    self.incr_counter('Video Viewings', 'Played to Seek', 1)
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
+                    self.incr_counter('Video Viewings', 'Unexpected event in viewing', 1)
 
                 if viewing_end_time is not None:
                     record = end_viewing(viewing_end_time)
@@ -274,24 +288,29 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                         yield record
                     # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
                     # data and untrustworthy.  (The reason should already be logged by end_viewing().)
+                    self.incr_counter('Video Viewings', 'Total rejected end-viewing', 1)
                     viewing = None
                     last_viewing_end_event = event
             else:
                 # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
                 if event_type == VIDEO_PAUSED:
-                    log.warning('Video paused event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    # log.warning('Video paused event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    self.incr_counter('Video Viewings', 'paused without preceding played', 1)
                 elif event_type == VIDEO_STOPPED:
-                    log.warning('Video stopped event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    # log.warning('Video stopped event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    self.incr_counter('Video Viewings', 'stopped without preceding played', 1)
                 elif event_type == VIDEO_SEEK:
                     # I don't understand why we don't set last_viewing_end_event in this case as well.
                     # Even if it weren't immediately preceded by a play event, it may be the seek event
                     # before another play event, and presumably that's more important.
-                    log.warning('Video seek event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    # log.warning('Video seek event without preceding played event: \nEvent: %r\nKey:%r', event, key)
+                    self.incr_counter('Video Viewings', 'seek without preceding played', 1)
 
         # This happens too often!  Comment out for now...
         if viewing is not None:
-            log.error('Unexpected viewing started with no matching end.\n'
-                      'Viewing Start: %r\nKey:%r', viewing, key)
+            # log.error('Unexpected viewing started with no matching end.\n'
+            #           'Viewing Start: %r\nKey:%r', viewing, key)
+            self.incr_counter('Video Viewings', 'played without matching end', 1)
 
     def output(self):
         return get_target_from_url(self.output_root)
