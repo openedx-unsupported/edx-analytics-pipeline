@@ -566,13 +566,13 @@ class StudentEngagementIndexTask(
                         if self.throttle:
                             time.sleep(self.throttle)
 
-        results = helpers.bulk(es, record_generator(), chunk_size=self.batch_size)
+        num_indexed, errors = helpers.bulk(es, record_generator(), chunk_size=self.batch_size)
         if self.batch_index > 0:
-            self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
-        num_errors = len(results)
+            self.incr_counter('Elasticsearch', 'Records Indexed', num_indexed)
+        num_errors = len(errors)
         self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
-        sys.stderr.write('Number of errors: {0}\n'.format(results))
-        for error in results:
+        sys.stderr.write('Number of errors: {0}\n'.format(num_errors))
+        for error in errors:
             sys.stderr.write(str(error))
             sys.stderr.write('\n')
 
