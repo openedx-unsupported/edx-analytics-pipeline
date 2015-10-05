@@ -501,7 +501,7 @@ class StudentEngagementIndexTask(
             })
 
     def mapper(self, line):
-        yield (random.randrange(0, int(self.n_reduce_tasks)), line)
+        yield (line.split('\t')[0].encode('utf8'), line)
 
     def reducer(self, _key, records):
         es = Elasticsearch(hosts=self.elasticsearch_host)
