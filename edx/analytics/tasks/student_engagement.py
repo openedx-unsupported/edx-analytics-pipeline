@@ -470,6 +470,9 @@ class StudentEngagementIndexTask(
         ix_client = IndicesClient(es)
         if not ix_client.exists(index=self.elasticsearch_index):
             ix_client.create(index=self.elasticsearch_index)
+            ix_client.put_settings(index=self.elasticsearch_index, body={
+                'refresh_interval': -1
+            })
 
         doc_type = 'roster_entry'
         try:
