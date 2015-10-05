@@ -451,7 +451,7 @@ class StudentEngagementIndexTask(
     )
     scale_factor = luigi.IntParameter(default=1)
     throttle = luigi.FloatParameter(default=0)
-    batch_size = luigi.IntParameter(default=1000)
+    batch_size = luigi.IntParameter(default=500)
 
     def requires(self):
         return JoinedStudentEngagementTableTask(
@@ -565,7 +565,7 @@ class StudentEngagementIndexTask(
                         if self.throttle:
                             time.sleep(self.throttle)
 
-        results = helpers.bulk(es, record_generator())
+        results = helpers.bulk(es, record_generator(), chunk_size=self.batch_size)
         if self.batch_index > 0:
             self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
         sys.stderr.write(str(results))
