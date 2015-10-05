@@ -568,7 +568,7 @@ class StudentEngagementIndexTask(
 
         num_indexed, errors = helpers.bulk(es, record_generator(), chunk_size=self.batch_size)
         if self.batch_index > 0:
-            self.incr_counter('Elasticsearch', 'Records Indexed', num_indexed)
+            self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
         num_errors = len(errors)
         self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
         sys.stderr.write('Number of errors: {0}\n'.format(num_errors))
