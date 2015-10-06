@@ -447,6 +447,9 @@ class StudentEngagementIndexTask(
         is_list=True,
         config_path={'section': 'elasticsearch', 'name': 'host'}
     )
+    elasticsearch_port = luigi.IntParameter(
+        config_path={'section': 'elasticsearch', 'name': 'port'}
+    )
     elasticsearch_index = luigi.Parameter(
         config_path={'section': 'student-engagement', 'name': 'index'}
     )
@@ -466,7 +469,7 @@ class StudentEngagementIndexTask(
         )
 
     def init_local(self):
-        es = Elasticsearch(hosts=self.elasticsearch_host)
+        es = Elasticsearch(hosts=self.elasticsearch_host, port=self.elasticsearch_port)
         ix_client = IndicesClient(es)
         if not ix_client.exists(index=self.elasticsearch_index):
             ix_client.create(index=self.elasticsearch_index)
