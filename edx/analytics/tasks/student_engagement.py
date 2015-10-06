@@ -546,7 +546,6 @@ class StudentEngagementIndexTask(
                         'username': username,
                         'email': email,
                         'name': name,
-                        'cohort': cohort,
                         'enrollment_mode': split_record[5],
                         'problems_attempted': problems_attempted,
                         'discussion_activity': discussion_activity,
@@ -560,6 +559,9 @@ class StudentEngagementIndexTask(
                         }
                     }
                 }
+
+                if cohort != "\\N":
+                    document['_source']['cohort'] = cohort
 
                 if problems_completed > 0:
                     document['_source']['attempts_per_problem_completed'] = float(problem_attempts) / float(problems_completed)
