@@ -558,10 +558,10 @@ class StudentEngagementIndexTask(
                 }
 
                 if cohort != "\\N":
-                    document['cohort'] = cohort
+                    document['_source']['cohort'] = cohort
 
                 if problems_completed > 0:
-                    document['attempts_per_problem_completed'] = float(problem_attempts) / float(problems_completed)
+                    document['_source']['attempts_per_problem_completed'] = float(problem_attempts) / float(problems_completed)
 
                 original_id = document['_id']
                 for i in range(self.scale_factor):
