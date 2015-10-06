@@ -212,7 +212,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     self.incr_counter(counter_heading, 'Get start_offset from preceding seek event', 1)
                 else:
                     start_offset = current_time
-                    self.incr_counter(counter_heading, 'Get start_offset from current played event', 1)
+                    # self.incr_counter(counter_heading, 'Get start_offset from current played event', 1)
 
                 return VideoViewing(
                     start_timestamp=parsed_timestamp,
@@ -231,7 +231,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > (viewing.video_duration + 1):
                     #log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
                     #          viewing, event, key)
-                    self.incr_counter(counter_heading, 'reject end time beyond duration', 1)
+                    # self.incr_counter(counter_heading, 'reject end time beyond duration', 1)
                     return None
 
                 if end_time < viewing.start_offset:
@@ -257,7 +257,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     event_type,
                 )
 
-            self.incr_counter(counter_heading, 'Total input events', 1)
+            # self.incr_counter(counter_heading, 'Total input events', 1)
             self.incr_counter(counter_heading, event_type, 1)
             if event_type == VIDEO_PLAYED:
                 # We should check first to see if there is already a viewing in progress, and
@@ -266,11 +266,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     #log.warning('Replacing existing viewing with new viewing: change = %r\nViewing Start: %r\nEvent: %r\nKey:%r',
                     #            (event[2] - viewing.start_offset), viewing, event, key)
                     self.incr_counter(counter_heading, 'drop previous play after second play', 1)
-                    delta_offset = event[2] - viewing.start_offset
+                    # delta_offset = event[2] - viewing.start_offset
                     # put play-play errors into buckets, using log2.  Shift by 1 so that 0-1 gets a zero, and then add 1 to make one-offset,
                     # and finally add sign so that negatives are binned separately.
-                    delta_offset_bucket = int(math.copysign(int((math.log(abs(delta_offset)+ 1)/math.log(2)) + 1), delta_offset))
-                    self.incr_counter(counter_heading, 'drop previous play after second play bucket {}'.format(delta_offset_bucket), 1)
+                    # delta_offset_bucket = int(math.copysign(int((math.log(abs(delta_offset)+ 1)/math.log(2)) + 1), delta_offset))
+                    # self.incr_counter(counter_heading, 'drop previous play after second play bucket {}'.format(delta_offset_bucket), 1)
                 viewing = start_viewing()
                 last_viewing_end_event = None
             elif viewing:
@@ -288,7 +288,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     self.incr_counter(counter_heading, 'Played to Seek', 1)
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
-                    self.incr_counter(counter_heading, 'Unexpected event in viewing', 1)
+                    # self.incr_counter(counter_heading, 'Unexpected event in viewing', 1)
 
                 if viewing_end_time is not None:
                     record = end_viewing(viewing_end_time)
@@ -297,7 +297,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                         yield record
                     else:
                         self.incr_counter(counter_heading, 'Total rejected end-viewing', 1)
-                    self.incr_counter(counter_heading, 'Total end-viewing', 1)
+                    # self.incr_counter(counter_heading, 'Total end-viewing', 1)
                     # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
                     # data and untrustworthy.  (The reason should already be logged by end_viewing().)
                     viewing = None
