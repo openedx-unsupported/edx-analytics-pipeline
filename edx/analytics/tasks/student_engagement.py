@@ -472,11 +472,7 @@ class StudentEngagementIndexTask(
         )
 
     def init_local(self):
-        es = Elasticsearch(
-            hosts=self.elasticsearch_host,
-            port=self.elasticsearch_port,
-            use_ssl=self.elasticsearch_use_ssl
-        )
+        es = self.create_elasticsearch_client()
         ix_client = IndicesClient(es)
         if not ix_client.exists(index=self.elasticsearch_index):
             ix_client.create(index=self.elasticsearch_index)
@@ -513,11 +509,18 @@ class StudentEngagementIndexTask(
                 }
             })
 
+    def create_elasticsearch_client(self):
+        return Elasticsearch(
+            hosts=self.elasticsearch_host,
+            port=self.elasticsearch_port,
+            use_ssl=self.elasticsearch_use_ssl
+        )
+
     def mapper(self, line):
         yield (line.split('\t')[1].encode('utf8'), line)
 
     def reducer(self, _key, records):
-        es = Elasticsearch(hosts=self.elasticsearch_host)
+        es = self.create_elasticsearch_client()
 
         self.batch_index = 0
 
@@ -543,6 +546,7 @@ class StudentEngagementIndexTask(
                         'username': username,
                         'email': email,
                         'name': name,
+                        'cohort': cohort,
                         'enrollment_mode': split_record[5],
                         'problems_attempted': problems_attempted,
                         'discussion_activity': discussion_activity,
@@ -556,9 +560,6 @@ class StudentEngagementIndexTask(
                         }
                     }
                 }
-
-                if cohort != "\\N":
-                    document['_source']['cohort'] = cohort
 
                 if problems_completed > 0:
                     document['_source']['attempts_per_problem_completed'] = float(problem_attempts) / float(problems_completed)
@@ -577,8 +578,7 @@ class StudentEngagementIndexTask(
                             time.sleep(self.throttle)
 
         num_indexed, errors = helpers.bulk(es, record_generator(), chunk_size=self.batch_size)
-        if self.batch_index > 0:
-            self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
+        self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
         num_errors = len(errors)
         self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
         sys.stderr.write('Number of errors: {0}\n'.format(num_errors))
