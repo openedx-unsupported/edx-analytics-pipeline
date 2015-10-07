@@ -15,7 +15,7 @@ from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-
+from edx.analytics.tasks.util import eventlog
 
 log = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
             # Include only requested courses
             requested_courses = self.courses_for_org_id.get(key_org_id)
-            if requested_courses and self.get_course_id(event) not in requested_courses:
+            if requested_courses and eventlog.get_course_id(event, from_url=True) not in requested_courses:
                 continue
 
             # Enforce a standard encoding for the parts of the key. Without this a part of the key
@@ -202,39 +202,6 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                     self.incr_counter('Event Export', 'Raw Bytes Written', len(value) + 1)
             finally:
                 outfile.close()
-
-    def get_course_id(self, event):
-        """Gets course_id from event."""
-
-        # TODO: This is an arbitrary way to get the course_id. A more complete
-        # routine should deal with all the corner cases as in the `get_org_id`
-        # function below. The subset of event that will return a course_id is
-        # considered a compromise between the events that are useful and
-        # increasing the complexity of the code.
-
-        # Try to get the course from the context
-
-        course_id = event.get('context', {}).get('course_id')
-        if course_id:
-            return course_id
-
-        # Try to get the course_id from the URLs in `event_type` (for implicit
-        # server events) and `page` (for browser events).
-
-        source = event.get('event_source')
-
-        if source == 'server':
-            url = event.get('event_type', '')
-        elif source == 'browser':
-            url = event.get('page', '')
-        else:
-            url = ''
-
-        course_key = opaque_key_util.get_course_key_from_url(url)
-        if course_key:
-            return unicode(course_key)
-
-        return None
 
     def get_org_id(self, event):
         """
