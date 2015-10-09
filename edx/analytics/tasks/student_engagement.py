@@ -474,35 +474,30 @@ class StudentEngagementIndexTask(
             })
 
         doc_type = 'roster_entry'
-        try:
-            es.indices.get_mapping(index=self.elasticsearch_index, doc_type=doc_type)
-            log.error('Existing mapping found!')
-        except NotFoundError:
-            log.warning('No existing mapping found, creating one.')
-            es.indices.put_mapping(index=self.elasticsearch_index, doc_type=doc_type, body={
-                'roster_entry': {
-                    'properties': {
-                        'course_id': {'type': 'string', 'index': 'not_analyzed'},
-                        'username': {'type': 'string', 'index': 'not_analyzed'},
-                        'email': {'type': 'string', 'index': 'not_analyzed'},
-                        'name': {'type': 'string'},
-                        'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
-                        'cohort': {'type': 'string', 'index': 'not_analyzed'},
-                        'problems_attempted': {'type': 'integer'},
-                        'discussion_activity': {'type': 'integer'},
-                        'problems_completed': {'type': 'integer'},
-                        'attempts_per_problem_completed': {'type': 'float'},
-                        'videos_watched': {'type': 'integer'},
-                        'segments': {'type': 'string'},
-                        'name_suggest': {
-                            'type': 'completion',
-                            'index_analyzer': 'simple',
-                            'search_analyzer': 'simple',
-                            'payloads': True
-                        }
+        es.indices.put_mapping(index=self.elasticsearch_index, doc_type=doc_type, body={
+            doc_type: {
+                'properties': {
+                    'course_id': {'type': 'string', 'index': 'not_analyzed'},
+                    'username': {'type': 'string', 'index': 'not_analyzed'},
+                    'email': {'type': 'string', 'index': 'not_analyzed'},
+                    'name': {'type': 'string'},
+                    'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
+                    'cohort': {'type': 'string', 'index': 'not_analyzed'},
+                    'problems_attempted': {'type': 'integer'},
+                    'discussion_activity': {'type': 'integer'},
+                    'problems_completed': {'type': 'integer'},
+                    'attempts_per_problem_completed': {'type': 'float'},
+                    'videos_watched': {'type': 'integer'},
+                    'segments': {'type': 'string'},
+                    'name_suggest': {
+                        'type': 'completion',
+                        'index_analyzer': 'simple',
+                        'search_analyzer': 'simple',
+                        'payloads': True
                     }
                 }
-            })
+            }
+        })
 
     def create_elasticsearch_client(self):
         return Elasticsearch(hosts=self.elasticsearch_host)
