@@ -511,7 +511,7 @@ class StudentEngagementIndexTask(
 
     def create_elasticsearch_client(self):
         return Elasticsearch(
-            hosts=self.elasticsearch_host,
+            hosts=[bytes(h) for h in self.elasticsearch_host],
             port=self.elasticsearch_port,
             use_ssl=self.elasticsearch_use_ssl
         )
