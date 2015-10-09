@@ -447,12 +447,6 @@ class StudentEngagementIndexTask(
         is_list=True,
         config_path={'section': 'elasticsearch', 'name': 'host'}
     )
-    elasticsearch_port = luigi.IntParameter(
-        config_path={'section': 'elasticsearch', 'name': 'port'}
-    )
-    elasticsearch_use_ssl = luigi.BooleanParameter(
-        config_path={'section': 'elasticsearch', 'name': 'use_ssl'}
-    )
     elasticsearch_index = luigi.Parameter(
         config_path={'section': 'student-engagement', 'name': 'index'}
     )
@@ -473,18 +467,19 @@ class StudentEngagementIndexTask(
 
     def init_local(self):
         es = self.create_elasticsearch_client()
-        ix_client = IndicesClient(es)
-        if not ix_client.exists(index=self.elasticsearch_index):
-            ix_client.create(index=self.elasticsearch_index)
-            ix_client.put_settings(index=self.elasticsearch_index, body={
+        if not es.indices.exists(index=self.elasticsearch_index):
+            es.indices.create(index=self.elasticsearch_index)
+            es.indices.put_settings(index=self.elasticsearch_index, body={
                 'refresh_interval': -1
             })
 
         doc_type = 'roster_entry'
         try:
-            ix_client.get_mapping(index=self.elasticsearch_index, doc_type=doc_type)
+            es.indices.get_mapping(index=self.elasticsearch_index, doc_type=doc_type)
+            log.error('Existing mapping found!')
         except NotFoundError:
-            ix_client.put_mapping(index=self.elasticsearch_index, doc_type=doc_type, body={
+            log.warning('No existing mapping found, creating one.')
+            es.indices.put_mapping(index=self.elasticsearch_index, doc_type=doc_type, body={
                 'roster_entry': {
                     'properties': {
                         'course_id': {'type': 'string', 'index': 'not_analyzed'},
@@ -493,12 +488,12 @@ class StudentEngagementIndexTask(
                         'name': {'type': 'string'},
                         'enrollment_mode': {'type': 'string', 'index': 'not_analyzed'},
                         'cohort': {'type': 'string', 'index': 'not_analyzed'},
-                        'problems_attempted': {'type': 'integer', 'index': 'not_analyzed'},
-                        'discussion_activity': {'type': 'integer', 'index': 'not_analyzed'},
-                        'problems_completed': {'type': 'integer', 'index': 'not_analyzed'},
-                        'attempts_per_problem_completed': {'type': 'float', 'index': 'not_analyzed'},
-                        'videos_watched': {'type': 'integer', 'index': 'not_analyzed'},
-                        'segments': {'type': 'string', 'index_name': 'segments'},
+                        'problems_attempted': {'type': 'integer'},
+                        'discussion_activity': {'type': 'integer'},
+                        'problems_completed': {'type': 'integer'},
+                        'attempts_per_problem_completed': {'type': 'float'},
+                        'videos_watched': {'type': 'integer'},
+                        'segments': {'type': 'string'},
                         'name_suggest': {
                             'type': 'completion',
                             'index_analyzer': 'simple',
@@ -510,16 +505,7 @@ class StudentEngagementIndexTask(
             })
 
     def create_elasticsearch_client(self):
-        hosts = []
-        for host in self.elasticsearch_host:
-            hosts.append({
-                'host': bytes(host),
-                'port': self.elasticsearch_port,
-                'use_ssl': self.elasticsearch_use_ssl
-            })
-        return Elasticsearch(
-            hosts=hosts
-        )
+        return Elasticsearch(hosts=self.elasticsearch_host)
 
     def mapper(self, line):
         yield (line.split('\t')[1].encode('utf8'), line)
