@@ -510,10 +510,15 @@ class StudentEngagementIndexTask(
             })
 
     def create_elasticsearch_client(self):
+        hosts = []
+        for host in self.elasticsearch_host:
+            hosts.append({
+                'host': bytes(host),
+                'port': self.elasticsearch_port,
+                'use_ssl': self.elasticsearch_use_ssl
+            })
         return Elasticsearch(
-            hosts=[bytes(h) for h in self.elasticsearch_host],
-            port=self.elasticsearch_port,
-            use_ssl=self.elasticsearch_use_ssl
+            hosts=hosts
         )
 
     def mapper(self, line):
