@@ -493,7 +493,14 @@ class StudentEngagementIndexTask(
                         'type': 'completion',
                         'index_analyzer': 'simple',
                         'search_analyzer': 'simple',
-                        'payloads': True
+                        'payloads': True,
+                        "context": {
+                            "course_id": {
+                                "type": "category",
+                                "default": "unknown",
+                                "path": "course_id"
+                            }
+                        }
                     }
                 }
             }
@@ -541,7 +548,10 @@ class StudentEngagementIndexTask(
                         'name_suggest': {
                             'input': [name, username, email],
                             'output': name,
-                            'payload': {'course_id': course_id, 'username': username}
+                            'payload': {'username': username},
+                            'context': {
+                                'course_id': course_id
+                            }
                         }
                     }
                 }
