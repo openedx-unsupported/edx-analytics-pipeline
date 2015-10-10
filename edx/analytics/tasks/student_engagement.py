@@ -507,7 +507,7 @@ class StudentEngagementIndexTask(
         })
 
     def create_elasticsearch_client(self):
-        return Elasticsearch(hosts=self.elasticsearch_host)
+        return Elasticsearch(hosts=self.elasticsearch_host, timeout=600)
 
     def mapper(self, line):
         yield (line.split('\t')[1].encode('utf8'), line)
