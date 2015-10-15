@@ -12,7 +12,7 @@
 
 - name: Run a task
   hosts: "{{ name }}"
-  gather_facts: False
+  gather_facts: True
 
   vars:
     - repo: https://github.com/edx/edx-analytics-pipeline.git
@@ -34,6 +34,13 @@
         WHEEL_URL: http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze
         # EMR ships with python 2.7
         WHEEL_PYVER: 2.7
+    - common_debian_variants:
+      - Ubuntu
+      - Debian
+    - common_redhat_variants:
+      - CentOS
+      - Red Hat Enterprise Linux
+      - Amazon
 
     # - override_config: path/to/config.cfg (optionally adds a luigi config override)
 
@@ -81,6 +88,16 @@
       with_items:
         - "{{ log_dir }}"
 
+    - name: make sure git is available on the Debian server
+      apt: pkg=git state=present
+      sudo: True
+      when: ansible_distribution in common_debian_variants   
+
+    - name: make sure git is available on the RHEL server
+      yum: pkg=git state=present
+      sudo: True
+      when: ansible_distribution in common_redhat_variants
+      
     - name: analytics tasks repository checked out
       git: repo={{ repo }} dest={{ working_repo_dir }} version=master
 
@@ -94,9 +111,15 @@
       command: make system-requirements chdir={{ working_repo_dir }}
       sudo: True
 
-    - name: bootstrap pip
+    - name: bootstrap pip on Debian
       command: apt-get install -q -y python-pip
       sudo: True
+      when: ansible_distribution in common_debian_variants   
+
+    - name: bootstrap pip on RHEL
+      command: yum install -q -y python-pip
+      sudo: True
+      when: ansible_distribution in common_redhat_variants
 
     - name: virtualenv installed
       pip: name=virtualenv version=1.10.1
