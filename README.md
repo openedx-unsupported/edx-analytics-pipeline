@@ -2,6 +2,15 @@ edx-analytics-pipeline
 ===============
 The Hadoop-based data pipeline.
 
+Installation instructions
+--------------------
+
+We have some draft docs: 
+
+* https://openedx.atlassian.net/wiki/display/OpenOPS/edX+Analytics+Installation describes how to install a small scale analytics stack on a single machine. It'll get merged into the next doc below at some point. Help welcome!
+* http://edx.readthedocs.org/projects/edx-installing-configuring-and-running/en/latest/analytics/install_analytics.html has an overview of a larger scale AWS install.
+
+
 Requirements
 ------------
 Your machine will need the following in order to run the code in this repository:
