@@ -2,17 +2,24 @@
 
 - name: Configure luigi
   hosts: "{{ name }}"
-  gather_facts: False
+  gather_facts: True
   sudo: True
   vars:
     write_luigi_config: "yes"
+    common_debian_variants:
+      - Ubuntu
+      - Debian
+    common_redhat_variants:
+      - CentOS
+      - Red Hat Enterprise Linux
+      - Amazon
   roles:
     - role: luigi
       when: write_luigi_config|bool
 
 - name: Run a task
   hosts: "{{ name }}"
-  gather_facts: False
+  gather_facts: True
 
   vars:
     - repo: https://github.com/edx/edx-analytics-pipeline.git
@@ -29,11 +36,18 @@
       - hostname: github.com
         public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=='
     - local_log_dir: build/logs
-    - install_env:
-        # EMR runs a modified version of Debian 6 (squeeze)
+    - install_env_debian:
+        # EMR runs a modified version of Debian 6 (squeeze) on early AMIs, before switching their own RHEL variant.
         WHEEL_URL: http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze
-        # EMR ships with python 2.7
+        # Match the version of Python define in virtualenv_python above.
         WHEEL_PYVER: 2.7
+    - common_debian_variants:
+      - Ubuntu
+      - Debian
+    - common_redhat_variants:
+      - CentOS
+      - Red Hat Enterprise Linux
+      - Amazon
 
     # - override_config: path/to/config.cfg (optionally adds a luigi config override)
 
@@ -81,6 +95,16 @@
       with_items:
         - "{{ log_dir }}"
 
+    - name: make sure git is available on the Debian server
+      command: apt-get install -q -y git
+      sudo: True
+      when: ansible_distribution in common_debian_variants
+
+    - name: make sure git is available on the RHEL server
+      yum: pkg=git state=present
+      sudo: True
+      when: ansible_distribution in common_redhat_variants
+      
     - name: analytics tasks repository checked out
       git: repo={{ repo }} dest={{ working_repo_dir }} version=master
 
@@ -94,9 +118,15 @@
       command: make system-requirements chdir={{ working_repo_dir }}
       sudo: True
 
-    - name: bootstrap pip
+    - name: bootstrap pip on Debian
       command: apt-get install -q -y python-pip
       sudo: True
+      when: ansible_distribution in common_debian_variants
+
+    - name: bootstrap pip on RHEL
+      command: yum install -q -y python-pip
+      sudo: True
+      when: ansible_distribution in common_redhat_variants
 
     - name: virtualenv installed
       pip: name=virtualenv version=1.10.1
@@ -110,11 +140,18 @@
       command: >
         {{ working_venv_dir }}/bin/pip install -U pip
 
-    - name: virtualenv initialized
+    - name: virtualenv initialized on Debian
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment: install_env
+      environment: install_env_debian
+      when: ansible_distribution in common_debian_variants
+
+    - name: virtualenv initialized on RHEL
+      shell: >
+        . {{ working_venv_dir }}/bin/activate && make install
+        chdir={{ working_repo_dir }}
+      when: ansible_distribution in common_redhat_variants
 
     - name: logging configured
       template: src=logging.cfg.j2 dest={{ working_repo_dir }}/logging.cfg
