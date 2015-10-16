@@ -2,10 +2,17 @@
 
 - name: Configure luigi
   hosts: "{{ name }}"
-  gather_facts: False
+  gather_facts: True
   sudo: True
   vars:
     write_luigi_config: "yes"
+    - common_debian_variants:
+      - Ubuntu
+      - Debian
+    - common_redhat_variants:
+      - CentOS
+      - Red Hat Enterprise Linux
+      - Amazon
   roles:
     - role: luigi
       when: write_luigi_config|bool
