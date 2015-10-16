@@ -6,10 +6,10 @@
   sudo: True
   vars:
     write_luigi_config: "yes"
-    - common_debian_variants:
+    common_debian_variants:
       - Ubuntu
       - Debian
-    - common_redhat_variants:
+    common_redhat_variants:
       - CentOS
       - Red Hat Enterprise Linux
       - Amazon
