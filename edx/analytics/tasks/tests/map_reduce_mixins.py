@@ -44,10 +44,14 @@ class MapperTestMixin(object):
         """Allow arguments to be passed to the task constructor."""
 
         new_kwargs = {}
-        for attr in self.DEFAULT_ARGS:
+
+        merged_arguments = self.DEFAULT_ARGS.copy()
+        merged_arguments.update(kwargs)
+
+        for attr in merged_arguments:
             if not hasattr(self.task_class, attr):
                 continue
-            value = kwargs.get(attr, self.DEFAULT_ARGS.get(attr))
+            value = merged_arguments.get(attr)
             if attr == 'interval':
                 new_kwargs[attr] = luigi.DateIntervalParameter().parse(value)
             else:

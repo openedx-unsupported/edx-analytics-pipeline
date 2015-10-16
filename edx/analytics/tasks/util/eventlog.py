@@ -224,7 +224,7 @@ def get_augmented_event_data(event, fields_to_augment):
     return event_data
 
 
-def get_course_id(event):
+def get_course_id(event, from_url=False):
     """Gets course_id from event's data."""
 
     # Get the event data:
@@ -235,11 +235,27 @@ def get_course_id(event):
 
     # Get the course_id from the data, and validate.
     course_id = event_context.get('course_id', '')
-    if not course_id:
-        return None
+    if course_id:
+        if opaque_key_util.is_valid_course_id(course_id):
+            return course_id
+        else:
+            log.error("encountered event with bogus course_id: %s", event)
+            return None
 
-    if not opaque_key_util.is_valid_course_id(course_id):
-        log.error("encountered event with bogus course_id: %s", event)
-        return None
+    # Try to get the course_id from the URLs in `event_type` (for implicit
+    # server events) and `page` (for browser events).
+    if from_url:
+        source = event.get('event_source')
 
-    return course_id
+        if source == 'server':
+            url = event.get('event_type', '')
+        elif source == 'browser':
+            url = event.get('page', '')
+        else:
+            url = ''
+
+        course_key = opaque_key_util.get_course_key_from_url(url)
+        if course_key:
+            return unicode(course_key)
+
+    return None

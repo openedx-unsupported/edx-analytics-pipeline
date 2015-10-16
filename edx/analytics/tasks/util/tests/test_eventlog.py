@@ -99,3 +99,37 @@ class GetEventDataTest(unittest.TestCase):
     def test_get_dict_event_data(self):
         item = {"event": {"a dict": "that has strings"}}
         self.assertEquals(eventlog.get_event_data(item), {"a dict": "that has strings"})
+
+
+class GetCourseIdTest(unittest.TestCase):
+    """Verify that get_course_id works as expected."""
+
+    def test_course_id_from_server_url(self):
+        event = {
+            'event_source': 'server',
+            'context': {},
+            'event_type': '/courses/course-v1:DemoX+DemoX+T1_2014/about'
+        }
+        self.assertEquals(eventlog.get_course_id(event, from_url=True), 'course-v1:DemoX+DemoX+T1_2014')
+
+    def test_course_id_from_url_legacy(self):
+        event = {
+            'event_source': 'server',
+            'context': {},
+            'event_type': '/courses/edX/Open_DemoX/edx_demo_course/info'
+        }
+        self.assertEquals(eventlog.get_course_id(event, from_url=True), 'edX/Open_DemoX/edx_demo_course')
+
+    def test_course_id_from_browser_url(self):
+        event = {
+            'event_source': 'browser',
+            'context': {},
+            'page': 'http://test.edx.org/courses/course-v1:DemoX+DemoX+T1_2014/courseware/interactive_demonstrations'
+        }
+        self.assertEquals(eventlog.get_course_id(event, from_url=True), 'course-v1:DemoX+DemoX+T1_2014')
+
+    def test_missing_context(self):
+        event = {
+            'event_source': 'server'
+        }
+        self.assertIsNone(eventlog.get_course_id(event))
