@@ -97,6 +97,16 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         """List of tuples defining the names of the columns to include in each index."""
         return []
 
+    @property
+    def insert_query_template(self):
+        """
+        The SQL template used for inserts into MySQL.
+
+        Must contain '{table}', '{column_names}', and '{values}'.
+        You can override to use REPLACE or INSERT IGNORE instead of INSERT.
+        """
+        return "INSERT INTO {table} ({column_names}) VALUES {values}"
+
     def create_table(self, connection):
         """
         Override to provide code for creating the target table, if not existing.
@@ -242,6 +252,8 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
             INSERT INTO table_name (col_1, col_2, col_3)
                 VALUES (%s, %s, %s), (%s, %s, %s), (%s, %s, %s)
+
+            The insert SQL can be customized by overriding the insert_query_template property.
         """
 
         num_cols = len(self.columns)
@@ -260,7 +272,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         # traditional python "%" operator.
         parameters = "(" + ",".join(["%s"] * num_cols) + ")"
         all_parameters = ",".join([parameters] * num_rows)
-        query = "INSERT INTO {table} ({column_names}) VALUES {values}".format(
+        query = self.insert_query_template.format(
             table=self.table, column_names=column_names, values=all_parameters
         )
         cursor.execute(query, list(chain.from_iterable(value_list)))
