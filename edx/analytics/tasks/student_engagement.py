@@ -488,7 +488,7 @@ class StudentEngagementIndexTask(
                     'problems_completed': {'type': 'integer', 'doc_values': True},
                     'attempts_per_problem_completed': {'type': 'float', 'doc_values': True},
                     'videos_watched': {'type': 'integer', 'doc_values': True},
-                    'segments': {'type': 'string', 'doc_values': True},
+                    'segments': {'type': 'string'},
                     'name_suggest': {
                         'type': 'completion',
                         'index_analyzer': 'simple',
