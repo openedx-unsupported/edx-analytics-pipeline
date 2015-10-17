@@ -510,7 +510,7 @@ class StudentEngagementIndexTask(
         return Elasticsearch(
             hosts=self.elasticsearch_host,
             timeout=60,
-            retry_on_status=(408,),
+            retry_on_status=(408, 504),
             retry_on_timeout=True
         )
 
