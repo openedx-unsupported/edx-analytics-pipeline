@@ -536,7 +536,6 @@ class StudentEngagementIndexTask(
                 problems_completed = int(split_record[10])
 
                 document = {
-                    '_index': self.elasticsearch_index,
                     '_type': 'roster_entry',
                     '_id': '|'.join([course_id, username]),
                     '_source': {
@@ -581,7 +580,12 @@ class StudentEngagementIndexTask(
                             time.sleep(self.throttle)
 
         num_indexed, errors = helpers.bulk(
-            es, record_generator(), chunk_size=self.batch_size, raise_on_error=False, timeout=600)
+            es,
+            record_generator(),
+            index=self.elasticsearch_index,
+            chunk_size=self.batch_size,
+            raise_on_error=False
+        )
         self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
         num_errors = len(errors)
         self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
