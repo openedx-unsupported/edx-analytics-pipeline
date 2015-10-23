@@ -1,7 +1,8 @@
 """Analyze events for distribution of values, in anticipation of modification for export."""
 
-import logging
 from collections import defaultdict
+import logging
+import re
 
 import luigi
 import luigi.date_interval
@@ -13,6 +14,10 @@ import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
 
 log = logging.getLogger(__name__)
+
+
+INPUT_ID_PATTERN = r'(?P<input_id>[^_]+_\d\d?_\d\d?)'
+INPUT_ID_REGEX = re.compile(r'^{}(_dynamath)?$'.format(INPUT_ID_PATTERN))
 
 
 class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -152,9 +157,11 @@ def get_key_names(obj, prefix, stopwords=None):
 
 def canonicalize_key(value_string):
     """Convert a string into a canonical form."""
-    # Special case for i4x-type answers:
-    if value_string.startswith('i4x-'):
-        return '(i4x-string)'
+    # Regular expression to identify input_id values:
+    match = INPUT_ID_REGEX.match(value_string)
+    if match:
+        input_id_string = match.group('input_id')
+        value_string = value_string.replace(input_id_string, '(input-id)')
 
     # Look for delimiters in the string, and preserve them.
     delimiter_list = ['_', '.']
@@ -235,7 +242,7 @@ def canonicalize_event_type(event_type):
 
             # assume that /courses is followed by the course_id (if anything):
             if event_type_values[3] == 'xblock':
-                if event_type_values[5] == 'handler':
+                if event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
 #            if event_type_values[3] == 'wiki':
