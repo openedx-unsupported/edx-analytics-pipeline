@@ -10,8 +10,10 @@ from edx.analytics.tasks.s3_util import generate_s3_sources, join_as_s3_url, get
 def list_s3_files(source_url, patterns):
     """List remote s3 files that match one of the patterns."""
     s3_conn = connect_s3()
-    for _bucket, _root, path in generate_s3_sources(s3_conn, source_url, patterns):
-        print path
+    for bucket, root, path in generate_s3_sources(s3_conn, source_url, patterns):
+        source = join_as_s3_url(bucket, root, path)
+        src_key = get_s3_key(s3_conn, source)
+        print "%10d %s" % (src_key.size if src_key is not None else -1, path)
 
 
 def get_s3_files(source_url, dest_root, patterns):
