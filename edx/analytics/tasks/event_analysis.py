@@ -102,7 +102,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         for value in sorted(counts.keys(), key=lambda x: counts[x], reverse=True):
             event_type, source = value
-            new_value = "{}|{}|{}|{}".format(key, source, event_type, counts[value])
+            new_value = u"{}|{}|{}|{}".format(key, source, event_type, counts[value])
             output_file.write(new_value.strip())
             output_file.write('\n')
             # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
@@ -118,17 +118,17 @@ def get_key_names(obj, prefix):
         return result
     elif isinstance(obj, dict):
         if len(obj) == 0:
-            new_key = "{}(emptydict)".format(prefix)
+            new_key = u"{}(emptydict)".format(prefix)
             result.append(new_key)
         for key in obj.keys():
             value = obj.get(key)
             canonical_key = canonicalize_key(key)
-            new_prefix = "{}.{}".format(prefix, canonical_key)
+            new_prefix = u"{}.{}".format(prefix, canonical_key)
             new_keys = get_key_names(value, new_prefix)
             result.extend(new_keys)
     elif isinstance(obj, list):
         if len(obj) == 0:
-            new_key = "{}[]".format(prefix)
+            new_key = u"{}[]".format(prefix)
             result.append(new_key)
         else:
             # Get the list type from the first object,
@@ -136,11 +136,11 @@ def get_key_names(obj, prefix):
             # (That is, assume there's no dicts, etc. within.)
             entry = obj[0]
             entry_type = type(entry).__name__
-            new_key = "{}[({})]".format(prefix, entry_type)
+            new_key = u"{}[({})]".format(prefix, entry_type)
             result.append(new_key)
     else:
         entry_type = type(obj).__name__
-        new_key = "{}({})".format(prefix, entry_type)
+        new_key = u"{}({})".format(prefix, entry_type)
         result.append(new_key)
 
     return result
@@ -168,16 +168,16 @@ def get_numeric_slug(value_string):
     # (int<len>)
     # if all(char.isdigit() for char in value_string):
     if value_string.isdigit():
-        return "(int{})".format(len(value_string))
+        return u"(int{})".format(len(value_string))
 
     hex_digits = set('0123456789abcdefABCDEF')
     if all(c in hex_digits for c in value_string):
-        return "(hex{})".format(len(value_string))
+        return u"(hex{})".format(len(value_string))
 
     # if string contains digits and letters, then return
     # (hash<len>)
     if any(char.isdigit() for char in value_string):
-        return "(alnum{})".format(len(value_string))
+        return u"(alnum{})".format(len(value_string))
 
     return value_string
 
@@ -248,9 +248,9 @@ def canonicalize_event_type(event_type):
 #                    return 'discussion'
 
             elif event_type_values[3] in COURSES_USE_LAST_IN_CONTEXT:
-                return '{}:{}'.format(event_type_values[3], event_type_values[-1])
+                return u'{}:{}'.format(event_type_values[3], event_type_values[-1])
             elif event_type_values[3] in COURSES_IGNORE_TRAILING_CONTEXT:
-                return '{}:(stripped)'.format(event_type_values[3])
+                return u'{}:(stripped)'.format(event_type_values[3])
 #            elif len(event_type_values[0]) == 0 and len(event_type_values) > 1 and event_type_values[1] == 'courseware':
 #                return 'courseware-with-extra-slash'
 #            else:   # if event_type_values[0] in SLUG_TRAILING_CONTEXT:
