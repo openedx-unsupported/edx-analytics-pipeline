@@ -59,7 +59,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         key_list = []
         event_data = eventlog.get_event_data(event)
         if event_data is not None:
-            key_list.extend(get_key_names(event_data, "event"))
+            key_list.extend(get_key_names(event_data, "event", stopwords=['POST']))
 
         context = event.get('context')
         if context is not None:
@@ -107,11 +107,12 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             output_file.write('\n')
             # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
             # Do not remove it.
-            # self.incr_counter('Event Export', 'Raw Bytes Written', len(new_value) + 1)
+            self.incr_counter('Event Analysis', 'Raw Bytes Written', len(new_value) + 1)
 
 
-def get_key_names(obj, prefix):
+def get_key_names(obj, prefix, stopwords=None):
     """Get information recursively about an object, including type information."""
+    stopwords = [word.lower() for word in stopwords] if stopwords is not None else []
     result = []
     if obj is None:
         # Should this ever happen?
@@ -124,7 +125,10 @@ def get_key_names(obj, prefix):
             value = obj.get(key)
             canonical_key = canonicalize_key(key)
             new_prefix = u"{}.{}".format(prefix, canonical_key)
-            new_keys = get_key_names(value, new_prefix)
+            if key.lower() in stopwords:
+                new_keys = [u"{}(TRIMMED)".format(new_prefix)]
+            else:
+                new_keys = get_key_names(value, new_prefix, stopwords)
             result.extend(new_keys)
     elif isinstance(obj, list):
         if len(obj) == 0:
@@ -158,7 +162,7 @@ def canonicalize_key(value_string):
         if delimiter in value_string:
             values = value_string.split(delimiter)
             return delimiter.join([get_numeric_slug(value) for value in values])
-    return value_string
+    return get_numeric_slug(value_string)
 
 
 def get_numeric_slug(value_string):

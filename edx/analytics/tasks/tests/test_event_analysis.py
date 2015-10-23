@@ -40,7 +40,8 @@ class EventAnalysisBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest
 
         }
         self.default_event_template = 'event'
-        self.expected_key = (self.DATE, self.course_id)
+        # self.expected_key = (self.DATE, self.course_id)
+        self.expected_key = 'edx.course.enrollment.activated'
 
 
 class EventAnalysisMapTest(EventAnalysisBaseTest):
@@ -76,6 +77,20 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('context.org_id(str)', (expected_event_type, 'server')),
         ))
 
+    def test_post(self):
+        line = '{"username": "DrER", "event_type": "/courses/course-v1:SmithsonianX+ED1.1x+2015_T3/discussion/threads/561d282bd2aca523b30003b9/reply", "ip": "74.96.182.200", "agent": "Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.3; WOW64; Trident/7.0; MDDCJS)", "host": "courses.edx.org", "referer": "https://courses.edx.org/courses/course-v1:SmithsonianX+ED1.1x+2015_T3/discussion/forum/i4x-SmithsonianX-ED1_1-course-2014_T1/threads/561d282bd2aca523b30003b9", "accept_language": "en-US", "event": "{\\\"POST\\\": {\\\"body\\\": [\\\"Blah With a Blah\\\"] } }", "event_source": "server", "context": {"course_user_tags": {}, "user_id": 8337649, "org_id": "SmithsonianX", "course_id": "course-v1:SmithsonianX+ED1.1x+2015_T3", "path": "/courses/course-v1:SmithsonianX+ED1.1x+2015_T3/discussion/threads/561d282bd2aca523b30003b9/reply"}, "time": "2013-12-17T22:05:45.175594+00:00", "page": null}'
+
+        mapper_output = tuple(self.task.mapper(line))
+        expected_event_type = '/courses/(course_id)/discussion/threads/(hex24)/reply'
+        self.assertEquals(len(mapper_output), 6)
+        self.assertEquals(mapper_output, (
+            ('event.POST(TRIMMED)', (expected_event_type, 'server')),
+            ('context.course_id(str)', (expected_event_type, 'server')),
+            ('context.course_user_tags(emptydict)', (expected_event_type, 'server')),
+            ('context.user_id(int)', (expected_event_type, 'server')),
+            ('context.org_id(str)', (expected_event_type, 'server')),
+            ('context.path(str)', (expected_event_type, 'server')),
+        ))
 
 class EventAnalysisLegacyMapTest(InitializeLegacyKeysMixin, EventAnalysisMapTest):
     """Run same mapper() tests, but using legacy values for keys."""
