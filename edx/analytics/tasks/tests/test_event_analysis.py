@@ -159,3 +159,6 @@ class EventAnalysisKeyNameTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         }
         keys = get_key_names(event, 'event')
         self.assertEquals(keys, ['event.submission.(input-id).variant(str)'])
+
+class EventAnalysisLegacyKeyNameTest(InitializeLegacyKeysMixin, EventAnalysisKeyNameTest):
+    pass

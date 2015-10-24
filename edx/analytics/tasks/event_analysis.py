@@ -16,8 +16,10 @@ from edx.analytics.tasks.util import eventlog
 log = logging.getLogger(__name__)
 
 
-INPUT_ID_PATTERN = r'(?P<input_id>[^_]+_\d\d?_\d\d?)'
-INPUT_ID_REGEX = re.compile(r'^{}(_dynamath)?$'.format(INPUT_ID_PATTERN))
+# Consider any key that ends with two numbers, [0-19] and [0-9], with optional suffixes,
+# is an input_id.
+INPUT_ID_PATTERN = r'(?P<input_id>.+_1?\d_\d)'
+INPUT_ID_REGEX = re.compile(r'^{}(_dynamath|_comment)?$'.format(INPUT_ID_PATTERN))
 
 
 class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -76,7 +78,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         # Return each value with its type.  Other ideas include information about the
         # length of the values, to allow us to get stats on that in the reducer.
         for key in key_list:
-            yield key.encode('utf8'), (canonical_event_type.encode('utf8'), event_source)
+            yield key.encode('utf8'), (canonical_event_type.encode('utf8'), event_source.encode('utf8'))
 
     def get_event_time(self, event):
         # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
