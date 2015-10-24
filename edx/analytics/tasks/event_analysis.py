@@ -92,12 +92,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     def output_path_for_key(self, key):
         filename_safe_key = opaque_key_util.get_filename_safe_course_id(key).lower()
-        return url_path_join(
-            self.output_root,
-            'events-{key}.log'.format(
-                key=filename_safe_key,
-            )
-        )
+        return url_path_join(self.output_root, '{key}.log'.format(key=filename_safe_key,))
 
     def multi_output_reducer(self, key, values, output_file):
         # first count the values.
@@ -107,12 +102,16 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         for value in sorted(counts.keys(), key=lambda x: counts[x], reverse=True):
             event_type, source = value
-            new_value = u"{}|{}|{}|{}".format(key, source, event_type, counts[value])
-            output_file.write(new_value.strip())
-            output_file.write('\n')
-            # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
-            # Do not remove it.
-            self.incr_counter('Event Analysis', 'Raw Bytes Written', len(new_value) + 1)
+            try:
+                new_value = u"{}|{}|{}|{}".format(key, source, event_type, counts[value])
+                output_file.write(new_value.strip())
+                output_file.write('\n')
+                # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+                # Do not remove it.
+                self.incr_counter('Event Analysis', 'Raw Bytes Written', len(new_value) + 1)
+            except UnicodeDecodeError:
+                # Log, but then just continue
+                log.exception("encountered bad character in output: key='%r' source='%r' type='%r'", key, source, event_type)
 
 
 def get_key_names(obj, prefix, stopwords=None):
