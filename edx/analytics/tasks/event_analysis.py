@@ -16,10 +16,9 @@ from edx.analytics.tasks.util import eventlog
 log = logging.getLogger(__name__)
 
 
-# Consider any key that ends with two numbers, [0-19] and [0-9], with optional suffixes,
-# is an input_id.
-INPUT_ID_PATTERN = r'(?P<input_id>.+_1?\d_\d)'
-INPUT_ID_REGEX = re.compile(r'^{}(_dynamath|_comment)?$'.format(INPUT_ID_PATTERN))
+# Treat as an input_id any key that ends with two numbers, each [0-29], with optional suffixes,
+INPUT_ID_PATTERN = r'(?P<input_id>.+_[12]?\d_[12]?\d)'
+INPUT_ID_REGEX = re.compile(r'^{}(_dynamath|_comment|_choiceinput_.*)?$'.format(INPUT_ID_PATTERN))
 
 
 class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -66,7 +65,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         key_list = []
         event_data = eventlog.get_event_data(event)
         if event_data is not None:
-            key_list.extend(get_key_names(event_data, "event", stopwords=['POST']))
+            key_list.extend(get_key_names(event_data, "event", stopwords=['POST', 'GET']))
 
         context = event.get('context')
         if context is not None:
@@ -130,6 +129,11 @@ def get_key_names(obj, prefix, stopwords=None):
         for key in obj.keys():
             value = obj.get(key)
             canonical_key = canonicalize_key(key)
+            if prefix in [
+                    'event.export.recommendations',
+                    'event.information.export.recommendations',
+            ]:
+                canonical_key = '(url)'
             new_prefix = u"{}.{}".format(prefix, canonical_key)
             if key.lower() in stopwords:
                 new_keys = [u"{}(TRIMMED)".format(new_prefix)]
@@ -163,6 +167,11 @@ def canonicalize_key(value_string):
     if match:
         input_id_string = match.group('input_id')
         value_string = value_string.replace(input_id_string, '(input-id)')
+        # TODO: determine whether to just return here.  If there is a number
+        # still in the string, then the slugging would rewrite the whole thing,
+        # including the slug we just found.  No it wouldn't!  It would
+        # be delimited, if it were present.
+        # return value_string
 
     # Look for delimiters in the string, and preserve them.
     delimiter_list = ['_', '.']
@@ -246,18 +255,44 @@ def canonicalize_event_type(event_type):
                 if event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
-#            if event_type_values[3] == 'wiki':
+            if event_type_values[3] == 'wiki':
 #                # for wikis, assume that a leading underscore indicates a command.
 #                if any(value.startswith('_') for value in event_type_values):
 #                    return 'course-wiki-command'
 #                else:
 #                    return 'course-wiki'
-#            elif event_type_values[3] == 'discussion':
+                # We want to determine the structure at the end, and then stub the
+                # random identifier information in between.
+                last = len(event_type_values) - 1
+                # Skip a trailing empty slash.
+                if len(event_type_values[last]) == 0:
+                    last = last - 1
+                if event_type_values[last] == 'moment.js':
+                    last = last - 1
+
+                # We want to handle /_edit, /_create, /_dir, /_delete, /_history, /_settings, /_deleted, /_preview,
+                # and /_revision/change/(int5)/.
+                # if event_type_values[last].startswith('_'):
+                #    last = last - 1
+                for index in range(4, last+1):
+                    if event_type_values[index].startswith('_'):
+                        last = index - 1
+                        break
+
+                for index in range(4, last+1):
+                    event_type_values[index] = '(wikislug)'
+
+            elif event_type_values[3] == 'discussion':
 #                # add a little information about substructure:
 #                if event_type_values[4] in ['forum', 'comments', 'thread']:
 #                    return 'discussion-{}'.format(event_type_values[4])
 #                else:
 #                    return 'discussion'
+#                if event_type_values[4] in ['forum', 'comments', 'threads']:
+#                    event_type_values[5] = '({}-id
+                if len(event_type_values) >= 7 and event_type_values[4] == 'forum' and event_type_values[6] in ['threads', 'inline']:
+                    event_type_values[5] = '(forum-id)'
+                # Comment and thread id's are pretty regular so far, all hex24.  So no need to write special slugging.
 
             elif event_type_values[3] in COURSES_USE_LAST_IN_CONTEXT:
                 return u'{}:{}'.format(event_type_values[3], event_type_values[-1])
