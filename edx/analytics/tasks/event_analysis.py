@@ -16,8 +16,8 @@ from edx.analytics.tasks.util import eventlog
 log = logging.getLogger(__name__)
 
 
-# Treat as an input_id any key that ends with two numbers, each [0-29], with optional suffixes,
-INPUT_ID_PATTERN = r'(?P<input_id>.+_[12]?\d_[12]?\d)'
+# Treat as an input_id any key that ends with two numbers, each [0-39], with optional suffixes,
+INPUT_ID_PATTERN = r'(?P<input_id>.+_[123]?\d_[123]?\d)'
 INPUT_ID_REGEX = re.compile(r'^{}(_dynamath|_comment|_choiceinput_.*)?$'.format(INPUT_ID_PATTERN))
 
 
@@ -132,6 +132,8 @@ def get_key_names(obj, prefix, stopwords=None):
             if prefix in [
                     'event.export.recommendations',
                     'event.information.export.recommendations',
+                    'event.export.removed_recommendations',
+                    'event.information.export.removed_recommendations',
             ]:
                 canonical_key = '(url)'
             new_prefix = u"{}.{}".format(prefix, canonical_key)
@@ -204,14 +206,14 @@ def get_numeric_slug(value_string):
 
 
 COURSES_IGNORE_TRAILING_CONTEXT = [
-    'courseware',
-    'info',
-    'syllabus',
-    'book',
-    'pdfbook',
-    'htmlbook',
-    'jump_to',
-    'jump_to_id',
+#    'courseware',
+#    'info',
+#    'syllabus',
+#    'book',
+#    'pdfbook',
+#    'htmlbook',
+#    'jump_to',
+#    'jump_to_id',
     'progress',  # may optionally be followed by student id
     'submission_history',  # followed by student username and location
     'images',
@@ -225,7 +227,7 @@ COURSES_IGNORE_TRAILING_CONTEXT = [
 COURSES_USE_LAST_IN_CONTEXT = [
     'modx',  # last entry is the dispatch: just use that...
     #    'xblock',  # last entry is the dispatch: just use that...
-    'xqueue',  # last entry is the dispatch: just use that...
+    # 'xqueue',  # last entry is the dispatch: just use that...  int7/<xblock-loc>/score-update
 ]
 
 
@@ -255,12 +257,23 @@ def canonicalize_event_type(event_type):
                 if event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
+            if event_type_values[3] == 'jump_to':
+                # If there's nothing following, then always make it a location.
+                if len(event_type_values) == 5:
+                    event_type_values[4] = '(block-loc)'
+                # We should generalize this.
+                if event_type_values[4].startswith('block-v1'):
+                    event_type_values[4] = '(block-loc-v1)'
+
+            if event_type_values[3] == 'xqueue':
+                # If there's nothing following, then always make it a location.
+                if len(event_type_values) > 6:
+                    event_type_values[5] = '(block-loc)'
+                # We should generalize this.
+                if event_type_values[5].startswith('block-v1'):
+                    event_type_values[5] = '(block-loc-v1)'
+
             if event_type_values[3] == 'wiki':
-#                # for wikis, assume that a leading underscore indicates a command.
-#                if any(value.startswith('_') for value in event_type_values):
-#                    return 'course-wiki-command'
-#                else:
-#                    return 'course-wiki'
                 # We want to determine the structure at the end, and then stub the
                 # random identifier information in between.
                 last = len(event_type_values) - 1
@@ -283,21 +296,19 @@ def canonicalize_event_type(event_type):
                     event_type_values[index] = '(wikislug)'
 
             elif event_type_values[3] == 'discussion':
-#                # add a little information about substructure:
-#                if event_type_values[4] in ['forum', 'comments', 'thread']:
-#                    return 'discussion-{}'.format(event_type_values[4])
-#                else:
-#                    return 'discussion'
-#                if event_type_values[4] in ['forum', 'comments', 'threads']:
-#                    event_type_values[5] = '({}-id
+                # Comment and thread id's are pretty regular so far, all hex24.  So no need to write special slugging.
+                # So just slug discussion and forum IDs (as these are presumably authored, rather than generated).
+                if len(event_type_values) >= 6 and event_type_values[5] == 'threads':
+                    event_type_values[4] = '(discussion-id)'
                 if len(event_type_values) >= 7 and event_type_values[4] == 'forum' and event_type_values[6] in ['threads', 'inline']:
                     event_type_values[5] = '(forum-id)'
-                # Comment and thread id's are pretty regular so far, all hex24.  So no need to write special slugging.
 
             elif event_type_values[3] in COURSES_USE_LAST_IN_CONTEXT:
                 return u'{}:{}'.format(event_type_values[3], event_type_values[-1])
+
             elif event_type_values[3] in COURSES_IGNORE_TRAILING_CONTEXT:
                 return u'{}:(stripped)'.format(event_type_values[3])
+
 #            elif len(event_type_values[0]) == 0 and len(event_type_values) > 1 and event_type_values[1] == 'courseware':
 #                return 'courseware-with-extra-slash'
 #            else:   # if event_type_values[0] in SLUG_TRAILING_CONTEXT:
