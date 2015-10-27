@@ -214,18 +214,18 @@ COURSES_IGNORE_TRAILING_CONTEXT = [
 #    'htmlbook',
 #    'jump_to',
 #    'jump_to_id',
-    'progress',  # may optionally be followed by student id
-    'submission_history',  # followed by student username and location
-    'images',
-    'asset',
-    'cache',
+#    'progress',  # may optionally be followed by student id
+#    'submission_history',  # followed by student username and location
+#    'images',
+#    'asset',
+#    'cache',
 ]
 
 
 # add things here to skip over intermediate stuff when last entry
 # is sufficient for identification.
 COURSES_USE_LAST_IN_CONTEXT = [
-    'modx',  # last entry is the dispatch: just use that...
+#    'modx',  # last entry is the dispatch: just use that...
     #    'xblock',  # last entry is the dispatch: just use that...
     # 'xqueue',  # last entry is the dispatch: just use that...  int7/<xblock-loc>/score-update
 ]
@@ -257,22 +257,41 @@ def canonicalize_event_type(event_type):
                 if event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
+            if event_type_values[3] == 'submission_history':
+                if len(event_type_values) >= 5:
+                    event_type_values = event_type_values[0:3] + ['(username)', '(block-loc)']
+
+            if event_type_values[3] == 'jump_to_id':
+                if len(event_type_values) == 5:
+                    event_type_values[4] = '(block-id)'
+                
             if event_type_values[3] == 'jump_to':
                 # If there's nothing following, then always make it a location.
-                if len(event_type_values) == 5:
-                    event_type_values[4] = '(block-loc)'
-                # We should generalize this.
-                if event_type_values[4].startswith('block-v1'):
-                    event_type_values[4] = '(block-loc-v1)'
+                # if len(event_type_values) == 5:
+                #     event_type_values[4] = '(block-loc)'
+                # # We should generalize this.
+                # if event_type_values[4].startswith('block-v1'):
+                #     event_type_values[4] = '(block-loc-v1)'
+                event_type_values = event_type_values[0:3] + ['(block-loc)']
+
+            if event_type_values[3] == 'courseware':
+                event_type_values = event_type_values[0:3] + ['(courseware-loc)']
 
             if event_type_values[3] == 'xqueue':
+                # /xqueue/(int)/(block-loc)/score_update or ungraded_response
                 # If there's nothing following, then always make it a location.
-                if len(event_type_values) > 6:
-                    event_type_values[5] = '(block-loc)'
-                # We should generalize this.
-                if event_type_values[5].startswith('block-v1'):
-                    event_type_values[5] = '(block-loc-v1)'
+                last = len(event_type_values) - 1
+                if last > 7 and event_type_values[last] in ['score_update', 'ungraded_response']:
+                    event_type_values = event_type_values[0:5] + ['(block-loc)'] + event_type_values[last:]
+                # if len(event_type_values) == 6:
+                #     event_type_values[5] = '(block-loc)'
+                # # We should generalize this.
+                # if event_type_values[5].startswith('block-v1'):
+                #     event_type_values[5] = '(block-loc-v1)'
+                # if event_type_values[5].startswith('i4x'):
+                #     event_type_values[5] = '(block-loc-v0)'
 
+                    
             if event_type_values[3] == 'wiki':
                 # We want to determine the structure at the end, and then stub the
                 # random identifier information in between.
@@ -285,8 +304,6 @@ def canonicalize_event_type(event_type):
 
                 # We want to handle /_edit, /_create, /_dir, /_delete, /_history, /_settings, /_deleted, /_preview,
                 # and /_revision/change/(int5)/.
-                # if event_type_values[last].startswith('_'):
-                #    last = last - 1
                 for index in range(4, last+1):
                     if event_type_values[index].startswith('_'):
                         last = index - 1
