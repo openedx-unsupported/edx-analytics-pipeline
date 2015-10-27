@@ -254,7 +254,7 @@ def canonicalize_event_type(event_type):
 
             # assume that /courses is followed by the course_id (if anything):
             if event_type_values[3] == 'xblock':
-                if event_type_values[5] in ['handler', 'handler_noauth'] :
+                if len(event_type_values) >= 6 and event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
             if event_type_values[3] == 'submission_history':
