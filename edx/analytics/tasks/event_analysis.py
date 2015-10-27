@@ -187,9 +187,7 @@ def canonicalize_key(value_string):
 def get_numeric_slug(value_string):
     if len(value_string) == 0:
         return ""
-    # if string contains only digits, then return
-    # (int<len>)
-    # if all(char.isdigit() for char in value_string):
+    # If string contains only digits, then return (int<len>).
     if value_string.isdigit():
         return u"(int{})".format(len(value_string))
 
@@ -197,38 +195,11 @@ def get_numeric_slug(value_string):
     if all(c in hex_digits for c in value_string):
         return u"(hex{})".format(len(value_string))
 
-    # if string contains digits and letters, then return
-    # (hash<len>)
+    # If string contains digits and letters, then return (hash<len>).
     if any(char.isdigit() for char in value_string):
         return u"(alnum{})".format(len(value_string))
 
     return value_string
-
-
-COURSES_IGNORE_TRAILING_CONTEXT = [
-#    'courseware',
-#    'info',
-#    'syllabus',
-#    'book',
-#    'pdfbook',
-#    'htmlbook',
-#    'jump_to',
-#    'jump_to_id',
-#    'progress',  # may optionally be followed by student id
-#    'submission_history',  # followed by student username and location
-#    'images',
-#    'asset',
-#    'cache',
-]
-
-
-# add things here to skip over intermediate stuff when last entry
-# is sufficient for identification.
-COURSES_USE_LAST_IN_CONTEXT = [
-#    'modx',  # last entry is the dispatch: just use that...
-    #    'xblock',  # last entry is the dispatch: just use that...
-    # 'xqueue',  # last entry is the dispatch: just use that...  int7/<xblock-loc>/score-update
-]
 
 
 def canonicalize_event_type(event_type):
@@ -247,12 +218,9 @@ def canonicalize_event_type(event_type):
 
     if event_type_values[1] == 'courses':
 
+        # Assume that /courses is followed by the course_id (if anything):
         if len(event_type_values) > 3 and event_type_values[2] == '(course_id)':
-            # some asset urls are listed this way:
-            # if all_event_type_values[3] == 'asset':  # this was [4]...
-            #     return 'runless-asset'
 
-            # assume that /courses is followed by the course_id (if anything):
             if event_type_values[3] == 'xblock':
                 if len(event_type_values) >= 6 and event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
@@ -266,12 +234,6 @@ def canonicalize_event_type(event_type):
                     event_type_values[4] = '(block-id)'
                 
             if event_type_values[3] == 'jump_to':
-                # If there's nothing following, then always make it a location.
-                # if len(event_type_values) == 5:
-                #     event_type_values[4] = '(block-loc)'
-                # # We should generalize this.
-                # if event_type_values[4].startswith('block-v1'):
-                #     event_type_values[4] = '(block-loc-v1)'
                 event_type_values = event_type_values[0:3] + ['(block-loc)']
 
             if event_type_values[3] == 'courseware':
@@ -281,16 +243,8 @@ def canonicalize_event_type(event_type):
                 # /xqueue/(int)/(block-loc)/score_update or ungraded_response
                 # If there's nothing following, then always make it a location.
                 last = len(event_type_values) - 1
-                if last > 7 and event_type_values[last] in ['score_update', 'ungraded_response']:
+                if last >= 6 and event_type_values[last] in ['score_update', 'ungraded_response']:
                     event_type_values = event_type_values[0:5] + ['(block-loc)'] + event_type_values[last:]
-                # if len(event_type_values) == 6:
-                #     event_type_values[5] = '(block-loc)'
-                # # We should generalize this.
-                # if event_type_values[5].startswith('block-v1'):
-                #     event_type_values[5] = '(block-loc-v1)'
-                # if event_type_values[5].startswith('i4x'):
-                #     event_type_values[5] = '(block-loc-v0)'
-
                     
             if event_type_values[3] == 'wiki':
                 # We want to determine the structure at the end, and then stub the
@@ -320,27 +274,5 @@ def canonicalize_event_type(event_type):
                 if len(event_type_values) >= 7 and event_type_values[4] == 'forum' and event_type_values[6] in ['threads', 'inline']:
                     event_type_values[5] = '(forum-id)'
 
-            elif event_type_values[3] in COURSES_USE_LAST_IN_CONTEXT:
-                return u'{}:{}'.format(event_type_values[3], event_type_values[-1])
-
-            elif event_type_values[3] in COURSES_IGNORE_TRAILING_CONTEXT:
-                return u'{}:(stripped)'.format(event_type_values[3])
-
-#            elif len(event_type_values[0]) == 0 and len(event_type_values) > 1 and event_type_values[1] == 'courseware':
-#                return 'courseware-with-extra-slash'
-#            else:   # if event_type_values[0] in SLUG_TRAILING_CONTEXT:
-
-        return '/'.join([get_numeric_slug(value) for value in event_type_values])
-
-    else:
-        # we know that the event type starts with a slash,
-        # so transform it to a name leading with 'url-'.
-
-        # TODO: This was here from before, but it breaks the following lines.
-        # But also the following lines are not really used, and hopefully
-        # this code isn't really needed.
-#        event_type_values[0] = 'url'
-        # if event_type_values[1] in IGNORE_TRAILING_CONTEXT:
-        # return event_type_values[1]
-        #else:
-        return '/'.join([get_numeric_slug(value) for value in event_type_values])
+    # Done with canonicalization, so just process and output the result.
+    return '/'.join([get_numeric_slug(value) for value in event_type_values])
