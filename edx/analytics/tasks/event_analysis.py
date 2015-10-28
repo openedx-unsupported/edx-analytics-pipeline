@@ -16,8 +16,8 @@ from edx.analytics.tasks.util import eventlog
 log = logging.getLogger(__name__)
 
 
-# Treat as an input_id any key that ends with two numbers, each [0-39], with optional suffixes,
-INPUT_ID_PATTERN = r'(?P<input_id>.+_[123]?\d_[123]?\d)'
+# Treat as an input_id any key that ends with two numbers, each [0-49], with optional suffixes,
+INPUT_ID_PATTERN = r'(?P<input_id>.+_[1234]?\d_[1234]?\d)'
 INPUT_ID_REGEX = re.compile(r'^{}(_dynamath|_comment|_choiceinput_.*)?$'.format(INPUT_ID_PATTERN))
 
 
@@ -38,10 +38,17 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if event is None:
             return
 
-        course_id = eventlog.get_course_id(event, from_url=True)
-        if course_id is None:
+        try:
+            course_id = eventlog.get_course_id(event, from_url=True)
+            if course_id is None:
+                return
+        except UnicodeEncodeError:
+            # TODO: push this down into util, or better yet into Opaque keys.
+            # Seems to spit up when creating the message when trying to raise
+            # InvalidKeyError in get_namespace_plugin (__init__.py, line 234).
+            log.exception("Unable to parse course_id from URL: %s", event)
             return
-
+        
         if self.course_id and course_id not in self.course_id:
             return
 
