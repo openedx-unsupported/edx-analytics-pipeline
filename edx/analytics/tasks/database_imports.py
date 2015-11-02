@@ -38,7 +38,7 @@ class DatabaseImportMixin(object):
         description='Path to the external access credentials file.',
     )
     database = luigi.Parameter(
-        default_from_config={'section': 'database-import', 'name': 'database'}
+        config_path={'section': 'database-import', 'name': 'database'}
     )
     import_date = luigi.DateParameter(
         default=None,

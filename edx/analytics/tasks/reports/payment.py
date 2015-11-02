@@ -9,7 +9,7 @@ class PaymentTask(luigi.WrapperTask):
 
     import_date = luigi.DateParameter()
     cybersource_merchant_ids = luigi.Parameter(
-        default_from_config={'section': 'payment', 'name': 'cybersource_merchant_ids'},
+        config_path={'section': 'payment', 'name': 'cybersource_merchant_ids'},
         is_list=True
     )
 
