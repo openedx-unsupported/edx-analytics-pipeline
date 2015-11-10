@@ -31,11 +31,17 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         if event is None:
             return
 
-        course_id = eventlog.get_course_id(event, from_url=True)
-
-        if course_id is None:
-            return
-
+        try: 
+            course_id = eventlog.get_course_id(event, from_url=True) 
+             if course_id is None: 
+                 return 
+         except UnicodeEncodeError: 
+             # TODO: push this down into util, or better yet into Opaque keys. 
+             # Seems to spit up when creating the message when trying to raise 
+             # InvalidKeyError in get_namespace_plugin (__init__.py, line 234). 
+             log.exception("Unable to parse course_id from URL: %s", event) 
+             return 
+ 
         if self.course_id and course_id not in self.course_id:
             return
 
