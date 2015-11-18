@@ -19,7 +19,7 @@ psycopg2==2.6.1         # LGPL
 pyOpenSSL==0.15.1       # Apache 2.0
 pyasn1==0.1.7           # BSD
 pycparser==2.13         # BSD
-pygeoip==0.3.1 		# LGPL
+geoip2==2.2.0 		# Apache 2.0
 pymongo==2.7.2		# Apache 2.0
 python-cjson==1.0.5	# LGPL
 python-dateutil==2.2 	# BSD

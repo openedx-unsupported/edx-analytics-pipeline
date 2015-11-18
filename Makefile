@@ -24,9 +24,10 @@ develop: requirements
 	python setup.py develop
 
 system-requirements:
+	sudo add-apt-repository -y ppa:maxmind/ppa
 	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
+	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev libmaxminddb-dev
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/pre.txt

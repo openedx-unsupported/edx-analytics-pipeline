@@ -2,10 +2,11 @@
 Determine the number of users in each country.
 """
 import datetime
+import ipaddress
 import tempfile
 
 import luigi
-import pygeoip
+import geoip2.database
 
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
@@ -18,7 +19,6 @@ log = logging.getLogger(__name__)
 UNKNOWN_COUNTRY = "UNKNOWN"
 UNKNOWN_CODE = "UNKNOWN"
 
-
 class GeolocationMixin(object):
     """
     Defines parameters needed for geolocation lookups.
@@ -28,6 +28,15 @@ class GeolocationMixin(object):
     """
     geolocation_data = luigi.Parameter(
         config_path={'section': 'geolocation', 'name': 'geolocation_data'}
+    )
+
+    country_name_for_private_ip = luigi.DateParameter(
+        config_path={'section': 'geolocation', 'name': 'country_name_for_private_ip'},
+        default=UNKNOWN_COUNTRY
+    )
+    country_code_for_private_ip = luigi.DateParameter(
+        config_path={'section': 'geolocation', 'name': 'country_code_for_private_ip'},
+        default=UNKNOWN_CODE
     )
 
 
@@ -67,6 +76,14 @@ class BaseGeolocation(object):
         """Defines target from which geolocation data can be read."""
         raise NotImplementedError
 
+    def default_country_name(self):
+        """Defines the default country name when private IP addresses are encountered."""
+        raise NotImplementedError
+
+    def default_country_code(self):
+        """Defines the default country name when private IP addresses are encountered."""
+        raise NotImplementedError
+
     def init_reducer(self):
         # Copy the remote version of the geolocation data file to a local file.
         # This is required by the GeoIP call, which assumes that the data file is located
@@ -81,7 +98,7 @@ class BaseGeolocation(object):
                     break
         self.temporary_data_file.seek(0)
 
-        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+        self.geoip = geoip2.database.Reader(self.temporary_data_file.name)
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""
@@ -104,8 +121,14 @@ class BaseGeolocation(object):
 
         # This ip address might not provide a country name.
         try:
-            country = self.geoip.country_name_by_addr(last_ip)
-            code = self.geoip.country_code_by_addr(last_ip)
+            ipaddr = ipaddress.ip_address(unicode(last_ip))
+            if ipaddr is not None and ipaddr.is_private:
+                country = self.default_country_name()
+                code = self.default_country_code()
+            else:
+                country_obj = self.geoip.country(last_ip).country
+                country = country_obj.names['zh-CN']
+                code = country_obj.iso_code
         except Exception:
             log.exception("Encountered exception getting country:  user '%s', last_ip '%s' on '%s'.",
                           username, last_ip, last_timestamp)
@@ -134,8 +157,8 @@ class BaseGeolocation(object):
         return tuple()
 
     def extra_modules(self):
-        """Pygeoip is required by all tasks that load this file."""
-        return [pygeoip]
+        """Geoip2 is required by all tasks that load this file."""
+        return [geoip2]
 
 
 class LastCountryForEachUser(BaseGeolocation, MapReduceJobTask, BaseUserLocationTask):
@@ -173,6 +196,12 @@ class LastCountryForEachUser(BaseGeolocation, MapReduceJobTask, BaseUserLocation
 
     def geolocation_data_target(self):
         return self.input()['geoloc_data']
+
+    def default_country_name(self):
+        return self.country_name_for_private_ip
+
+    def default_country_code(self):
+        return self.country_code_for_private_ip
 
     def output(self):
         output_name = u'last_country_for_each_user_{name}/'.format(name=self.name)
@@ -234,6 +263,8 @@ class UsersPerCountry(MapReduceJobTask, BaseUserLocationTask):
             manifest=self.manifest,
             geolocation_data=self.geolocation_data,
             end_date=self.end_date,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )
 
     def output(self):
@@ -256,8 +287,8 @@ class UsersPerCountry(MapReduceJobTask, BaseUserLocationTask):
     combiner = reducer
 
     def extra_modules(self):
-        """Pygeoip is required by all tasks that load this file."""
-        return [pygeoip]
+        """Geoip2 is required by all tasks that load this file."""
+        return [geoip2]
 
 
 class UsersPerCountryReport(luigi.Task):
@@ -314,8 +345,8 @@ class UsersPerCountryReport(luigi.Task):
                 output_file.write('\n')
 
     def extra_modules(self):
-        """Pygeoip is required by all tasks that load this file."""
-        return [pygeoip]
+        """Geoip2 is required by all tasks that load this file."""
+        return [geoip2]
 
 
 class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport):
@@ -357,6 +388,8 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
     base_input_format = luigi.Parameter(default=None)
     end_date = luigi.DateParameter()
     geolocation_data = luigi.Parameter()
+    country_name_for_private_ip = luigi.DateParameter(default=UNKNOWN_COUNTRY)
+    country_code_for_private_ip = luigi.DateParameter(default=UNKNOWN_CODE)
 
     def requires(self):
         return UsersPerCountry(
@@ -371,4 +404,6 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
             manifest=self.manifest,
             geolocation_data=self.geolocation_data,
             end_date=self.end_date,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )

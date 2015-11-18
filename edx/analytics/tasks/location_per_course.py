@@ -56,6 +56,12 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
     def geolocation_data_target(self):
         return self.input_local()
 
+    def default_country_name(self):
+        return self.country_name_for_private_ip
+
+    def default_country_code(self):
+        return self.country_code_for_private_ip
+
     def output(self):
         return get_target_from_url(
             url_path_join(
@@ -144,6 +150,8 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
             user_country_output=self.user_country_output,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )
 
 
@@ -174,6 +182,8 @@ class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
             user_country_output=self.user_country_output,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )
 
 
@@ -344,4 +354,6 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             overwrite=self.overwrite,
             user_country_output=self.user_country_output,
             course_country_output=self.course_country_output,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )
