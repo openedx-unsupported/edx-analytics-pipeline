@@ -56,7 +56,7 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
 
     def output_path_for_key(self, key):
         date, course_id = key
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id).lower()
+        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id)
 
         return url_path_join(
             self.output_root,

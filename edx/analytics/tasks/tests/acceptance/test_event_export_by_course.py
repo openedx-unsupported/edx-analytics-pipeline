@@ -35,27 +35,27 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
         self.output_files = [
             {
                 'date': '2014-05-15',
-                'course_id': 'acceptancex_a101_t12014'
+                'course_id': 'AcceptanceX_A101_T12014'
             },
             {
                 'date': '2014-06-01',
-                'course_id': 'acceptancex_a101_t12014'
+                'course_id': 'AcceptanceX_A101_T12014'
             },
             {
                 'date': '2014-05-15',
-                'course_id': 'acceptancex_demox_t1_2014'
+                'course_id': 'AcceptanceX_DemoX_T1_2014'
             },
             {
                 'date': '2014-04-18',
-                'course_id': 'edx_open_demox_edx_demo_course'
+                'course_id': 'edX_Open_DemoX_edx_demo_course'
             },
             {
                 'date': '2014-05-15',
-                'course_id': 'edx_open_demox_edx_demo_course'
+                'course_id': 'edX_Open_DemoX_edx_demo_course'
             },
             {
                 'date': '2014-05-16',
-                'course_id': 'edx_open_demox_edx_demo_course'
+                'course_id': 'edX_Open_DemoX_edx_demo_course'
             },
         ]
         self.download_output_files()
