@@ -77,11 +77,11 @@ class EventExportByCourseOutputPathTest(EventExportByCourseBaseTest):
     """Test for output_path for EventExportByCourse Task."""
 
     def test_output_path_for_legacy_key(self):
-        self.course_id = 'foo/bar/baz'
+        self.course_id = 'Foo/Bar/Baz'
         path = self.task.output_path_for_key((self.DATE, self.course_id))
-        self.assertEquals('/fake/output/foo_bar_baz/events/foo_bar_baz-events-2013-12-17.log.gz', path)
+        self.assertEquals('/fake/output/Foo_Bar_Baz/events/Foo_Bar_Baz-events-2013-12-17.log.gz', path)
 
     def test_output_path_for_opaque_key(self):
-        self.course_id = str(CourseLocator(org='foo', course='bar', run='baz'))
+        self.course_id = str(CourseLocator(org='Foo', course='Bar', run='Baz'))
         path = self.task.output_path_for_key((self.DATE, self.course_id))
-        self.assertEquals('/fake/output/foo_bar_baz/events/foo_bar_baz-events-2013-12-17.log.gz', path)
+        self.assertEquals('/fake/output/Foo_Bar_Baz/events/Foo_Bar_Baz-events-2013-12-17.log.gz', path)
