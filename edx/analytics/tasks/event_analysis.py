@@ -33,6 +33,27 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     # Allow for filtering input to specific courses, for development.
     course_id = luigi.Parameter(is_list=True, default=[])
 
+    # Define these so that they have normal values by default, and defining gets
+    # the exceptional behavior.
+
+    # Do not output events with implicit event_types.
+    exclude_implicit = luigi.BooleanParameter(default=False)
+
+    # Do not output events with explicit event_types.
+    exclude_explicit = luigi.BooleanParameter(default=False)
+
+    # Exclude collecting information about properties in context.
+    exclude_context = luigi.BooleanParameter(default=False)
+
+    # Exclude collecting information about implicit event_types
+    # that are not included in exports.  (Catchy name, no?)
+    exclude_excluded = luigi.BooleanParameter(default=False)
+
+    # In order to track whether particular event_types are attested at all,
+    # just include the "attested" key to the list of keys found for each
+    # event_type.
+    include_attested = luigi.BooleanParameter(default=False)
+    
     def mapper(self, line):
         event, _date_string = self.get_event_and_date_string(line) or (None, None)
         if event is None:
@@ -46,23 +67,27 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # TODO: push this down into util, or better yet into Opaque keys.
             # Seems to spit up when creating the message when trying to raise
             # InvalidKeyError in get_namespace_plugin (__init__.py, line 234).
+            # Remove once fix is in master.
             log.exception("Unable to parse course_id from URL: %s", event)
             return
         
         if self.course_id and course_id not in self.course_id:
             return
 
-        # We don't really want to output by date and course.
-        # key = (date_string, course_id)
-        # yield tuple([value.encode('utf8') for value in key]), line.strip()
-
-        # Instead, we want to look at event_type, and the various keys in the event's data payload.
+        # We want to look at event_type, and the various keys in the event's data payload.
         # And then accumulate values for each key as to what types corresponded to it.
         event_type = event.get('event_type')
         if event_type is None:
             log.error("encountered event with no event_type: %s", event)
             return
-        canonical_event_type = canonicalize_event_type(event_type)
+        canonical_event_type = canonicalize_event_type(event_type, self.exclude_implicit, self.exclude_explicit, self.exclude_excluded)
+
+        # Only generate a subset of the output by screening out event_type
+        # values.  Use switches to control that.  Switches could include:
+        #   * only-implicit or only-explicit events
+        #   * only-event or event-and-context parameters.
+        if canonical_event_type is None:
+            return
 
         event_source = event.get('event_source')
         if event_source is None:
@@ -74,9 +99,13 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if event_data is not None:
             key_list.extend(get_key_names(event_data, "event", stopwords=['POST', 'GET']))
 
-        context = event.get('context')
-        if context is not None:
-            key_list.extend(get_key_names(context, "context"))
+        if not self.exclude_context:
+            context = event.get('context')
+            if context is not None:
+                key_list.extend(get_key_names(context, "context"))
+
+        if self.include_attested:
+            key_list.extend("attested")
 
         # We may want to remove some context keys that we expect to see all the time,
         # like user_id, course_id, org_id, path.  Other context may be more localized.
@@ -209,11 +238,16 @@ def get_numeric_slug(value_string):
     return value_string
 
 
-def canonicalize_event_type(event_type):
+def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, exclude_excluded):
     # if there is no '/' at the beginning, then the event name is the event type:
     # (This should be true of browser events.)
     if not event_type.startswith('/'):
-        return event_type
+        if exclude_implicit:
+            return None
+        else:
+            return event_type
+    elif exclude_explicit:
+        return None
 
     # Find and stub the course_id, if it is present:
     match = opaque_key_util.COURSE_REGEX.match(event_type)
@@ -229,31 +263,40 @@ def canonicalize_event_type(event_type):
         if len(event_type_values) > 3 and event_type_values[2] == '(course_id)':
 
             if event_type_values[3] == 'xblock':
+                if exclude_excluded:
+                    return None
                 if len(event_type_values) >= 6 and event_type_values[5] in ['handler', 'handler_noauth'] :
                     event_type_values[4] = '(xblock-loc)'
 
-            if event_type_values[3] == 'submission_history':
+            elif event_type_values[3] == 'submission_history':
+                # Never attested?
                 if len(event_type_values) >= 5:
                     event_type_values = event_type_values[0:3] + ['(username)', '(block-loc)']
 
-            if event_type_values[3] == 'jump_to_id':
+            elif event_type_values[3] == 'jump_to_id':
+                # Included.
                 if len(event_type_values) == 5:
                     event_type_values[4] = '(block-id)'
                 
-            if event_type_values[3] == 'jump_to':
+            elif event_type_values[3] == 'jump_to':
+                if exclude_excluded:
+                    return None
                 event_type_values = event_type_values[0:3] + ['(block-loc)']
 
-            if event_type_values[3] == 'courseware':
-                event_type_values = event_type_values[0:3] + ['(courseware-loc)']
+            elif event_type_values[3] == 'courseware':
+                # Included.
+                event_type_values = event_type_values[0:4] + ['(courseware-loc)']
 
-            if event_type_values[3] == 'xqueue':
+            elif event_type_values[3] == 'xqueue':
+                if exclude_excluded:
+                    return None
                 # /xqueue/(int)/(block-loc)/score_update or ungraded_response
                 # If there's nothing following, then always make it a location.
                 last = len(event_type_values) - 1
                 if last >= 6 and event_type_values[last] in ['score_update', 'ungraded_response']:
                     event_type_values = event_type_values[0:5] + ['(block-loc)'] + event_type_values[last:]
                     
-            if event_type_values[3] == 'wiki':
+            elif event_type_values[3] == 'wiki':
                 # We want to determine the structure at the end, and then stub the
                 # random identifier information in between.
                 last = len(event_type_values) - 1
@@ -267,6 +310,9 @@ def canonicalize_event_type(event_type):
                 # and /_revision/change/(int5)/.
                 for index in range(4, last+1):
                     if event_type_values[index].startswith('_'):
+                        if exclude_excluded:
+                            # Exclude commands entirely.
+                            return None
                         last = index - 1
                         break
 
@@ -281,5 +327,37 @@ def canonicalize_event_type(event_type):
                 if len(event_type_values) >= 7 and event_type_values[4] == 'forum' and event_type_values[6] in ['threads', 'inline']:
                     event_type_values[5] = '(forum-id)'
 
+            elif event_type_values[3] == 'pdfbook':
+                # just keep /courses/(course_id)/pdfbook/(intX)[/chapter/(intX)/[intX]]
+                if exclude_excluded:
+                    if len(event_type_values) > 4 and len(event_type_values[4]) > 0 and not event_type_values[4].isdigit():
+                        return None
+                    if len(event_type_values) > 5 and len(event_type_values[5]) > 0 and event_type_values[5] != 'chapter':
+                        return None
+                    if len(event_type_values) > 6 and len(event_type_values[6]) > 0 and not event_type_values[6].isdigit():
+                        return None
+                    if len(event_type_values) > 7 and len(event_type_values[7]) > 0 and not event_type_values[7].isdigit():
+                        return None
+                    if len(event_type_values) > 8:
+                        return None
+                    # If we got through to here, then it matches the pattern.
+
+            elif exclude_excluded:
+                # Figure out what else should be excluded.  Identify top-level.
+                if event_type_values[3] in ['info', 'progress', 'course_wiki', 'about', 'teams']:
+                    if len(event_type_values) > 4:
+                        return None
+                
+                else:
+                    return None
+
+        elif exclude_excluded:
+            # Included implicit events must begin with /courses/(course-id)
+            return None                
+
+    elif exclude_excluded:
+        # Included implicit events must begin with /courses
+        return None                
+        
     # Done with canonicalization, so just process and output the result.
     return '/'.join([get_numeric_slug(value) for value in event_type_values])
