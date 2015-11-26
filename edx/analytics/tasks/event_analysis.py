@@ -53,7 +53,11 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     # just include the "attested" key to the list of keys found for each
     # event_type.
     include_attested = luigi.BooleanParameter(default=False)
-    
+
+    # Turn off special slugging in event_types (other that course_id),
+    # and rely on int/hex/alnum and similar slugging.
+    disable_slugging = luigi.BooleanParameter(default=False)
+
     def mapper(self, line):
         event, _date_string = self.get_event_and_date_string(line) or (None, None)
         if event is None:
@@ -80,7 +84,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if event_type is None:
             log.error("encountered event with no event_type: %s", event)
             return
-        canonical_event_type = canonicalize_event_type(event_type, self.exclude_implicit, self.exclude_explicit, self.exclude_excluded)
+        canonical_event_type = canonicalize_event_type(event_type, self.exclude_implicit, self.exclude_explicit, self.exclude_excluded, self.disable_slugging)
 
         # Only generate a subset of the output by screening out event_type
         # values.  Use switches to control that.  Switches could include:
@@ -238,7 +242,7 @@ def get_numeric_slug(value_string):
     return value_string
 
 
-def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, exclude_excluded):
+def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, exclude_excluded, disable_slugging):
     # if there is no '/' at the beginning, then the event name is the event type:
     # (This should be true of browser events.)
     if not event_type.startswith('/'):
@@ -265,27 +269,29 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
             if event_type_values[3] == 'xblock':
                 if exclude_excluded:
                     return None
-                if len(event_type_values) >= 6 and event_type_values[5] in ['handler', 'handler_noauth'] :
+                if len(event_type_values) >= 6 and event_type_values[5] in ['handler', 'handler_noauth'] and not disable_slugging:
                     event_type_values[4] = '(xblock-loc)'
 
             elif event_type_values[3] == 'submission_history':
                 # Never attested?
-                if len(event_type_values) >= 5:
+                if len(event_type_values) >= 5 and not disable_slugging:
                     event_type_values = event_type_values[0:3] + ['(username)', '(block-loc)']
 
             elif event_type_values[3] == 'jump_to_id':
                 # Included.
-                if len(event_type_values) == 5:
+                if len(event_type_values) == 5 and not disable_slugging:
                     event_type_values[4] = '(block-id)'
                 
             elif event_type_values[3] == 'jump_to':
                 if exclude_excluded:
                     return None
-                event_type_values = event_type_values[0:3] + ['(block-loc)']
+                if not disable_slugging:
+                    event_type_values = event_type_values[0:3] + ['(block-loc)']
 
             elif event_type_values[3] == 'courseware':
                 # Included.
-                event_type_values = event_type_values[0:4] + ['(courseware-loc)']
+                if not disable_slugging:
+                    event_type_values = event_type_values[0:4] + ['(courseware-loc)']
 
             elif event_type_values[3] == 'xqueue':
                 if exclude_excluded:
@@ -293,7 +299,7 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                 # /xqueue/(int)/(block-loc)/score_update or ungraded_response
                 # If there's nothing following, then always make it a location.
                 last = len(event_type_values) - 1
-                if last >= 6 and event_type_values[last] in ['score_update', 'ungraded_response']:
+                if last >= 6 and event_type_values[last] in ['score_update', 'ungraded_response'] and not disable_slugging:
                     event_type_values = event_type_values[0:5] + ['(block-loc)'] + event_type_values[last:]
                     
             elif event_type_values[3] == 'wiki':
@@ -316,8 +322,9 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                         last = index - 1
                         break
 
-                for index in range(4, last+1):
-                    event_type_values[index] = '(wikislug)'
+                if not disable_slugging:                    
+                    for index in range(4, last+1):
+                        event_type_values[index] = '(wikislug)'
 
             elif event_type_values[3] == 'discussion':
                 # Comment and thread id's are pretty regular so far, all hex24.  So no need to write special slugging.
