@@ -30,6 +30,10 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         config_path={'section': 'event-export-course', 'name': 'output_root'}
     )
 
+    # If defined, specifies the location of a dump of auth_userprofile
+    # information, to be used to look for corresponding values in
+    auth_user = luigi.Parameter(default=None)
+    
     # Allow for filtering input to specific courses, for development.
     course_id = luigi.Parameter(is_list=True, default=[])
 
@@ -58,6 +62,44 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     # and rely on int/hex/alnum and similar slugging.
     disable_slugging = luigi.BooleanParameter(default=False)
 
+    # Data loaded from auth_user.
+    auth_user_data = None
+    username_map = None
+
+    def requires(self):
+        results = {
+            'events': super(EventAnalysisTask).requires(),
+        }
+        if self.auth_user is not None:
+            results['auth_user'] = ExternalURL(self.auth_user)
+        return results
+
+    def requires_hadoop(self):
+        # Only pass the input files on to hadoop, not any data file.
+        return self.requires().get('events')
+
+    def requires_local(self):
+        # ISSUE: can this return None in the normal case and still work?
+        # Or should it be an empty list?
+        return self.requires().get('auth_user')
+
+    def init_mapper(self):
+        auth_user_target = self.requires().get('auth_user')
+        if auth_user_target is not None:
+            with auth_user_target.open('r') as auth_user_file:
+                self.auth_user_data = {}
+                self.username_map = {}
+                for line in auth_user_file:
+                    fields = line.split('\x01')
+                    user_id = fields[0]
+                    username = fields[1]
+                    email = fields[7]
+                    self.auth_user_data[user_id] = {
+                        'username': username,
+                        'email': email
+                    }
+                    self.username_map[username] = user_id
+
     def mapper(self, line):
         event, _date_string = self.get_event_and_date_string(line) or (None, None)
         if event is None:
@@ -78,13 +120,25 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if self.course_id and course_id not in self.course_id:
             return
 
-        # We want to look at event_type, and the various keys in the event's data payload.
-        # And then accumulate values for each key as to what types corresponded to it.
+        # if self.auth_user is not None:
+        user_info = self.get_user_info_from_event(event)
+
+        # We want to look at event_type, and the various keys in the
+        # event's data payload.  And then accumulate values for each
+        # key as to what types corresponded to it.
         event_type = event.get('event_type')
         if event_type is None:
             log.error("encountered event with no event_type: %s", event)
             return
-        canonical_event_type = canonicalize_event_type(event_type, self.exclude_implicit, self.exclude_explicit, self.exclude_excluded, self.disable_slugging)
+
+        canonical_event_type = canonicalize_event_type(
+            event_type,
+            self.exclude_implicit,
+            self.exclude_explicit,
+            self.exclude_excluded,
+            self.disable_slugging,
+            user_info,
+        )
 
         # Only generate a subset of the output by screening out event_type
         # values.  Use switches to control that.  Switches could include:
@@ -101,15 +155,15 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         key_list = []
         event_data = eventlog.get_event_data(event)
         if event_data is not None:
-            key_list.extend(get_key_names(event_data, "event", stopwords=['POST', 'GET']))
+            key_list.extend(get_key_names(event_data, "event", stopwords=['POST', 'GET'], user_info=user_info))
 
         if not self.exclude_context:
             context = event.get('context')
             if context is not None:
-                key_list.extend(get_key_names(context, "context"))
+                key_list.extend(get_key_names(context, "context", user_info=user_info))
 
         if self.include_attested:
-            key_list.extend("attested")
+            key_list.append("attested")
 
         # We may want to remove some context keys that we expect to see all the time,
         # like user_id, course_id, org_id, path.  Other context may be more localized.
@@ -119,6 +173,27 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         for key in key_list:
             yield key.encode('utf8'), (canonical_event_type.encode('utf8'), event_source.encode('utf8'))
 
+    def get_user_info_from_event(self, event):
+        # Start simply, and just get obvious info.  See what it matches.
+        user_info = {}
+        username = event.get('username').strip()
+        if username is not None:
+            user_info['username'] = username
+        user_id = event.get('context',{}).get('user_id')
+        if user_id is not None:
+            user_info['user_id'] = user_id
+        if self.auth_user_data and user_id is not None:
+            name_for_user_id = self.auth_user_data.get(user_id, {}).get('username')
+            if name_for_user_id is not None:
+                user_info['username_from_user_id'] = name_for_user_id
+
+        if self.username_map and username is not None:
+            id_for_username = self.username_map.get(username)
+            if id_for_username is not None:
+                user_info['user_id_from_username'] = id_for_username
+
+        return user_info
+        
     def get_event_time(self, event):
         # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
         # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
@@ -155,7 +230,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 log.exception("encountered bad character in output: key='%r' source='%r' type='%r'", key, source, event_type)
 
 
-def get_key_names(obj, prefix, stopwords=None):
+def get_key_names(obj, prefix, stopwords=None, user_info=None):
     """Get information recursively about an object, including type information."""
     stopwords = [word.lower() for word in stopwords] if stopwords is not None else []
     result = []
@@ -180,7 +255,7 @@ def get_key_names(obj, prefix, stopwords=None):
             if key.lower() in stopwords:
                 new_keys = [u"{}(TRIMMED)".format(new_prefix)]
             else:
-                new_keys = get_key_names(value, new_prefix, stopwords)
+                new_keys = get_key_names(value, new_prefix, stopwords, user_info)
             result.extend(new_keys)
     elif isinstance(obj, list):
         if len(obj) == 0:
@@ -195,9 +270,18 @@ def get_key_names(obj, prefix, stopwords=None):
             new_key = u"{}[({})]".format(prefix, entry_type)
             result.append(new_key)
     else:
-        entry_type = type(obj).__name__
-        new_key = u"{}({})".format(prefix, entry_type)
-        result.append(new_key)
+        # Check to see if values exactly match some form of user info.
+        entry_types = []
+        if user_info is not None:
+            obj_str = unicode(obj)
+            for info_name in user_info.iterkeys():
+                if obj_str == unicode(user_info.get(info_name)):
+                    entry_types.append(info_name)
+        if len(entry_types) == 0:
+            entry_types.append(type(obj).__name__)
+        for entry_type in entry_types:
+            new_key = u"{}({})".format(prefix, entry_type)
+            result.append(new_key)
 
     return result
 
@@ -224,9 +308,16 @@ def canonicalize_key(value_string):
     return get_numeric_slug(value_string)
 
 
-def get_numeric_slug(value_string):
+def get_numeric_slug(value_string, user_info=None):
     if len(value_string) == 0:
         return ""
+
+    if user_info is not None:
+        val_str = unicode(value_string)
+        for info_name in sorted(user_info.iterkeys()):
+            if val_str == unicode(user_info.get(info_name)):
+                return u"({})".format(info_name)
+    
     # If string contains only digits, then return (int<len>).
     if value_string.isdigit():
         return u"(int{})".format(len(value_string))
@@ -242,7 +333,7 @@ def get_numeric_slug(value_string):
     return value_string
 
 
-def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, exclude_excluded, disable_slugging):
+def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, exclude_excluded, disable_slugging, user_info=None):
     # if there is no '/' at the beginning, then the event name is the event type:
     # (This should be true of browser events.)
     if not event_type.startswith('/'):
@@ -275,7 +366,7 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
             elif event_type_values[3] == 'submission_history':
                 # Never attested?
                 if len(event_type_values) >= 5 and not disable_slugging:
-                    event_type_values = event_type_values[0:3] + ['(username)', '(block-loc)']
+                    event_type_values = event_type_values[0:3] + ['(maybe_username)', '(block-loc)']
 
             elif event_type_values[3] == 'jump_to_id':
                 # Included.
@@ -367,4 +458,4 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
         return None                
         
     # Done with canonicalization, so just process and output the result.
-    return '/'.join([get_numeric_slug(value) for value in event_type_values])
+    return '/'.join([get_numeric_slug(value, user_info) for value in event_type_values])

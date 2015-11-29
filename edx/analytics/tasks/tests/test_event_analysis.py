@@ -87,7 +87,7 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('event.POST(TRIMMED)', (expected_event_type, 'server')),
             ('context.course_id(str)', (expected_event_type, 'server')),
             ('context.course_user_tags(emptydict)', (expected_event_type, 'server')),
-            ('context.user_id(int)', (expected_event_type, 'server')),
+            ('context.user_id(user_id)', (expected_event_type, 'server')),
             ('context.org_id(str)', (expected_event_type, 'server')),
             ('context.path(str)', (expected_event_type, 'server')),
         ))
@@ -123,7 +123,7 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('event.problem_id(str)', ('problem_check', 'server')),
             
             ('context.course_user_tags(emptydict)', (expected_event_type, 'server')),
-            ('context.user_id(int)', (expected_event_type, 'server')),
+            ('context.user_id(user_id)', (expected_event_type, 'server')),
             ('context.org_id(str)', (expected_event_type, 'server')),
             ('context.module.display_name(str)', ('problem_check', 'server')),
             ('context.module.usage_key(str)', ('problem_check', 'server')),
