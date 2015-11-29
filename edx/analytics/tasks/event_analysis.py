@@ -8,7 +8,7 @@ import luigi
 import luigi.date_interval
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionTask
 from edx.analytics.tasks.url import url_path_join, ExternalURL
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
@@ -68,7 +68,12 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     def requires(self):
         results = {
-            'events': super(EventAnalysisTask, self).requires(),
+            'events': EventLogSelectionTask(
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                expand_interval=self.expand_interval,
+            )
         }
         if self.auth_user is not None:
             results['auth_user'] = ExternalURL(self.auth_user)
@@ -90,6 +95,10 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 self.auth_user_data = {}
                 self.username_map = {}
                 for line in auth_user_file:
+                    # Skip over records that are not part of the dump.
+                    # i.e. metadata.
+                    if '\x01' not in line:
+                        continue
                     fields = line.split('\x01')
                     user_id = fields[0]
                     username = fields[1]
