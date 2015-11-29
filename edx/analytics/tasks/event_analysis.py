@@ -9,7 +9,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.url import url_path_join, ExternalURL
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
 
