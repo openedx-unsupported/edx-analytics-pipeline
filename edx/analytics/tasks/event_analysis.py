@@ -68,7 +68,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     def requires(self):
         results = {
-            'events': super(EventAnalysisTask).requires(),
+            'events': super(EventAnalysisTask, self).requires(),
         }
         if self.auth_user is not None:
             results['auth_user'] = ExternalURL(self.auth_user)
