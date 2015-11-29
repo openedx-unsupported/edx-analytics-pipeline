@@ -95,6 +95,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 self.auth_user_data = {}
                 self.username_map = {}
                 for line in auth_user_file:
+                    self.incr_counter('Event Analysis', 'Auth-user lines read', 1)                    
                     # Skip over records that are not part of the dump.
                     # i.e. metadata.
                     if '\x01' not in line:
@@ -102,7 +103,11 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                     fields = line.split('\x01')
                     user_id = fields[0]
                     username = fields[1]
-                    email = fields[7]
+                    if len(fields) >= 8:
+                        email = fields[7]
+                    else:
+                        email = "<missing>"
+                        log.error("Unable to parse email for user_id %s username %s", user_id, username)
                     self.auth_user_data[user_id] = {
                         'username': username,
                         'email': email
@@ -284,8 +289,13 @@ def get_key_names(obj, prefix, stopwords=None, user_info=None):
         if user_info is not None:
             obj_str = unicode(obj)
             for info_name in user_info.iterkeys():
+                # First look for exact matches.
                 if obj_str == unicode(user_info.get(info_name)):
                     entry_types.append(info_name)
+                # Then also look for containment.
+                if unicode(user_info.get(info_name)) in obj_str:
+                    entry_types.append("contains {}".format(info_name))
+
         if len(entry_types) == 0:
             entry_types.append(type(obj).__name__)
         for entry_type in entry_types:
@@ -321,6 +331,7 @@ def get_numeric_slug(value_string, user_info=None):
     if len(value_string) == 0:
         return ""
 
+    # Check if a particular value matches a user_id or username.
     if user_info is not None:
         val_str = unicode(value_string)
         for info_name in sorted(user_info.iterkeys()):
