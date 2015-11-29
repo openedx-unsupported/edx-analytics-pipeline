@@ -89,9 +89,9 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         return self.requires().get('auth_user')
 
     def init_mapper(self):
-        auth_user_target = self.requires().get('auth_user')
-        if auth_user_target is not None:
-            with auth_user_target.open('r') as auth_user_file:
+        auth_user_task = self.requires().get('auth_user')
+        if auth_user_task is not None:
+            with auth_user_task.output().open('r') as auth_user_file:
                 self.auth_user_data = {}
                 self.username_map = {}
                 for line in auth_user_file:
