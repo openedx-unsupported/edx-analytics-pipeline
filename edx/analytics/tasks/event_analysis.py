@@ -201,11 +201,11 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # Apparently username is sometimes a boolean?!
             username_str = unicode(username)
             if username_str.isdigit() and len(username_str <= 5):
-                key = "username-int{}".format(len(username_str))
+                key = u"username-int{}".format(len(username_str))
             elif username_str.isdigit():
-                key = "username-int"
+                key = u"username-int"
             elif len(username_str) <= 5:
-                key = "username-{}".format(len(username_str))
+                key = u"username-{}".format(len(username_str))
             user_info[key] = username_str
 
         user_id = event.get('context', {}).get('user_id')
@@ -213,7 +213,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             user_id_str = unicode(user_id)
             key = 'user-id'
             if len(user_id_str) <= 4:
-                key = "user-id-{}".format(len(user_id_str))
+                key = u"user-id-{}".format(len(user_id_str))
             user_info[key] = user_id_str
 
         if event_data is not None:
@@ -222,7 +222,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 event_user_id_str = unicode(event_user_id)
                 key = 'user-id-event'
                 if len(event_user_id_str) <= 4:
-                    key = "user-id-event-{}".format(len(event_user_id_str))
+                    key = u"user-id-event-{}".format(len(event_user_id_str))
                 user_info[key] = event_user_id_str
 
         # Add some lookups, in case username and user_id don't match.
@@ -252,7 +252,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     def output_path_for_key(self, key):
         filename_safe_key = opaque_key_util.get_filename_safe_course_id(key).lower()
-        return url_path_join(self.output_root, '{key}.log'.format(key=filename_safe_key,))
+        return url_path_join(self.output_root, u'{key}.log'.format(key=filename_safe_key,))
 
     def multi_output_reducer(self, key, values, output_file):
         # first count the values.
@@ -326,11 +326,11 @@ def get_key_names(obj, prefix, stopwords=None, user_info=None):
                 if user_value == obj_str:
                     entry_types.append(info_name)
                 # Also look for a quoted version.
-                elif user_value == '"{}"'.format(obj_str):
-                    entry_types.append("{}-quoted".format(info_name))
+                elif user_value == u'"{}"'.format(obj_str):
+                    entry_types.append(u"{}-quoted".format(info_name))
                 # Also look for containment.
                 elif unicode(user_info.get(info_name)) in obj_str:
-                    entry_types.append("contains-{}".format(info_name))
+                    entry_types.append(u"contains-{}".format(info_name))
 
         if len(entry_types) == 0:
             entry_types.append(type(obj).__name__)
