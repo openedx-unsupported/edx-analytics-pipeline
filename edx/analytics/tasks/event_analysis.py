@@ -135,8 +135,10 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if self.course_id and course_id not in self.course_id:
             return
 
+        event_data = eventlog.get_event_data(event)
+
         # if self.auth_user is not None:
-        user_info = self.get_user_info_from_event(event)
+        user_info = self.get_user_info_from_event(event, event_data)
 
         # We want to look at event_type, and the various keys in the
         # event's data payload.  And then accumulate values for each
@@ -168,7 +170,6 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             return
 
         key_list = []
-        event_data = eventlog.get_event_data(event)
         if event_data is not None:
             key_list.extend(get_key_names(event_data, "event", stopwords=['POST', 'GET'], user_info=user_info))
 
@@ -188,7 +189,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         for key in key_list:
             yield key.encode('utf8'), (canonical_event_type.encode('utf8'), event_source.encode('utf8'))
 
-    def get_user_info_from_event(self, event):
+    def get_user_info_from_event(self, event, event_data):
         # Start simply, and just get obvious info.  See what it matches.
         user_info = {}
         if not self.check_user:
@@ -213,12 +214,14 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 key = "user-id-{}".format(len(user_id_str))
             user_info[key] = user_id_str
 
-        event_user_id = event.get('event', {}).get('user_id')
-        if event_user_id is not None:
-            key = 'user-id-event'
-            if len(event_user_id) <= 4:
-                key = "user-id-event-{}".format(len(event_user_id))
-            user_info[key] = event_user_id
+        if event_data is not None:
+            event_user_id = event_data.get('user_id')
+            if event_user_id is not None:
+                event_user_id_str = unicode(event_user_id)
+                key = 'user-id-event'
+                if len(event_user_id_str) <= 4:
+                    key = "user-id-event-{}".format(len(event_user_id_str))
+                user_info[key] = event_user_id_str
 
         # Add some lookups, in case username and user_id don't match.
         if self.auth_user_data and user_id is not None:
