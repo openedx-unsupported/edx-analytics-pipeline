@@ -62,6 +62,9 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     # and rely on int/hex/alnum and similar slugging.
     disable_slugging = luigi.BooleanParameter(default=False)
 
+    # Turn on checking for user_id and username.
+    check_user = luigi.BooleanParameter(default=False)
+    
     # Data loaded from auth_user.
     auth_user_data = None
     username_map = None
@@ -84,9 +87,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         return self.requires().get('events')
 
     def requires_local(self):
-        # ISSUE: can this return None in the normal case and still work?
-        # Or should it be an empty list?
-        return self.requires().get('auth_user')
+        return self.requires().get('auth_user', [])
 
     def init_mapper(self):
         auth_user_task = self.requires().get('auth_user')
@@ -190,6 +191,9 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     def get_user_info_from_event(self, event):
         # Start simply, and just get obvious info.  See what it matches.
         user_info = {}
+        if not self.check_user:
+            return user_info
+
         username = event.get('username').strip()
         if username is not None:
             user_info['username'] = username
