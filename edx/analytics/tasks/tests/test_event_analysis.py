@@ -7,8 +7,6 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin
 
-from opaque_keys.edx.locator import CourseLocator
-
 
 class EventAnalysisBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Base class for EventAnalysis Task test."""
@@ -29,6 +27,7 @@ class EventAnalysisBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest
                 "context": {
                     "course_id": self.course_id,
                     "org_id": self.org_id,
+                    "user_id": self.DEFAULT_USER_ID,
                 },
                 "time": "{0}+00:00".format(self.timestamp),
                 "ip": "127.0.0.1",
@@ -69,12 +68,13 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
         # self.assert_single_map_output(line, self.expected_key, line)
         mapper_output = tuple(self.task.mapper(line))
         expected_event_type = 'edx.course.enrollment.activated'
-        self.assertEquals(len(mapper_output), 4)
+        self.assertEquals(len(mapper_output), 5)
         self.assertEquals(mapper_output, (
             ('event.course_id(str)', (expected_event_type, 'server')),
             ('event.mode(str)', (expected_event_type, 'server')),
             ('context.course_id(str)', (expected_event_type, 'server')),
             ('context.org_id(str)', (expected_event_type, 'server')),
+            ('context.user_id(int)', (expected_event_type, 'server')),
         ))
 
     def test_post(self):
@@ -87,7 +87,7 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('event.POST(TRIMMED)', (expected_event_type, 'server')),
             ('context.course_id(str)', (expected_event_type, 'server')),
             ('context.course_user_tags(emptydict)', (expected_event_type, 'server')),
-            ('context.user_id(user_id)', (expected_event_type, 'server')),
+            ('context.user_id(int)', (expected_event_type, 'server')),
             ('context.org_id(str)', (expected_event_type, 'server')),
             ('context.path(str)', (expected_event_type, 'server')),
         ))
@@ -95,11 +95,9 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
     def test_answer(self):
         line = '{"username": "user_1234567", "event_type": "problem_check", "ip": "12.234.123.45", "agent": "Mozilla/5.0 (Linux; Android 4.4.2; GT-N5110 Build/KOT49H) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/45.0.2454.94 Safari/537.36", "host": "courses.edx.org", "referer": "https://courses.edx.org/courses/course-v1:SmithsonianX+ED1.1x+2015_T3/courseware/e3fa4ad5398741c1846863561292ae3e/62d4219fe90e4aaabe9b110ad712d133/", "accept_language": "en;q=1.0, en;q=0.8", "event": {"submission": {"7549d5fb7fba4936835e2a94f429810d_2_1": {"input_type": "formulaequationinput", "question": "When was the object made?", "response_type": "numericalresponse", "answer": "1774", "variant": "", "correct": true}}, "success": "correct", "grade": 1, "correct_map": {"7549d5fb7fba4936835e2a94f429810d_2_1": {"hint": "", "hintmode": null, "correctness": "correct", "npoints": null, "answervariable": null, "msg": "", "queuestate": null}}, "state": {"student_answers": {}, "seed": 1, "done": null, "correct_map": {}, "input_state": {"7549d5fb7fba4936835e2a94f429810d_2_1": {}}}, "answers": {"7549d5fb7fba4936835e2a94f429810d_2_1": "1774"}, "attempts": 1, "max_grade": 1, "problem_id": "block-v1:SmithsonianX+ED1.1x+2015_T3+type@problem+block@7549d5fb7fba4936835e2a94f429810d"}, "event_source": "server", "context": {"course_user_tags": {}, "user_id": 1234567, "org_id": "SmithsonianX", "module": {"usage_key": "block-v1:SmithsonianX+ED1.1x+2015_T3+type@problem+block@7549d5fb7fba4936835e2a94f429810d", "display_name": "Check for Understanding"}, "course_id": "course-v1:SmithsonianX+ED1.1x+2015_T3", "path": "/courses/course-v1:SmithsonianX+ED1.1x+2015_T3/xblock/block-v1:SmithsonianX+ED1.1x+2015_T3+type@problem+block@7549d5fb7fba4936835e2a94f429810d/handler/xmodule_handler/problem_check"}, "time": "2013-12-17T05:06:31.330118+00:00", "page": "x_module"}'
 
-
         mapper_output = tuple(self.task.mapper(line))
         expected_event_type = 'problem_check'
         self.assertEquals(len(mapper_output), 26)
-        self.maxDiff = None
         self.assertEquals(mapper_output, (
 
             ('event.submission.(input-id).input_type(str)', ('problem_check', 'server')),
@@ -121,9 +119,9 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('event.state.input_state.(input-id)(emptydict)', ('problem_check', 'server')),
             ('event.max_grade(int)', ('problem_check', 'server')),
             ('event.problem_id(str)', ('problem_check', 'server')),
-            
+
             ('context.course_user_tags(emptydict)', (expected_event_type, 'server')),
-            ('context.user_id(user_id)', (expected_event_type, 'server')),
+            ('context.user_id(int)', (expected_event_type, 'server')),
             ('context.org_id(str)', (expected_event_type, 'server')),
             ('context.module.display_name(str)', ('problem_check', 'server')),
             ('context.module.usage_key(str)', ('problem_check', 'server')),
@@ -131,7 +129,22 @@ class EventAnalysisMapTest(EventAnalysisBaseTest):
             ('context.path(str)', (expected_event_type, 'server')),
         ))
 
-        
+    def test_find_user(self):
+        self.create_task(check_user=True)
+        line = self.create_event_log_line()
+        # self.assert_single_map_output(line, self.expected_key, line)
+        mapper_output = tuple(self.task.mapper(line))
+        expected_event_type = 'edx.course.enrollment.activated'
+        self.assertEquals(len(mapper_output), 5)
+        self.assertEquals(mapper_output, (
+            ('event.course_id(str)', (expected_event_type, 'server')),
+            ('event.mode(str)', (expected_event_type, 'server')),
+            ('context.course_id(str)', (expected_event_type, 'server')),
+            ('context.org_id(str)', (expected_event_type, 'server')),
+            ('context.user_id(user-id-2)', (expected_event_type, 'server')),
+        ))
+
+
 class EventAnalysisLegacyMapTest(InitializeLegacyKeysMixin, EventAnalysisMapTest):
     """Run same mapper() tests, but using legacy values for keys."""
     pass
@@ -159,6 +172,7 @@ class EventAnalysisKeyNameTest(InitializeOpaqueKeysMixin, unittest.TestCase):
         }
         keys = get_key_names(event, 'event')
         self.assertEquals(keys, ['event.submission.(input-id).variant(str)'])
+
 
 class EventAnalysisLegacyKeyNameTest(InitializeLegacyKeysMixin, EventAnalysisKeyNameTest):
     pass

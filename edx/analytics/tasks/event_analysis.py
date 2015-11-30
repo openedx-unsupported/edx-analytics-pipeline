@@ -33,7 +33,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     # If defined, specifies the location of a dump of auth_userprofile
     # information, to be used to look for corresponding values in
     auth_user = luigi.Parameter(default=None)
-    
+
     # Allow for filtering input to specific courses, for development.
     course_id = luigi.Parameter(is_list=True, default=[])
 
@@ -64,7 +64,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
     # Turn on checking for user_id and username.
     check_user = luigi.BooleanParameter(default=False)
-    
+
     # Data loaded from auth_user.
     auth_user_data = None
     username_map = None
@@ -96,7 +96,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 self.auth_user_data = {}
                 self.username_map = {}
                 for line in auth_user_file:
-                    self.incr_counter('Event Analysis', 'Auth-user lines read', 1)                    
+                    self.incr_counter('Event Analysis', 'Auth-user lines read', 1)
                     # Skip over records that are not part of the dump.
                     # i.e. metadata.
                     if '\x01' not in line:
@@ -131,7 +131,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # Remove once fix is in master.
             log.exception("Unable to parse course_id from URL: %s", event)
             return
-        
+
         if self.course_id and course_id not in self.course_id:
             return
 
@@ -196,10 +196,31 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         username = event.get('username').strip()
         if username is not None:
-            user_info['username'] = username
-        user_id = event.get('context',{}).get('user_id')
+            key = 'username'
+            if username.isdigit() and len(username <= 5):
+                key = "username-int{}".format(len(username))
+            elif username.isdigit():
+                key = "username-int"
+            elif len(username) <= 5:
+                key = "username-{}".format(len(username))
+            user_info[key] = username
+
+        user_id = event.get('context', {}).get('user_id')
         if user_id is not None:
-            user_info['user_id'] = user_id
+            user_id_str = unicode(user_id)
+            key = 'user-id'
+            if len(user_id_str) <= 4:
+                key = "user-id-{}".format(len(user_id_str))
+            user_info[key] = user_id_str
+
+        event_user_id = event.get('event', {}).get('user_id')
+        if event_user_id is not None:
+            key = 'user-id-event'
+            if len(event_user_id) <= 4:
+                key = "user-id-event-{}".format(len(event_user_id))
+            user_info[key] = event_user_id
+
+        # Add some lookups, in case username and user_id don't match.
         if self.auth_user_data and user_id is not None:
             name_for_user_id = self.auth_user_data.get(user_id, {}).get('username')
             if name_for_user_id is not None:
@@ -211,7 +232,7 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 user_info['user_id_from_username'] = id_for_username
 
         return user_info
-        
+
     def get_event_time(self, event):
         # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
         # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
@@ -276,29 +297,35 @@ def get_key_names(obj, prefix, stopwords=None, user_info=None):
                 new_keys = get_key_names(value, new_prefix, stopwords, user_info)
             result.extend(new_keys)
     elif isinstance(obj, list):
+        new_prefix = u"{}[]".format(prefix)
         if len(obj) == 0:
-            new_key = u"{}[]".format(prefix)
-            result.append(new_key)
+            result.append(new_prefix)
         else:
             # Get the list type from the first object,
             # and assume that it's informative enough.
             # (That is, assume there's no dicts, etc. within.)
             entry = obj[0]
-            entry_type = type(entry).__name__
-            new_key = u"{}[({})]".format(prefix, entry_type)
-            result.append(new_key)
+            # entry_type = type(entry).__name__
+            # new_key = u"{}[({})]".format(prefix, entry_type)
+            # result.append(new_key)
+            new_keys = get_key_names(entry, new_prefix, stopwords, user_info)
+            result.extend(new_keys)
     else:
         # Check to see if values exactly match some form of user info.
         entry_types = []
         if user_info is not None:
             obj_str = unicode(obj)
             for info_name in user_info.iterkeys():
+                user_value = unicode(user_info.get(info_name))
                 # First look for exact matches.
-                if obj_str == unicode(user_info.get(info_name)):
+                if user_value == obj_str:
                     entry_types.append(info_name)
-                # Then also look for containment.
-                if unicode(user_info.get(info_name)) in obj_str:
-                    entry_types.append("contains {}".format(info_name))
+                # Also look for a quoted version.
+                elif user_value == '"{}"'.format(obj_str):
+                    entry_types.append("{}-quoted".format(info_name))
+                # Also look for containment.
+                elif unicode(user_info.get(info_name)) in obj_str:
+                    entry_types.append("contains-{}".format(info_name))
 
         if len(entry_types) == 0:
             entry_types.append(type(obj).__name__)
@@ -341,7 +368,7 @@ def get_numeric_slug(value_string, user_info=None):
         for info_name in sorted(user_info.iterkeys()):
             if val_str == unicode(user_info.get(info_name)):
                 return u"({})".format(info_name)
-    
+
     # If string contains only digits, then return (int<len>).
     if value_string.isdigit():
         return u"(int{})".format(len(value_string))
@@ -396,7 +423,7 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                 # Included.
                 if len(event_type_values) == 5 and not disable_slugging:
                     event_type_values[4] = '(block-id)'
-                
+
             elif event_type_values[3] == 'jump_to':
                 if exclude_excluded:
                     return None
@@ -416,7 +443,7 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                 last = len(event_type_values) - 1
                 if last >= 6 and event_type_values[last] in ['score_update', 'ungraded_response'] and not disable_slugging:
                     event_type_values = event_type_values[0:5] + ['(block-loc)'] + event_type_values[last:]
-                    
+
             elif event_type_values[3] == 'wiki':
                 # We want to determine the structure at the end, and then stub the
                 # random identifier information in between.
@@ -429,7 +456,7 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
 
                 # We want to handle /_edit, /_create, /_dir, /_delete, /_history, /_settings, /_deleted, /_preview,
                 # and /_revision/change/(int5)/.
-                for index in range(4, last+1):
+                for index in range(4, last + 1):
                     if event_type_values[index].startswith('_'):
                         if exclude_excluded:
                             # Exclude commands entirely.
@@ -437,8 +464,8 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                         last = index - 1
                         break
 
-                if not disable_slugging:                    
-                    for index in range(4, last+1):
+                if not disable_slugging:
+                    for index in range(4, last + 1):
                         event_type_values[index] = '(wikislug)'
 
             elif event_type_values[3] == 'discussion':
@@ -469,17 +496,17 @@ def canonicalize_event_type(event_type, exclude_implicit, exclude_explicit, excl
                 if event_type_values[3] in ['info', 'progress', 'course_wiki', 'about', 'teams']:
                     if len(event_type_values) > 4:
                         return None
-                
+
                 else:
                     return None
 
         elif exclude_excluded:
             # Included implicit events must begin with /courses/(course-id)
-            return None                
+            return None
 
     elif exclude_excluded:
         # Included implicit events must begin with /courses
-        return None                
-        
+        return None
+
     # Done with canonicalization, so just process and output the result.
     return '/'.join([get_numeric_slug(value, user_info) for value in event_type_values])
