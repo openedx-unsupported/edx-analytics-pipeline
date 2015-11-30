@@ -195,34 +195,31 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if not self.check_user:
             return user_info
 
-        username = event.get('username').strip()
-        if username is not None:
+        username = unicode(event.get('username', '')).strip()
+        if username:
             key = 'username'
-            username_str = unicode(username)
-            if username_str.isdigit() and len(username_str) <= 5:
-                key = u"username-int{}".format(len(username_str))
-            elif username_str.isdigit():
+            if username.isdigit() and len(username) <= 5:
+                key = u"username-int{}".format(len(username))
+            elif username.isdigit():
                 key = u"username-int"
-            elif len(username_str) <= 5:
-                key = u"username-{}".format(len(username_str))
-            user_info[key] = username_str
+            elif len(username) <= 5:
+                key = u"username-{}".format(len(username))
+            user_info[key] = username
 
-        user_id = event.get('context', {}).get('user_id')
-        if user_id is not None:
-            user_id_str = unicode(user_id)
+        user_id = unicode(event.get('context', {}).get('user_id'))
+        if user_id:
             key = 'user-id'
-            if len(user_id_str) <= 4:
-                key = u"user-id-{}".format(len(user_id_str))
-            user_info[key] = user_id_str
+            if len(user_id) <= 4:
+                key = u"user-id-{}".format(len(user_id))
+            user_info[key] = user_id
 
         if event_data is not None:
-            event_user_id = event_data.get('user_id')
-            if event_user_id is not None:
-                event_user_id_str = unicode(event_user_id)
+            event_user_id = unicode(event_data.get('user_id', '')).strip()
+            if event_user_id:
                 key = 'user-id-event'
-                if len(event_user_id_str) <= 4:
-                    key = u"user-id-event-{}".format(len(event_user_id_str))
-                user_info[key] = event_user_id_str
+                if len(event_user_id) <= 4:
+                    key = u"user-id-event-{}".format(len(event_user_id))
+                user_info[key] = event_user_id
 
         # Add some lookups, in case username and user_id don't match.
         if self.auth_user_data and user_id is not None:
