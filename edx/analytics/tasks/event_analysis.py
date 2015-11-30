@@ -198,9 +198,8 @@ class EventAnalysisTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         username = event.get('username').strip()
         if username is not None:
             key = 'username'
-            # Apparently username is sometimes a boolean?!
             username_str = unicode(username)
-            if username_str.isdigit() and len(username_str <= 5):
+            if username_str.isdigit() and len(username_str) <= 5:
                 key = u"username-int{}".format(len(username_str))
             elif username_str.isdigit():
                 key = u"username-int"
