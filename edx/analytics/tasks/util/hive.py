@@ -143,7 +143,7 @@ class BareHiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
             partition_clause = 'PARTITIONED BY ({partition_by} STRING)'.format(partition_by=self.partition_by)
 
         if self.overwrite:
-            drop_on_overwrite = 'DROP TABLE IF EXISTS {table};'.format(self.table)
+            drop_on_overwrite = 'DROP TABLE IF EXISTS {table};'.format(table=self.table)
         else:
             drop_on_overwrite = ''
 
@@ -258,6 +258,11 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         raise NotImplementedError
 
     @property
+    def data_task(self):
+        """Returns a luigi task that is used to insert real data into this partition."""
+        return None
+
+    @property
     def partition(self):
         """Returns a HivePartition object that represents the partition."""
         return HivePartition(self.hive_table_task.partition_by, self.partition_value)
@@ -268,6 +273,8 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return url_path_join(self.hive_table_task.table_location, self.partition.path_spec + '/')
 
     def requires(self):
+        if self.data_task is not None:
+            yield self.data_task
         yield self.hive_table_task
 
     def output(self):

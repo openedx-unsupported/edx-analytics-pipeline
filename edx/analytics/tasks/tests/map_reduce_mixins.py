@@ -3,6 +3,7 @@ import json
 import datetime
 
 import luigi
+import luigi.task
 
 
 class MapperTestMixin(object):
@@ -21,6 +22,7 @@ class MapperTestMixin(object):
         'interval': DEFAULT_DATE,
         'output_root': '/fake/output',
         'end_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'import_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'geolocation_data': 'test://data/data.file',
         'mapreduce_engine': 'local',
@@ -33,6 +35,7 @@ class MapperTestMixin(object):
     task_class = None
 
     def setUp(self):
+        luigi.task.Register.clear_instance_cache()
         self.event_templates = {}
         self.default_event_template = ''
         if hasattr(self, 'interval') and self.interval is not None:
@@ -49,7 +52,7 @@ class MapperTestMixin(object):
         merged_arguments.update(kwargs)
 
         for attr in merged_arguments:
-            if not hasattr(self.task_class, attr):
+            if getattr(self.task_class, attr, None) is None:
                 continue
             value = merged_arguments.get(attr)
             if attr == 'interval':
@@ -152,26 +155,38 @@ class ReducerTestMixin(object):
     task_class = None
 
     def setUp(self):
+        luigi.task.Register.clear_instance_cache()
+        self.create_task()
+        self.reduce_key = tuple()
 
+    def get_default_task_args(self):
+        """Some reasonable defaults for common task parameters."""
         new_kwargs = {}
         for attr in self.DEFAULT_ARGS:
-            if getattr(self.task_class, attr, None) is None:
+            if hasattr(self.task_class, 'get_params'):
+                task_param_names = frozenset([param[0] for param in self.task_class.get_params()])
+                if attr not in task_param_names:
+                    continue
+            elif not hasattr(self.task_class, attr):
                 continue
             value = getattr(self, attr, self.DEFAULT_ARGS.get(attr))
             if attr == 'interval':
                 new_kwargs[attr] = luigi.DateIntervalParameter().parse(value)
             else:
                 new_kwargs[attr] = value
+        return new_kwargs
 
+    def create_task(self, **kwargs):
+        """Create a new instance of the class under test and assign it to `self.task`."""
+        new_kwargs = self.get_default_task_args()
+        new_kwargs.update(kwargs)
         self.task = self.task_class(**new_kwargs)  # pylint: disable=not-callable
-
         self.task.init_local()
-        self.reduce_key = tuple()
 
     def assert_no_output(self, input_value):
         """Asserts that the given input produces no output."""
         output = self._get_reducer_output(input_value)
-        self.assertEquals(len(output), 0)
+        self.assertEquals(len(output), 0, 'Expected no output, found {}'.format(output))
 
     def _get_reducer_output(self, inputs):
         """Runs the reducer and return the output."""
@@ -192,8 +207,8 @@ class ReducerTestMixin(object):
 
         args:
             inputs is a valid input to the subclass's reducer.
-            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
-                pairs in the expected reducer output.
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to
+                (column_num, expected_value) pairs in the expected reducer output.
         """
         output = self._get_reducer_output(inputs)
         if not isinstance(column_values, list):
@@ -214,3 +229,22 @@ class ReducerTestMixin(object):
         """
         expected_with_key = tuple([(key, self.reduce_key + value) for key, value in expected])
         self.assertEquals(self._get_reducer_output(inputs), expected_with_key)
+
+    def _check_output_by_record_field(self, inputs, field_values):
+        """
+        Compare generated with expected output, but only checking specified columns
+
+        args:
+            inputs is a valid input to the subclass's reducer.
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to
+                (column_num, expected_value) pairs in the expected reducer output.
+        """
+        self.assertTrue(getattr(self, 'output_record_type', None) is not None)
+        field_positions = {k: i for i, k in enumerate(self.output_record_type.get_fields())}
+        output = self._get_reducer_output(inputs)
+        if not isinstance(field_values, list):
+            field_values = [field_values]
+        self.assertEquals(len(output), len(field_values), '{0} != {1}'.format(output, field_values))
+        for output_tuple, expected_field_values in zip(output, field_values):
+            for field_name, expected_value in expected_field_values.iteritems():
+                self.assertEquals(output_tuple[field_positions[field_name]], expected_value)
