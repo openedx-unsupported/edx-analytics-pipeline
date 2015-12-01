@@ -112,7 +112,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         super(CourseEnrollmentTaskReducerTest, self).setUp()
 
         # Create the task locally, since we only need to check certain attributes
-        self.create_task()
+        self.create_enrollment_task()
         self.user_id = 0
         self.course_id = 'foo/bar/baz'
         self.reduce_key = (self.course_id, self.user_id)
@@ -125,7 +125,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         expected = (('2013-01-01', self.course_id, self.user_id, 1, 1, 'honor'),)
         self._check_output_complete_tuple(inputs, expected)
 
-    def create_task(self, interval='2013-01-01'):
+    def create_enrollment_task(self, interval='2013-01-01'):
         """Create a task for testing purposes."""
         fake_param = luigi.DateIntervalParameter()
         self.task = CourseEnrollmentTask(
@@ -158,7 +158,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_oversized_interval_unenrollment(self):
-        self.create_task('2012-12-30-2013-01-04')
+        self.create_enrollment_task('2012-12-30-2013-01-04')
         inputs = [
             ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
         ]
@@ -170,7 +170,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_oversized_interval_enrollment(self):
-        self.create_task('2012-12-30-2013-01-04')
+        self.create_enrollment_task('2012-12-30-2013-01-04')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
         ]
@@ -182,7 +182,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_missing_days(self):
-        self.create_task('2012-12-30-2013-01-07')
+        self.create_enrollment_task('2012-12-30-2013-01-07')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
             ('2013-01-04T00:00:01', DEACTIVATED, 'honor'),
@@ -230,7 +230,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_multiple_enroll_events_on_many_days(self):
-        self.create_task('2013-01-01-2013-01-05')
+        self.create_enrollment_task('2013-01-01-2013-01-05')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
             ('2013-01-01T00:00:02', ACTIVATED, 'honor'),
@@ -247,7 +247,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_multiple_events_on_many_days(self):
-        self.create_task('2013-01-01-2013-01-10')
+        self.create_enrollment_task('2013-01-01-2013-01-10')
         inputs = [
             ('2013-01-01T1', ACTIVATED, 'honor'),
             ('2013-01-01T2', DEACTIVATED, 'honor'),
@@ -279,7 +279,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_oversized_interval_both_sides(self):
-        self.create_task('2012-12-30-2013-01-06')
+        self.create_enrollment_task('2012-12-30-2013-01-06')
         inputs = [
             ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
             ('2013-01-03T00:00:01', ACTIVATED, 'honor'),
@@ -294,7 +294,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_oversized_interval_both_sides_unenrolled_at_end(self):
-        self.create_task('2012-12-30-2013-01-06')
+        self.create_enrollment_task('2012-12-30-2013-01-06')
         inputs = [
             ('2013-01-01T00:00:01', DEACTIVATED, 'honor'),
             ('2013-01-03T00:00:01', ACTIVATED, 'honor'),
@@ -319,7 +319,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_mode_change_multi_day(self):
-        self.create_task('2013-01-01-2013-01-03')
+        self.create_enrollment_task('2013-01-01-2013-01-03')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
             ('2013-01-02T00:00:02', DEACTIVATED, 'honor'),
@@ -355,7 +355,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_explicit_mode_change_multi_day(self):
-        self.create_task('2013-01-01-2013-01-03')
+        self.create_enrollment_task('2013-01-01-2013-01-03')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
             ('2013-01-02T00:00:02', MODE_CHANGED, 'verified')
@@ -367,7 +367,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_explicit_mode_change_multiple(self):
-        self.create_task('2013-01-01-2013-01-03')
+        self.create_enrollment_task('2013-01-01-2013-01-03')
         inputs = [
             ('2013-01-01T00:00:01', ACTIVATED, 'honor'),
             ('2013-01-02T00:00:02', MODE_CHANGED, 'verified'),

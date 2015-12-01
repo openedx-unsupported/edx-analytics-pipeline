@@ -53,6 +53,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     """
     required_tasks = None
     output_target = None
+    allow_empty_insert = False
 
     def requires(self):
         if self.required_tasks is None:
@@ -295,7 +296,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                 self._execute_insert_query(cursor, value_list, column_names)
                 value_list = []
 
-        if self.overwrite and row_count == 0:
+        if self.overwrite and not self.allow_empty_insert and row_count == 0:
             raise Exception('Cannot overwrite a table with an empty result set.')
 
         if len(value_list) > 0:
@@ -355,7 +356,8 @@ def coerce_for_mysql_connect(input):
     if not isinstance(input, basestring):
         return input
     # Hive indicates a null value with the string "\N"
-    if input == 'None' or input == '\\N':
+    # We represent an infinite value with the string "inf", MySQL has no such representation so we use NULL
+    if input in ('None', '\\N', 'inf', '-inf'):
         return None
     if isinstance(input, str):
         return input.decode('utf-8')

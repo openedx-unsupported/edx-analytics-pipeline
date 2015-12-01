@@ -147,8 +147,8 @@ class BaseCourseEnrollmentValidationTaskReducerTest(ReducerTestMixin, unittest.T
         self.reduce_key = ('foo/bar/baz', 0)
         self.mode = 'honor'
 
-    def create_task(self, generate_before=True, tuple_output=True, include_nonstate_changes=True,
-                    earliest_timestamp=None, expected_validation=None):
+    def create_validation_task(self, generate_before=True, tuple_output=True, include_nonstate_changes=True,
+                               earliest_timestamp=None, expected_validation=None):
         """Create a task for testing purposes."""
         interval = '2013-01-01-2014-10-10'
 
@@ -200,7 +200,7 @@ class CourseEnrollmentValidationTaskReducerTest(BaseCourseEnrollmentValidationTa
     """
     def setUp(self):
         super(CourseEnrollmentValidationTaskReducerTest, self).setUp()
-        self.create_task(generate_before=True)
+        self.create_validation_task(generate_before=True)
 
     def test_no_events(self):
         self.assert_no_output([])
@@ -582,7 +582,7 @@ class CourseEnrollmentValidationTaskEventReducerTest(BaseCourseEnrollmentValidat
     """
     def setUp(self):
         super(CourseEnrollmentValidationTaskEventReducerTest, self).setUp()
-        self.create_task(tuple_output=False)
+        self.create_validation_task(tuple_output=False)
 
     def test_missing_single_enrollment(self):
         """
@@ -613,7 +613,7 @@ class EarliestTimestampTaskReducerTest(BaseCourseEnrollmentValidationTaskReducer
     """
     def setUp(self):
         super(EarliestTimestampTaskReducerTest, self).setUp()
-        self.create_task(earliest_timestamp="2013-01-01T11")
+        self.create_validation_task(earliest_timestamp="2013-01-01T11")
 
     def test_no_events(self):
         self.assert_no_output([])
@@ -649,7 +649,7 @@ class ExpectedValidationTaskReducerTest(BaseCourseEnrollmentValidationTaskReduce
     """
     def setUp(self):
         super(ExpectedValidationTaskReducerTest, self).setUp()
-        self.create_task(expected_validation="2014-10-01T11")
+        self.create_validation_task(expected_validation="2014-10-01T11")
 
     def test_no_events(self):
         self.assert_no_output([])
@@ -685,7 +685,7 @@ class GenerateBeforeDisabledTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
     """
     def setUp(self):
         super(GenerateBeforeDisabledTaskReducerTest, self).setUp()
-        self.create_task(generate_before=False)
+        self.create_validation_task(generate_before=False)
 
     def test_no_events(self):
         self.assert_no_output([])
@@ -796,7 +796,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
     """
     def setUp(self):
         super(ExcludeNonstateChangesTaskReducerTest, self).setUp()
-        self.create_task(generate_before=False, include_nonstate_changes=False)
+        self.create_validation_task(generate_before=False, include_nonstate_changes=False)
 
     def test_no_events(self):
         self.assert_no_output([])
