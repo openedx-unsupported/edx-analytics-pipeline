@@ -1,12 +1,12 @@
 """Test the typed record utilities"""
 
 import datetime
+import pickle
 
 from ddt import data, ddt
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField
-
+from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
@@ -314,6 +314,36 @@ class RecordTestCase(unittest.TestCase):
         some_dict[SingleFieldRecord('foo')] = 2
         self.assertEqual(some_dict[SingleFieldRecord('foo')], 2)
 
+    def test_pickle(self):
+        test_record = SampleStruct('a', 10, datetime.date(2015, 11, 1))
+
+        self.assertEqual(pickle.loads(pickle.dumps(test_record)), test_record)
+
+    def test_to_tsv(self):
+        test_record = SampleStruct('a', 10, datetime.date(2015, 11, 1))
+
+        self.assertEqual(test_record.to_separated_values(), 'a\t10\t2015-11-01')
+
+    def test_replace(self):
+        test_record = SampleStruct('a', 10, datetime.date(2015, 11, 1))
+        new_record = test_record.replace(name='b')
+
+        self.assertFalse(test_record is new_record)
+        self.assertTrue(new_record.name, 'b')
+        self.assertEqual(test_record.index, 10)
+        self.assertEqual(test_record.date, datetime.date(2015, 11, 1))
+
+    def test_replace_unknown_field(self):
+        test_record = SampleStruct('a', 10, datetime.date(2015, 11, 1))
+        with self.assertRaisesRegexp(TypeError, 'Unknown fields specified: foo'):
+            test_record.replace(foo='bar')
+
+    def test_replace_empty(self):
+        test_record = SampleStruct('a', 10, datetime.date(2015, 11, 1))
+        new_record = test_record.replace()
+
+        self.assertFalse(test_record is new_record)
+        self.assertEqual(test_record, new_record)
 
 class NoFields(Record):
     """A record without any fields"""
@@ -481,3 +511,42 @@ class DateFieldTest(unittest.TestCase):
 
     def test_serialize_to_string(self):
         self.assertEqual(DateField().serialize_to_string(datetime.date(2015, 11, 1)), '2015-11-01')
+
+
+@ddt
+class FloatFieldTest(unittest.TestCase):
+    """Tests for FloatField"""
+
+    @data(
+        1,
+        10.0,
+        float('inf'),
+        None
+    )
+    def test_validate_success(self, value):
+        test_record = FloatField()
+        validation_results = test_record.validate(value)
+        self.assertEqual(len(validation_results), 0)
+
+    @data(
+        'foobar',
+        '2015-11-01',
+        object()
+    )
+    def test_validate_error(self, value):
+        test_record = FloatField()
+        self.assertEqual(len(test_record.validate(value)), 1)
+
+    def test_sql_type(self):
+        self.assertEqual(FloatField().sql_type, 'FLOAT')
+
+    def test_hive_type(self):
+        self.assertEqual(FloatField().hive_type, 'FLOAT')
+
+    def test_serialize_to_string(self):
+        self.assertEqual(FloatField().serialize_to_string(10.05), '10.05')
+        self.assertEqual(FloatField().serialize_to_string(float('inf')), 'inf')
+
+    def test_deserialize_from_string(self):
+        self.assertEqual(FloatField().deserialize_from_string('10.05'), 10.05)
+        self.assertEqual(FloatField().deserialize_from_string('inf'), float('inf'))

@@ -15,13 +15,17 @@ log = logging.getLogger(__name__)
 class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
     """Ensure engagement data is populated in the result store incrementally."""
 
+    EMPTY_INPUT_FILE = 'module_engagement_acceptance_empty.log'
     INPUT_FILE = 'module_engagement_acceptance_tracking_{date}.log'
     NUM_REDUCERS = 1
 
     def test_engagement(self):
-        for day in (13, 16):
+        for day in range(2, 17):
             fake_date = datetime.date(2015, 4, day)
-            self.upload_tracking_log(self.INPUT_FILE.format(date=fake_date.strftime('%Y%m%d')), fake_date)
+            if day in (13, 16):
+                self.upload_tracking_log(self.INPUT_FILE.format(date=fake_date.strftime('%Y%m%d')), fake_date)
+            else:
+                self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
 
         # First run with the 13th
         self.task.launch([
@@ -87,3 +91,31 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
             (april_sixteenth, 'edX/DemoX/Demo_Course_2', 'honor', 'problem', 'i4x://edX/DemoX/problem/a0effb954cca4759994f1ac9e9434bf4', 'attempted', 1),
         ]
         self.assertListEqual(expected_first_day + expected_second_day, results)
+
+        self.task.launch([
+            'ModuleEngagementSummaryMetricRangesMysqlTask',
+            '--date', '2015-04-16',
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+        ])
+
+        # Verify the output, this should include both the first and second day!
+        with self.export_db.cursor() as cursor:
+            cursor.execute(
+                'SELECT course_id, start_date, end_date, metric, range_type, low_value, high_value '
+                'FROM module_engagement_metric_ranges '
+                'ORDER BY course_id, start_date, end_date, metric, range_type, low_value, high_value ASC'
+            )
+            results = cursor.fetchall()
+
+        april_ninth = datetime.date(2015, 4, 9)
+        expected_ranges = [
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussions_contributed', 'high', 3, 3.1),
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussions_contributed', 'low', 2.9, 3),
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'videos_viewed', 'high', 1, 1.1),
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'videos_viewed', 'low', 0.9, 1),
+            ('edX/DemoX/Demo_Course', april_ninth, april_sixteenth, 'videos_viewed', 'high', 1, 1.1),
+            ('edX/DemoX/Demo_Course', april_ninth, april_sixteenth, 'videos_viewed', 'low', 0.9, 1),
+            ('edX/DemoX/Demo_Course_2', april_ninth, april_sixteenth, 'videos_viewed', 'high', 1, 1.1),
+            ('edX/DemoX/Demo_Course_2', april_ninth, april_sixteenth, 'videos_viewed', 'low', 0.9, 1),
+        ]
+        self.assertListEqual(expected_ranges, results)

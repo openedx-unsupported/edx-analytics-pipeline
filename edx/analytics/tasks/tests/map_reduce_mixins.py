@@ -21,6 +21,7 @@ class MapperTestMixin(object):
         'interval': DEFAULT_DATE,
         'output_root': '/fake/output',
         'end_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'import_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'geolocation_data': 'test://data/data.file',
         'mapreduce_engine': 'local',
@@ -49,7 +50,7 @@ class MapperTestMixin(object):
         merged_arguments.update(kwargs)
 
         for attr in merged_arguments:
-            if not hasattr(self.task_class, attr):
+            if getattr(self.task_class, attr, None) is None:
                 continue
             value = merged_arguments.get(attr)
             if attr == 'interval':
@@ -171,7 +172,7 @@ class ReducerTestMixin(object):
     def assert_no_output(self, input_value):
         """Asserts that the given input produces no output."""
         output = self._get_reducer_output(input_value)
-        self.assertEquals(len(output), 0)
+        self.assertEquals(len(output), 0, output)
 
     def _get_reducer_output(self, inputs):
         """Runs the reducer and return the output."""
@@ -214,3 +215,22 @@ class ReducerTestMixin(object):
         """
         expected_with_key = tuple([(key, self.reduce_key + value) for key, value in expected])
         self.assertEquals(self._get_reducer_output(inputs), expected_with_key)
+
+    def _check_output_by_record_field(self, inputs, field_values):
+        """
+        Compare generated with expected output, but only checking specified columns
+
+        args:
+            inputs is a valid input to the subclass's reducer.
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
+                pairs in the expected reducer output.
+        """
+        self.assertTrue(getattr(self, 'output_record_type', None) is not None)
+        field_positions = {k: i for i, k in enumerate(self.output_record_type.get_fields())}
+        output = self._get_reducer_output(inputs)
+        if not isinstance(field_values, list):
+            field_values = [field_values]
+        self.assertEquals(len(output), len(field_values), '{0} != {1}'.format(output, field_values))
+        for output_tuple, expected_field_values in zip(output, field_values):
+            for field_name, expected_value in expected_field_values.iteritems():
+                self.assertEquals(output_tuple[field_positions[field_name]], expected_value)

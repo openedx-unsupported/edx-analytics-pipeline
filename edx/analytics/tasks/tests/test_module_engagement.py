@@ -1,14 +1,19 @@
 """Test metrics for student engagement with modules"""
 
 import json
+import datetime
 
 import luigi
 from ddt import ddt, data, unpack
+from mock import MagicMock
 
-from edx.analytics.tasks.module_engagement import ModuleEngagementDataTask
+from edx.analytics.tasks.module_engagement import ModuleEngagementDataTask, ModuleEngagementSummaryDataTask, \
+    ModuleEngagementRecord, ModuleEngagementSummaryRecord, ModuleEngagementSummaryMetricRangesDataTask, \
+    ModuleEngagementSummaryMetricRangeRecord, ModuleEngagementUserSegmentDataTask, ModuleEngagementUserSegmentRecord
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.tests.target import FakeTarget
 
 
 @ddt
@@ -193,3 +198,682 @@ class ModuleEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             inputs,
             (('\t'.join(self.reduce_key), 4),)
         )
+
+
+@ddt
+class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, unittest.TestCase):
+    """Base class for test analysis of student engagement summaries"""
+
+    task_class = ModuleEngagementSummaryDataTask
+
+    input_record = ModuleEngagementRecord(
+        course_id='foo/bar/baz',
+        username='foouser',
+        date=datetime.date(2015, 11, 1),
+        entity_type='problem',
+        entity_id='problem-id',
+        event='attempted',
+        count=1
+    )
+
+    def test_invalid_input_types(self):
+        input_as_strings = list(self.input_record.to_string_tuple())
+        input_as_strings[-1] = 'foo'
+        with self.assertRaises(ValueError):
+            tuple(self.task.mapper('\t'.join(input_as_strings) + '\n'))
+
+    def test_not_enough_input_columns(self):
+        input_as_strings = list(self.input_record.to_string_tuple())[:-1]
+        with self.assertRaises(ValueError):
+            tuple(self.task.mapper('\t'.join(input_as_strings) + '\n'))
+
+    def test_single_output(self):
+        tsv_line = self.input_record.to_separated_values()
+        self.assert_single_map_output(
+            tsv_line,
+            ('foo/bar/baz', 'foouser'),
+            tsv_line
+        )
+
+
+@ddt
+class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+    """Base class for test analysis of student engagement summaries"""
+
+    task_class = ModuleEngagementSummaryDataTask
+    output_record_type = ModuleEngagementSummaryRecord
+
+    input_record = ModuleEngagementRecord(
+        course_id='foo/bar/baz',
+        username='test_user',
+        date=datetime.date(2014, 03, 26),
+        entity_type='problem',
+        entity_id='problem-id',
+        event='attempted',
+        count=1
+    )
+
+    def setUp(self):
+        super(ModuleEngagementSummaryDataTaskReducerTest, self).setUp()
+
+        self.reduce_key = (self.COURSE_ID, 'test_user')
+
+        self.video_play_record = self.input_record.replace(
+            entity_type='video',
+            entity_id='foox-video1',
+            event='played',
+        )
+        self.forum_record = self.input_record.replace(
+            entity_type='forum',
+            entity_id='forum0',
+            event='responded'
+        )
+
+    def test_output_format(self):
+        self._check_output_complete_tuple(
+            [self.input_record.to_separated_values()],
+            (
+                (
+                    'foo/bar/baz',
+                    'test_user',
+                    '2014-03-25',
+                    '2014-04-01',
+                    '1',
+                    '1',
+                    '0',
+                    'inf',
+                    '0',
+                    '0',
+                    '1',
+                ),
+            )
+        )
+
+    def test_multiple_problem_attempts_same_problem(self):
+        self._check_output_by_record_field(
+            [
+                self.input_record.to_separated_values(),
+                self.input_record.replace(date=datetime.date(2014, 03, 27)).to_separated_values()
+            ],
+            {
+                'problem_attempts': '2',
+                'problems_attempted': '1',
+                'problem_attempts_per_completion': 'inf',
+                'days_active': '2'
+            }
+        )
+
+    def test_multiple_problem_attempts_different_problem(self):
+        self._check_output_by_record_field(
+            [
+                self.input_record.to_separated_values(),
+                self.input_record.replace(entity_id='problem-id-2').to_separated_values()
+            ],
+            {
+                'problem_attempts': '2',
+                'problems_attempted': '2',
+                'problem_attempts_per_completion': 'inf',
+                'days_active': '1'
+            }
+        )
+
+    def test_correct_problem_attempt(self):
+        self._check_output_by_record_field(
+            [
+                self.input_record.to_separated_values(),
+                self.input_record.replace(event='completed').to_separated_values()
+            ],
+            {
+                'problem_attempts': '1',
+                'problems_attempted': '1',
+                'problems_completed': '1',
+                'problem_attempts_per_completion': str(1.0),
+                'days_active': '1'
+            }
+        )
+
+    def test_correct_problem_multiple_attempts(self):
+        self._check_output_by_record_field(
+            [
+                self.input_record.replace(count=4).to_separated_values(),
+                self.input_record.replace(event='completed').to_separated_values()
+            ],
+            {
+                'problem_attempts': '4',
+                'problems_attempted': '1',
+                'problems_completed': '1',
+                'problem_attempts_per_completion': str(4.0),
+                'days_active': '1'
+            }
+        )
+
+    def test_multiple_correct_problems(self):
+        self._check_output_by_record_field(
+            [
+                self.input_record.replace(count=4).to_separated_values(),
+                self.input_record.replace(event='completed').to_separated_values(),
+                self.input_record.replace(date=datetime.date(2014, 03, 27), entity_id='p2').to_separated_values(),
+                self.input_record.replace(
+                    date=datetime.date(2014, 03, 27),
+                    entity_id='p2',
+                    event='completed',
+                ).to_separated_values(),
+            ],
+            {
+                'problem_attempts': '5',
+                'problems_attempted': '2',
+                'problems_completed': '2',
+                'problem_attempts_per_completion': str(2.5),
+                'days_active': '2'
+            }
+        )
+
+    def test_video_played(self):
+        self._check_output_by_record_field(
+            [
+                self.video_play_record.to_separated_values(),
+            ],
+            {
+                'problem_attempts': '0',
+                'problems_attempted': '0',
+                'problems_completed': '0',
+                'problem_attempts_per_completion': str(0.0),
+                'videos_viewed': '1',
+                'days_active': '1'
+            }
+        )
+
+    def test_multiple_videos_played(self):
+        self._check_output_by_record_field(
+            [
+                self.video_play_record.to_separated_values(),
+                self.video_play_record.replace(entity_id='1').to_separated_values(),
+            ],
+            {
+                'videos_viewed': '2'
+            }
+        )
+
+    def test_multiple_forum_contributions(self):
+        self._check_output_by_record_field(
+            [
+                self.forum_record.to_separated_values(),
+                self.forum_record.replace(entity_id='1', count=2).to_separated_values(),
+            ],
+            {
+                'discussions_contributed': '3'
+            }
+        )
+
+
+@ddt
+class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+    """Base class for test analysis of student engagement summaries"""
+
+    task_class = ModuleEngagementSummaryMetricRangesDataTask
+    output_record_type = ModuleEngagementSummaryMetricRangeRecord
+
+    def setUp(self):
+        super(ModuleEngagementSummaryMetricRangesDataTaskReducerTest, self).setUp()
+
+        self.reduce_key = 'foo/bar/baz'
+        self.input_record = ModuleEngagementSummaryRecord(
+            course_id='foo/bar/baz',
+            username='test_user',
+            start_date=datetime.date(2014, 3, 25),
+            end_date=datetime.date(2014, 4, 1),
+            problem_attempts=0,
+            problems_attempted=0,
+            problems_completed=0,
+            problem_attempts_per_completion=0.0,
+            videos_viewed=0,
+            discussions_contributed=0,
+            days_active=0,
+        )
+
+    def test_output_format(self):
+        self._check_output_complete_tuple(
+            [self.input_record.replace(videos_viewed=1).to_separated_values()],
+            (
+                (
+                    'foo/bar/baz',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'videos_viewed',
+                    'low',
+                    '0.9',
+                    '1.0',
+                ),
+                (
+                    'foo/bar/baz',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'videos_viewed',
+                    'high',
+                    '1.0',
+                    '1.1',
+                ),
+            )
+        )
+
+    def test_simple_distribution(self):
+        # [0, 0, 0, 0] (these values are dropped from the set before analyzing)
+        # [4, 13, 13, 13] (3 records are <= 13, this accounts for 15% of the total 20 non-zero values)
+        # [15] * 4 (throw in a bunch of data in the "normal" range)
+        # [50] * 11 (round out the 20 records with some other arbitrary value, note that this will also contain two
+        #    of the three highest values)
+        # [154] (throw in an outlier - a very high maximum value, this will show the high end of the range, but the
+        #    85th percentile should be at the 50 value)
+        values = [4] + ([13] * 3) + ([0] * 4) + ([15] * 4) + ([50] * 11) + [154]
+
+        self.assert_ranges(
+            values,
+            3.9,
+            13.0,
+            50.0,
+            154.1
+        )
+
+    def assert_ranges(self, values, minimum, low, high, maximum):
+        """Given a list of values, assert that the ranges generated have the min, low, high, and max bounds."""
+
+        # Manufacture some records with these values
+        records = [self.input_record.replace(problem_attempts_per_completion=v).to_separated_values() for v in values]
+
+        self._check_output_complete_tuple(
+            records,
+            (
+                (
+                    'foo/bar/baz',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'problem_attempts_per_completion',
+                    'low',
+                    str(minimum),
+                    str(low),
+                ),
+                (
+                    'foo/bar/baz',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'problem_attempts_per_completion',
+                    'high',
+                    str(high),
+                    str(maximum),
+                ),
+            )
+        )
+
+    def test_identical_values(self):
+        values = [5] * 6
+        self.assert_ranges(values, 4.9, 5.0, 5.0, 5.1)
+
+    def test_single_value(self):
+        self.assert_ranges([1], 0.9, 1.0, 1.0, 1.1)
+
+    def test_very_small_values(self):
+        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), -0.09, 0.01, 0.09, 0.19)
+
+    def test_infinite_value(self):
+        self.assert_ranges(([1.0] * 19) + [float('inf')], 0.9, 1.0, 1.0, float('inf'))
+
+    def test_negative_infinite_value(self):
+        self.assert_ranges(([1.0] * 19) + [float('-inf')], float('-inf'), 1.0, 1.0, 1.1)
+
+
+@ddt
+class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+    """Base class for test analysis of student engagement summaries"""
+
+    task_class = ModuleEngagementUserSegmentDataTask
+    output_record_type = ModuleEngagementUserSegmentRecord
+
+    def setUp(self):
+        self.course_id = 'foo/bar/baz'
+        self.username = 'test_user'
+        self.prev_week_start_date = datetime.date(2014, 3, 18)
+        self.start_date = datetime.date(2014, 3, 25)
+        self.date = datetime.date(2014, 4, 1)
+
+        self.reduce_key = (self.course_id, self.username)
+
+        self.input_record = ModuleEngagementSummaryRecord(
+            course_id=self.course_id,
+            username=self.username,
+            start_date=self.start_date,
+            end_date=self.date,
+            problem_attempts=0,
+            problems_attempted=0,
+            problems_completed=0,
+            problem_attempts_per_completion=0.0,
+            videos_viewed=0,
+            discussions_contributed=0,
+            days_active=0,
+        )
+
+        self.range_record = ModuleEngagementSummaryMetricRangeRecord(
+            course_id=self.course_id,
+            start_date=self.start_date,
+            end_date=self.date,
+            metric='problems_attempted',
+            range_type='high',
+            low_value=5.0,
+            high_value=10.0
+        )
+
+        self.task = self.task_class(  # pylint: disable=not-callable
+            date=self.date,
+            output_root=self.DEFAULT_ARGS['output_root']
+        )
+
+    def initialize_task(self, metric_ranges):
+        """Given a list of metric ranges, setup the task by calling init_local"""
+        metric_ranges_text = '\n'.join([
+            r.to_separated_values()
+            for r in metric_ranges
+        ])
+
+        self.task.input_local = MagicMock(return_value=FakeTarget(value=metric_ranges_text))
+        self.task.init_local()
+
+    def test_init_local(self):
+        other_course_record = self.range_record.replace(
+            course_id='another/course/id',
+            metric='problems_completed'
+        )
+        self.initialize_task([
+            self.range_record,
+            self.range_record.replace(
+                range_type='low',
+                low_value=0.0,
+                high_value=3.0
+            ),
+            other_course_record
+        ])
+
+        self.assertEqual(dict(self.task.high_metric_ranges), {
+            self.course_id: {
+                'problems_attempted': self.range_record
+            },
+            'another/course/id': {
+                'problems_completed': other_course_record
+            }
+        })
+
+    def test_init_local_empty_input(self):
+        self.initialize_task([])
+        self.assertEqual(dict(self.task.high_metric_ranges), {})
+
+    def test_output_format(self):
+        self.initialize_task([
+            self.range_record,
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+                low_value=8.0,
+                high_value=10.1
+            )
+        ])
+        self._check_output_complete_tuple(
+            [
+                self.input_record.replace(
+                    problems_attempted=6,
+                    problem_attempts_per_completion=9
+                ).to_separated_values()
+            ],
+            (
+                (
+                    'foo/bar/baz',
+                    'test_user',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'highly_engaged',
+                    'problems_attempted'
+                ),
+                (
+                    'foo/bar/baz',
+                    'test_user',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'struggling',
+                    'problem_attempts_per_completion'
+                ),
+            )
+        )
+
+    @data(
+        'problems_attempted',
+        'problems_completed',
+        'videos_viewed',
+        'discussions_contributed'
+    )
+    def test_highly_engaged(self, metric):
+        self.initialize_task([
+            self.range_record.replace(
+                metric=metric
+            )
+        ])
+        self._check_output_by_record_field(
+            [
+                self.input_record.replace(
+                    **{metric: 8}
+                ).to_separated_values()
+            ],
+            {
+                'segment': 'highly_engaged'
+            }
+        )
+
+    @data(
+        'problem_attempts',
+        'problem_attempts_per_completion',
+    )
+    def test_not_highly_engaged(self, metric):
+        self.initialize_task([
+            self.range_record.replace(
+                metric=metric
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    **{metric: 8}
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'highly_engaged')
+
+    def assert_not_in_segment(self, output, segment):
+        """Assert that the user was not put into the provided segment."""
+        for record_tuple in output:
+            record = self.output_record_type.from_string_tuple(record_tuple)
+            self.assertNotEqual(record.segment, segment)
+
+    def test_highly_engaged_too_low(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problems_completed'
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problems_completed=0
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'highly_engaged')
+
+    def test_highly_engaged_left_closed_interval_bottom(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problems_completed',
+                low_value=6.0
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problems_completed=6
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'highly_engaged')
+
+    def assert_in_segment(self, output, segment):
+        """Assert that the user was put into the provided segment."""
+        for record_tuple in output:
+            record = self.output_record_type.from_string_tuple(record_tuple)
+            if record.segment == segment:
+                return True
+        return False
+
+    def test_highly_engaged_left_closed_interval_top(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problems_completed',
+                high_value=9.0
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problems_completed=9
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'highly_engaged')
+
+    def test_disengaging(self):
+        self.initialize_task([])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    start_date=self.prev_week_start_date,
+                    end_date=self.start_date,
+                    days_active=1,
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'disengaging')
+
+    def test_not_disengaging_both_active(self):
+        self.initialize_task([])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    start_date=self.prev_week_start_date,
+                    end_date=self.start_date,
+                    days_active=1,
+                ).to_separated_values(),
+                self.input_record.replace(
+                    days_active=1
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'disengaging')
+
+    def test_not_disengaging_only_recent(self):
+        self.initialize_task([])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    days_active=1
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'disengaging')
+
+    def test_struggling(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=8.0
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'struggling')
+
+    def test_struggling_infinite_low_high_value(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+                low_value=float('inf'),
+                high_value=float('inf'),
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=float('inf')
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'struggling')
+
+    def test_struggling_infinite_high(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+                high_value=float('inf'),
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=10.0
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'struggling')
+
+    def test_struggling_infinite_high_value(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+                high_value=float('inf'),
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=float('inf')
+                ).to_separated_values()
+            ]
+        )
+        self.assert_in_segment(output, 'struggling')
+
+    def test_not_struggling(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=3.0
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'struggling')
+
+    def test_not_struggling_infinite_low(self):
+        self.initialize_task([
+            self.range_record.replace(
+                metric='problem_attempts_per_completion',
+                low_value=float('inf')
+            )
+        ])
+        output = self._get_reducer_output(
+            [
+                self.input_record.replace(
+                    problem_attempts_per_completion=100000.0
+                ).to_separated_values()
+            ]
+        )
+        self.assert_not_in_segment(output, 'struggling')
