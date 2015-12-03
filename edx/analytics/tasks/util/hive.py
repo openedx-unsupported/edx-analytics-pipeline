@@ -5,7 +5,7 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner
+from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
@@ -122,6 +122,166 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
 
     def job_runner(self):
         return OverwriteAwareHiveQueryRunner()
+
+
+#TODO: rename this to HiveTableTask once the old one is removed
+class BareHiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+    """
+    Abstract class that represents the metadata associated with a Hive table.
+
+    Note that all this task does is ensure that the table is created, it does not populate it with any data, simply runs
+    the DDL commands to create the table.
+
+    Also note that it will not change the schema of the table if it already exists unless the overwrite parameter is
+    set to True.
+    """
+
+    def query(self):
+        partition_clause = ''
+        if self.partition_by:
+            partition_clause = 'PARTITIONED BY ({partition_by} STRING)'.format(partition_by=self.partition_by)
+
+        if self.overwrite:
+            drop_on_overwrite = 'DROP TABLE IF EXISTS {table};'.format(self.table)
+        else:
+            drop_on_overwrite = ''
+
+        query_format = """
+            USE {database_name};
+            {drop_on_overwrite}
+            CREATE EXTERNAL TABLE IF NOT EXISTS {table} (
+                {col_spec}
+            )
+            {partition_clause}
+            {table_format}
+            LOCATION '{location}';
+        """
+
+        query = query_format.format(
+            database_name=hive_database_name(),
+            table=self.table,
+            col_spec=','.join([' '.join(c) for c in self.columns]),
+            location=self.table_location,
+            table_format=self.table_format,
+            partition_clause=partition_clause,
+            drop_on_overwrite=drop_on_overwrite
+        )
+
+        query = textwrap.dedent(query)
+
+        return query
+
+    @property
+    def partition_by(self):
+        """The partitioning key name. Specify None to create a table that is not partitioned."""
+        raise NotImplementedError
+
+    @property
+    def table(self):
+        """Provides name of Hive database table."""
+        raise NotImplementedError
+
+    @property
+    def table_format(self):
+        """Provides format of Hive database table's data."""
+        return "ROW FORMAT DELIMITED FIELDS TERMINATED BY '\\t'"
+
+    @property
+    def table_location(self):
+        """Provides root location of Hive database table's data."""
+        return url_path_join(self.warehouse_path, self.table) + '/'
+
+    @property
+    def columns(self):
+        """
+        Provides definition of columns in Hive.
+
+        This should define a list of (name, definition) tuples, where
+        the definition defines the Hive type to use. For example,
+        ('first_name', 'STRING').
+
+        """
+        raise NotImplementedError
+
+    def output(self):
+        return HiveTableTarget(
+            self.table, database=hive_database_name()
+        )
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
+
+
+class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+    """
+    Abstract class that represents the metadata associated with a partition in a Hive table.
+
+    Note that all this task does is ensure that the partition is created, it does not populate it with any data, simply
+    runs the DDL commands to create the partition.
+    """
+
+    partition_value = luigi.Parameter()
+
+    def query(self):
+        if self.overwrite:
+            drop_on_overwrite = 'ALTER TABLE {table} DROP IF EXISTS PARTITION ({partition.query_spec});'.format(
+                table=self.hive_table_task.table,
+                partition=self.partition
+            )
+        else:
+            drop_on_overwrite = ''
+
+        query_format = """
+            USE {database_name};
+            {drop_on_overwrite}
+            ALTER TABLE {table} ADD IF NOT EXISTS PARTITION ({partition.query_spec});
+        """
+
+        query = query_format.format(
+            database_name=hive_database_name(),
+            table=self.hive_table_task.table,
+            partition=self.partition,
+            drop_on_overwrite=drop_on_overwrite
+        )
+
+        return textwrap.dedent(query)
+
+    @property
+    def hive_table_task(self):
+        """Returns a reference to the task that represents the table that this partition is part of."""
+        raise NotImplementedError
+
+    @property
+    def partition(self):
+        """Returns a HivePartition object that represents the partition."""
+        return HivePartition(self.hive_table_task.partition_by, self.partition_value)
+
+    @property
+    def partition_location(self):
+        """Returns the full URL of the partition. This allows data to be written to the partition by external systems"""
+        return url_path_join(self.hive_table_task.table_location, self.partition.path_spec + '/')
+
+    def requires(self):
+        yield self.hive_table_task
+
+    def output(self):
+        return HivePartitionTarget(
+            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=True
+        )
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
+
 
 
 class OverwriteAwareHiveQueryRunner(HiveQueryRunner):
