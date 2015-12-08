@@ -51,5 +51,5 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
         return ('record_number', 'AUTO_INCREMENT')
 
     @property
-    def default_columns
+    def default_columns(self):
         return None
