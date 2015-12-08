@@ -25,7 +25,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
                 n_reduce_tasks = self.n_reduce_tasks,
                 interval = self.interval,
                 output_root = url_path_join(self.warehouse_path, 'course_enrollment/'),
-                overwrite = self.overwrite
+                #overwrite = self.overwrite
             )
         )
 
