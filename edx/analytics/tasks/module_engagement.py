@@ -649,6 +649,7 @@ class ModuleEngagementSummaryMetricRangesDataTask(
                     metric_values[metric].append(value)
 
         for metric, values in metric_values.items():
+            values = metric_values[metric]
             range_values = numpy.percentile(  # pylint: disable=no-member
                 values, [0.0, self.low_percentile, self.high_percentile, 100.0]
             )
@@ -867,7 +868,7 @@ class ModuleEngagementUserSegmentDataTask(
                     else:
                         segments[SEGMENT_HIGHLY_ENGAGED].add(metric)
 
-        for segment in segments:
+        for segment in sorted(segments):
             yield ModuleEngagementUserSegmentRecord(
                 course_id=course_id,
                 username=username,
