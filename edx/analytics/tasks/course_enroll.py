@@ -130,7 +130,6 @@ class CourseEnrollmentEventsPerDayMixin(object):
         return
 
 
-
 class CourseEnrollmentChangesPerDayMixin(object):
     """Calculates daily changes in enrollment, given per-user net changes by date."""
 

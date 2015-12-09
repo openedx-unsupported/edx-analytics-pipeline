@@ -7,3 +7,4 @@ pep8==1.4.5
 pylint==0.28
 unittest2==0.5.1
 ddt==1.0.0
+httpretty==0.8.10

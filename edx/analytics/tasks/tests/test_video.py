@@ -4,6 +4,7 @@ import json
 
 from mock import patch, MagicMock
 from ddt import ddt, data, unpack
+from mock import sentinel
 
 from edx.analytics.tasks.video import (
     UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION
@@ -770,7 +771,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             UsageColumns.PIPELINE_VIDEO_ID: self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
             UsageColumns.COURSE_ID: self.COURSE_ID,
             UsageColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
-            UsageColumns.VIDEO_DURATION: '\\N',
+            UsageColumns.VIDEO_DURATION: 4,
             UsageColumns.SECONDS_PER_SEGMENT: VIDEO_VIEWING_SECONDS_PER_SEGMENT,
             UsageColumns.USERS_AT_START: 1,
             UsageColumns.USERS_AT_END: 1,
@@ -898,7 +899,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         # identical value in every record. Also note that the middle records are ignored here.
         self._check_output_by_key(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.VIDEO_DURATION: 14,
                 UsageColumns.USERS_AT_START: 2,
                 UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 0,
@@ -906,7 +907,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 UsageColumns.NUM_VIEWS: 3,
             },
             {
-                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.VIDEO_DURATION: 14,
                 UsageColumns.USERS_AT_START: 2,
                 UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 1,
@@ -914,7 +915,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 UsageColumns.NUM_VIEWS: 2,
             },
             {
-                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.VIDEO_DURATION: 14,
                 UsageColumns.USERS_AT_START: 2,
                 UsageColumns.USERS_AT_END: 2,
                 UsageColumns.SEGMENT: 2,
@@ -991,14 +992,28 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
             }
         ])
 
-    def test_an_unknown_durations(self):
+    def test_unknown_duration(self):
+        # Duration is always set now.
         inputs = [
-            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
-            ('foo', 0, 1, 50),
+            ('foo', 0, 4, VIDEO_UNKNOWN_DURATION),
+            ('foo', 5, 9, VIDEO_UNKNOWN_DURATION),
+            ('foo', 12, 16, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_key(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: '\\N',
+                UsageColumns.VIDEO_DURATION: 19,
+                UsageColumns.USERS_AT_END: 1,
+            },
+            {
+                UsageColumns.VIDEO_DURATION: 19,
+                UsageColumns.USERS_AT_END: 1,
+            },
+            {
+                UsageColumns.VIDEO_DURATION: 19,
+                UsageColumns.USERS_AT_END: 1,
+            },
+            {
+                UsageColumns.VIDEO_DURATION: 19,
                 UsageColumns.USERS_AT_END: 1,
             }
         ])
@@ -1013,3 +1028,114 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
                 UsageColumns.USERS_AT_END: 1,
             }
         ])
+
+    def test_num_users_at_end(self):
+        inputs = [
+            ('foo', 0, 4, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 0, 4, VIDEO_UNKNOWN_DURATION),
+            ('foo3', 0, 4, VIDEO_UNKNOWN_DURATION),
+
+            ('foo', 91, 98, VIDEO_UNKNOWN_DURATION),
+            ('foo2', 92, 95, VIDEO_UNKNOWN_DURATION),
+            ('foo3', 90, 99, VIDEO_UNKNOWN_DURATION),
+
+            ('foo1', 100, 103, VIDEO_UNKNOWN_DURATION),
+        ]
+        self._check_output_by_key(inputs, [
+            {
+                UsageColumns.SEGMENT: 0,
+                UsageColumns.VIDEO_DURATION: 104,
+                UsageColumns.USERS_AT_START: 3,
+                UsageColumns.USERS_AT_END: 3,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+            {
+                UsageColumns.SEGMENT: 18,
+                UsageColumns.VIDEO_DURATION: 104,
+                UsageColumns.USERS_AT_START: 3,
+                UsageColumns.USERS_AT_END: 3,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+            {
+                UsageColumns.SEGMENT: 19,
+                UsageColumns.VIDEO_DURATION: 104,
+                UsageColumns.USERS_AT_START: 3,
+                UsageColumns.USERS_AT_END: 3,
+                UsageColumns.NUM_VIEWS: 3,
+            },
+            # Even though segment 20 is viewed by one user, users_at_end would still be 3 as we consider
+            # end time to be before the very end
+            {
+                UsageColumns.SEGMENT: 20,
+                UsageColumns.VIDEO_DURATION: 104,
+                UsageColumns.USERS_AT_START: 3,
+                UsageColumns.USERS_AT_END: 3,
+                UsageColumns.NUM_VIEWS: 1,
+            },
+        ])
+
+
+@ddt
+class GetFinalSegmentTest(unittest.TestCase):
+    """Test video task's get_final_segment calculation."""
+
+    def setUp(self):
+        self.task = VideoUsageTask(interval=sentinel.ignored, output_root=sentinel.ignored)
+        self.usage_map = self.generate_usage_map(20)
+
+    def generate_segment(self, num_users, num_views):
+        """Constructs an entry for a video segment."""
+        return {
+            'users': ['user{}'.format(i) for i in range(num_users)],
+            'views': num_views
+        }
+
+    def generate_usage_map(self, num_segments):
+        """Constructs a default usage_map, with constant users and views."""
+        usage_map = {}
+        for i in range(num_segments):
+            usage_map[i] = self.generate_segment(20, 20)
+        return usage_map
+
+    @data(
+        (15, 25, 14),
+        (20, 30, 19),
+    )
+    @unpack
+    def test_with_sudden_dropoff(self, start, end, result):
+        """Sharp drop-off in num_users(20 to 1), triggers the cutoff"""
+        for i in range(start, end):
+            self.usage_map[i] = self.generate_segment(1, 1)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), result)
+
+    def test_without_dropoff(self):
+        """No dropoff"""
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 19)
+
+    def test_with_gradual_dropoff(self):
+        """Gradual dropoff of num_users, does not trigger the cutoff"""
+        for i, j in zip(range(20, 39), range(19, 0, -1)):
+            self.usage_map[i] = self.generate_segment(j, j)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 38)
+
+    def test_with_dropoff_no_cutoff(self):
+        """Drop-off from 20 to 2 num_users, however, cutoff won't trigger as it does not meet the threshold."""
+        self.usage_map[30] = self.generate_segment(2, 2)
+        self.assertEqual(self.task.get_final_segment(self.usage_map), 30)
+
+
+@ddt
+class CompleteEndSegmentTest(unittest.TestCase):
+    """Test video task's complete_end_segment calculation."""
+
+    def setUp(self):
+        self.task = VideoUsageTask(interval=sentinel.ignored, output_root=sentinel.ignored)
+
+    @data(
+        (10, 1),     # segment calculated from duration * 0.95
+        (100, 19),   # segment calculated from duration * 0.95
+        (650, 124),  # segment calculated from duration - 30
+    )
+    @unpack
+    def test_complete_end_segment(self, duration, expected_segment):
+        self.assertEqual(self.task.complete_end_segment(duration), expected_segment)

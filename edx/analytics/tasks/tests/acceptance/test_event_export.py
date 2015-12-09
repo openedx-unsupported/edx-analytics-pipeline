@@ -15,6 +15,7 @@ from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
 from edx.analytics.tasks.url import url_path_join
 
+from edx.analytics.tasks.s3_util import get_file_from_key
 
 log = logging.getLogger(__name__)
 
@@ -135,20 +136,10 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
 
         remote_url = url_path_join(self.test_out, org_id, site, "events", year, local_file_name + '.gz.gpg')
 
-        # Files won't appear in S3 instantaneously, wait for the files to appear.
-        # TODO: exponential backoff
-        for _index in range(30):
-            key = self.s3_client.get_key(remote_url)
-            if key is not None:
-                break
-            else:
-                time.sleep(2)
+        downloaded_output_path = get_file_from_key(self.s3_client, remote_url, self.downloaded_outputs)
 
-        if key is None:
+        if downloaded_output_path is None:
             self.fail('Unable to find expected output file {0}'.format(remote_url))
-
-        downloaded_output_path = os.path.join(self.downloaded_outputs, remote_url.split('/')[-1])
-        key.get_contents_to_filename(downloaded_output_path)
 
         # first decrypt file
         decrypted_file_name = downloaded_output_path[:-len('.gpg')]

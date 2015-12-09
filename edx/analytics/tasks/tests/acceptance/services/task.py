@@ -43,7 +43,6 @@ class TaskService(object):
 
             command = [
                 os.getenv('REMOTE_TASK'),
-                '--job-flow-name', self.config.get('job_flow_name'),
                 '--branch', self.config.get('tasks_branch'),
                 '--repo', self.config.get('tasks_repo'),
                 '--remote-name', self.identifier,
@@ -52,6 +51,14 @@ class TaskService(object):
                 '--user', self.config.get('connection_user'),
                 '--override-config', temp_config_file.name,
             ]
+
+            if 'job_flow_name' in self.config:
+                command.extend(['--job-flow-name', self.config['job_flow_name']])
+            elif 'host' in self.config:
+                command.extend(['--host', self.config['host']])
+
+            if 'wheel_url' in self.config:
+                command.extend(['--wheel-url', self.config['wheel_url']])
 
             command.extend(task_args)
             command.append('--local-scheduler')
@@ -72,6 +79,9 @@ class TaskService(object):
 
     def override_config(self, config_parser, overrides):
         for section_name, section in overrides.iteritems():
+            if not config_parser.has_section(section_name):
+                config_parser.add_section(section_name)
+
             for key, value in section.iteritems():
                 config_parser.set(section_name, key, value)
 

@@ -4,6 +4,7 @@ Utility methods for interacting with S3 via boto.
 import os
 import math
 import logging
+import time
 
 from fnmatch import fnmatch
 from urlparse import urlparse
@@ -35,6 +36,27 @@ MINIMUM_BYTES_PER_CHUNK = 5242880
 DEFAULT_KEY_ACCESS_POLICY = 'bucket-owner-full-control'
 
 
+def get_file_from_key(s3_client, url, output_path):
+    """Downloads a file from a given S3 URL to the output_path."""
+    # Files won't appear in S3 instantaneously, wait for the files to appear.
+    # TODO: exponential backoff
+    for _index in range(30):
+        key = s3_client.get_key(url)
+        if key is not None:
+            break
+        else:
+            time.sleep(2)
+
+    if key is None:
+        log.error("Unable to find expected output file %s", url)
+        return None
+
+    downloaded_output_path = os.path.join(output_path, url.split('/')[-1])
+    key.get_contents_to_filename(downloaded_output_path)
+
+    return downloaded_output_path
+
+
 def get_s3_bucket_key_names(url):
     """Extract the bucket and key names from a S3 URL"""
     parts = urlparse(url)
@@ -54,7 +76,7 @@ def get_s3_key(s3_conn, url):
     return key
 
 
-def generate_s3_sources(s3_conn, source, patterns):
+def generate_s3_sources(s3_conn, source, patterns=['*']):
     """
     Returns a list of S3 sources that match filters.
 

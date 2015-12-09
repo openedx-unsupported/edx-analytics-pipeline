@@ -4,6 +4,7 @@ import datetime
 
 import luigi
 
+
 class MapperTestMixin(object):
     """
     Base class for map function tests.
@@ -20,6 +21,7 @@ class MapperTestMixin(object):
         'interval': DEFAULT_DATE,
         'output_root': '/fake/output',
         'end_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'import_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'geolocation_data': 'test://data/data.file',
         'mapreduce_engine': 'local',
         'user_country_output': 'test://output/',
@@ -42,10 +44,14 @@ class MapperTestMixin(object):
         """Allow arguments to be passed to the task constructor."""
 
         new_kwargs = {}
-        for attr in self.DEFAULT_ARGS:
+
+        merged_arguments = self.DEFAULT_ARGS.copy()
+        merged_arguments.update(kwargs)
+
+        for attr in merged_arguments:
             if not hasattr(self.task_class, attr):
                 continue
-            value = kwargs.get(attr, self.DEFAULT_ARGS.get(attr))
+            value = merged_arguments.get(attr)
             if attr == 'interval':
                 new_kwargs[attr] = luigi.DateIntervalParameter().parse(value)
             else:
@@ -68,13 +74,18 @@ class MapperTestMixin(object):
 
     def assert_single_map_output(self, line, expected_key, expected_value):
         """Assert that an input line generates exactly one output record with the expected key and value"""
+        self.assert_map_output(line, [(expected_key, expected_value)])
+
+    def assert_map_output(self, line, expected_key_value_pairs):
+        """Assert that an input line generates the expected key value pairs"""
         mapper_output = tuple(self.task.mapper(line))
-        self.assertEquals(len(mapper_output), 1)
-        row = mapper_output[0]
-        self.assertEquals(len(row), 2)
-        actual_key, actual_value = row
-        self.assertEquals(expected_key, actual_key)
-        self.assertEquals(expected_value, actual_value)
+        mapper_output_list = list(mapper_output)
+        self.assertEqual(len(mapper_output_list), len(expected_key_value_pairs))
+        for i, row in enumerate(mapper_output):
+            self.assertEquals(len(row), 2)
+            actual_key, actual_value = row
+            self.assertEquals(expected_key_value_pairs[i][0], actual_key)
+            self.assertEquals(expected_key_value_pairs[i][1], actual_value)
 
     def assert_single_map_output_load_jsons(self, line, expected_key, expected_value):
         """
@@ -127,12 +138,14 @@ class ReducerTestMixin(object):
         'interval': DATE,
         'output_root': '/fake/output',
         'end_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'import_date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'geolocation_data': 'test://data/data.file',
         'mapreduce_engine': 'local',
         'user_country_output': 'test://output/',
         'name': 'test',
         'src': ['test://input/'],
-        'dest': 'test://output/'
+        'dest': 'test://output/',
+        'date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
     }
 
     reduce_key = tuple()
@@ -142,7 +155,7 @@ class ReducerTestMixin(object):
 
         new_kwargs = {}
         for attr in self.DEFAULT_ARGS:
-            if not hasattr(self.task_class, attr):
+            if getattr(self.task_class, attr, None) is None:
                 continue
             value = getattr(self, attr, self.DEFAULT_ARGS.get(attr))
             if attr == 'interval':

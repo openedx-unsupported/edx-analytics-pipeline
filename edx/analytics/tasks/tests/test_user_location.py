@@ -235,7 +235,7 @@ class UsersPerCountryReportTestCase(unittest.TestCase):
             """Reformat string to make it like a TSV."""
             return textwrap.dedent(string).strip().replace(' ', '\t')
 
-        task.input = MagicMock(return_value=FakeTarget(reformat(counts)))
+        task.input = MagicMock(return_value=FakeTarget(value=reformat(counts)))
         output_target = FakeTarget()
         task.output = MagicMock(return_value=output_target)
 

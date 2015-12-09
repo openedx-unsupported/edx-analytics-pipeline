@@ -17,10 +17,8 @@ class HiveService(object):
         return self.task.launch([
             '--user', self.config['connection_user'],
             '--sudo-user', self.config['hive_user'],
-            '--job-flow-name', self.config['job_flow_name'],
-            '--shell', ". /home/{user}/.bashrc && hive --service cli{db} -e \"{stmt}\"".format(
+            '--shell', ". $HOME/.bashrc && hive --service cli{db} -e \"{stmt}\"".format(
                 db=db_parameter,
-                user=self.config['hive_user'],
                 stmt=statement
             ),
         ])

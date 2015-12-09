@@ -11,7 +11,16 @@ class FakeTarget(object):
     Fake luigi like target that saves data in memory, using a
     StringIO buffer.
     """
-    def __init__(self, value=''):
+    def __init__(self, path=None, value=''):
+        self.value = value
+        self.path = path
+
+    @property
+    def value(self):
+        return self.buffer.getvalue()
+
+    @value.setter
+    def value(self, value):
         self.buffer = StringIO(value)
         # Rewind the buffer head so the value can be read
         self.buffer.seek(0)
@@ -26,3 +35,6 @@ class FakeTarget(object):
             yield self.buffer
         finally:
             self.buffer.seek(0)
+
+    def exists(self):
+        return len(self.value) > 0

@@ -87,8 +87,8 @@ class VerticaCopyTaskTest(unittest.TestCase):
             source = self._get_source_string(1)
 
         fake_input = {
-            'credentials': FakeTarget(textwrap.dedent(credentials)),
-            'insert_source': FakeTarget(textwrap.dedent(source))
+            'credentials': FakeTarget(value=textwrap.dedent(credentials)),
+            'insert_source': FakeTarget(value=textwrap.dedent(source))
         }
 
         fake_output = MagicMock(return_value=self.mock_vertica_connector)
@@ -156,7 +156,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
     def _get_expected_query(self):
         """Returns query that should be generated for copying into the table."""
         query = ("COPY {schema}.dummy_table (course_id,interval_start,interval_end,label,count) "
-                 "FROM STDIN DELIMITER AS E'\t' NULL AS '\\N' DIRECT NO COMMIT;"
+                 "FROM STDIN DELIMITER AS E'\t' NULL AS '\\N' DIRECT ABORT ON ERROR NO COMMIT;"
                  .format(schema=self.create_task().schema))
         return query
 

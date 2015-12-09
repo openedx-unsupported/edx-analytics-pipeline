@@ -48,7 +48,6 @@ class TestCourseSubjects(unittest.TestCase):
 
         self.input_file = "catalog_test.json"
         with open(self.input_file, 'w') as fle:
-            # fle.write(source)
             fle.write(source.encode('utf-8'))
 
         fake_warehouse_path = self.input_dir
@@ -104,23 +103,25 @@ class TestCourseSubjects(unittest.TestCase):
         # We expect an entry in the list of courses, since there is a course in the catalog.
         self.assertEquals(data.shape[0], 1)
         # We expect nulls for the three subject data columns.
-        expected = {'course_id': 'foo',
-                    'date': '2015-06-25',
-                    'subject_uri': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'subject_language': '\N'}  # pylint: disable-msg=anomalous-unicode-escape-in-string
+        expected = {
+            'course_id': 'foo',
+            'date': '2015-06-25',
+            'subject_uri': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_language': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+        }
         self.assertTrue(self.check_subject_entry(data, 0, expected))
 
     def test_course_with_one_subject(self):
         """With a course with one subject, we expect to see that subject."""
-        input_data = {"items":
-                          [{"course_id": "foo",
-                            "subjects": [{"uri": "testing/uri",
-                                          "title": "Testing",
-                                          "language": "py"}]
-                            }
-                           ]
-                      }
+        input_data = {
+            "items": [
+                {
+                    "course_id": "foo",
+                    "subjects": [{"uri": "testing/uri", "title": "Testing", "language": "py"}]
+                }
+            ]
+        }
 
         data = self.run_task(json.dumps(input_data))
         # We expect to see this course with the mock_subject information.
@@ -131,53 +132,70 @@ class TestCourseSubjects(unittest.TestCase):
 
     def test_course_with_two_subjects(self):
         """With a course with two subjects, we expect to see both of those subjects."""
-        input_data = {"items":
-                          [{"course_id": "foo",
-                            "subjects":
-                                [{"uri": "testing/uri",
-                                  "title": "Testing",
-                                  "language": "py"},
-                                 {"uri": "bar/uri",
-                                  "title": "Bar",
-                                  "language": "py"}]
-                            }
-                           ]
-                      }
+        input_data = {
+            "items": [
+                {
+                    "course_id": "foo",
+                    "subjects": [
+                        {"uri": "testing/uri", "title": "Testing", "language": "py"},
+                        {"uri": "bar/uri", "title": "Bar", "language": "py"},
+                    ]
+                }
+            ]
+        }
 
         data = self.run_task(json.dumps(input_data))
         # We expect to see this course with two subjects of information.
         self.assertEquals(data.shape[0], 2)
-        subj1 = {'course_id': 'foo', 'subject_uri': 'testing/uri', 'date': '2015-06-25', 'subject_title': 'Testing',
-                 'subject_language': 'py'}
-        subj2 = {'course_id': 'foo', 'subject_uri': 'bar/uri', 'subject_title': 'Bar', 'date': '2015-06-25',
-                 'subject_language': 'py'}
+        subj1 = {
+            'course_id': 'foo',
+            'subject_uri': 'testing/uri',
+            'date': '2015-06-25',
+            'subject_title': 'Testing',
+            'subject_language': 'py',
+        }
+        subj2 = {
+            'course_id': 'foo',
+            'subject_uri': 'bar/uri',
+            'subject_title': 'Bar',
+            'date': '2015-06-25',
+            'subject_language': 'py'
+        }
 
         self.assertTrue(self.check_subject_entry(data, 0, subj1) or self.check_subject_entry(data, 1, subj1))
         self.assertTrue(self.check_subject_entry(data, 0, subj2) or self.check_subject_entry(data, 1, subj2))
 
     def test_multiple_courses(self):
         """With multiple courses, we expect to see subject information for all of them."""
-        input_data = {"items":
-                          [{"course_id": "foo",
-                            "subjects":
-                                [{"uri": "testing/uri",
-                                  "title": "Testing",
-                                  "language": "py"}]
-                            },
-                           {"course_id": "bar",
-                            "subjects":
-                                [{"uri": "testing/uri",
-                                  "title": "Testing",
-                                  "language": "py"}]}
-                           ]
-                      }
+        input_data = {
+            "items": [
+                {
+                    "course_id": "foo",
+                    "subjects": [{"uri": "testing/uri", "title": "Testing", "language": "py"}]
+                },
+                {
+                    "course_id": "bar",
+                    "subjects": [{"uri": "testing/uri", "title": "Testing", "language": "py"}]
+                }
+            ]
+        }
         data = self.run_task(json.dumps(input_data))
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
-        subj1 = {'course_id': 'foo', 'subject_uri': 'testing/uri', 'subject_title': 'Testing', 'date': '2015-06-25',
-                 'subject_language': 'py'}
-        subj2 = {'course_id': 'bar', 'subject_uri': 'testing/uri', 'subject_title': 'Testing', 'date': '2015-06-25',
-                 'subject_language': 'py'}
+        subj1 = {
+            'course_id': 'foo',
+            'subject_uri': 'testing/uri',
+            'subject_title': 'Testing',
+            'date': '2015-06-25',
+            'subject_language': 'py',
+        }
+        subj2 = {
+            'course_id': 'bar',
+            'subject_uri': 'testing/uri',
+            'subject_title': 'Testing',
+            'date': '2015-06-25',
+            'subject_language': 'py',
+        }
         self.assertTrue(self.check_subject_entry(data, 0, subj1) or self.check_subject_entry(data, 1, subj1))
         self.assertTrue(self.check_subject_entry(data, 0, subj2) or self.check_subject_entry(data, 1, subj2))
 
@@ -197,22 +215,25 @@ class TestCourseSubjects(unittest.TestCase):
             - no row if the course_id is missing
             - null values if portions of the subject data are missing
         """
-        input_data = {"items":
-                          [{"subjects":
-                                [{"uri": "testing/uri",
-                                  "title": "Testing",
-                                  "language": "py"}]
-                            },
-                           {"course_id": "bar",
-                            "subjects":
-                                [{"uri": "testing/uri",
-                                  "language": "py"}]}
-                           ]
-                      }
+        input_data = {
+            "items": [
+                {
+                    "subjects": [{"uri": "testing/uri", "title": "Testing", "language": "py"}]
+                },
+                {
+                    "course_id": "bar",
+                    "subjects": [{"uri": "testing/uri", "language": "py"}]
+                }
+            ]
+        }
         data = self.run_task(json.dumps(input_data))
-        expected = {'course_id': 'bar', 'date': '2015-06-25', 'subject_uri': 'testing/uri',
-                    'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-                    'subject_language': 'py'}
+        expected = {
+            'course_id': 'bar',
+            'date': '2015-06-25',
+            'subject_uri': 'testing/uri',
+            'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_language': 'py'
+        }
         # We expect only one row, a row for the course with a course_id.
         self.assertEquals(data.shape[0], 1)
         self.assertTrue(self.check_subject_entry(data, 0, expected))
@@ -222,19 +243,23 @@ class TestCourseSubjects(unittest.TestCase):
         On occasion, the course catalog will have malformed courses that are lists instead of dictionaries.
         In such situations, we want the anomalous courses to be skipped but well-formatted courses to be processed.
         """
-        input_data = {"items":
-                          [{"course_id": "foo",
-                            "subjects":
-                                [{"uri": "testing/uri",
-                                  "title": "Testing",
-                                  "language": "py"}]
-                            },
-                           []
-                           ]
-                      }
+        input_data = {
+            "items": [
+                {
+                    "course_id": "foo",
+                    "subjects": [{"uri": "testing/uri", "title": "Testing", "language": "py"}]
+                },
+                []
+            ]
+        }
         data = self.run_task(json.dumps(input_data))
-        expected = {'course_id': 'foo', 'subject_uri': 'testing/uri', 'subject_title': 'Testing', 'date': '2015-06-25',
-                    'subject_language': 'py'}
+        expected = {
+            'course_id': 'foo',
+            'subject_uri': 'testing/uri',
+            'subject_title': 'Testing',
+            'date': '2015-06-25',
+            'subject_language': 'py'
+        }
         # We expect only one row, a row for the well-formed course.
         self.assertEquals(data.shape[0], 1)
         self.assertTrue(self.check_subject_entry(data, 0, expected))

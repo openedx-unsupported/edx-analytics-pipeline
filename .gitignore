@@ -55,3 +55,7 @@ override.cfg
 
 *.trace
 .eggs
+
+*.swp
+catalog_test.json
+course_structure.json

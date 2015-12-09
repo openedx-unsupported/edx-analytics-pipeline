@@ -33,7 +33,7 @@ class VideoAcceptanceTest(AcceptanceTestCase):
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 'SELECT pipeline_video_id, course_id, encoded_module_id, duration, segment_length,'
-                ' users_at_start, users_at_end FROM video'
+                ' users_at_start, users_at_end, total_viewed_seconds FROM video'
                 ' ORDER BY pipeline_video_id ASC'
             )
             results = cursor.fetchall()
@@ -43,30 +43,34 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 'course-v1:edX+DemoX+Test_2014|0b9e39477cf34507a7a48f74be381fdd',
                 'course-v1:edX+DemoX+Test_2014',
                 '0b9e39477cf34507a7a48f74be381fdd',
-                None,
+                4,
                 5,
                 1,
                 1,
+                5,
             ),
             (
                 'edX/DemoX/Demo_Course|i4x-edX-DemoX-video-3cb54a11efae4ccc8a0aade24d14b255',
                 'edX/DemoX/Demo_Course',
                 'i4x-edX-DemoX-video-3cb54a11efae4ccc8a0aade24d14b255',
-                None,
+                24,
                 5,
                 2,
                 2,
+                60,
             ),
             (
                 'edX/DemoX/Demo_Course|i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f',
                 'edX/DemoX/Demo_Course',
                 'i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f',
-                None,
+                24,
                 5,
                 0,
                 1,
+                15,
             ),
         ]
+
         self.assertItemsEqual(expected, results)
 
     def validate_video_timeline(self):
