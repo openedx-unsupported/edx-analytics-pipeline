@@ -6,7 +6,8 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.enrollments import CourseEnrollmentTask
 import luigi
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.url import url_path_join, get_target_from_url
+
 
 class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask):
 
@@ -20,13 +21,18 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
     @property
     def insert_source_task(self):
+        self.table = "course_enrollment"
+        self.table_location=url_path_join(self.warehouse_path, self.table) + '/'
+        partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
+
         return (
-            CourseEnrollmentTask(
-                n_reduce_tasks = self.n_reduce_tasks,
-                interval = self.interval,
-                output_root = url_path_join(self.warehouse_path, 'course_enrollment/'),
-                #overwrite = self.overwrite
-            )
+            get_target_from_url(partition_location)
+            # CourseEnrollmentTask(
+            #     n_reduce_tasks = self.n_reduce_tasks,
+            #     interval = self.interval,
+            #     output_root = url_path_join(self.warehouse_path, 'course_enrollment/'),
+            #     #overwrite = self.overwrite
+            # )
         )
 
     @property
@@ -40,7 +46,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
             ('date', 'DATE'),
             ('course_id', 'VARCHAR(200)'),
             ('user_id', 'INTEGER'),
-            ('enrollment_is_active', 'VARCHAR(45)'),
+            ('enrollment_is_active', 'INTEGER'),
             ('enrollment_change', 'INTEGER'),
             ('enrollment_mode', 'VARCHAR(100)')
         ]
