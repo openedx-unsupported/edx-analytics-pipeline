@@ -29,9 +29,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
         log.debug(partition_location)
         return (
             TaskForReturningOutputTarget(
-                self.warehouse_path,
-                self.table_location,
-                self.partition.path_spec
+                partition_location
             )
             # CourseEnrollmentTask(
             #     n_reduce_tasks = self.n_reduce_tasks,
@@ -68,8 +66,9 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
 #TODO: If this works then give a name to this class
 class TaskForReturningOutputTarget(luigi.Task):
+
+    def __init__(self,url):
+        self.partition_location = url
+
     def output(self):
-        self.hive_table = "course_enrollment"
-        self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
-        partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
-        return partition_location
+        return self.partition_location
