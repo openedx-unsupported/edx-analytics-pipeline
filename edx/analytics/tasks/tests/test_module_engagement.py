@@ -626,16 +626,16 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
                     'test_user',
                     '2014-03-25',
                     '2014-04-01',
-                    'highly_engaged',
-                    'problems_attempted'
+                    'struggling',
+                    'problem_attempts_per_completion'
                 ),
                 (
                     'foo/bar/baz',
                     'test_user',
                     '2014-03-25',
                     '2014-04-01',
-                    'struggling',
-                    'problem_attempts_per_completion'
+                    'highly_engaged',
+                    'problems_attempted'
                 ),
             )
         )

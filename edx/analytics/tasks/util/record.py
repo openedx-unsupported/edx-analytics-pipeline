@@ -332,6 +332,17 @@ class Record(object):
             schema.append((field_name, field_obj.hive_type))
         return schema
 
+    @classmethod
+    def get_elasticsearch_properties(cls):
+        properties = {}
+        for field_name, field_obj in cls.get_fields().items():
+            properties[field_name] = {
+                'type': field_obj.elasticsearch_type
+            }
+            if not getattr(field_obj, 'analyzed', False):
+                properties[field_name]['index'] = 'not_analyzed'
+        return properties
+
 
 class Field(object):
     """
@@ -346,6 +357,9 @@ class Field(object):
 
     def __init__(self, **kwargs):
         self.nullable = kwargs.pop('nullable', True)
+
+        for key, value in kwargs.items():
+            setattr(self, key, value)
 
         # This counter lets us "see" the order in which the class member variables appear in the class they are declared
         # in. Sorting by this counter will allow us to order them appropriately. Note that this isn't atomic and has
@@ -398,15 +412,21 @@ class Field(object):
         """Returns the HiveQL data type for this type of field."""
         raise NotImplementedError
 
+    @property
+    def elasticsearch_type(self):
+        raise NotImplementedError
+
 
 class StringField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a relatively short string."""
 
     hive_type = 'STRING'
+    elasticsearch_type = 'string'
 
     def __init__(self, **kwargs):
         super(StringField, self).__init__(**kwargs)
-        self.length = kwargs.pop('length', None)
+        if not hasattr(self, 'length'):
+            self.length = None
         if self.length is not None and self.length == 0:
             raise ValueError('Length must be greater than 0')
 
@@ -431,6 +451,7 @@ class IntegerField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains an integer."""
 
     hive_type = sql_base_type = 'INT'
+    elasticsearch_type = 'integer'
 
     def validate(self, value):
         validation_errors = super(IntegerField, self).validate(value)
@@ -447,6 +468,7 @@ class DateField(Field):  # pylint: disable=abstract-method
 
     hive_type = 'STRING'
     sql_base_type = 'DATE'
+    elasticsearch_type = 'date'
 
     def validate(self, value):
         validation_errors = super(DateField, self).validate(value)
@@ -462,6 +484,7 @@ class FloatField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a floating point number."""
 
     hive_type = sql_base_type = 'FLOAT'
+    elasticsearch_type = 'float'
 
     def validate(self, value):
         validation_errors = super(FloatField, self).validate(value)

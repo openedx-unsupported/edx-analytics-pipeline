@@ -2,24 +2,30 @@
 from collections import defaultdict
 import datetime
 import logging
-from operator import attrgetter
+import random
 
 import luigi
 import luigi.task
 from luigi import date_interval
 from luigi.configuration import get_config
+from edx.analytics.tasks.calendar_task import CalendarTableTask
+from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
+    ImportAuthUserProfileTask
+from edx.analytics.tasks.database_imports import ImportCourseUserGroupTask
+from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask
+from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.url import get_target_from_url, ExternalURL
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
 
 from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask
-)
+    WarehouseMixin, BareHiveTableTask, HivePartitionTask,
+    hive_database_name)
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
 
 log = logging.getLogger(__name__)
@@ -373,20 +379,6 @@ class ModuleEngagementIntervalTask(
             yield partition_task.data_task
 
 
-class MetricIntegerField(IntegerField):  # pylint: disable=abstract-method
-    """
-    When analyzing engagement summaries, some fields are metrics that can be treated in much the same way.
-
-    Other fields are just metadata, we use this custom field type to distinguish between the two classes of fields.
-    """
-    is_metric = True
-
-
-class MetricFloatField(FloatField):  # pylint: disable=abstract-method
-    """See MetricIntegerField"""
-    is_metric = True
-
-
 class ModuleEngagementSummaryRecord(Record):
     """
     Summarizes a user's engagement with a particular course on a particular day with simple counts of activity.
@@ -396,12 +388,12 @@ class ModuleEngagementSummaryRecord(Record):
     username = StringField()
     start_date = DateField()
     end_date = DateField()
-    problem_attempts = MetricIntegerField()
-    problems_attempted = MetricIntegerField()
-    problems_completed = MetricIntegerField()
-    problem_attempts_per_completion = MetricFloatField()
-    videos_viewed = MetricIntegerField()
-    discussions_contributed = MetricIntegerField()
+    problem_attempts = IntegerField(is_metric=True)
+    problems_attempted = IntegerField(is_metric=True)
+    problems_completed = IntegerField(is_metric=True)
+    problem_attempts_per_completion = FloatField(is_metric=True)
+    videos_viewed = IntegerField(is_metric=True)
+    discussions_contributed = IntegerField(is_metric=True)
     days_active = IntegerField()
 
     def get_metrics(self):
@@ -508,15 +500,12 @@ class ModuleEngagementSummaryDataTask(
         """
         The ratio of attempts per correct problem submission is an indicator of how much a student is struggling.
 
-        If a student has performed many attempts but not completed *any* problems successfully, a value of float('inf')
-        is returned.
+        If a student has not completed any problems a value of float('inf') is returned.
         """
         if num_problems_completed > 0:
             attempts_per_completion = float(num_problem_attempts) / num_problems_completed
-        elif num_problem_attempts > 0:
+        else:
             attempts_per_completion = float('inf')
-        else:  # both are 0
-            attempts_per_completion = float(0)
         return attempts_per_completion
 
     def output(self):
@@ -648,7 +637,7 @@ class ModuleEngagementSummaryMetricRangesDataTask(
                     # look like doing *anything* in the course meant you were doing really well.
                     metric_values[metric].append(value)
 
-        for metric, values in metric_values.items():
+        for metric in sorted(metric_values):
             values = metric_values[metric]
             range_values = numpy.percentile(  # pylint: disable=no-member
                 values, [0.0, self.low_percentile, self.high_percentile, 100.0]
@@ -770,7 +759,6 @@ class ModuleEngagementUserSegmentRecord(Record):
     reason = StringField()
 
 
-SEGMENT_DISENGAGING = 'disengaging'
 SEGMENT_HIGHLY_ENGAGED = 'highly_engaged'
 SEGMENT_STRUGGLING = 'struggling'
 
@@ -785,9 +773,8 @@ class ModuleEngagementUserSegmentDataTask(
     list of segments. Some segments are based on the absence of activity data, which cannot be computed here since this
     job only reads records for users that performed *some* activity in the course.
 
-    Looks at the last 2 weeks of activity summary records for each user and assigns the following segments:
+    Looks at the last week of activity summary records for each user and assigns the following segments:
 
-        disengaging: The user performed an action in the last 14 days, but no actions in the most recent 7 days.
         struggling: The user has a value for problem_attempts_per_completion that is in the top 15% of all non-zero
             values.
         highly_engaged: The user is in the top 15% for any of the metrics except problem_attempts
@@ -805,13 +792,10 @@ class ModuleEngagementUserSegmentDataTask(
         ).data_task
 
     def requires_hadoop(self):
-        # The hadoop job reads the last two weeks of summary data. This will result in up to 2 records per user-course
-        # combo. One for each week they were active.
-        for i in range(2):
-            yield ModuleEngagementSummaryPartitionTask(
-                date=(self.date - datetime.timedelta(weeks=i)),
-                n_reduce_tasks=self.n_reduce_tasks,
-            ).data_task
+        yield ModuleEngagementSummaryPartitionTask(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+        ).data_task
 
     def init_local(self):
         super(ModuleEngagementUserSegmentDataTask, self).init_local()
@@ -835,38 +819,26 @@ class ModuleEngagementUserSegmentDataTask(
 
         records = [ModuleEngagementSummaryRecord.from_tsv(line) for line in lines]
 
-        # There will either be 1 or 2 records. If there is only 1, then it will either be for the most recent 7 days or
-        # the 7 days before them.
-        sorted_records = sorted(records, key=attrgetter('end_date'))
-        num_records = len(sorted_records)
-
         # Maps segment names to a set of "reasons" that tell why the user was placed in that segment
         segments = defaultdict(set)
-        last_week_date = self.date - datetime.timedelta(weeks=1)
-        if num_records == 1 and sorted_records[0].end_date == last_week_date:
-            # There is only one record, and it is for the week ending 7 days ago, so the user was active in that week
-            # and has not been active in the last 7 days or else a second record would be be available here.
-            segments[SEGMENT_DISENGAGING].add('')
-        else:
-            # Either the user has been active both weeks, or they have only been active in the most recent week.
-            most_recent_summary = sorted_records[-1]
-            for metric, value in most_recent_summary.get_metrics():
-                high_metric_range = self.high_metric_ranges.get(course_id, {}).get(metric)
-                if high_metric_range is None or metric == 'problem_attempts':
-                    continue
+        most_recent_summary = records[-1]
+        for metric, value in most_recent_summary.get_metrics():
+            high_metric_range = self.high_metric_ranges.get(course_id, {}).get(metric)
+            if high_metric_range is None or metric == 'problem_attempts':
+                continue
 
-                # Typically a left-closed interval, however, we consider infinite values to be included in the interval
-                # if the upper bound is infinite.
-                value_less_than_high = (
-                    (value < high_metric_range.high_value)
-                    or (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
-                )
-                if (high_metric_range.low_value <= value) and value_less_than_high:
-                    if metric == 'problem_attempts_per_completion':
-                        # A high value for this metric actually indicates a struggling student
-                        segments[SEGMENT_STRUGGLING].add(metric)
-                    else:
-                        segments[SEGMENT_HIGHLY_ENGAGED].add(metric)
+            # Typically a left-closed interval, however, we consider infinite values to be included in the interval
+            # if the upper bound is infinite.
+            value_less_than_high = (
+                (value < high_metric_range.high_value)
+                or (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
+            )
+            if (high_metric_range.low_value <= value) and value_less_than_high:
+                if metric == 'problem_attempts_per_completion':
+                    # A high value for this metric actually indicates a struggling student
+                    segments[SEGMENT_STRUGGLING].add(metric)
+                else:
+                    segments[SEGMENT_HIGHLY_ENGAGED].add(metric)
 
         for segment in sorted(segments):
             yield ModuleEngagementUserSegmentRecord(
@@ -875,7 +847,7 @@ class ModuleEngagementUserSegmentDataTask(
                 start_date=records[0].start_date,
                 end_date=records[0].end_date,
                 segment=segment,
-                reason=', '.join(segments[segment])
+                reason=','.join(segments[segment])
             ).to_string_tuple()
 
     def output(self):
@@ -925,3 +897,280 @@ class ModuleEngagementUserSegmentPartitionTask(
             n_reduce_tasks=self.n_reduce_tasks,
             output_root=self.partition_location,
         )
+
+
+class ModuleEngagementRosterRecord(Record):
+    course_id = StringField()
+    username = StringField()
+    start_date = DateField()
+    end_date = DateField()
+    email = StringField()
+    name = StringField(analyzed=True)
+    enrollment_mode = StringField()
+    enrollment_date = DateField()
+    cohort = StringField()
+    problem_attempts = IntegerField()
+    problems_attempted = IntegerField()
+    problems_completed = IntegerField()
+    problem_attempts_per_completion = FloatField()
+    videos_viewed = IntegerField()
+    discussions_contributed = IntegerField()
+    segments = StringField(analyzed=True)
+    attempt_ratio_order = IntegerField()
+
+
+class ModuleEngagementRosterTableTask(BareHiveTableTask):
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'module_engagement_roster'
+
+    @property
+    def columns(self):
+        return ModuleEngagementRosterRecord.get_hive_schema()
+
+
+class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, OptionalVerticaMixin, HivePartitionTask):
+
+    date = luigi.DateParameter()
+    interval = None
+    partition_value = None
+
+    def __init__(self, *args, **kwargs):
+        super(ModuleEngagementRosterPartitionTask, self).__init__(*args, **kwargs)
+
+        start_date = self.date - datetime.timedelta(weeks=1)
+        self.interval = date_interval.Custom(start_date, self.date)
+        self.partition_value = self.date.isoformat()
+
+    def query(self):
+        # Join with calendar data only if calculating weekly engagement.
+        last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
+        iso_weekday = last_complete_date.isoweekday()
+
+        query = """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+        SELECT
+            ce.course_id,
+            au.username,
+            '{start}',
+            '{end}',
+            au.email,
+            regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', ''),
+            ce.mode,
+            lce.last_enrollment_date,
+            cohort.name,
+            COALESCE(eng.problem_attempts, 0),
+            COALESCE(eng.problems_attempted, 0),
+            COALESCE(eng.problems_completed, 0),
+            eng.problem_attempts_per_completion,
+            COALESCE(eng.videos_viewed, 0),
+            COALESCE(eng.discussions_contributed, 0),
+            CONCAT_WS(
+                ",",
+                IF(ce.at_end = 0, "unenrolled", NULL),
+                IF(COALESCE(old_eng.days_active, 0) = 0 AND COALESCE(eng.days_active, 0) = 0, "inactive", NULL),
+                IF(COALESCE(old_eng.days_active, 0) > 0 AND COALESCE(eng.days_active, 0) = 0, "disengaging", NULL),
+                seg.segments
+            ),
+            IF(
+                eng.problem_attempts_per_completion > 1 OR eng.problem_attempts_per_completion IS NULL,
+                COALESCE(eng.problem_attempts, 0),
+                -COALESCE(eng.problem_attempts, 0)
+            )
+        FROM course_enrollment ce
+        INNER JOIN calendar cal ON (ce.date = cal.date)
+        INNER JOIN auth_user au
+            ON (ce.user_id = au.id)
+        INNER JOIN auth_userprofile aup
+            ON (au.id = aup.user_id)
+        LEFT OUTER JOIN (
+            SELECT
+                cugu.user_id,
+                cug.course_id,
+                cug.name
+            FROM course_groups_courseusergroup_users cugu
+            INNER JOIN course_groups_courseusergroup cug
+                ON (cugu.courseusergroup_id = cug.id)
+        ) cohort
+            ON (au.id = cohort.user_id AND ce.course_id = cohort.course_id)
+        LEFT OUTER JOIN module_engagement_summary eng
+            ON (ce.course_id = eng.course_id AND au.username = eng.username AND eng.end_date = '{end}')
+        LEFT OUTER JOIN module_engagement_summary old_eng
+            ON (ce.course_id = old_eng.course_id AND au.username = old_eng.username AND old_eng.end_date = DATE_SUB('{end}', 7))
+        LEFT OUTER JOIN (
+            SELECT
+                course_id,
+                user_id,
+                MAX(date) AS last_enrollment_date
+            FROM course_enrollment
+            WHERE
+                at_end = 1 AND date < '{end}'
+            GROUP BY course_id, user_id
+        ) lce
+            ON (ce.course_id = lce.course_id AND ce.user_id = lce.user_id)
+        LEFT OUTER JOIN (
+            SELECT
+                course_id,
+                username,
+                CONCAT_WS(",", COLLECT_SET(segment)) AS segments
+            FROM module_engagement_user_segments
+            WHERE end_date = '{end}'
+            GROUP BY course_id, username
+        ) seg
+            ON (ce.course_id = seg.course_id AND au.username = seg.username)
+        WHERE
+            ce.date >= '{start}'
+            AND ce.date < '{end}'
+            AND cal.iso_weekday = {iso_weekday}
+        """.format(
+            start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
+            end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
+            iso_weekday=iso_weekday,
+            partition=self.partition,
+            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
+            database_name=hive_database_name(),
+            table=self.hive_table_task.table,
+        )
+        return query
+
+    @property
+    def hive_table_task(self):
+        return ModuleEngagementRosterTableTask(
+            warehouse_path=self.warehouse_path,
+        )
+
+    def requires(self):
+        kwargs_for_db_import = {
+            'overwrite': self.overwrite,
+            'import_date': self.date
+        }
+        yield (
+            self.hive_table_task,
+            ModuleEngagementUserSegmentPartitionTask(
+                date=self.date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=self.overwrite,
+            ),
+            ModuleEngagementSummaryPartitionTask(
+                date=self.date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=self.overwrite,
+            ),
+            ModuleEngagementSummaryPartitionTask(
+                date=(self.date - datetime.timedelta(weeks=1)),
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=self.overwrite,
+            ),
+            CourseEnrollmentTableTask(
+                interval_end=self.date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=self.overwrite,
+            ),
+            CalendarTableTask(),
+            ImportAuthUserTask(**kwargs_for_db_import),
+            ImportCourseUserGroupTask(**kwargs_for_db_import),
+            ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
+            ImportAuthUserProfileTask(**kwargs_for_db_import),
+        )
+
+
+class ModuleEngagementRosterIndexTask(
+    ModuleEngagementDownstreamMixin,
+    OptionalVerticaMixin,
+    ElasticsearchIndexTask
+):
+    index = luigi.Parameter(
+        config_path={'section': 'module-engagement', 'name': 'index'}
+    )
+    number_of_shards = luigi.Parameter(
+        config_path={'section': 'module-engagement', 'name': 'number_of_shards'}
+    )
+    obfuscate = luigi.BooleanParameter(default=False)
+    scale_factor = luigi.IntParameter(default=1)
+
+    def __init__(self, *args, **kwargs):
+        super(ModuleEngagementRosterIndexTask, self).__init__(*args, **kwargs)
+
+        self.other_reduce_tasks = self.n_reduce_tasks
+        if self.indexing_tasks is not None:
+            self.n_reduce_tasks = self.indexing_tasks
+
+    @property
+    def partition_task(self):
+        return ModuleEngagementRosterPartitionTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.other_reduce_tasks,
+            overwrite=self.overwrite,
+            date=self.date,
+        )
+
+    def requires_local(self):
+        return self.partition_task
+
+    def input_hadoop(self):
+        return get_target_from_url(self.partition_task.partition_location)
+
+    @property
+    def properties(self):
+        return ModuleEngagementRosterRecord.get_elasticsearch_properties()
+
+    @property
+    def doc_type(self):
+        return 'roster_entry'
+
+    def document_generator(self, lines):
+        for line in lines:
+            record = ModuleEngagementRosterRecord.from_tsv(line)
+
+            if self.obfuscate:
+                import names
+                email = '{0}@example.com'.format(record.username)
+                n = random.randrange(5)
+                if n == 0:
+                    gender = random.choice(('male', 'female'))
+                    name = '{0} {1} {2}'.format(
+                        names.get_first_name(gender, cached=True),
+                        names.get_first_name(gender, cached=True),
+                        names.get_last_name(cached=True)
+                    )
+                else:
+                    name = names.get_full_name(cached=True)
+            else:
+                email = record.email
+                name = record.name
+
+            document = {
+                '_id': '|'.join([record.course_id, record.username]),
+                '_source': {
+                    'name': name,
+                    'email': email,
+                }
+            }
+
+            for maybe_null_field in ModuleEngagementRosterRecord.get_fields():
+                if maybe_null_field in ('name', 'email'):
+                    continue
+                maybe_null_value = getattr(record, maybe_null_field)
+                if maybe_null_value is not None and maybe_null_field != float('inf'):
+                    document['_source'][maybe_null_field] = maybe_null_value
+
+            original_id = document['_id']
+            for i in range(self.scale_factor):
+                if i > 0:
+                    document['_id'] = original_id + '|' + str(i)
+                yield document
+
+    def extra_modules(self):
+        packages = super(ModuleEngagementRosterIndexTask, self).extra_modules()
+
+        if self.obfuscate:
+            import names
+            packages.append(names)
+
+        return packages

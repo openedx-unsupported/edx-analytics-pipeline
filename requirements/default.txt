@@ -3,6 +3,7 @@ argparse==1.2.1 	# Python Software Foundation License
 cffi==1.1.0             # MIT
 ciso8601==1.0.1         # MIT
 cryptography==0.9       # BSD or Apache 2.0
+elasticsearch==1.7.0    # Apache
 enum34==1.0.4           # BSD
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT
@@ -36,3 +37,4 @@ pip==1.5.6
 git+https://github.com/edx/luigi.git@v1.0.17-fork.edx.1#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/opaque-keys.git@9f07da1abf699d10bc3252d3081017e8aa37c302#egg=opaque-keys
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
+git+https://github.com/juiceinc/names.git@b367ab976ebce7d1298d6ca4453163dce6be07dd#egg=names
