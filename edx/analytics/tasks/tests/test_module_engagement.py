@@ -148,7 +148,7 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
     def test_play_video(self):
         self.assert_single_map_output(
             json.dumps(self.event_templates['play_video']),
-            self.get_expected_output_key('video', self.video_id, 'played'),
+            self.get_expected_output_key('video', self.video_id, 'viewed'),
             1
         )
 
@@ -158,9 +158,9 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         self.assert_no_map_output_for(self.create_event_log_line(template=template))
 
     @data(
-        ('edx.forum.comment.created', 'commented'),
-        ('edx.forum.response.created', 'responded'),
-        ('edx.forum.thread.created', 'created'),
+        ('edx.forum.comment.created', 'contributed'),
+        ('edx.forum.response.created', 'contributed'),
+        ('edx.forum.thread.created', 'contributed'),
     )
     @unpack
     def test_forum_posting_events(self, event_type, expected_action):
@@ -169,7 +169,7 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, un
         template['name'] = event_type
         self.assert_single_map_output(
             json.dumps(template),
-            self.get_expected_output_key('forum', self.forum_id, expected_action),
+            self.get_expected_output_key('discussion', self.forum_id, expected_action),
             1
         )
 
@@ -261,12 +261,12 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
         self.video_play_record = self.input_record.replace(
             entity_type='video',
             entity_id='foox-video1',
-            event='played',
+            event='viewed',
         )
         self.forum_record = self.input_record.replace(
-            entity_type='forum',
+            entity_type='discussion',
             entity_id='forum0',
-            event='responded'
+            event='contributed'
         )
 
     def test_output_format(self):
@@ -368,7 +368,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
             }
         )
 
-    def test_video_played(self):
+    def test_video_viewed(self):
         self._check_output_by_record_field(
             [
                 self.video_play_record.to_separated_values(),
@@ -383,7 +383,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
             }
         )
 
-    def test_multiple_videos_played(self):
+    def test_multiple_videos_viewed(self):
         self._check_output_by_record_field(
             [
                 self.video_play_record.to_separated_values(),

@@ -149,17 +149,12 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
                 entity_id = event_data.get('problem_id')
         elif event_type == 'play_video':
             entity_type = 'video'
-            user_actions.append('played')
+            user_actions.append('viewed')
             entity_id = event_data.get('id')
         elif event_type.startswith('edx.forum.'):
-            entity_type = 'forum'
+            entity_type = 'discussion'
             if event_type.endswith('.created'):
-                if event_type == 'edx.forum.comment.created':
-                    user_actions.append('commented')
-                elif event_type == 'edx.forum.response.created':
-                    user_actions.append('responded')
-                elif event_type == 'edx.forum.thread.created':
-                    user_actions.append('created')
+                user_actions.append('contributed')
 
             entity_id = event_data.get('commentable_id')
 
@@ -482,9 +477,9 @@ class ModuleEngagementSummaryDataTask(
                 elif record.event == 'completed':
                     output_record.problems_completed.add(record.entity_id)
             elif record.entity_type == 'video':
-                if record.event == 'played':
+                if record.event == 'viewed':
                     output_record.videos_viewed.add(record.entity_id)
-            elif record.entity_type == 'forum':
+            elif record.entity_type == 'discussion':
                 output_record.discussions_contributed += count
             else:
                 log.warn('Unrecognized entity type: %s', record.entity_type)
