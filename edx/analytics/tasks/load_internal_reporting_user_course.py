@@ -71,4 +71,4 @@ class TaskForReturningOutputTarget(luigi.Task):
         self.partition_location = url
 
     def output(self):
-        return self.partition_location
+        return get_target_from_url(self.partition_location)
