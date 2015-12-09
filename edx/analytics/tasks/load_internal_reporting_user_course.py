@@ -7,7 +7,7 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTask
 import luigi
 import logging
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.url import url_path_join, get_target_from_url, ExternalURL
 
 log = logging.getLogger(__name__)
 
@@ -26,17 +26,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
         self.hive_table = "course_enrollment"
         self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
         self.partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
-        return (
-            TaskForReturningOutputTarget(
-                partition_location=self.partition_location,
-            )
-            # CourseEnrollmentTask(
-            #     n_reduce_tasks = self.n_reduce_tasks,
-            #     interval = self.interval,
-            #     output_root = url_path_join(self.warehouse_path, 'course_enrollment/'),
-            #     #overwrite = self.overwrite
-            # )
-        )
+        return ExternalURL(url=get_target_from_url(self.partition_location))
 
     @property
     def table(self):
@@ -62,11 +52,3 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     @property
     def default_columns(self):
         return None
-
-#TODO: If this works then give a name to this class
-class TaskForReturningOutputTarget(luigi.Task):
-
-    partition_location=luigi.Parameter()
-
-    def output(self):
-        return get_target_from_url(self.partition_location)
