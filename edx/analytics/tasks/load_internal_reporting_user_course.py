@@ -26,7 +26,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
         self.hive_table = "course_enrollment"
         self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
         self.partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
-        return ExternalURL(url=get_target_from_url(self.partition_location))
+        return ExternalURL(url=self.partition_location)
 
     @property
     def table(self):
