@@ -24,10 +24,10 @@ class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
         This task reads from auth_user and user_activity_daily, so require that they be
         loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
         """
-        self.hive_table = "user_activity_daily"
-        self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
-        self.partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
-        return ExternalURL(url=self.partition_location)
+        hive_table = "user_activity_daily"
+        table_location=url_path_join(self.warehouse_path, hive_table) + '/'
+        partition_location=url_path_join(table_location, self.partition.path_spec + '/')
+        return ExternalURL(url=partition_location)
 
         # return [ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
         #         UserActivityTableTask(interval=self.interval, warehouse_path=self.warehouse_path,
