@@ -5,7 +5,7 @@ On the roadmap is to write a task that runs validation queries on the aggregated
 """
 import logging
 import luigi
-from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.user_activity import UserActivityTableTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, CredentialFileVerticaTarget
 from edx.analytics.tasks.database_imports import ImportAuthUserTask
@@ -24,9 +24,14 @@ class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
         This task reads from auth_user and user_activity_daily, so require that they be
         loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
         """
-        return [ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
-                UserActivityTableTask(interval=self.interval, warehouse_path=self.warehouse_path,
-                                      n_reduce_tasks=self.n_reduce_tasks)]
+        self.hive_table = "user_activity_daily"
+        self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
+        self.partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
+        return ExternalURL(url=self.partition_location)
+
+        # return [ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
+        #         UserActivityTableTask(interval=self.interval, warehouse_path=self.warehouse_path,
+        #                               n_reduce_tasks=self.n_reduce_tasks)]
 
     @property
     def table(self):
