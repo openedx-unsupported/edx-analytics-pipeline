@@ -52,8 +52,8 @@ class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
     def run(self):
         with self.output().open('w') as output_file:
             with self.input()[0].open('r') as input_file:
-                writer = csv.writer(output_file, dialect='mysqlpipe')
-                reader = csv.reader(input_file, dialect='mysqlpipe')
+                writer = csv.writer(output_file, dialect='mysqlexport')
+                reader = csv.reader(input_file, dialect='mysqlexport')
 
                 headers = next(reader, None)
 
@@ -300,7 +300,7 @@ class DeidentifyCourseDumpTask(luigi.WrapperTask):
         dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
         latest_date = sorted(dates)[-1]
         self.data_directory = url_path_join(self.dump_root, filename_safe_course_id, 'state', latest_date)
-        self.output_directory = url_path_join(self.output_root, filename_safe_course_id)
+        self.output_directory = url_path_join(self.output_root, filename_safe_course_id, 'state', latest_date)
 
     def requires(self):
         kwargs = {

@@ -1,0 +1,18 @@
+IMPLICIT_EVENT_TYPE_PATTERNS = [
+    r"/courses/\(course_id\)/jump_to_id/",
+    r"/courses/\(course_id\)/courseware/",
+    r"/courses/\(course_id\)/info/?$",
+    r"/courses/\(course_id\)/progress/?$",
+    r"/courses/\(course_id\)/course_wiki/?$",
+    r"/courses/\(course_id\)/about/?$",
+    r"/courses/\(course_id\)/teams/?$",
+    r"/courses/\(course_id\)/[a-fA-F\d]{32}/?$",
+    r"/courses/\(course_id\)/?$",
+    r"/courses/\(course_id\)/pdfbook/\d+(/chapter/\d+(/\d+)?)?/?$",
+    r"/courses/\(course_id\)/wiki((?!/_).)*$",
+    r"/courses/\(course_id\)/discussion/(threads|comments)",
+    r"/courses/\(course_id\)/discussion/(upload|users|forum/?)$",
+    r"/courses/\(course_id\)/discussion/[\w\-.]+/threads/create$",
+    r"/courses/\(course_id\)/discussion/forum/[\w\-.]+/(inline|search|threads)$",
+    r"/courses/\(course_id\)/discussion/forum/[\w\-.]+/threads/\w+$",
+]
