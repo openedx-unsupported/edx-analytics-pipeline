@@ -60,7 +60,7 @@ class PathSetTask(luigi.Task):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
-                for source in luigi.hdfs.listdir(src):
+                for source in luigi.hdfs.listdir(src, recursive=True):
                     if any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
                         yield ExternalURL(source)
             else:
