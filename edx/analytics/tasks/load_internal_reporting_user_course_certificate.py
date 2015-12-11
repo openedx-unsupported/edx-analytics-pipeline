@@ -9,7 +9,9 @@ import luigi.task
 
 
 class LoadFromSqoop(SqoopImportTask):
-    pass
+
+    def connection_url(self, _cred):
+        pass
 
 
 class LoadCertificatesDataIntoWarehouse(VerticaCopyTask):
