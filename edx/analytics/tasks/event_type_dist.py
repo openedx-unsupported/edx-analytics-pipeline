@@ -93,5 +93,5 @@ class PushToVerticaEventTypeDistributionTask(VerticaCopyTask):
             output_root=self.output_root,
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
-            events_list_file_pathF=self.events_list_file_path
+            events_list_file_path=self.events_list_file_path
         )
