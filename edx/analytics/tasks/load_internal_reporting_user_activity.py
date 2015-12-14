@@ -89,17 +89,12 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def table(self):
-        return 'f_user_activity'
+        return 'f_user_activity_umer'
 
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
         return None
-
-    @property
-    def auto_primary_key(self):
-        """The warehouse schema defines an auto primary key called row_number for this table."""
-        return ('row_number', 'AUTO_INCREMENT')
 
     @property
     def foreign_key_mapping(self):
