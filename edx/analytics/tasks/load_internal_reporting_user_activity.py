@@ -80,6 +80,10 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
+    def auto_primary_key(self):
+        return None
+
+    @property
     def insert_source_task(self):
 
         hive_table = "user_activity_daily"
