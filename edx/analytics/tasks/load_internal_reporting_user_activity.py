@@ -93,7 +93,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def table(self):
-        return 'f_user_activity_umer_third_try'
+        return 'f_user_activity_umer_fourth_try'
 
     @property
     def default_columns(self):
