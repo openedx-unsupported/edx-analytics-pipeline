@@ -108,7 +108,6 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
             ('username', 'VARCHAR(256)'),
             ('date', 'VARCHAR(256)'),
             ('category', 'VARCHAR(256)'),
-            ('count', 'INTEGER'),
         ]
 
 
