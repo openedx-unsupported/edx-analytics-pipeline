@@ -23,10 +23,10 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
     @property
     def insert_source_task(self):
-        self.hive_table = "course_enrollment"
-        self.table_location=url_path_join(self.warehouse_path, self.hive_table) + '/'
-        self.partition_location=url_path_join(self.table_location, self.partition.path_spec + '/')
-        return ExternalURL(url=self.partition_location)
+        hive_table = "course_enrollment"
+        table_location=url_path_join(self.warehouse_path, hive_table) + '/'
+        partition_location=url_path_join(table_location, self.partition.path_spec + '/')
+        return ExternalURL(url=partition_location)
 
     @property
     def table(self):
