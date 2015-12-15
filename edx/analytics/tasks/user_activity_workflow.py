@@ -27,6 +27,6 @@ class UserActivityWorkflow(luigi.WrapperTask):
             "n_reduce_tasks":self.n_reduce_tasks,
         }
         yield[
-            CourseActivityWeeklyTask(kwargs=kwargs1),
-            AggregateInternalReportingUserActivityTableHive(kwargs=kwargs2)
+            CourseActivityWeeklyTask(**kwargs1),
+            AggregateInternalReportingUserActivityTableHive(**kwargs2)
         ]
