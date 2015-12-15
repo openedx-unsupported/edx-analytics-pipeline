@@ -80,15 +80,10 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def insert_source_task(self):
-        return (
-            # Get the location of the Hive table, so it can be opened and read.
-            AggregateInternalReportingUserActivityTableHive(
-                n_reduce_tasks=self.n_reduce_tasks,
-                interval=self.interval,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
-        )
+        hive_table = "internal_reporting_user_activity"
+        table_location=url_path_join(self.warehouse_path, hive_table) + '/'
+        partition_location=url_path_join(table_location, self.partition.path_spec + '/')
+        return ExternalURL(url=partition_location)
 
     @property
     def table(self):

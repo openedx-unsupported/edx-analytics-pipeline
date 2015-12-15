@@ -8,7 +8,7 @@ from edx.analytics.tasks.load_internal_reporting_user_activity import LoadIntern
 from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
 
 
-class UserActivityWorkflow(LoadInternalReportingUserActivityToWarehouse,CourseActivityWeeklyTask):
+class UserActivityWorkflow(luigi.Task):
 
     interval = luigi.DateIntervalParameter()
     n_reduce_tasks = luigi.Parameter()
@@ -17,8 +17,7 @@ class UserActivityWorkflow(LoadInternalReportingUserActivityToWarehouse,CourseAc
     schema = luigi.Parameter()
     warehouse_path = luigi.Parameter()
 
-    @property
-    def insert_source_task(self):
+    def requires(self):
         return[
             CourseActivityWeeklyTask(
                 end_data=self.end_date,
