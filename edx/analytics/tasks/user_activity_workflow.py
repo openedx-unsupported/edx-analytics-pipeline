@@ -17,14 +17,16 @@ class UserActivityWorkflow(luigi.WrapperTask):
     weeks = luigi.IntParameter(default=24)
 
     def requires(self):
-        return[
-            CourseActivityWeeklyTask(
-                end_date=self.end_date,
-                weeks=self.weeks,
-                n_reduce_tasks=self.n_reduce_tasks,
-            ),
-            AggregateInternalReportingUserActivityTableHive(
-                interval=self.interval,
-                n_reduce_tasks=self.n_reduce_tasks,
-            )
+        kwargs1={
+            "end-date":self.end_date,
+            "weeks":self.weeks,
+            "n_reduce_tasks":self.n_reduce_tasks,
+        }
+        kwargs2={
+            "interval":self.interval,
+            "n_reduce_tasks":self.n_reduce_tasks,
+        }
+        yield[
+            CourseActivityWeeklyTask(kwargs1),
+            AggregateInternalReportingUserActivityTableHive(kwargs2)
         ]
