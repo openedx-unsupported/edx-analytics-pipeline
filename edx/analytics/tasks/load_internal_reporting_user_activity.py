@@ -64,7 +64,6 @@ class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
 class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
     Loads the user activity table from Hive into the Vertica data warehouse.
-
     Parameters:
         interval: a date_interval object containing the interval over which to pull data for user location.  Should
                   usually be from the beginning of edX to the present day (i.e. through the previous day).
@@ -80,25 +79,30 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     @property
-    def auto_primary_key(self):
-        return None
-
-    @property
     def insert_source_task(self):
-
-        hive_table = "user_activity_daily"
-        table_location=url_path_join(self.warehouse_path, hive_table) + '/'
-        partition_location=url_path_join(table_location, self.partition.path_spec + '/')
-        return ExternalURL(url=partition_location)
+        return (
+            # Get the location of the Hive table, so it can be opened and read.
+            AggregateInternalReportingUserActivityTableHive(
+                n_reduce_tasks=self.n_reduce_tasks,
+                interval=self.interval,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite,
+            )
+        )
 
     @property
     def table(self):
-        return 'f_user_activity_umer_fourth_try'
+        return 'internal_reporting_user_activity'
 
     @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
         return None
+
+    @property
+    def auto_primary_key(self):
+        """The warehouse schema defines an auto primary key called row_number for this table."""
+        return ('row_number', 'AUTO_INCREMENT')
 
     @property
     def foreign_key_mapping(self):
@@ -108,10 +112,11 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     @property
     def columns(self):
         return [
+            ('user_id', 'INTEGER'),
             ('course_id', 'VARCHAR(256)'),
-            ('username', 'VARCHAR(256)'),
-            ('date', 'VARCHAR(256)'),
-            ('category', 'VARCHAR(256)'),
+            ('date', 'DATE'),
+            ('activity_type', 'VARCHAR(200)'),
+            ('number_of_activities', 'INTEGER')
         ]
 
 
