@@ -102,7 +102,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     @property
     def auto_primary_key(self):
         """The warehouse schema defines an auto primary key called row_number for this table."""
-        return ('row_number', 'AUTO_INCREMENT')
+        None
 
     @property
     def foreign_key_mapping(self):
