@@ -35,7 +35,6 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
             'timeout',
             60
         ))
-        self.host = host
         self.index = index
         self.doc_type = doc_type
         self.update_id = update_id
