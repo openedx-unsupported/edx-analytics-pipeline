@@ -13,8 +13,8 @@ class UserActivityWorkflow(luigi.WrapperTask):
 
     interval = luigi.DateIntervalParameter()
     n_reduce_tasks = luigi.Parameter()
-    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    weeks = luigi.IntParameter(default=24)
+    end_date = luigi.DateParameter()
+    weeks = luigi.IntParameter()
 
     def requires(self):
         kwargs1={
