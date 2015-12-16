@@ -716,20 +716,3 @@ class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, lui
 
     def output(self):
         return [task.output() for task in self.requires()]
-
-class ImportGeneratedCertificatesTask(ImportMysqlToHiveTableTask):
-    """Import certificates_generatedcertificates table to desired directory in a hive readable format."""
-
-    @property
-    def table_name(self):
-        return 'certificates_generatedcertificates'
-
-    @property
-    def columns(self):
-        return [
-            ('user_id', 'INT'),
-            ('course_id', 'INT'),
-            ('is_certified', 'INT'),
-            ('enrollment_mode', 'STRING'),
-            ('final_grade', 'STRING'),
-        ]
