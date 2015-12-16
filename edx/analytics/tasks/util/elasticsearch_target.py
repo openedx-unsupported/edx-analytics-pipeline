@@ -30,11 +30,6 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
             'marker-doc-type',
             'marker'
         )
-        self.timeout = float(luigi.configuration.get_config().get(
-            'elasticsearch',
-            'timeout',
-            60
-        ))
         self.index = index
         self.doc_type = doc_type
         self.update_id = update_id
