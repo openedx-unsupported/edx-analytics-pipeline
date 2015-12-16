@@ -18,7 +18,7 @@ class UserActivityWorkflow(luigi.WrapperTask):
 
     def requires(self):
         kwargs1={
-            "end-date":self.end_date,
+            "end_date":self.end_date,
             "weeks":self.weeks,
             "n_reduce_tasks":self.n_reduce_tasks,
         }
