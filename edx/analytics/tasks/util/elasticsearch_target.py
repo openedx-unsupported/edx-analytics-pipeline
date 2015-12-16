@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
 
-    def __init__(self, host, index, doc_type, update_id):
+    def __init__(self, client, index, doc_type, update_id):
         super(ElasticsearchTarget, self).__init__(is_tmp=True)
 
         self.marker_index = luigi.configuration.get_config().get(
@@ -40,10 +40,7 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
         self.doc_type = doc_type
         self.update_id = update_id
 
-        self.es = elasticsearch.Elasticsearch(
-            hosts=self.host,
-            timeout=self.timeout,
-        )
+        self.es = client
 
     def marker_index_document_id(self):
         params = '%s:%s:%s' % (self.index, self.doc_type, self.update_id)

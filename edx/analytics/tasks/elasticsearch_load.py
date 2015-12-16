@@ -13,6 +13,11 @@ try:
 except ImportError:
     elasticsearch = None
 
+try:
+    from edx.analytics.tasks.util.boto_connection import BotoHttpConnection
+except ImportError:
+    BotoHttpConnection = None
+
 
 log = logging.getLogger(__name__)
 
@@ -24,6 +29,9 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
     )
     timeout = luigi.FloatParameter(
         config_path={'section': 'elasticsearch', 'name': 'timeout'}
+    )
+    connection_type = luigi.Parameter(
+        config_path={'section': 'elasticsearch', 'name': 'connection_type'}
     )
     index = luigi.Parameter()
     number_of_shards = luigi.Parameter(default=None)
@@ -70,11 +78,15 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             })
 
     def create_elasticsearch_client(self):
+        kwargs = {}
+        if self.connection_type == 'boto':
+            kwargs['connection_class'] = BotoHttpConnection
         return elasticsearch.Elasticsearch(
             hosts=self.host,
             timeout=self.timeout,
             retry_on_status=(408, 504),
-            retry_on_timeout=True
+            retry_on_timeout=True,
+            **kwargs
         )
 
     def mapper(self, line):
@@ -137,7 +149,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
     def output(self):
         return ElasticsearchTarget(
-            host=self.host,
+            client=self.create_elasticsearch_client(),
             index=self.index,
             doc_type=self.doc_type,
             update_id=self.update_id()
