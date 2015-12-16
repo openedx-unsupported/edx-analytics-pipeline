@@ -1,7 +1,7 @@
 """
 Load data from Sqoop and push it into Vertica warehouse.
 """
-
+from edx.analytics.tasks.database_imports import ImportGeneratedCertificatesTask
 from edx.analytics.tasks.sqoop import SqoopImportTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
 import luigi
@@ -19,7 +19,8 @@ class LoadCertificatesDataIntoWarehouse(VerticaCopyTask):
     destination=luigi.Parameter()
     credentials=luigi.Parameter()
     database=luigi.Parameter()
-    table=luigi.Parameter()
+    overwrite = luigi.Parameter()
+    table='certificates_generatedcertificates'
 
     @property
     def table(self):
@@ -32,16 +33,19 @@ class LoadCertificatesDataIntoWarehouse(VerticaCopyTask):
             ('course_id', 'INTEGER'),
             ('is_certified', 'INTEGER'),
             ('enrollment_mode', 'VARCHAR(255)'),
-            ('final_grade', 'VARCHAR(5'),
+            ('final_grade', 'VARCHAR(5)'),
         ]
 
     @property
     def insert_source_task(self):
-        return LoadFromSqoop(
+        return ImportGeneratedCertificatesTask(
             destination=self.destination,
+            num_mappers=self.num_mappers,
+            verbose=self.verbose,
+            import_date=self.import_date,
+            overwrite=self.overwrite,
             credentials=self.credentials,
-            database=self.database,
-            tablename=self.tablename
+            database=self.database
         )
 
     @property
