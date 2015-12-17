@@ -298,7 +298,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
             {
                 'problem_attempts': '2',
                 'problems_attempted': '1',
-                'problem_attempts_per_completion': 'inf',
+                'problem_attempts_per_completed': 'inf',
                 'days_active': '2'
             }
         )
@@ -312,7 +312,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
             {
                 'problem_attempts': '2',
                 'problems_attempted': '2',
-                'problem_attempts_per_completion': 'inf',
+                'problem_attempts_per_completed': 'inf',
                 'days_active': '1'
             }
         )
@@ -327,7 +327,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
                 'problem_attempts': '1',
                 'problems_attempted': '1',
                 'problems_completed': '1',
-                'problem_attempts_per_completion': str(1.0),
+                'problem_attempts_per_completed': str(1.0),
                 'days_active': '1'
             }
         )
@@ -342,7 +342,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
                 'problem_attempts': '4',
                 'problems_attempted': '1',
                 'problems_completed': '1',
-                'problem_attempts_per_completion': str(4.0),
+                'problem_attempts_per_completed': str(4.0),
                 'days_active': '1'
             }
         )
@@ -363,7 +363,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
                 'problem_attempts': '5',
                 'problems_attempted': '2',
                 'problems_completed': '2',
-                'problem_attempts_per_completion': str(2.5),
+                'problem_attempts_per_completed': str(2.5),
                 'days_active': '2'
             }
         )
@@ -377,7 +377,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
                 'problem_attempts': '0',
                 'problems_attempted': '0',
                 'problems_completed': '0',
-                'problem_attempts_per_completion': str(0.0),
+                'problem_attempts_per_completed': str(0.0),
                 'videos_viewed': '1',
                 'days_active': '1'
             }
@@ -425,7 +425,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
             problem_attempts=0,
             problems_attempted=0,
             problems_completed=0,
-            problem_attempts_per_completion=0.0,
+            problem_attempts_per_completed=0.0,
             videos_viewed=0,
             discussions_contributed=0,
             days_active=0,
@@ -478,7 +478,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
         """Given a list of values, assert that the ranges generated have the min, low, high, and max bounds."""
 
         # Manufacture some records with these values
-        records = [self.input_record.replace(problem_attempts_per_completion=v).to_separated_values() for v in values]
+        records = [self.input_record.replace(problem_attempts_per_completed=v).to_separated_values() for v in values]
 
         self._check_output_complete_tuple(
             records,
@@ -487,7 +487,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
                     'foo/bar/baz',
                     '2014-03-25',
                     '2014-04-01',
-                    'problem_attempts_per_completion',
+                    'problem_attempts_per_completed',
                     'low',
                     str(minimum),
                     str(low),
@@ -496,7 +496,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
                     'foo/bar/baz',
                     '2014-03-25',
                     '2014-04-01',
-                    'problem_attempts_per_completion',
+                    'problem_attempts_per_completed',
                     'high',
                     str(high),
                     str(maximum),
@@ -545,7 +545,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
             problem_attempts=0,
             problems_attempted=0,
             problems_completed=0,
-            problem_attempts_per_completion=0.0,
+            problem_attempts_per_completed=0.0,
             videos_viewed=0,
             discussions_contributed=0,
             days_active=0,
@@ -608,7 +608,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
         self.initialize_task([
             self.range_record,
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
                 low_value=8.0,
                 high_value=10.1
             )
@@ -617,7 +617,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
             [
                 self.input_record.replace(
                     problems_attempted=6,
-                    problem_attempts_per_completion=9
+                    problem_attempts_per_completed=9
                 ).to_separated_values()
             ],
             (
@@ -627,7 +627,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
                     '2014-03-25',
                     '2014-04-01',
                     'struggling',
-                    'problem_attempts_per_completion'
+                    'problem_attempts_per_completed'
                 ),
                 (
                     'foo/bar/baz',
@@ -665,7 +665,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
 
     @data(
         'problem_attempts',
-        'problem_attempts_per_completion',
+        'problem_attempts_per_completed',
     )
     def test_not_highly_engaged(self, metric):
         self.initialize_task([
@@ -786,13 +786,13 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_struggling(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
             )
         ])
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=8.0
+                    problem_attempts_per_completed=8.0
                 ).to_separated_values()
             ]
         )
@@ -801,7 +801,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_struggling_infinite_low_high_value(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
                 low_value=float('inf'),
                 high_value=float('inf'),
             )
@@ -809,7 +809,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=float('inf')
+                    problem_attempts_per_completed=float('inf')
                 ).to_separated_values()
             ]
         )
@@ -818,14 +818,14 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_struggling_infinite_high(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
                 high_value=float('inf'),
             )
         ])
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=10.0
+                    problem_attempts_per_completed=10.0
                 ).to_separated_values()
             ]
         )
@@ -834,14 +834,14 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_struggling_infinite_high_value(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
                 high_value=float('inf'),
             )
         ])
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=float('inf')
+                    problem_attempts_per_completed=float('inf')
                 ).to_separated_values()
             ]
         )
@@ -850,13 +850,13 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_not_struggling(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
             )
         ])
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=3.0
+                    problem_attempts_per_completed=3.0
                 ).to_separated_values()
             ]
         )
@@ -865,14 +865,14 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
     def test_not_struggling_infinite_low(self):
         self.initialize_task([
             self.range_record.replace(
-                metric='problem_attempts_per_completion',
+                metric='problem_attempts_per_completed',
                 low_value=float('inf')
             )
         ])
         output = self._get_reducer_output(
             [
                 self.input_record.replace(
-                    problem_attempts_per_completion=100000.0
+                    problem_attempts_per_completed=100000.0
                 ).to_separated_values()
             ]
         )

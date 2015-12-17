@@ -391,7 +391,7 @@ class ModuleEngagementSummaryRecord(Record):
     problem_attempts = IntegerField(is_metric=True)
     problems_attempted = IntegerField(is_metric=True)
     problems_completed = IntegerField(is_metric=True)
-    problem_attempts_per_completion = FloatField(is_metric=True)
+    problem_attempts_per_completed = FloatField(is_metric=True)
     videos_viewed = IntegerField(is_metric=True)
     discussions_contributed = IntegerField(is_metric=True)
     days_active = IntegerField()
@@ -775,10 +775,10 @@ class ModuleEngagementUserSegmentDataTask(
 
     Looks at the last week of activity summary records for each user and assigns the following segments:
 
-        struggling: The user has a value for problem_attempts_per_completion that is in the top 15% of all non-zero
+        struggling: The user has a value for problem_attempts_per_completed that is in the top 15% of all non-zero
             values.
         highly_engaged: The user is in the top 15% for any of the metrics except problem_attempts
-            and problem_attempts_per_completion.
+            and problem_attempts_per_completed.
     """
 
     output_root = luigi.Parameter()
@@ -834,7 +834,7 @@ class ModuleEngagementUserSegmentDataTask(
                 or (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
             )
             if (high_metric_range.low_value <= value) and value_less_than_high:
-                if metric == 'problem_attempts_per_completion':
+                if metric == 'problem_attempts_per_completed':
                     # A high value for this metric actually indicates a struggling student
                     segments[SEGMENT_STRUGGLING].add(metric)
                 else:
@@ -912,7 +912,7 @@ class ModuleEngagementRosterRecord(Record):
     problem_attempts = IntegerField()
     problems_attempted = IntegerField()
     problems_completed = IntegerField()
-    problem_attempts_per_completion = FloatField()
+    problem_attempts_per_completed = FloatField()
     videos_viewed = IntegerField()
     discussions_contributed = IntegerField()
     segments = StringField(analyzed=True)
@@ -968,7 +968,7 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, Optio
             COALESCE(eng.problem_attempts, 0),
             COALESCE(eng.problems_attempted, 0),
             COALESCE(eng.problems_completed, 0),
-            eng.problem_attempts_per_completion,
+            eng.problem_attempts_per_completed,
             COALESCE(eng.videos_viewed, 0),
             COALESCE(eng.discussions_contributed, 0),
             CONCAT_WS(
@@ -979,7 +979,7 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, Optio
                 seg.segments
             ),
             IF(
-                eng.problem_attempts_per_completion > 1 OR eng.problem_attempts_per_completion IS NULL,
+                eng.problem_attempts_per_completed > 1 OR eng.problem_attempts_per_completed IS NULL,
                 COALESCE(eng.problem_attempts, 0),
                 -COALESCE(eng.problem_attempts, 0)
             )
