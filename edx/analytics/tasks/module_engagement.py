@@ -1149,7 +1149,7 @@ class ModuleEngagementRosterIndexTask(
                 '_id': '|'.join([record.course_id, record.username]),
                 '_source': {
                     'name': name,
-                    'email': email,
+                    'email': email
                 }
             }
 
@@ -1157,7 +1157,9 @@ class ModuleEngagementRosterIndexTask(
                 if maybe_null_field in ('name', 'email'):
                     continue
                 maybe_null_value = getattr(record, maybe_null_field)
-                if maybe_null_value is not None and maybe_null_field != float('inf'):
+                if maybe_null_value is not None and maybe_null_value != float('inf'):
+                    if maybe_null_field == 'segments':
+                        maybe_null_value = maybe_null_value.split(',')
                     document['_source'][maybe_null_field] = maybe_null_value
 
             original_id = document['_id']
