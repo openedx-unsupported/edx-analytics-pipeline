@@ -98,7 +98,7 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
             info['path'] = event_type
             info['timestamp'] = timestamp
             event_type = SUBSECTION_VIEWED_MARKER
-        else:
+        elif event_type.startswith('edx.forum'):
             forum_post_voted = re.match(r'edx\.forum\.(?P<post_type>\w+)\.voted', event_type)
             if forum_post_voted:
                 info['vote_value'] = event_data.get('vote_value')
@@ -565,19 +565,24 @@ class StudentEngagementCsvFileTask(
             writer.writerow(row_dict)
 
 
-class StudentForumEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQueryToMysqlTask):
+class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQueryToMysqlTask):
     """
-    Copy the student forum engagement data from Hive to a MySQL table.
+    Copy the per-student engagement data from Hive to a MySQL table.
     """
 
     @property
     def table(self):
-        return 'student_forum_engagement_{}'.format(self.interval_type)
+        return 'student_engagement_{}'.format(self.interval_type)
 
     columns = [
         ('end_date', 'DATE'),
         ('course_id','VARCHAR(255) NOT NULL'),
         ('username', 'VARCHAR(255) NOT NULL'),
+        ('days_active', 'INT'),
+        ('problems_attempted', 'INT'),
+        ('problem_attempts', 'INT'),
+        ('problems_correct', 'INT'),
+        ('videos_played', 'INT'),
         ('forum_posts', 'INT'),
         ('forum_responses', 'INT'),
         ('forum_comments', 'INT'),
@@ -585,12 +590,26 @@ class StudentForumEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, H
         ('forum_downvotes_given', 'INT'),
         ('forum_upvotes_received', 'INT'),
         ('forum_downvotes_received', 'INT'),
+        ('textbook_pages_viewed', 'INT'),
+        ('last_subsection_viewed', 'STRING'),
     ]
 
-    default_columns = [
-        ('created', 'TIMESTAMP DEFAULT NOW()'),
-        ('CONSTRAINT ecu', 'UNIQUE (end_date, course_id, username)'),
-    ]
+    @property
+    def auto_primary_key(self):
+        # Instead of using an auto incrementing primary key, we define a custom compound primary key. See keys() defined
+        # below. This vastly improves the performance of our most common query pattern.
+        return None
+
+    @property
+    def keys(self):
+        """
+        Combine three fields that must be unique together as the primary key for this table.
+        This dramatically speeds up access times at the cost of write speed.
+        """
+        # max length for this key must be under 3072 bytes; see comment in module_engagement.py
+        return [
+            ('PRIMARY KEY', ['course_id', 'username', 'end_date'])
+        ]
 
     @property
     def required_table_tasks(self):
