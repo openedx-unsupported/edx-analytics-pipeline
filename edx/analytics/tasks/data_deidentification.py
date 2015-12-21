@@ -1,7 +1,7 @@
 """Deidentify course state files by removing/stubbing user information."""
+import tarfile
 
 import luigi
-import luigi.s3
 import csv
 import json
 import os
@@ -12,9 +12,10 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.file_util import FileCopyMixin
-import edx.analytics.tasks.util.csv_util
 
 import logging
+
+from edx.analytics.tasks.util.tempdir import make_temp_directory
 
 log = logging.getLogger(__name__)
 
@@ -34,6 +35,7 @@ class BaseDeidentifyDumpTask(UserIdRemapperMixin, luigi.Task):
                 filename=self.file_pattern, course=self.course
             ))
 
+        # TODO: should we change the filename to indicate that it has been de-identified?
         output_filename = os.path.basename(self.input()[0].path)
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
@@ -298,6 +300,7 @@ class DeidentifyCourseDumpTask(luigi.WrapperTask):
                                                ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that
         dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
+        # TODO: Make the date a parameter that defaults to the most recent, but allows the user to override?
         latest_date = sorted(dates)[-1]
         self.data_directory = url_path_join(self.dump_root, filename_safe_course_id, 'state', latest_date)
         self.output_directory = url_path_join(self.output_root, filename_safe_course_id, 'state', latest_date)
@@ -325,22 +328,3 @@ class DeidentifyCourseDumpTask(luigi.WrapperTask):
             CourseStructureTask(**kwargs),
             DeidentifyMongoDumpsTask(**kwargs),
         )
-
-
-class DataDeidentificationTask(luigi.WrapperTask):
-    """Wrapper task for data deidentification."""
-
-    course = luigi.Parameter(is_list=True)
-    dump_root = luigi.Parameter()
-    output_root = luigi.Parameter(
-        config_path={'section': 'data-deidentification', 'name': 'output_root'}
-    )
-
-    def requires(self):
-        for course in self.course:
-            kwargs = {
-                'dump_root': self.dump_root,
-                'course': course,
-                'output_root': self.output_root,
-            }
-            yield DeidentifyCourseDumpTask(**kwargs)

@@ -128,6 +128,8 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, EventLogSelectionMixin, Mu
 
     def filter_event(self, event):
         """Filter event using different event filtering criteria."""
+        if event is None:
+            return None
 
         event_type = event.get('event_type')
 
@@ -210,30 +212,3 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, EventLogSelectionMixin, Mu
         import numpy
         return [numpy]
 
-
-class EventDeidentificationTask(EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
-    """Wrapper task for course events deidentification."""
-
-    course = luigi.Parameter(is_list=True)
-    dump_root = luigi.Parameter()
-    output_root = luigi.Parameter()
-    explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'events-deidentification', 'name': 'explicit_event_whitelist'}
-    )
-
-    def requires(self):
-        for course in self.course:
-            # we already have course events dumped separately, so each DeidentifyCourseEventsTask would have a different source.
-            filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
-            source = [url_path_join(self.dump_root, filename_safe_course_id, 'events')]
-            kwargs = {
-                'course': course,
-                'dump_root': self.dump_root,
-                'output_root': self.output_root,
-                'source': source,
-                'explicit_event_whitelist': self.explicit_event_whitelist,
-                'n_reduce_tasks': self.n_reduce_tasks,
-                'interval': self.interval,
-                'pattern': '.*.log.*'
-            }
-            yield DeidentifyCourseEventsTask(**kwargs)
