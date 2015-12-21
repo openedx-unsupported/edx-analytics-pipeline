@@ -262,5 +262,5 @@ class TestDeidentifyCourseDumpTask(unittest.TestCase):
         """Test to check whether the data_directory for a course is being set up correctly."""
         coursename = 'edx_demo_course'
         self.create_paths(coursename, dates=['2015-11-25', '2015-11-28', '2015-12-06'])
-        task = deid.DeidentifyCourseDumpTask(course=coursename, dump_root=self.dump_root, output_root=self.output_root)
+        task = deid.DeidentifiedCourseDumpTask(course=coursename, dump_root=self.dump_root, output_root=self.output_root)
         self.assertEquals(task.data_directory, url_path_join(self.dump_root, coursename, 'state', '2015-12-06'))

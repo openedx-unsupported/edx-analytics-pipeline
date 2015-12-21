@@ -59,7 +59,6 @@ class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin,
 
     def create_task(self):
         self.task = self.task_class(
-            interval=luigi.DateIntervalParameter().parse('2013-12-17-2015-12-31'),
             output_root='/fake/output',
         )
         event_list = """
