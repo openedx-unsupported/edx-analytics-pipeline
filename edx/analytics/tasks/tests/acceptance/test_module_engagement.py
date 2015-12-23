@@ -101,8 +101,8 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
 
         april_ninth = datetime.date(2015, 4, 9)
         expected_ranges = [
-            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussions_contributed', 'high', 3, 3.1),
-            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussions_contributed', 'low', 2.9, 3),
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussion_contributions', 'high', 3, 3.1),
+            ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'discussion_contributions', 'low', 2.9, 3),
             ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'videos_viewed', 'high', 1, 1.1),
             ('course-v1:edX+DemoX+Demo_Course_2015', april_ninth, april_sixteenth, 'videos_viewed', 'low', 0.9, 1),
             ('edX/DemoX/Demo_Course', april_ninth, april_sixteenth, 'videos_viewed', 'high', 1, 1.1),

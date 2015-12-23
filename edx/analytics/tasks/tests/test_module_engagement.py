@@ -401,7 +401,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
                 self.forum_record.replace(entity_id='1', count=2).to_separated_values(),
             ],
             {
-                'discussions_contributed': '3'
+                'discussion_contributions': '3'
             }
         )
 
@@ -427,7 +427,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
             problems_completed=0,
             problem_attempts_per_completed=0.0,
             videos_viewed=0,
-            discussions_contributed=0,
+            discussion_contributions=0,
             days_active=0,
         )
 
@@ -547,7 +547,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
             problems_completed=0,
             problem_attempts_per_completed=0.0,
             videos_viewed=0,
-            discussions_contributed=0,
+            discussion_contributions=0,
             days_active=0,
         )
 
@@ -644,7 +644,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
         'problems_attempted',
         'problems_completed',
         'videos_viewed',
-        'discussions_contributed'
+        'discussion_contributions'
     )
     def test_highly_engaged(self, metric):
         self.initialize_task([

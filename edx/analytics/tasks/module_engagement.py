@@ -393,7 +393,7 @@ class ModuleEngagementSummaryRecord(Record):
     problems_completed = IntegerField(is_metric=True)
     problem_attempts_per_completed = FloatField(is_metric=True)
     videos_viewed = IntegerField(is_metric=True)
-    discussions_contributed = IntegerField(is_metric=True)
+    discussion_contributions = IntegerField(is_metric=True)
     days_active = IntegerField()
 
     def get_metrics(self):
@@ -416,7 +416,7 @@ class ModuleEngagementSummaryRecordBuilder(object):
         self.problems_attempted = set()
         self.problems_completed = set()
         self.videos_viewed = set()
-        self.discussions_contributed = 0
+        self.discussion_contributions = 0
         self.days_active = set()
 
 
@@ -472,7 +472,7 @@ class ModuleEngagementSummaryDataTask(
                 if record.event == 'viewed':
                     output_record.videos_viewed.add(record.entity_id)
             elif record.entity_type == 'discussion':
-                output_record.discussions_contributed += count
+                output_record.discussion_contributions += count
             else:
                 log.warn('Unrecognized entity type: %s', record.entity_type)
 
@@ -491,7 +491,7 @@ class ModuleEngagementSummaryDataTask(
             len(output_record.problems_completed),
             attempts_per_completion,
             len(output_record.videos_viewed),
-            output_record.discussions_contributed,
+            output_record.discussion_contributions,
             len(output_record.days_active)
         ).to_string_tuple()
 
@@ -914,7 +914,7 @@ class ModuleEngagementRosterRecord(Record):
     problems_completed = IntegerField()
     problem_attempts_per_completed = FloatField()
     videos_viewed = IntegerField()
-    discussions_contributed = IntegerField()
+    discussion_contributions = IntegerField()
     segments = StringField(analyzed=True)
     attempt_ratio_order = IntegerField()
 
@@ -970,7 +970,7 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, Optio
             COALESCE(eng.problems_completed, 0),
             eng.problem_attempts_per_completed,
             COALESCE(eng.videos_viewed, 0),
-            COALESCE(eng.discussions_contributed, 0),
+            COALESCE(eng.discussion_contributions, 0),
             CONCAT_WS(
                 ",",
                 IF(ce.at_end = 0, "unenrolled", NULL),
