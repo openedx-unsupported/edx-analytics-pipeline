@@ -35,7 +35,7 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
     )
     index = luigi.Parameter()
     number_of_shards = luigi.Parameter(default=None)
-    throttle = luigi.FloatParameter(default=0.25)
+    throttle = luigi.FloatParameter(default=0.5)
     batch_size = luigi.IntParameter(default=500)
     indexing_tasks = luigi.IntParameter(default=None)
 
@@ -84,7 +84,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         return elasticsearch.Elasticsearch(
             hosts=self.host,
             timeout=self.timeout,
-            retry_on_status=(408, 504),
+            retry_on_status=(408, 429, 504),
             retry_on_timeout=True,
             **kwargs
         )
