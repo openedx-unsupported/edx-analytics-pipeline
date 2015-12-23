@@ -979,9 +979,9 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, Optio
                 seg.segments
             ),
             IF(
-                eng.problem_attempts_per_completed > 1 OR eng.problem_attempts_per_completed IS NULL,
-                COALESCE(eng.problem_attempts, 0),
-                -COALESCE(eng.problem_attempts, 0)
+                eng.problem_attempts_per_completed IS NULL,
+                -COALESCE(eng.problem_attempts, 0),
+                COALESCE(eng.problem_attempts, 0)
             )
         FROM course_enrollment ce
         INNER JOIN calendar cal ON (ce.date = cal.date)
