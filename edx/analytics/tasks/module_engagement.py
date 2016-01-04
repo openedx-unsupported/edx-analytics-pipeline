@@ -443,9 +443,16 @@ class ModuleEngagementSummaryDataTask(
         start_date = self.date - datetime.timedelta(weeks=1)
         self.interval = date_interval.Custom(start_date, self.date)
 
+    def requires_local(self):
+        return ModuleEngagementIntervalTask(
+            interval=self.interval,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+        )
+
     def requires_hadoop(self):
         # The hadoop task only wants to read the raw Hive partitions, so only use them as input to the job.
-        return list(self.requires().get_raw_data_tasks())
+        return list(self.requires_local().get_raw_data_tasks())
 
     def mapper(self, line):
         record = ModuleEngagementRecord.from_tsv(line)
@@ -510,13 +517,6 @@ class ModuleEngagementSummaryDataTask(
 
     def output(self):
         return get_target_from_url(self.output_root)
-
-    def requires(self):
-        return ModuleEngagementIntervalTask(
-            interval=self.interval,
-            n_reduce_tasks=self.n_reduce_tasks,
-            warehouse_path=self.warehouse_path,
-        )
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -786,13 +786,17 @@ class ModuleEngagementUserSegmentDataTask(
     def requires_local(self):
         # NOTE: Most of this table is pickled on the master node and distributed to the slaves via the distributed
         # cache.
-        return ModuleEngagementSummaryMetricRangesPartitionTask(
+        mysql_task = ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
-        ).data_task
+        )
+        return {
+            'range_data': mysql_task.insert_source_task,
+            'range_mysql': mysql_task,
+        }
 
     def requires_hadoop(self):
-        yield ModuleEngagementSummaryPartitionTask(
+        return ModuleEngagementSummaryPartitionTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
         ).data_task
@@ -804,7 +808,7 @@ class ModuleEngagementUserSegmentDataTask(
         # Grab all of the "high" ranges since those are the only ones we are going to use. This will load
         # O(num_courses * num_metrics) records into memory, and then into the pickled job instance. This should be a
         # relatively small number (thousands).
-        with self.input_local().open('r') as metric_ranges_target:
+        with self.input_local()['range_data'].open('r') as metric_ranges_target:
             for line in metric_ranges_target:
                 range_record = ModuleEngagementSummaryMetricRangeRecord.from_tsv(line)
                 if range_record.range_type == METRIC_RANGE_HIGH:
