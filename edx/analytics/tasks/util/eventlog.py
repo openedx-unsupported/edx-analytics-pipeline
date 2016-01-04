@@ -19,6 +19,12 @@ def decode_json(line):
     return cjson.decode(line)
 
 
+def encode_json(obj):
+    """Wrapper to re-encode JSON string in an implementation-independent way."""
+    # TODO: Verify correctness of cjson
+    return cjson.encode(obj)
+
+
 def parse_json_event(line, nested=False):
     """
     Parse a tracking log input line as JSON to create a dict representation.
@@ -129,6 +135,17 @@ def get_event_time(event):
         return datetime.datetime.strptime(get_event_time_string(event), '%Y-%m-%dT%H:%M:%S.%f')
     except Exception:  # pylint: disable=broad-except
         return None
+
+
+def get_event_username(event):
+    """Returns a username from an event object, if present."""
+    username = event.get('username')
+    # Some usernames have trailing newlines, so remove that.
+    if username is not None:
+        username = username.strip()
+        if len(username) == 0:
+            username = None
+    return username
 
 
 def get_event_time_string(event):
