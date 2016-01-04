@@ -38,7 +38,7 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
     index = luigi.Parameter()
     number_of_shards = luigi.Parameter(default=None)
     throttle = luigi.FloatParameter(default=0.5, significant=False)
-    batch_size = luigi.IntParameter(default=500, significant=False)
+    batch_size = luigi.IntParameter(default=1000, significant=False)
     indexing_tasks = luigi.IntParameter(default=None, significant=False)
 
 
@@ -123,6 +123,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             log.error('Number of errors: {0}\n'.format(num_errors))
             for error in errors:
                 log.error(str(error))
+            raise RuntimeError('Unable to index')
 
         yield ('', '')
 
