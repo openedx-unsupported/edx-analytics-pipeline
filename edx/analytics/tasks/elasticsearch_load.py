@@ -28,16 +28,18 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
         config_path={'section': 'elasticsearch', 'name': 'host'}
     )
     timeout = luigi.FloatParameter(
-        config_path={'section': 'elasticsearch', 'name': 'timeout'}
+        config_path={'section': 'elasticsearch', 'name': 'timeout'},
+        significant=False,
     )
     connection_type = luigi.Parameter(
-        config_path={'section': 'elasticsearch', 'name': 'connection_type'}
+        config_path={'section': 'elasticsearch', 'name': 'connection_type'},
+        significant=False,
     )
     index = luigi.Parameter()
     number_of_shards = luigi.Parameter(default=None)
-    throttle = luigi.FloatParameter(default=0.5)
-    batch_size = luigi.IntParameter(default=500)
-    indexing_tasks = luigi.IntParameter(default=None)
+    throttle = luigi.FloatParameter(default=0.5, significant=False)
+    batch_size = luigi.IntParameter(default=500, significant=False)
+    indexing_tasks = luigi.IntParameter(default=None, significant=False)
 
 
 class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
