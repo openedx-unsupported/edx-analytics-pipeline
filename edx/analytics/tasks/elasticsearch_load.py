@@ -1,4 +1,6 @@
 import random
+
+import datetime
 import luigi
 import time
 import logging
@@ -35,7 +37,8 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
         config_path={'section': 'elasticsearch', 'name': 'connection_type'},
         significant=False,
     )
-    index = luigi.Parameter()
+    alias = luigi.Parameter()
+    index = luigi.Parameter(default=None)
     number_of_shards = luigi.Parameter(default=None)
     throttle = luigi.FloatParameter(default=0.5, significant=False)
     batch_size = luigi.IntParameter(default=1000, significant=False)
@@ -56,28 +59,45 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
         self.batch_index = 0
 
+        if self.index is None:
+            day_of_year = datetime.datetime.utcnow().timetuple().tm_yday
+            self.index = self.alias + '_' + str(day_of_year % 2)
+
+        self.old_index = None
+
     def init_local(self):
         super(ElasticsearchIndexTask, self).init_local()
 
         es = self.create_elasticsearch_client()
-        if not es.indices.exists(index=self.index):
-            settings = {
-                'refresh_interval': -1,
-            }
-            if self.number_of_shards is not None:
-                settings['number_of_shards'] = self.number_of_shards
 
-            if self.settings:
-                settings.update(self.settings)
+        indexes_for_alias = es.indices.get_aliases(name=self.alias)
+        if self.index in indexes_for_alias:
+            raise RuntimeError('Index {0} is currently in use by alias {1}'.format(self.index, self.alias))
+        elif len(indexes_for_alias) > 1:
+            raise RuntimeError('Invalid state, multiple indexes ({0}) found for alias {1}'.format(', '.join(indexes_for_alias.keys()), self.alias))
+        else:
+            self.old_index = indexes_for_alias.keys()[0]
 
-            es.indices.create(index=self.index, body={
-                'settings': settings,
-                'mappings': {
-                    self.doc_type: {
-                        'properties': self.properties
-                    }
+        if es.indices.exists(index=self.index):
+            es.indices.delete(index=self.index)
+
+        settings = {
+            'refresh_interval': -1,
+        }
+        if self.number_of_shards is not None:
+            settings['number_of_shards'] = self.number_of_shards
+
+        if self.settings:
+            settings.update(self.settings)
+
+        es.indices.create(index=self.index, body={
+            'settings': settings,
+            'mappings': {
+                self.doc_type: {
+                    'properties': self.properties
                 }
-            })
+            }
+        })
 
     def create_elasticsearch_client(self):
         kwargs = {}
@@ -86,7 +106,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         return elasticsearch.Elasticsearch(
             hosts=self.host,
             timeout=self.timeout,
-            retry_on_status=(408, 429, 504),
+            retry_on_status=(408, 504),
             retry_on_timeout=True,
             **kwargs
         )
@@ -162,4 +182,12 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         es = self.create_elasticsearch_client()
         super(ElasticsearchIndexTask, self).run()
         es.indices.refresh(index=self.index)
+        es.indices.update_aliases(
+            {
+                "actions": [
+                    {"remove": {"index": self.old_index, "alias": self.alias}},
+                    {"add": {"index": self.index, "alias": self.alias}}
+                ]
+            }
+        )
         self.output().touch()

@@ -1089,8 +1089,8 @@ class ModuleEngagementRosterIndexTask(
     OptionalVerticaMixin,
     ElasticsearchIndexTask
 ):
-    index = luigi.Parameter(
-        config_path={'section': 'module-engagement', 'name': 'index'}
+    alias = luigi.Parameter(
+        config_path={'section': 'module-engagement', 'name': 'alias'}
     )
     number_of_shards = luigi.Parameter(
         config_path={'section': 'module-engagement', 'name': 'number_of_shards'}
