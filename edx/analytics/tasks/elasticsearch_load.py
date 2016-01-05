@@ -147,7 +147,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             log.error('Number of errors: {0}\n'.format(num_errors))
             for error in errors:
                 log.error(str(error))
-            raise RuntimeError('Unable to index')
+            raise RuntimeError('Errors detected during indexing. Aborting this task.')
 
         yield ('', '')
 
@@ -182,9 +182,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             update_id=self.update_id()
         )
 
-    def run(self):
+    def commit(self):
         es = self.create_elasticsearch_client()
-        super(ElasticsearchIndexTask, self).run()
         es.indices.refresh(index=self.index)
         es.indices.update_aliases(
             {
@@ -195,3 +194,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             }
         )
         self.output().touch()
+
+    def run(self):
+        super(ElasticsearchIndexTask, self).run()
+        self.commit()
