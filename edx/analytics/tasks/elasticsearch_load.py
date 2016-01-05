@@ -70,13 +70,17 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
         es = self.create_elasticsearch_client()
 
-        indexes_for_alias = es.indices.get_aliases(name=self.alias)
+        indexes_for_alias = []
+        for index_name, aliases in es.indices.get_aliases(name=self.alias).iteritems():
+            if self.alias in aliases.get('aliases', {}):
+                indexes_for_alias.append(index_name)
+
         if self.index in indexes_for_alias:
             raise RuntimeError('Index {0} is currently in use by alias {1}'.format(self.index, self.alias))
         elif len(indexes_for_alias) > 1:
-            raise RuntimeError('Invalid state, multiple indexes ({0}) found for alias {1}'.format(', '.join(indexes_for_alias.keys()), self.alias))
+            raise RuntimeError('Invalid state, multiple indexes ({0}) found for alias {1}'.format(', '.join(indexes_for_alias), self.alias))
         else:
-            self.old_index = indexes_for_alias.keys()[0]
+            self.old_index = indexes_for_alias[0]
 
         if es.indices.exists(index=self.index):
             es.indices.delete(index=self.index)
