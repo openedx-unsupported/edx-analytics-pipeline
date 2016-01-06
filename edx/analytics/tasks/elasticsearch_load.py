@@ -87,7 +87,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             raise RuntimeError('Index {0} is currently in use by alias {1}'.format(self.index, self.alias))
         elif len(indexes_for_alias) > 1:
             raise RuntimeError('Invalid state, multiple indexes ({0}) found for alias {1}'.format(', '.join(indexes_for_alias), self.alias))
-        else:
+        elif len(indexes_for_alias) == 1:
             self.old_index = indexes_for_alias[0]
 
         if es.indices.exists(index=self.index):
