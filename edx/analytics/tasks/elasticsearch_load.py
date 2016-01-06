@@ -1,6 +1,5 @@
 import random
 
-import time
 from itertools import islice
 
 import luigi
@@ -67,7 +66,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         self.batch_index = 0
 
         if self.index is None:
-            self.index = self.alias + '_' + str(str(int(time.time())))
+            self.index = self.alias + '_' + str(self.update_id())
 
         self.indexes_for_alias = []
 
