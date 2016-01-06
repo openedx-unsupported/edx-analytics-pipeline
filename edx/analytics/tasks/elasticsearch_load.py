@@ -66,7 +66,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         self.batch_index = 0
 
         if self.index is None:
-            self.index = self.alias + '_' + str(self.update_id())
+            self.index = self.alias + '_' + str(hash(self.update_id()))
 
         self.indexes_for_alias = []
 
