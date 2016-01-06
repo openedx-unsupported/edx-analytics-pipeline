@@ -1,8 +1,7 @@
 import random
 
-import datetime
+import time
 from itertools import islice
-from operator import methodcaller
 
 import luigi
 import time
@@ -68,8 +67,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         self.batch_index = 0
 
         if self.index is None:
-            day_of_year = datetime.datetime.utcnow().timetuple().tm_yday
-            self.index = self.alias + '_' + str(day_of_year % 2)
+            self.index = self.alias + '_' + str(str(int(time.time())))
 
         self.indexes_for_alias = []
 
