@@ -173,6 +173,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 attempts += 1
                 if not succeeded and attempts < self.max_attempts:
                     sleep_duration = 2**attempts
+                    self.incr_counter('Elasticsearch', 'Rejected Batches', 1)
                     log.warn(
                         'Batch of records rejected. Sleeping for {0} seconds before retrying.'.format(sleep_duration)
                     )
@@ -181,6 +182,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                     break
 
             if succeeded:
+                self.incr_counter('Elasticsearch', 'Committed Batches', 1)
                 self.incr_counter('Elasticsearch', 'Records Indexed', num_records)
             else:
                 raise RuntimeError('Batch of records rejected too many times. Aborting.')
