@@ -130,24 +130,29 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         es = self.create_elasticsearch_client()
 
         document_iterator = self.document_generator(lines)
+        first_batch = True
         while True:
-            bulk_actions = []
+            bulk_action_batch = []
             num_records = 0
             for raw_data in islice(document_iterator, self.batch_size):
                 action, data = elasticsearch.helpers.expand_action(raw_data)
                 num_records += 1
-                bulk_actions.append(action)
+                bulk_action_batch.append(action)
                 if data is not None:
-                    bulk_actions.append(data)
+                    bulk_action_batch.append(data)
 
-            if not bulk_actions:
+            if not bulk_action_batch:
                 break
+
+            if not first_batch and self.throttle:
+                time.sleep(self.throttle)
+            first_batch = False
 
             attempts = 0
             succeeded = False
             while True:
                 try:
-                    resp = es.bulk(bulk_actions, index=self.index, doc_type=self.doc_type)
+                    resp = es.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
                 except TransportError as e:
                     if e.status_code != REJECTED_REQUEST_STATUS:
                         raise e
@@ -177,8 +182,6 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
             if succeeded:
                 self.incr_counter('Elasticsearch', 'Records Indexed', num_records)
-                if self.throttle:
-                    time.sleep(self.throttle)
             else:
                 raise RuntimeError('Batch of records rejected too many times. Aborting.')
 
