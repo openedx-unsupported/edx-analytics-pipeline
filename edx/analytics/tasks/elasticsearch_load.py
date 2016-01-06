@@ -213,7 +213,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     def output(self):
         return ElasticsearchTarget(
             client=self.create_elasticsearch_client(),
-            index=self.index,
+            index=self.alias,
             doc_type=self.doc_type,
             update_id=self.update_id()
         )
