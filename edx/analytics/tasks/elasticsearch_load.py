@@ -226,6 +226,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 ]
             }
         )
+        es.indices.delete(index=self.old_index)
         self.output().touch()
 
     def run(self):
