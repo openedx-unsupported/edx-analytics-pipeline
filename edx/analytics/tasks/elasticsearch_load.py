@@ -1,6 +1,9 @@
 import random
 
 import datetime
+from itertools import islice
+from operator import methodcaller
+
 import luigi
 import time
 import logging
@@ -12,6 +15,7 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 try:
     import elasticsearch
     import elasticsearch.helpers
+    from elasticsearch.exceptions import TransportError
 except ImportError:
     elasticsearch = None
 
@@ -22,6 +26,9 @@ except ImportError:
 
 
 log = logging.getLogger(__name__)
+
+
+REJECTED_REQUEST_STATUS = 429
 
 
 class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
@@ -40,9 +47,10 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
     alias = luigi.Parameter()
     index = luigi.Parameter(default=None)
     number_of_shards = luigi.Parameter(default=None)
-    throttle = luigi.FloatParameter(default=0.5, significant=False)
+    throttle = luigi.FloatParameter(default=0.1, significant=False)
     batch_size = luigi.IntParameter(default=1000, significant=False)
     indexing_tasks = luigi.IntParameter(default=None, significant=False)
+    max_attempts = luigi.IntParameter(default=10)
 
 
 class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
@@ -120,34 +128,59 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
     def reducer(self, _key, lines):
         es = self.create_elasticsearch_client()
-        self.batch_index = 0
 
-        def wrapped_record_generator():
-            for record in self.document_generator(lines):
-                record['_type'] = self.doc_type
-                yield record
-                self.batch_index += 1
-                if self.batch_size is not None and self.batch_index >= self.batch_size:
-                    self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
-                    self.batch_index = 0
-                    if self.throttle:
-                        time.sleep(self.throttle)
+        document_iterator = self.document_generator(lines)
+        while True:
+            bulk_actions = []
+            num_records = 0
+            for raw_data in islice(document_iterator, self.batch_size):
+                action, data = elasticsearch.helpers.expand_action(raw_data)
+                num_records += 1
+                bulk_actions.append(action)
+                if data is not None:
+                    bulk_actions.append(data)
 
-        num_indexed, errors = elasticsearch.helpers.bulk(
-            es,
-            wrapped_record_generator(),
-            index=self.index,
-            chunk_size=self.batch_size,
-            raise_on_error=False
-        )
-        self.incr_counter('Elasticsearch', 'Records Indexed', self.batch_index)
-        num_errors = len(errors)
-        self.incr_counter('Elasticsearch', 'Indexing Errors', num_errors)
-        if num_errors > 0:
-            log.error('Number of errors: {0}\n'.format(num_errors))
-            for error in errors:
-                log.error(str(error))
-            raise RuntimeError('Errors detected during indexing. Aborting this task.')
+            if not bulk_actions:
+                break
+
+            attempts = 0
+            succeeded = False
+            while True:
+                try:
+                    resp = es.bulk(bulk_actions, index=self.index, doc_type=self.doc_type)
+                except TransportError as e:
+                    if e.status_code != REJECTED_REQUEST_STATUS:
+                        raise e
+                else:
+                    num_errors = 0
+                    for raw_data in resp['items']:
+                        op_type, item = raw_data.popitem()
+                        ok = 200 <= item.get('status', 500) < 300
+                        if not ok:
+                            log.error('Failed to index: {0}'.format(str(raw_data)))
+                            num_errors += 1
+
+                    if num_errors == 0:
+                        succeeded = True
+                    else:
+                        raise RuntimeError('Failed to index {0} records. Aborting.'.format(num_errors))
+
+                attempts += 1
+                if not succeeded and attempts < self.max_attempts:
+                    sleep_duration = 2**attempts
+                    log.warn(
+                        'Batch of records rejected. Sleeping for {0} seconds before retrying.'.format(sleep_duration)
+                    )
+                    time.sleep(sleep_duration)
+                else:
+                    break
+
+            if succeeded:
+                self.incr_counter('Elasticsearch', 'Records Indexed', num_records)
+                if self.throttle:
+                    time.sleep(self.throttle)
+            else:
+                raise RuntimeError('Batch of records rejected too many times. Aborting.')
 
         yield ('', '')
 
