@@ -71,24 +71,27 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             day_of_year = datetime.datetime.utcnow().timetuple().tm_yday
             self.index = self.alias + '_' + str(day_of_year % 2)
 
-        self.old_index = None
+        self.indexes_for_alias = []
 
     def init_local(self):
         super(ElasticsearchIndexTask, self).init_local()
 
         es = self.create_elasticsearch_client()
 
-        indexes_for_alias = []
         for index_name, aliases in es.indices.get_aliases(name=self.alias).iteritems():
-            if self.alias in aliases.get('aliases', {}):
-                indexes_for_alias.append(index_name)
+            if self.alias in aliases.get('aliases', {}) or index_name.startswith(self.alias + '_'):
+                self.indexes_for_alias.append(index_name)
 
-        if self.index in indexes_for_alias:
-            raise RuntimeError('Index {0} is currently in use by alias {1}'.format(self.index, self.alias))
-        elif len(indexes_for_alias) > 1:
-            raise RuntimeError('Invalid state, multiple indexes ({0}) found for alias {1}'.format(', '.join(indexes_for_alias), self.alias))
-        elif len(indexes_for_alias) == 1:
-            self.old_index = indexes_for_alias[0]
+        if not self.overwrite:
+            if self.index in self.indexes_for_alias:
+                raise RuntimeError('Index {0} is currently in use by alias {1}'.format(self.index, self.alias))
+            elif len(self.indexes_for_alias) > 1:
+                raise RuntimeError(
+                    'Invalid state, multiple existing indexes ({0}) found for alias {1}'.format(
+                        ', '.join(self.indexes_for_alias),
+                        self.alias
+                    )
+                )
 
         if es.indices.exists(index=self.index):
             es.indices.delete(index=self.index)
@@ -218,16 +221,14 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     def commit(self):
         es = self.create_elasticsearch_client()
         es.indices.refresh(index=self.index)
-        es.indices.update_aliases(
-            {
-                "actions": [
-                    {"remove": {"index": self.old_index, "alias": self.alias}},
-                    {"add": {"index": self.index, "alias": self.alias}}
-                ]
-            }
-        )
-        es.indices.delete(index=self.old_index)
+        actions = []
+        for old_index in self.indexes_for_alias:
+            actions.append({"remove": {"index": old_index, "alias": self.alias}})
+        actions.append({"add": {"index": self.index, "alias": self.alias}})
+        es.indices.update_aliases({"actions": actions})
         self.output().touch()
+        for old_index in self.indexes_for_alias:
+            es.indices.delete(index=old_index)
 
     def run(self):
         super(ElasticsearchIndexTask, self).run()
