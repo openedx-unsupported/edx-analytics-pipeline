@@ -1,5 +1,5 @@
-Course ID,Date,Username,Email,Cohort,Was Active,Unique Problems Attempted,Total Problem Attempts,Unique Problems Correct,Unique Videos Played,Discussion Posts,Discussion Responses,Discussion Comments,Textbook Pages Viewed,URL of Last Subsection Viewed
-edX/DemoX/Demo_Course_2,2015-04-13,audit,audit@example.com,,0,0,0,0,0,0,0,0,0,
-edX/DemoX/Demo_Course_2,2015-04-13,honor,honor@example.com,,1,0,0,0,1,0,0,0,0,
-edX/DemoX/Demo_Course_2,2015-04-13,staff,staff@example.com,,1,0,0,0,1,0,0,0,0,
-edX/DemoX/Demo_Course_2,2015-04-13,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,
+Course ID,Date,Username,Email,Cohort,Was Active,Unique Problems Attempted,Total Problem Attempts,Unique Problems Correct,Unique Videos Played,Discussion Posts,Discussion Responses,Discussion Comments,Discussion Upvotes Given,Discussion Downvotes Given,Discussion Upvotes Received,Discussion Downvotes Received,Textbook Pages Viewed,URL of Last Subsection Viewed
+edX/DemoX/Demo_Course_2,2015-04-13,audit,audit@example.com,,0,0,0,0,0,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course_2,2015-04-13,honor,honor@example.com,,1,0,0,0,1,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course_2,2015-04-13,staff,staff@example.com,,1,0,0,0,1,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course_2,2015-04-13,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,0,0,0,0,

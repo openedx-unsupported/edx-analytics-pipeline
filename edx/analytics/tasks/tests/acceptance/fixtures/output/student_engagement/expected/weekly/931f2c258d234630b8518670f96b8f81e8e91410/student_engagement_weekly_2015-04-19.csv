@@ -1,5 +1,5 @@
-Course ID,End Date,Username,Email,Cohort,Days Active This Week,Unique Problems Attempted,Total Problem Attempts,Unique Problems Correct,Unique Videos Played,Discussion Posts,Discussion Responses,Discussion Comments,Textbook Pages Viewed,URL of Last Subsection Viewed
-edX/DemoX/Demo_Course,2015-04-19,audit,audit@example.com,best-cohort,0,0,0,0,0,0,0,0,0,
-edX/DemoX/Demo_Course,2015-04-19,honor,honor@example.com,best-cohort,2,3,6,2,2,1,2,3,2,/courses/edX/DemoX/Demo_Course/courseware/graded_interactions/simulations/
-edX/DemoX/Demo_Course,2015-04-19,staff,staff@example.com,other-cohort,1,0,0,0,0,0,0,0,0,/courses/edX/DemoX/Demo_Course/courseware/d8a6192ade314473a78242dfeedfbf5b/edx_introduction/1
-edX/DemoX/Demo_Course,2015-04-19,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,
+Course ID,End Date,Username,Email,Cohort,Days Active This Week,Unique Problems Attempted,Total Problem Attempts,Unique Problems Correct,Unique Videos Played,Discussion Posts,Discussion Responses,Discussion Comments,Discussion Upvotes Given,Discussion Downvotes Given,Discussion Upvotes Received,Discussion Downvotes Received,Textbook Pages Viewed,URL of Last Subsection Viewed
+edX/DemoX/Demo_Course,2015-04-19,audit,audit@example.com,best-cohort,0,0,0,0,0,0,0,0,0,0,0,0,0,
+edX/DemoX/Demo_Course,2015-04-19,honor,honor@example.com,best-cohort,2,3,6,2,2,1,2,3,0,0,0,0,2,/courses/edX/DemoX/Demo_Course/courseware/graded_interactions/simulations/
+edX/DemoX/Demo_Course,2015-04-19,staff,staff@example.com,other-cohort,1,0,0,0,0,0,0,0,0,0,0,0,0,/courses/edX/DemoX/Demo_Course/courseware/d8a6192ade314473a78242dfeedfbf5b/edx_introduction/1
+edX/DemoX/Demo_Course,2015-04-19,verified,verified@example.com,,0,0,0,0,0,0,0,0,0,0,0,0,0,
