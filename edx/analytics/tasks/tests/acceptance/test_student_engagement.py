@@ -189,34 +189,33 @@ class PerStudentEngagementAcceptanceTest(AcceptanceTestCase):
         self.execute_sql_fixture_file('load_student_engagement.sql')
 
         for interval_type in ['daily', 'weekly']:
-            self.run_and_check()
+            self.run_and_check(interval_type)
 
     def run_and_check(self, interval_type):
         self.task.launch([
             'StudentEngagementToMysqlTask',
             '--source', self.test_src,
-            '--output-root', url_path_join(self.test_out, interval_type),
             '--credentials', self.export_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--interval', '2015-09-01-2015-09-16',
-            '--interval-type', interal_type,
+            '--interval-type', interval_type,
         ])
 
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 'SELECT end_date, course_id, username, '
                 'forum_posts, forum_responses, forum_comments, '
-                'forum_upvotes_given, forum_upvotes_received'
-                'FROM student_engagement_{interval_type} WHERE course_id="{course_id}"'
+                'forum_upvotes_given, forum_upvotes_received '
+                'FROM student_engagement_{interval_type} WHERE course_id="{course_id}" '
                 'ORDER BY end_date, username;'
                 .format(course_id=self.COURSE_ID, interval_type=interval_type)
             )
             results = cursor.fetchall()
 
         if interval_type == 'weekly':
-            end_date_expected = '2015-09-15'
+            end_date_expected = datetime.date(2015, 9, 15)
         elif interval_type == 'daily':
-            end_date_expected = '2015-09-14'
+            end_date_expected = datetime.date(2015, 9, 14)
         else:
             assert False, "Invalid interval type: {}".format(interval_type)
 

@@ -591,7 +591,7 @@ class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQu
         ('forum_upvotes_received', 'INT'),
         ('forum_downvotes_received', 'INT'),
         ('textbook_pages_viewed', 'INT'),
-        ('last_subsection_viewed', 'STRING'),
+        ('last_subsection_viewed', 'VARCHAR(1000) NOT NULL'),
     ]
 
     @property
