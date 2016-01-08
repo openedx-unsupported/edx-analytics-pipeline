@@ -1,34 +1,28 @@
 import argparse
+import cjson
+from collections import namedtuple, defaultdict
+from cStringIO import StringIO
 import errno
 import glob
 import gzip
 import json
+import logging
 import os
-from collections import namedtuple, defaultdict
-
+from pyinstrument import Profiler
 import sys
 
-import cjson
-from pyinstrument import Profiler
-from cStringIO import StringIO
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.deid_util import (
-    encode_value,
-    decode_value,
-    find_phone_numbers,
-    find_possible_phone_numbers,
-    find_email_context,
-    find_name_context,
-    find_phone_context,
-    find_facebook,
-    find_zipcodes,
-    find_emails,
-    find_possible_emails,
-    find_username,
-    find_user_fullname,
+    backslash_encode_value,
+    backslash_decode_value,
+    needs_backslash_decoding,
+    Deidentifier,
 )
+
+
+log = logging.getLogger(__name__)
 
 
 ARTICLEREVISION_FIELDS = [
@@ -122,7 +116,7 @@ def load_user_info(userinfo_path):
             fields = line.rstrip('\r\n').decode('utf8').split('\t')
             # Once split, we can clean up the individual entries, and interpret the embedded newlines and tabs.
             # We'll also strip here, to remove the additional whitespace on usernames and fullnames.
-            fields = [decode_value(field).strip() for field in fields]
+            fields = [backslash_decode_value(field).strip() for field in fields]
             record = UserInfoRecord(*fields)
             # Store records twice, once with an int key, and once with a string key.
             # (They shouldn't collide.)
@@ -137,15 +131,23 @@ def create_directory(output_dir):
         os.makedirs(output_dir)
     except OSError as exc:
         if exc.errno == errno.EEXIST:
-            # print "MATCHING exc.errno=%r  errno.EEXIST=%r" % (exc.errno, errno.EEXIST)
             pass
         elif exc.errno != errno.EEXIST or os.path.isdir(output_dir):
-            # print "exc.errno=%r  errno.EEXIST=%r" % (exc.errno, errno.EEXIST)
-            # print "type exc.errno=%r  type errno.EEXIST=%r" % (type(exc.errno), type(errno.EEXIST))
             raise
 
+# These event_type values are known to have the possibility that the
+# user_id in context be different from the user_id in event payload.
+# In these cases, the context user_id represents the user performing the
+# action, while the user_id in the event payload represents the object.
+EVENT_TYPES_WITH_DIFFERENT_USERIDS = [
+    'edx.course.enrollment.activated',
+    'edx.course.enrollment.deactivated',
+    'edx.cohort.user_add_requested',
+    'edx.cohort.user_removed',
+    'edx.certificate.evidence_visited',
+]
 
-class Deidentifier(object):
+class BulkDeidentifier(object):
 
     parameters = {}
 
@@ -153,14 +155,21 @@ class Deidentifier(object):
 
     user_info = None
 
+    deidentifier = None
+
     def __init__(self, **kwargs):
-        print kwargs
+        log.info("Arguments = %s", kwargs)
         self.parameters = dict(kwargs)
         # This is global, so we can load it here.  (User-profile depends on the course.)
         if self.parameters['userinfo'] is not None:
-            print "Loading user_info..."
+            log.info("Loading user_info...")
             self.user_info = load_user_info(self.parameters['userinfo'])
-            print "Loaded user_info..."
+            log.info("Loaded user_info...")
+
+        # Just put all the parameters with true boolean values into the entity set.
+        # It doesn't matter if there are extras.
+        entity_list = [key for key, value in self.parameters.iteritems() if value == True]
+        self.deidentifier = Deidentifier(log_context=self.parameters['log_context'], entities=set(entity_list))
 
     def deidentify_directory(self, input_dir, output_dir):
         if output_dir is not None:
@@ -187,7 +196,7 @@ class Deidentifier(object):
         self.missing_profile = defaultdict(int)
 
         input_filepath = input_target.path
-        print u"Deidentifying {}".format(input_filepath)
+        log.info(u"Deidentifying %s", input_filepath)
         with input_target.open('r') as infile:
             if input_filepath.endswith('.gz'):
                 if input_filepath.startswith('s3'):
@@ -207,7 +216,6 @@ class Deidentifier(object):
             else:
                 filename = os.path.basename(input_filepath)
                 output_path = os.path.join(output_dir, filename)
-                # print u"Deidentifying {} to {}".format(input_filepath, output_path)
                 with open(output_path, 'w') as output_file:
                     with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
                         for line in infile:
@@ -215,7 +223,7 @@ class Deidentifier(object):
                             outfile.write(clean_line)
                             outfile.write('\n')
         for key in sorted(self.missing_profile.iterkeys()):
-            print u"ERROR: missing profile entry for user_id '{}': {}".format(key, self.missing_profile[key])
+            log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
     def get_userinfo_from_event(self, event, event_data):
         # Start simply, and just get obvious info.  See what it matches.
@@ -240,7 +248,7 @@ class Deidentifier(object):
             if self.user_info is not None:
                 username_entry = self.user_info.get(username)
                 if username_entry is None:
-                    print u"ERROR: username ('{}') is unknown to user_info {}".format(username, debug_str).encode('utf8')
+                    log.error(u"username ('%s') is unknown to user_info %s", username, debug_str)
 
         # Get the user_id either as an int or None
         userid_entry = None
@@ -254,11 +262,11 @@ class Deidentifier(object):
             if self.user_info is not None:
                 userid_entry = self.user_info.get(user_id)
                 if userid_entry is None:
-                    print u"ERROR: user_id ('{}') is unknown to user_info {}".format(user_id, debug_str).encode('utf8')
+                    log.error(u"user_id ('%s') is unknown to user_info %s", user_id, debug_str)
                 elif username_entry and userid_entry != username_entry:
-                    print u"ERROR: user_id ('{}'='{}') does not match username ('{}'='{}') {}".format(
+                    log.error(u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
                         userid_entry.user_id, userid_entry.username, username_entry.username, username_entry.user_id, debug_str,
-                    ).encode('utf8')
+                    )
 
         event_userid_entry = None
         event_user_id = None
@@ -273,20 +281,22 @@ class Deidentifier(object):
                 if self.user_info is not None:
                     event_userid_entry = self.user_info.get(event_user_id)
                     if event_userid_entry is None:
-                        print u"ERROR: event_user_id ('{}') is unknown to user_info {}".format(event_user_id, debug_str).encode('utf8')
+                        log.error(u"Event_user_id ('%s') is unknown to user_info %s", event_user_id, debug_str)
 
                 if user_id is None:
                     # This is way too common. In testing, every edx.course.enrollment.xxx had the user_id in the event but not
                     # in context.  Weird.
-                    # print u"WARNING: found user_id ('{}') in event but nothing in context {}".format(event_user_id, debug_str).encode('utf8')
-                    # user_id = event_user_id
+                    # log.warning(u"Found user_id ('%s') in event but nothing in context %s", event_user_id, debug_str)
                     pass
                 elif event_userid_entry and userid_entry != event_userid_entry:
-                    print u"ERROR: context user_id ('{}'='{}') does not match event user_id ('{}'='{}') {}".format(
-                        userid_entry.user_id, userid_entry.username, event_userid_entry.username, event_userid_entry.user_id, debug_str,
-                    ).encode('utf8')
+                    # This turns out to be somewhat expected for certain event types where one user is doing something on behalf
+                    # of another user.  The actor is in context, and the object is in event payload.
+                    if event_type not in EVENT_TYPES_WITH_DIFFERENT_USERIDS:
+                        log.error(u"Context user_id ('%s'='%s') does not match event user_id ('%s'='%s') %s",
+                                  userid_entry.user_id, userid_entry.username, event_userid_entry.username, event_userid_entry.user_id, debug_str,
+                    )
                 elif event_user_id != user_id:
-                    print u"ERROR: found user_id ('{}') in event that was different from context ('{}') {}".format(event_user_id, user_id, debug_str).encode('utf8')
+                    log.error(u"Found user_id ('%s') in event that was different from context ('%s') %s", event_user_id, user_id, debug_str)
 
         # We choose the event user_id over the context, and fall back on the username.
         if event_userid_entry is not None:
@@ -300,15 +310,16 @@ class Deidentifier(object):
         event = eventlog.parse_json_event(line)
         if event is None:
             # Unexpected here...
-            print u"ERROR: encountered event entry which failed to parse: {}".format(line).encode('utf-8')
+            log.error(u"Encountered event entry which failed to parse: %r", line)
             return line
         course_id = eventlog.get_course_id(event, from_url=True)
         if course_id is None:
             # Unexpected here...
-            print u"ERROR: encountered event entry with no course_id: {}".format(line).encode('utf-8')
+            log.error(u"Encountered event entry with no course_id: %r", line)
             return line
 
         username = eventlog.get_event_username(event)
+        event_source = event.get('event_source')
         event_type = event.get('event_type')
 
         # We cannot use this method as-is, since we need to know what was done to the event, so
@@ -318,7 +329,7 @@ class Deidentifier(object):
         event_data = event.get('event')
 
         if event_data is None:
-            print u"ERROR: encountered event entry with no 'event' payload: {}".format(line).encode('utf-8')
+            log.error(u"Encountered event entry with no 'event' payload: %r", line)
         if event_data == '':
             # Note that this happens with some browser events.  Instead of
             # failing to parse it as a JSON string, just leave as-is.
@@ -336,7 +347,7 @@ class Deidentifier(object):
                     event_data = eventlog.decode_json(event_data)
                     event_json_decoded = True
                 except Exception:
-                    print u"ERROR: encountered event entry with unparseable 'event' payload: {}".format(line).encode('utf-8')
+                    log.error(u"Encountered event entry with unparseable 'event' payload: %r", line)
 
         # TODO: update the comment!  This is where we traverse the event in search of values that should be "cleansed".
         # Much along the model of what we already do for 'state' in CWSM.  Except that we need to be more
@@ -346,7 +357,7 @@ class Deidentifier(object):
 
         updated_event_data = self.deidentify_strings(event_data, u"event", username, event_user_info)
         if updated_event_data is not None:
-            print u"Deidentified event with event_type = '{}'".format(event_type).encode('utf-8')
+            log.info(u"Deidentified %s event with event_type = '%s'", event_source, event_type)
 
             if event_json_decoded:
                 # TODO: should really use cjson, if that were originally used for decoding the json.
@@ -364,18 +375,18 @@ class Deidentifier(object):
         if self.parameters['fullname']:
             # convert input_filepath for courseware data to one that points to the corresponding userprofile file.
             userprofile_filepath = input_filepath.replace('courseware_studentmodule', 'auth_userprofile')
-            print "Loading " + userprofile_filepath
+            log.info("Loading %s", userprofile_filepath)
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            print u"Deidentifying {}".format(input_filepath)
+            log.info(u"Deidentifying %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
                     self.deidentify_courseware_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            print u"Deidentifying {} to {}".format(input_filepath, output_path)
+            log.info(u"Deidentifying %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
@@ -384,7 +395,7 @@ class Deidentifier(object):
                         outfile.write(clean_line)
                         outfile.write('\n')
         for key in sorted(self.missing_profile.iterkeys()):
-            print u"ERROR: missing profile entry for user_id '{}': {}".format(key, self.missing_profile[key])
+            log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
     def deidentify_courseware_entry(self, line, user_profile):
         fields = line.rstrip('\r\n').decode('utf8').split('\t')
@@ -401,7 +412,6 @@ class Deidentifier(object):
                 profile_entry = user_profile.get(user_id)
                 if profile_entry is None:
                     self.missing_profile[user_id] += 1
-                    # print u"ERROR: missing profile entry for user_id {}".format(user_id)
 
         # TODO: also read in auth_user, and store username for each user_id.
         pass
@@ -412,10 +422,7 @@ class Deidentifier(object):
         try:
             state_dict = cjson.decode(state_str, all_unicode=True)
         except Exception as exc:
-            print exc
-            print type(state_str)
-            print state_str
-            print u"ERROR: unable to parse state as JSON for record {}: state = {}".format(record.id, state_str).encode("utf-8")
+            log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r", record.id, type(state_str), state_str)
             return line
 
         # Traverse the dictionary, looking for entries that need to be scrubbed.
@@ -424,12 +431,15 @@ class Deidentifier(object):
             # Can't reset values, so update original fields.
             updated_state = json.dumps(updated_state_dict).replace('\\', '\\\\')
             fields[4] = updated_state
-            print u"Deidentified state for user_id '{}' module_id '{}'".format(record.student_id, record.module_id).encode('utf-8')
+            log.info(u"Deidentified state for user_id '%s' module_id '%s'", record.student_id, record.module_id)
 
         return u"\t".join(fields).encode('utf-8')
 
     def deidentify_strings(self, obj, label, username, profile_entry):
         """Returns a modified object if a string contained within were changed, None otherwise."""
+        if label == 'event.POST' and self.parameters['skip_post']:
+            return None
+
         if isinstance(obj, dict):
             new_dict = {}
             changed = False
@@ -461,15 +471,24 @@ class Deidentifier(object):
             else:
                 return None
         elif isinstance(obj, unicode):
+            # First perform backslash decoding on string, if needed.
+            if needs_backslash_decoding(obj):
+                decoded_obj = backslash_decode_value(obj)
+                new_label = u"{}*d".format(label)
+                updated_value = self.deidentify_strings(decoded_obj, new_label, username, profile_entry)
+                if updated_value is not None:
+                    return backslash_encode_value(updated_value)
+                else:
+                    return None
+
+            # Only deidentify once backslashes have been decoded as many times as needed.
             updated_value = self.deidentify_text(obj, username, profile_entry)
             if obj != updated_value:
-                print u"Deidentified '{}'".format(label).encode('utf8')
+                log.info(u"Deidentified '%s'", label)
                 return updated_value
             else:
                 return None
         elif isinstance(obj, str):
-            # print "ERROR: we don't expect a str to be created when parsing JSON.  label='{}' value='{}'".format(label, obj).encode('utf-8')
-            # TODO: json produces unicode, but cjson produces str.  Argh!
             unicode_obj = obj.decode('utf8')
             new_label = u"{}*u".format(label)
             updated_value = self.deidentify_strings(unicode_obj, new_label, username, profile_entry)
@@ -487,18 +506,18 @@ class Deidentifier(object):
         if self.parameters['fullname']:
             # convert input_filepath for wiki data to one that points to the corresponding userprofile file.
             userprofile_filepath = input_filepath.replace('wiki_articlerevision', 'auth_userprofile')
-            print "Loading " + userprofile_filepath
+            log.info("Loading %s", userprofile_filepath)
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            print u"Deidentifying {}".format(input_filepath)
+            log.info(u"Deidentifying %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
                     self.deidentify_wiki_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            print u"Deidentifying {} to {}".format(input_filepath, output_path)
+            log.info(u"Deidentifying %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
@@ -517,16 +536,16 @@ class Deidentifier(object):
             if user_id != 'NULL':
                 profile_entry = user_profile.get(user_id)
                 if profile_entry is None:
-                    print "ERROR: missing profile entry for user_id {}".format(user_id)
+                    log.error("Missing profile entry for user_id %s", user_id)
 
         if record.ip_address != 'NULL' and record.ip_address != 'ip_address':
-            print "Found non-NULL IP address"
+            log.warning("Found non-NULL IP address")
         if record.automatic_log != '' and record.automatic_log != 'automatic_log':
-            print u"Found non-zero-length automatic_log: {}".format(record.automatic_log).encode('utf-8')
+            log.warning(u"Found non-zero-length automatic_log: %s", record.automatic_log)
 
         # Can't reset values, so update original fields.
-        fields[12] = encode_value(self.deidentify_text(decode_value(record.content), None, profile_entry))
-        fields[2] = encode_value(self.deidentify_text(decode_value(record.user_message), None, profile_entry))
+        fields[12] = backslash_encode_value(self.deidentify_text(backslash_decode_value(record.content), None, profile_entry))
+        fields[2] = backslash_encode_value(self.deidentify_text(backslash_decode_value(record.user_message), None, profile_entry))
         return u"\t".join(fields).encode('utf-8')
 
     def deidentify_forum_file(self, input_filepath, output_dir):
@@ -535,18 +554,18 @@ class Deidentifier(object):
         if self.parameters['fullname']:
             # convert input_filepath for forum data to one that points to the corresponding userprofile file.
             userprofile_filepath = input_filepath.replace('prod.mongo', 'auth_userprofile-prod-analytics.sql')
-            print "Loading " + userprofile_filepath
+            log.info("Loading %s", userprofile_filepath)
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            print "Deidentifying {}".format(input_filepath)
+            log.info("Deidentifying %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
                     self.deidentify_forum_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            print "Deidentifying {} to {}".format(input_filepath, output_path)
+            log.info("Deidentifying %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
@@ -564,21 +583,24 @@ class Deidentifier(object):
         try:
             entry = cjson.decode(line, all_unicode=True)
         except ValueError as exc:
-            print "ERROR: Failed to parse json for line: " + line
+            log.error("Failed to parse json for line: %r", line)
             return ""
 
+        # Clean the body of the forum post.
         body = entry['body']
-        username = entry.get('author_username')
+        user_info = {'username': entry.get('author_username')}
         profile_entry = None
         if user_profile is not None:
             user_id = entry.get('author_id')
             profile_entry = user_profile.get(user_id)
             if profile_entry is None:
-                print u"ERROR: missing profile entry for user_id {} username {}".format(user_id, username).encode('utf-8')
+                log.error(u"Missing profile entry for user_id %s username %s", user_id, username)
+            else:
+                user_info['name'] = profile_entry.name
         clean_body = self.deidentify_text(body, username, profile_entry)
         entry['body'] = clean_body
 
-        # Need to also clean the titles, especially of username and fullname.
+        # Also clean the title, since it also contains username and fullname matches.
         title = entry['title']
         clean_title = self.deidentify_text(title, username, profile_entry)
         entry['title'] = clean_title
@@ -586,46 +608,17 @@ class Deidentifier(object):
         return json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
     def deidentify_text(self, text, username, user_profile_entry):
-        context = self.parameters['context']
-        # Names can appear in emails and identifying urls, so find them before the names.
-        if self.parameters['email']:
-            text = find_emails(text, context)
-            text = find_possible_emails(text, context)
-        if self.parameters['facebook']:
-            text = find_facebook(text, context)
-
-        # Find Names.
-        if self.parameters['fullname'] and user_profile_entry is not None:
-            fullname = user_profile_entry.name
-            text = find_user_fullname(text, fullname, context)
-        if self.parameters['username'] and username is not None:
-            text = find_username(text, username, context)
-
-        # Find phone numbers.
-        if self.parameters['phone']:
-            text = find_phone_numbers(text, context)
-        if self.parameters['possible_phone']:
-            text = find_possible_phone_numbers(text, context)
-
-        # Look for context *after* looking for items?
-        # (If we need the original item for context, then we should do
-        # context first, but it must not overlap with actual item.)
-        # E.g. "facebook" in context and in url.
-        if self.parameters['email_context']:
-            text = find_email_context(text, context)
-        if self.parameters['phone_context']:
-            text = find_phone_context(text, context)
-        if self.parameters['name_context']:
-            text = find_name_context(text, context)
-
-        # text = find_zipcodes(text, context)
-        return text
+        user_info = {'username': username}
+        if user_profile_entry:
+            user_info['name'] = user_profile_entry.name
+        return self.deidentifier.deidentify_text(text, user_info)
 
 
 #####################
 
 def main():
     """Command-line utility for using (and testing) s3 utility methods."""
+    logging.basicConfig(level=logging.DEBUG)
     arg_parser = argparse.ArgumentParser(description='Perform deidentification of forum .mongo dump files.')
 
     arg_parser.add_argument(
@@ -643,10 +636,10 @@ def main():
         default=None
     )
     arg_parser.add_argument(
-        '--context',
+        '--log-context',
         help='characters on each side of match',
         type=int,
-        default=20,
+        default=50,
     )
     #####################
     # Flags to indicate what to deidentify.
@@ -721,6 +714,11 @@ def main():
         action='store_true',
     )
     arg_parser.add_argument(
+        '--skip-post',
+        help='Skip performing filtering on event.POST entries.',
+        action='store_true',
+    )
+    arg_parser.add_argument(
         '--pyinstrument',
         help='Profile the run and write the output to stderr',
         action='store_true'
@@ -734,7 +732,7 @@ def main():
         profiler.start()
 
     try:
-        deid = Deidentifier(**kwargs)
+        deid = BulkDeidentifier(**kwargs)
         deid.deidentify_directory(args.input, args.output)
     finally:
         if profiler:
