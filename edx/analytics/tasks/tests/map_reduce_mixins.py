@@ -67,7 +67,7 @@ class MapperTestMixin(object):
     def create_event_dict(self, **kwargs):
         """Create an event log with test values, as a dict."""
         # Define default values for event log entry.
-        template_name = kwargs.get('template_name', self.default_event_template)
+        template_name = kwargs.pop('template_name', self.default_event_template)
         event_dict = kwargs.pop('template', self.event_templates[template_name]).copy()
         event_dict.update(**kwargs)
         return event_dict

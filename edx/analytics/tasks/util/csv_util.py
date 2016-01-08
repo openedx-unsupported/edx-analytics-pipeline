@@ -33,9 +33,18 @@ class MySQLPipeDialect(csv.Dialect):
     strict = True
 
 
+class MySQLExportDialect(MySQLPipeDialect):
+    """
+    CSV Dialect for files created by edx-analytics-exporter.
+    """
+    # Needed to preserve the character sequence, otherwise csv parser would interpret '\n' as 'n'
+    escapechar = None
+
+
 DIALECTS = {
     'mysqldump': MySQLDumpDialect,
-    'mysqlpipe': MySQLPipeDialect
+    'mysqlpipe': MySQLPipeDialect,
+    'mysqlexport': MySQLExportDialect
 }
 
 for dialect_name, dialect_class in DIALECTS.iteritems():

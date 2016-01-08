@@ -32,7 +32,8 @@ class FileCopyMixin(object):
 
 def copy_file_to_file(src_file, output_file, progress=None):
     """Copies a source file to an output file, both of which are already open."""
-    log.info('Copying to output: %s', src_file.name)
+    if hasattr(src_file, 'name'):
+        log.info('Copying to output: %s', src_file.name)
 
     while True:
         transfer_buffer = src_file.read(TRANSFER_BUFFER_SIZE)

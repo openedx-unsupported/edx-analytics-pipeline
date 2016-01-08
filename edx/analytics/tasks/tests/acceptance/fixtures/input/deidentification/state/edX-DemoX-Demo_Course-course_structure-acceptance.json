@@ -1,0 +1,12 @@
+{
+  "block-v1:edX+DemoX+Demo_Course+type@chapter+block@1414ffd5143b4b508f739b563ab468b7": {
+    "category": "chapter",
+    "children": [
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow"
+    ], 
+    "metadata": {
+      "display_name": "About Exams and Certificates",
+      "start": "1970-01-01T05:00:00Z"
+    }
+  }
+}

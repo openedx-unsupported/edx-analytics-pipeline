@@ -1,9 +1,13 @@
 """Various helper utilities to calculate reversible one-to-one mappings of sensitive ids"""
 
 import base64
-import numpy as np
 import random
 import luigi
+try:
+    import numpy as np
+except ImportError:
+    np = object
+    log.warn('Could not import numpy, any code that relies on it in this module will fail.')
 
 
 def encode_id(scope, id_type, id_value):
@@ -79,3 +83,7 @@ class UserIdRemapperMixin(object):
     def remap_id(self, id_value):
         "Returns a reversible mapping of input id."
         return self.permutation_generator.permute(int(id_value))
+
+    # TODO: use this in data_deidentification.py
+    def generate_deid_username_from_user_id(self, user_id):
+        return "username_{0}".format(self.remap_id(user_id))
