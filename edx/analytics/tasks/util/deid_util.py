@@ -1,36 +1,66 @@
 """Utilities that are used for performing deidentification, or what passes for such."""
 
 import re
+import logging
 
 
-def decode_value(value):
+log = logging.getLogger(__name__)
+
+
+def backslash_decode_value(value):
     return value.replace('\\\\', '<<BACKSLASH>>').replace('\\r', '\r').replace('\\t', '\t').replace('\\n', '\n').replace('<<BACKSLASH>>', '\\')
 
 
-def encode_value(value):
+def backslash_encode_value(value):
     return unicode(value).replace('\\', '\\\\').replace('\r', '\\r').replace('\t','\\t').replace('\n', '\\n')
 
 
-def find_all_matches(pattern, string, label, context=20):
+# Find \\r, \\t or \\n
+BACKSLASH_PATTERN = re.compile(r'\\[rtn]')
+
+
+def needs_backslash_decoding(value):
+    # If there are any decoded values already present, then don't decode further.
+    if '\t' in value or '\n' in value or '\r' in value:
+        return False
+
+    # Check to see if there is anything that should be decoded.
+    match = re.search(BACKSLASH_PATTERN, value)
+    return True if match else False
+
+
+# A negative value for log_context disables logging of matches.
+DEFAULT_LOG_CONTEXT = -1
+
+def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
+    """
+    Applies pattern to string and replaces all matches with <<label>>.
+
+    A positive value for log_context provides up to that number of characters on left and right
+    of match, if present.
+
+    A negative value for log_context disables logging of matches.
+    """
     output = []
     output_end = 0
-    # Note: adding re.IGNORECASE flag here *in addition* to in the
-    # pattern results in no matches beginning in the first two
-    # characters!  Weird!  So leave it out here!
     matches = pattern.finditer(string)
     for match in matches:
         start, end = match.span()
-        left_edge = start - context if start > context else 0
-        left = encode_value(string[left_edge:start])
-        right = encode_value(string[end:end+context])
-        value1 = match.group(0)
-        value = unicode(value1)
-        print u"Found {}:  {}<<{}>>{}".format(label, left, value, right).encode('utf-8')
+        if log_context >= 0:
+            left_edge = start - log_context if start > log_context else 0
+            left = backslash_encode_value(string[left_edge:start])
+            right = backslash_encode_value(string[end:end+log_context])
+            value1 = match.group(0)
+            value = unicode(value1)
+            log.info(u"Found %s:  %s<<%s>>%s", label, left, value, right)
         output.append(string[output_end:start])
         output.append("<<{}>>".format(label))
         output_end = end
-    output.append(string[output_end:])
-    return "".join(output)
+    if output_end > 0:
+        output.append(string[output_end:])
+        return "".join(output)
+    else:
+        return string
 
 
 #####################
@@ -62,11 +92,11 @@ POSSIBLE_PHONE_PATTERN = r'(\+?\b[\d][0-9 \(\).\-]{8,}[\d])\b'
 COMPILED_PHONE_PATTERN = re.compile(PHONE_PATTERN, re.VERBOSE)
 COMPILED_POSSIBLE_PHONE_PATTERN = re.compile(POSSIBLE_PHONE_PATTERN, re.VERBOSE)
 
-def find_phone_numbers(text, context=20):
-    return find_all_matches(COMPILED_PHONE_PATTERN, text, "PHONE_NUMBER", context)
+def find_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_PHONE_PATTERN, text, "PHONE_NUMBER", log_context)
 
-def find_possible_phone_numbers(text, context=20):
-    return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", context)
+def find_possible_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", log_context)
 
 
 #####################
@@ -75,27 +105,27 @@ def find_possible_phone_numbers(text, context=20):
 
 EMAIL_CONTEXT = re.compile(
     r'\b(my (?:personal )?e[\- ]?mail|e[\- ]mail me|e[\- ]mail(?: address)?|send e[\- ]mail|write me|talk with me|Skype|address|facebook)\b',
-    re.I
+    re.IGNORECASE,
 )
 
-def find_email_context(text, context=20):
-    return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", context)
+def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
 
 NAME_CONTEXT = re.compile(
     r'\b(hi|hello|sincerely|yours truly|Dear|Mr|Ms|Mrs|regards|cordially|best wishes|cheers|my name)\b',
-    re.I
+    re.IGNORECASE,
 )
 
-def find_name_context(text, context=20):
-    return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", context)
+def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", log_context)
 
 PHONE_CONTEXT = re.compile(
     r'(\bphone:|\bp:|b\c:|\bcall me\b|\(home\)|\(cell\)|my phone|phone number)',
-    re.I
+    re.IGNORECASE,
 )
 
-def find_phone_context(text, context=20):
-    return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", context)
+def find_phone_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", log_context)
 
 #####################
 # Facebook
@@ -104,10 +134,10 @@ def find_phone_context(text, context=20):
 # https://www.facebook.com/user.name
 FACEBOOK_PATTERN = re.compile(
     r'\b(https:\/\/www\.facebook\.com\/[\w.]+)\b',
-    re.I
+    re.IGNORECASE,
 )
-def find_facebook(text, context=20):
-    return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", context)
+def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", log_context)
 
 
 #####################
@@ -116,10 +146,10 @@ def find_facebook(text, context=20):
 
 # Look for a leading space.
 ZIPCODE_PATTERN = r'((?<= )\b\d{5}(?:[-\s]\d{4})?\b)'
-COMPILED_ZIPCODE_PATTERN = re.compile(ZIPCODE_PATTERN, re.I)
+COMPILED_ZIPCODE_PATTERN = re.compile(ZIPCODE_PATTERN, re.IGNORECASE)
 
-def find_zipcodes(text, context=20):
-    return find_all_matches(COMPILED_ZIPCODE_PATTERN, text, "ZIPCODE", context)
+def find_zipcodes(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_ZIPCODE_PATTERN, text, "ZIPCODE", log_context)
 
 
 #####################
@@ -129,21 +159,21 @@ def find_zipcodes(text, context=20):
 EMAIL_PATTERN = r'((?<=\s)([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)\.(?:edu|com|org)\b)'
 ORIG_EMAIL_PATTERN = r'(.*)\s+(([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)(.)(edu|com))\\s*(.*)'
 #emailPattern='(.*)\\s+([a-zA-Z0-9\\.]+)\\s*(\\(f.*b.*)?(@)\\s*([a-zA-Z0-9\\.\\s;]+)\\s*(\\.)\\s*(edu|com)\\s+(.*)'
-COMPILED_EMAIL_PATTERN = re.compile(EMAIL_PATTERN, re.I)
+COMPILED_EMAIL_PATTERN = re.compile(EMAIL_PATTERN, re.IGNORECASE)
 
 # http://www.regular-expressions.info/email.html
 BASIC_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
 # case-insensitive didn't work properly for cap-init cases, so add A-Z explicitly:
 # BASIC_EMAIL_PATTERN = r'\b[A-Za-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[A-Za-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\b'
 
-COMPILED_POSSIBLE_EMAIL_PATTERN = re.compile(BASIC_EMAIL_PATTERN, re.I)
+COMPILED_POSSIBLE_EMAIL_PATTERN = re.compile(BASIC_EMAIL_PATTERN, re.IGNORECASE)
 
-def find_emails(text, context=20):
-    return find_all_matches(COMPILED_EMAIL_PATTERN, text, "ORIG_EMAIL", context)
+def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
 
-def find_possible_emails(text, context=20):
+def find_possible_emails(text, log_context=DEFAULT_LOG_CONTEXT):
     if '@' in text:
-        return find_all_matches(COMPILED_POSSIBLE_EMAIL_PATTERN, text, "EMAIL", context)
+        return find_all_matches(COMPILED_POSSIBLE_EMAIL_PATTERN, text, "EMAIL", log_context)
     else:
         return text
 
@@ -162,12 +192,12 @@ def find_possible_emails(text, context=20):
 # username
 #####################
 
-def find_username(text, username, context=20):
+def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
     username_pattern = re.compile(
         r'\b({})\b'.format(username),
-        re.I
+        re.IGNORECASE,
     )
-    return find_all_matches(username_pattern, text, "USERNAME", context)
+    return find_all_matches(username_pattern, text, "USERNAME", log_context)
 
 
 #####################
@@ -177,12 +207,17 @@ def find_username(text, username, context=20):
 # Note the addition of the '$' at the
 # end: match() only constrains the beginning.
 LEGAL_NAME_PATTERN = re.compile(r"[\w. \-\'\(\)\,\*\"]+$", re.UNICODE)
+
+# Cache a set of names that have been rejected, so that we don't retry
+# them repeatedly.  Also cuts down on logging noise.
 REJECTED_NAMES = set()
+
 # People use common words in their names.  Sometimes it's just plain text; sometimes jibberish.
 # It's hard to tell the difference.  (E.g. "The" appears in Vietnamese-like names.)
 STOPWORDS = ['the', 'and', 'can']
 
-def find_user_fullname(text, fullname, context=20):
+
+def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
 
     if fullname in REJECTED_NAMES:
         return text
@@ -198,7 +233,7 @@ def find_user_fullname(text, fullname, context=20):
     # if we were even including them.)  In fact, we should be using re.escape.
     # TODO: switch to use re.escape.
     if not LEGAL_NAME_PATTERN.match(fullname2):
-        print u"ERROR:  fullname '{}' contains unexpected characters.".format(fullname).encode('utf-8')
+        log.error(u"Fullname '%r' contains unexpected characters.", fullname)
         REJECTED_NAMES.add(fullname)
         return text
 
@@ -210,7 +245,7 @@ def find_user_fullname(text, fullname, context=20):
     # Create regexp by breaking the name up.  Assume spaces.
     names = fullname2.strip().split()
     if len(names) == 0:
-        print u"ERROR:  fullname '{}' contains only whitespace characters.".format(fullname).encode('utf-8')
+        log.error(u"Fullname '%r' contains only whitespace characters.", fullname)
         REJECTED_NAMES.add(fullname)
         return text
 
@@ -225,9 +260,93 @@ def find_user_fullname(text, fullname, context=20):
     # the slashes are escaped.
     fullname_pattern = re.compile(
         u'\\b({})\\b'.format(u"|".join(patterns)),
-        re.I
+        re.IGNORECASE,
     )
-    return find_all_matches(fullname_pattern, text, "FULLNAME", context)
+    return find_all_matches(fullname_pattern, text, "FULLNAME", log_context)
+
+
+#################
+# General deidentification
+#################
+
+DEFAULT_ENTITIES = set(['email', 'username', 'fullname', 'phone'])
+
+class Deidentifier(object):
+
+    log_context = DEFAULT_LOG_CONTEXT
+    entities = DEFAULT_ENTITIES
+
+    def __init__(self, **kwargs):
+        if 'log_context' in kwargs:
+            self.log_context = kwargs['log_context']
+        if 'entities' in kwargs:
+            self.entities = kwargs['entities']
+
+    def deidentify_text(self, text, user_info=None, log_context=None, entities=None):
+        """
+        Applies all selected deidentification patterns to text.
+
+        user_info is a dict (or namedtuple.__dict__), with 'username' and 'name' keys, if known.
+
+        log_context specifies the amount of context on either side of matches, when logging.
+
+        entities is a set with elements to indicate if a search for a given entity should be performed.
+            Main production choices include:
+
+            'email'
+            'username'
+            'fullname'
+            'phone'
+
+            Additions for development include:
+
+            'facebook'
+            'possible_phone'
+            'email_context'
+            'phone_context'
+            'name_context'
+
+        """
+        if log_context is None:
+            log_context = self.log_context
+        if entities is None:
+            entities = self.entities
+
+        username = user_info.get('username') if user_info else None
+        fullname = user_info.get('name') if user_info else None
+
+        # Names can appear in emails and identifying urls, so find them before the names.
+        if 'email' in entities:
+            text = find_emails(text, log_context)
+            text = find_possible_emails(text, log_context)
+        if 'facebook' in entities:
+            text = find_facebook(text, log_context)
+
+        # Find Names.
+        if 'fullname' in entities and fullname is not None:
+            text = find_user_fullname(text, fullname, log_context)
+        if 'username' in entities and username is not None:
+            text = find_username(text, username, log_context)
+
+        # Find phone numbers.
+        if 'phone' in entities:
+            text = find_phone_numbers(text, log_context)
+        if 'possible_phone' in entities:
+            text = find_possible_phone_numbers(text, log_context)
+
+        # Look for context *after* looking for items?
+        # (If we need the original item for context, then we should do
+        # context first, but it must not overlap with actual item.)
+        # E.g. "facebook" in context and in url.
+        if 'email_context' in entities:
+            text = find_email_context(text, log_context)
+        if 'phone_context' in entities:
+            text = find_phone_context(text, log_context)
+        if 'name_context' in entities:
+            text = find_name_context(text, log_context)
+
+        # text = find_zipcodes(text, log_context)
+        return text
 
 
 #################
