@@ -249,8 +249,12 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     FORUM_POSTS_COLUMN = 8
     FORUM_REPLIES_COLUMN = 9
     FORUM_COMMENTS_COLUMN = 10
-    TEXTBOOK_PAGES_COLUMN = 11
-    LAST_SUBSECTION_COLUMN = 12
+    FORUM_UPVOTES_COLUMN = 11
+    FORUM_DOWNVOTES_COLUMN = 12
+    FORUM_UPVOTES_RECEIVED_COLUMN = 13
+    FORUM_DOWNVOTES_RECEIVED_COLUMN = 14
+    TEXTBOOK_PAGES_COLUMN = 15
+    LAST_SUBSECTION_COLUMN = 16
 
     def setUp(self):
         super(StudentEngagementTaskReducerTest, self).setUp()
@@ -383,6 +387,25 @@ class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_by_key(inputs, {
             column_num: 2,
         })
+
+    @data(
+        ('edx.forum.thread.voted', 'up', FORUM_UPVOTES_COLUMN),
+        ('edx.forum.thread.vote_received', 'up', FORUM_UPVOTES_RECEIVED_COLUMN),
+        ('edx.forum.response.voted', 'up', FORUM_UPVOTES_COLUMN),
+        ('edx.forum.response.vote_received', 'up', FORUM_UPVOTES_RECEIVED_COLUMN),
+        ('edx.forum.thread.voted', 'down', FORUM_DOWNVOTES_COLUMN),
+        ('edx.forum.thread.vote_received', 'down', FORUM_DOWNVOTES_RECEIVED_COLUMN),
+        ('edx.forum.response.voted', 'down', FORUM_DOWNVOTES_COLUMN),
+        ('edx.forum.response.vote_received', 'down', FORUM_DOWNVOTES_RECEIVED_COLUMN),
+    )
+    @unpack
+    def test_forum_vote_events(self, event_type, vote_type, column_num):
+        inputs = [
+            ('', event_type, json.dumps({'undo_vote': False, 'vote_value': vote_type}), self.DATE),
+        ]
+        self._check_output_by_key(inputs, [
+            {self.WAS_ACTIVE_COLUMN: 1, column_num: 1},
+        ])
 
     def test_last_subsection(self):
         inputs = [
