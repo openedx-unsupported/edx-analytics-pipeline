@@ -76,7 +76,7 @@ class DeidentificationTask(DeidentificationTaskMixin, luigi.Task):
         course_files_url = url_path_join(self.intermediate_output_root, filename_safe_course_id)
         path_task = PathSetTask(
                 [course_files_url],
-                ['*']
+                ['*.*']
         )
 
         with make_temp_directory(prefix='deid-archive.') as tmp_directory:
