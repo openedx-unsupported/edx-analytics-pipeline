@@ -435,71 +435,6 @@ class BulkDeidentifier(object):
 
         return u"\t".join(fields).encode('utf-8')
 
-    def deidentify_strings(self, obj, label, username, profile_entry):
-        """Returns a modified object if a string contained within were changed, None otherwise."""
-        if label == 'event.POST' and self.parameters['skip_post']:
-            return None
-
-        if isinstance(obj, dict):
-            new_dict = {}
-            changed = False
-            for key in obj.keys():
-                value = obj.get(key)
-                if isinstance(key, str):
-                    new_label = u"{}.{}".format(label, key.decode('utf8'))
-                else:
-                    new_label = u"{}.{}".format(label, key)
-                updated_value = self.deidentify_strings(value, new_label, username, profile_entry)
-                if updated_value is not None:
-                    changed = True
-                new_dict[key] = updated_value
-            if changed:
-                return new_dict
-            else:
-                return None
-        elif isinstance(obj, list):
-            new_list = []
-            changed = False
-            for index, value in enumerate(obj):
-                new_label = u"{}[{}]".format(label, index)
-                updated_value = self.deidentify_strings(value, new_label, username, profile_entry)
-                if updated_value is not None:
-                    changed = True
-                new_list.append(updated_value)
-            if changed:
-                return new_list
-            else:
-                return None
-        elif isinstance(obj, unicode):
-            # First perform backslash decoding on string, if needed.
-            if needs_backslash_decoding(obj):
-                decoded_obj = backslash_decode_value(obj)
-                new_label = u"{}*d".format(label)
-                updated_value = self.deidentify_strings(decoded_obj, new_label, username, profile_entry)
-                if updated_value is not None:
-                    return backslash_encode_value(updated_value)
-                else:
-                    return None
-
-            # Only deidentify once backslashes have been decoded as many times as needed.
-            updated_value = self.deidentify_text(obj, username, profile_entry)
-            if obj != updated_value:
-                log.info(u"Deidentified '%s'", label)
-                return updated_value
-            else:
-                return None
-        elif isinstance(obj, str):
-            unicode_obj = obj.decode('utf8')
-            new_label = u"{}*u".format(label)
-            updated_value = self.deidentify_strings(unicode_obj, new_label, username, profile_entry)
-            if updated_value is not None:
-                return updated_value.encode('utf8')
-            else:
-                return None
-        else:
-            # It's an object, but not a string.  Don't change it.
-            return None
-
     def deidentify_wiki_file(self, input_filepath, output_dir):
         # Check for loading user_profile:
         user_profile = None
@@ -608,10 +543,18 @@ class BulkDeidentifier(object):
         return json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
 
     def deidentify_text(self, text, username, user_profile_entry):
+        # PLACEHOLDER SHIM
         user_info = {'username': username}
         if user_profile_entry:
             user_info['name'] = user_profile_entry.name
         return self.deidentifier.deidentify_text(text, user_info)
+
+    def deidentify_strings(self, obj, label, username, user_profile_entry):
+        # PLACEHOLDER SHIM
+        user_info = {'username': username}
+        if user_profile_entry:
+            user_info['name'] = user_profile_entry.name
+        return self.deidentifier.deidentify_structure(obj, label, user_info)
 
 
 #####################

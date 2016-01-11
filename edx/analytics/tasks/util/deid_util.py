@@ -348,7 +348,78 @@ class Deidentifier(object):
         # text = find_zipcodes(text, log_context)
         return text
 
+    def deidentify_structure(self, obj, label, user_info=None, log_context=None, entities=None):
+        """Returns a modified object if a string contained within were changed, None otherwise."""
 
+        # Special-purpose hack for development.
+        # TODO:   Move this out!
+        if label == 'event.POST':
+            if entities is not None and 'skip_post' in entities:
+                return None
+            elif 'skip_post' in self.entities:
+                return None
+
+        if isinstance(obj, dict):
+            new_dict = {}
+            changed = False
+            for key in obj.keys():
+                value = obj.get(key)
+                if isinstance(key, str):
+                    new_label = u"{}.{}".format(label, key.decode('utf8'))
+                else:
+                    new_label = u"{}.{}".format(label, key)
+                updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
+                if updated_value is not None:
+                    changed = True
+                new_dict[key] = updated_value
+            if changed:
+                return new_dict
+            else:
+                return None
+        elif isinstance(obj, list):
+            new_list = []
+            changed = False
+            for index, value in enumerate(obj):
+                new_label = u"{}[{}]".format(label, index)
+                updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
+                if updated_value is not None:
+                    changed = True
+                new_list.append(updated_value)
+            if changed:
+                return new_list
+            else:
+                return None
+        elif isinstance(obj, unicode):
+            # First perform backslash decoding on string, if needed.
+            if needs_backslash_decoding(obj):
+                decoded_obj = backslash_decode_value(obj)
+                new_label = u"{}*d".format(label)
+                updated_value = self.deidentify_structure(decoded_obj, new_label, user_info, log_context, entities)
+                if updated_value is not None:
+                    return backslash_encode_value(updated_value)
+                else:
+                    return None
+
+            # Only deidentify once backslashes have been decoded as many times as needed.
+            updated_value = self.deidentify_text(obj, user_info, log_context, entities)
+            if obj != updated_value:
+                log.info(u"Deidentified '%s'", label)
+                return updated_value
+            else:
+                return None
+        elif isinstance(obj, str):
+            unicode_obj = obj.decode('utf8')
+            new_label = u"{}*u".format(label)
+            updated_value = self.deidentify_structure(unicode_obj, new_label, user_info, log_context, entities)
+            if updated_value is not None:
+                return updated_value.encode('utf8')
+            else:
+                return None
+        else:
+            # It's an object, but not a string.  Don't change it.
+            return None
+
+ 
 #################
 # Implicit events
 #################
