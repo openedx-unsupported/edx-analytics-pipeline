@@ -11,7 +11,7 @@ from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 # from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierParamsMixin
 from edx.analytics.tasks.util.file_util import FileCopyMixin
 
 import logging
@@ -19,7 +19,6 @@ import logging
 import edx.analytics.tasks.util.csv_util
 
 log = logging.getLogger(__name__)
-
 
 
 class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
@@ -105,8 +104,9 @@ class DeidentifyAuthUserTask(DeidentifySqlDumpTask):
         return '*-auth_user-*'
 
     def filter_row(self, row):
-        row[0] = self.remap_id(row[0])  # id
-        row[1] = "username_{id}".format(id=row[0])
+        user_id = row[0]
+        row[0] = self.remap_id(user_id)  # id
+        row[1] = self.generate_deid_username_from_user_id(user_id)
         row[2] = ''  # first_name
         row[3] = ''  # last_name
         row[4] = ''  # email
@@ -186,7 +186,8 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
             # Can't reset values, so update original fields.
             updated_state = cjson.encode(updated_state_dict).replace('\\', '\\\\')
             row[4] = updated_state
-            log.info(u"Deidentified state for user_id '%s' module_id '%s'", user_id, row[2])
+            if self.deidentifier.is_logging_enabled():
+                log.info(u"Deidentified state for user_id '%s' module_id '%s'", user_id, row[2])
 
         return row
 
@@ -199,6 +200,7 @@ class DeidentifyCertificatesGeneratedCertificate(DeidentifySqlDumpTask):
         return '*-certificates_generatedcertificate-*'
 
     def filter_row(self, row):
+        # TODO: determine if 'key' should also be set to ''
         row[1] = self.remap_id(row[1])  # user_id
         row[2] = ''  # download_url
         row[8] = ''  # verify_uuid
@@ -251,6 +253,7 @@ class DeidentifyWikiArticleTask(DeidentifySqlDumpTask):
         return '*-wiki_article-*'
 
     def filter_row(self, row):
+        # TODO: decide if these should be emptied.
         # row[4] = ? # owner_id
         # row[5] = ? # group_id
         return row
@@ -265,7 +268,9 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
 
     def filter_row(self, row):
         user_id = row[5]
-        user_info = {'user_id': user_id}
+        user_info = {}
+        if user_id != 'NULL':
+            user_info['user_id'] = user_id
         # TODO: find username from auth_user, and store in user_info.
         # user_info['username'] = username
         # TODO: find user name from auth_userprofile, and store in user_info.
@@ -274,11 +279,13 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
         row[2] = ''  # user_message
         row[3] = ''  # automatic_log
         row[4] = ''  # ip_address
-        row[5] = self.remap_id(row[5])  # user_id
+        # For user_id, preserve 'NULL' value if present.
+        if user_id != 'NULL':
+            row[5] = self.remap_id(user_id)
 
-        wiki_content = backslash_decode_value(row[12])
+        wiki_content = backslash_decode_value(row[12].decode('utf8'))
         cleaned_content = self.deidentifier.deidentify_text(wiki_content, user_info)
-        row[12] = backslash_encode_value(cleaned_content)
+        row[12] = backslash_encode_value(cleaned_content).encode('utf8')
 
         return row
 
@@ -322,22 +329,39 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         # user_info['name'] = profile_entry.name
 
         # Remap author values.
-        row['author_id'] = str(self.remap_id(row['author_id']))
-        row['author_username'] = "username_{id}".format(id=row['author_id'])
+        author_id = row['author_id']
+        row['author_id'] = str(self.remap_id(author_id))
+        row['author_username'] = self.generate_deid_username_from_user_id(author_id)
 
         # Clean the body of the forum post.
         body = row['body']
         row['body'] = self.deidentifier.deidentify_text(body, user_info)
 
-        # Also clean the title, since it also contains username and fullname matches.
-        title = row['title']
-        row['title'] = self.deidentifier.deidentify_text(title, user_info)
+        # Also clean the title, if present, since it also contains username and fullname matches.
+        if 'title' in row:
+            title = row['title']
+            row['title'] = self.deidentifier.deidentify_text(title, user_info)
 
-        # TODO: encrypt votes { up: [ user_ids.... ], down: [ user_ids...] }
+        # Remap user_id values that are stored in lists.
+        if 'votes' in row:
+            votes =  row['votes']
+            if 'down' in votes and len(votes['down']) > 0:
+                votes['down'] = [str(self.remap_id(user_id)) for user_id in votes['down']]
+            if 'up' in votes and len(votes['up']) > 0:
+                votes['up'] = [str(self.remap_id(user_id)) for user_id in votes['up']]
+
+        if 'abuse_flaggers' in row and len(row['abuse_flaggers']) > 0:
+            row['abuse_flaggers'] = [str(self.remap_id(user_id)) for user_id in row['abuse_flaggers']]
+        if 'historical_abuse_flaggers' in row and len(row['historical_abuse_flaggers']) > 0:
+            row['historical_abuse_flaggers'] = [str(self.remap_id(user_id)) for user_id in row['historical_abuse_flaggers']]
+
+        if 'endorsement' in row and row['endorsement'] and 'user_id' in row['endorsement']:
+            row['endorsement']['user_id'] = str(self.remap_id(row['endorsement']['user_id']))
+
         return row
 
 
-class DeidentifiedCourseDumpTask(luigi.WrapperTask):
+class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
     """Wrapper task to deidentify data for a particular course."""
 
     course = luigi.Parameter()
@@ -348,11 +372,14 @@ class DeidentifiedCourseDumpTask(luigi.WrapperTask):
         super(DeidentifiedCourseDumpTask, self).__init__(*args, **kwargs)
 
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
-        auth_userprofile_targets = PathSetTask([url_path_join(self.dump_root, filename_safe_course_id, 'state')],
-                                               ['*auth_userprofile*']).output()
+        dump_path = url_path_join(self.dump_root, filename_safe_course_id, 'state')
+        auth_userprofile_targets = PathSetTask([dump_path], ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that
         dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
         # TODO: Make the date a parameter that defaults to the most recent, but allows the user to override?
+        # This should return an error if no data is found, rather than getting a cryptic 'index out of range' error.
+        if len(dates) == 0:
+            raise Exception('Missing auth_userprofile data file in {}'.format(dump_path))
         latest_date = sorted(dates)[-1]
         self.data_directory = url_path_join(self.dump_root, filename_safe_course_id, 'state', latest_date)
         self.output_directory = url_path_join(self.output_root, filename_safe_course_id, 'state', latest_date)
@@ -361,7 +388,9 @@ class DeidentifiedCourseDumpTask(luigi.WrapperTask):
         kwargs = {
             'course': self.course,
             'output_directory': self.output_directory,
-            'data_directory': self.data_directory
+            'data_directory': self.data_directory,
+            'entities': self.entities,
+            'log_context': self.log_context,
         }
         yield (
             DeidentifyAuthUserTask(**kwargs),
@@ -380,3 +409,22 @@ class DeidentifiedCourseDumpTask(luigi.WrapperTask):
             CourseStructureTask(**kwargs),
             DeidentifyMongoDumpsTask(**kwargs),
         )
+
+
+class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
+    """Wrapper task for data deidentification."""
+
+    course = luigi.Parameter(is_list=True)
+    dump_root = luigi.Parameter()
+    output_root = luigi.Parameter(
+        config_path={'section': 'data-deidentification', 'name': 'output_root'}
+    )
+
+    def requires(self):
+        for course in self.course:
+            kwargs = {
+                'dump_root': self.dump_root,
+                'course': course,
+                'output_root': self.output_root,
+            }
+            yield DeidentifyCourseDumpTask(**kwargs)
