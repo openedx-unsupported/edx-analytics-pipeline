@@ -1,3 +1,4 @@
+import json
 import os
 import errno
 import logging
@@ -40,6 +41,8 @@ class DeidentificationTaskMixin(object):
         config_path={'section': 'deidentification', 'name': 'output_root'}
     )
     recipient = luigi.Parameter(is_list=True)
+    format_version = luigi.Parameter()
+    pipeline_version = luigi.Parameter()
 
 
 class DeidentificationTask(DeidentificationTaskMixin, luigi.Task):
@@ -95,6 +98,12 @@ class DeidentificationTask(DeidentificationTaskMixin, luigi.Task):
                             raise
                     with open(local_file_path, 'w') as temp_file:
                         copy_file_to_file(input_file, temp_file)
+
+            with open(os.path.join(tmp_directory, 'version.json')) as version_file:
+                json.dump({
+                    'format_version': self.format_version,
+                    'pipeline_version': self.pipeline_version
+                }, version_file)
 
             def report_encrypt_progress(num_bytes):
                 """Update hadoop counters as the file is encrypted"""
