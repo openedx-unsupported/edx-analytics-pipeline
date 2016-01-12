@@ -77,7 +77,7 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             '--dump-root', self.dump_root,
             '--intermediate-output-root', url_path_join(self.test_root, 'intermediate-output'),
             '--event-log-interval', self.INTERVAL,
-            '--gpg_key_dir', self.test_gpg_key_dir,
+            '--gpg-key-dir', self.test_gpg_key_dir,
             '--gpg-master-key', 'daemon+master@edx.org',
             '--output-root', self.test_out,
             '--recipient', 'daemon@edx.org'
