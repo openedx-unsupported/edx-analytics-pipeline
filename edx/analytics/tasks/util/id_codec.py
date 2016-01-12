@@ -67,7 +67,7 @@ class PermutationGenerator(object):
 
 
 class UserIdRemapperMixin(object):
-    """Mixin class to provide rempad_id method. Ensures that there is only one instace of PermutationGenerator."""
+    """Mixin class to provide remad_id method. Ensures that there is only one instance of PermutationGenerator."""
 
     seed_value = luigi.IntParameter(
         config_path={'section': 'id-codec', 'name': 'seed_value'}
