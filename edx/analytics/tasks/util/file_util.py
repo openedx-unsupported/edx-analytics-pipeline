@@ -17,13 +17,10 @@ class FileCopyMixin(object):
             """Update hadoop counters as the file is written"""
             self.incr_counter('FileCopyTask', 'Bytes Written to Output', num_bytes)
 
-        if isinstance(self.input(), list):
-            if len(self.input()) == 1:
-                input_target = self.input()[0]
-            else:
-                raise ValueError("Number of input files should be exactly 1")
-        else:
-            input_target = self.input()
+        input_target = self.input()
+
+        if hasattr(self, 'file_input_target'):
+            input_target = self.file_input_target
 
         with self.output().open('w') as output_file:
             with input_target.open('r') as input_file:
