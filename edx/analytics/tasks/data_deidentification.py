@@ -9,10 +9,9 @@ import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-# from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierParamsMixin
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierParamsMixin, UserInfoMixin, UserInfoDownstreamMixin
 from edx.analytics.tasks.util.file_util import FileCopyMixin
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 import logging
 
@@ -21,7 +20,8 @@ import edx.analytics.tasks.util.csv_util
 log = logging.getLogger(__name__)
 
 
-class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
+# TODO: decide if UserInfoMixin should just be combined with DeidentifierMixin.  Probably...
+class BaseDeidentifyDumpTask(DeidentifierMixin, UserInfoMixin, luigi.Task):
     """
     Base class for deidentification of state files.
     """
@@ -31,23 +31,31 @@ class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
     data_directory = luigi.Parameter()
 
     def output(self):
-        if len(self.input()) == 0:
+        if len(self.input()['data']) == 0:
             raise IOError("Course File '{filename}' not found for course '{course}'".format(
                 filename=self.file_pattern, course=self.course
             ))
 
         # TODO: should we change the filename to indicate that it has been de-identified?
-        output_filename = os.path.basename(self.input()[0].path)
+        output_filename = os.path.basename(self.input()['data'][0].path)
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
     def requires(self):
-        # We want to process files that are zero-length.
-        return PathSetTask([self.data_directory], [self.file_pattern], include_zero_length=True)
+        base_reqs = {
+            # We want to process files that are zero-length.
+            'data': PathSetTask([self.data_directory], [self.file_pattern], include_zero_length=True)
+        }
+        base_reqs.update(self.user_info_requirements())
+        return base_reqs
 
     @property
     def file_pattern(self):
         """Provides the file pattern for input file."""
         raise NotImplementedError
+
+    @property
+    def file_input_target(self):
+        return self.input()['data'][0]
 
 
 class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
@@ -55,7 +63,7 @@ class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 writer = csv.writer(output_file, dialect='mysqlexport')
                 reader = csv.reader(input_file, dialect='mysqlexport')
 
@@ -316,7 +324,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 for line in input_file:
                     row = json.loads(line)
                     filtered_row = self.filter_row(row)
@@ -368,7 +376,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         return row
 
 
-class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
+class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, UserInfoDownstreamMixin, luigi.WrapperTask):
     """Wrapper task to deidentify data for a particular course."""
 
     course = luigi.Parameter()
@@ -382,7 +390,7 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
         dump_path = url_path_join(self.dump_root, filename_safe_course_id, 'state')
         auth_userprofile_targets = PathSetTask([dump_path], ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that
-        dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
+        dates = [target.path.rsplit('/', 2)[-2] for target in auth_userprofile_targets]
         # TODO: Make the date a parameter that defaults to the most recent, but allows the user to override?
         # This should return an error if no data is found, rather than getting a cryptic 'index out of range' error.
         if len(dates) == 0:
@@ -398,6 +406,8 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
             'data_directory': self.data_directory,
             'entities': self.entities,
             'log_context': self.log_context,
+            'auth_user_path': self.auth_user_path,
+            'auth_userprofile_path': self.auth_userprofile_path,
         }
         yield (
             DeidentifyAuthUserTask(**kwargs),
@@ -419,7 +429,7 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
         )
 
 
-class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
+class DataDeidentificationTask(DeidentifierParamsMixin, UserInfoDownstreamMixin, luigi.WrapperTask):
     """Wrapper task for data deidentification."""
 
     course = luigi.Parameter(is_list=True)
@@ -436,5 +446,7 @@ class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
                 'output_root': self.output_root,
                 'entities': self.entities,
                 'log_context': self.log_context,
+                'auth_user_path': self.auth_user_path,
+                'auth_userprofile_path': self.auth_userprofile_path,
             }
             yield DeidentifyCourseDumpTask(**kwargs)
