@@ -26,7 +26,7 @@ log = logging.getLogger(__name__)
 ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type"])
 
 
-class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTask):
+class DeidentifyCourseEventsTask(UserIdRemapperMixin, deid_util.UserInfoMixin, MultiOutputMapReduceJobTask):
     """
     Task to deidentify events for a particular course.
     Uses the output produced by EventExportByCourseTask as source for this task.
@@ -44,10 +44,7 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
         return PathSetTask([event_files_url], ['*'])
 
     def requires_local(self):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
-        results = {
-            'auth_user': PathSetTask([url_path_join(self.dump_root, filename_safe_course_id, 'state')], ['*-auth_user-*'])
-        }
+        results = {}
         if os.path.basename(self.explicit_event_whitelist) != self.explicit_event_whitelist:
             results['explicit_events'] = ExternalURL(url=self.explicit_event_whitelist)
 
@@ -64,19 +61,6 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
             default_filepath = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks', self.explicit_event_whitelist)
             with open(default_filepath, 'r') as explicit_events_file:
                 self.explicit_events = self.parse_explicit_events_file(explicit_events_file)
-
-        # read the latest auth_user for this course in memory, needed to remap usernames
-        latest_auth_user_target = sorted(self.input_local()['auth_user'], key=lambda target: target.path)[-1]
-
-        self.username_map = {}
-
-        with latest_auth_user_target.open('r') as auth_user_file:
-            reader = csv.reader(auth_user_file, dialect='mysqlexport')
-            next(reader, None)  # skip header
-            for row in reader:
-                user_id = row[0]
-                username = row[1]
-                self.username_map[username] = user_id
 
     def parse_explicit_events_file(self, explicit_events_file):
         """Parse explicit_events_file and load in memory."""
@@ -101,16 +85,16 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
         if filtered_event is None:
             return
 
-        deidentified_event = self.deidentify_event(filtered_event)
-        if deidentified_event is None:
-            return
-
-        yield date_string.encode('utf-8'), cjson.encode(deidentified_event)
+        yield date_string.encode('utf-8'), line.rstrip('\r\n')
 
     def multi_output_reducer(self, _key, values, output_file):
         with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
             try:
                 for value in values:
+                    filtered_event = eventlog.parse_json_event(value)
+                    deidentified_event = self.deidentify_event(filtered_event)
+                    if deidentified_event is None:
+                        return
                     outfile.write(value.strip())
                     outfile.write('\n')
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
@@ -179,9 +163,11 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
 
         if event['username']:
             try:
-                event['username'] = self.generate_deid_username_from_user_id(self.username_map[event['username']])
+                username = event['username']
+                user_id = self.user_by_username[username]['user_id']
+                event['username'] = self.generate_deid_username_from_user_id(user_id)
             except KeyError:
-                log.error("Unable to find username: %s in the username_map", event['username'])
+                log.error("Unable to find username: %s in the user_by_username map", event['username'])
                 return None
 
         event_data = eventlog.get_event_data(event)
@@ -191,12 +177,7 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
                 event_data['user_id'] = self.remap_id(event_data['user_id'])
 
             if 'username' in event_data:
-                # How to DRY ?
-                try:
-                    event_data['username'] = self.generate_deid_username_from_user_id(self.username_map[event_data['username']])
-                except KeyError:
-                    log.error("Unable to find username: %s in the username_map", event_data['username'])
-                    return None
+                event_data['username'] = event['username']
 
             for key in ['certificate_id', 'certificate_url', 'source_url', 'fileName', 'GET', 'POST']:
                 event_data.pop(key, None)
@@ -217,4 +198,3 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
     def extra_modules(self):
         import numpy
         return [numpy]
-
