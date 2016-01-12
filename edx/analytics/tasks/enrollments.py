@@ -9,7 +9,7 @@ import luigi.task
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 
@@ -24,6 +24,8 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
     """Produce a data set that shows which days each user was enrolled in each course."""
 
     output_root = luigi.Parameter()
+
+    enable_direct_output = True
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -75,6 +77,16 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def output(self):
         return get_target_from_url(self.output_root)
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
+
+    def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
+        super(CourseEnrollmentTask, self).run()
 
 
 class EnrollmentEvent(object):
