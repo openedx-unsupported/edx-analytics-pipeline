@@ -2,6 +2,7 @@ import os
 import errno
 import logging
 import tarfile
+import urlparse
 
 import luigi
 
@@ -83,7 +84,9 @@ class DeidentificationTask(DeidentificationTaskMixin, luigi.Task):
             for target in path_task.output():
                 log.info(target.path)
                 with target.open('r') as input_file:
-                    relative_path = target.path[len(course_files_url):].lstrip('/')
+                    relative_url_path = urlparse.urlparse(course_files_url).path
+                    r_index = target.path.find(relative_url_path) + len(relative_url_path)
+                    relative_path = target.path[r_index:].lstrip('/')
                     local_file_path = os.path.join(tmp_directory, relative_path)
                     try:
                         os.makedirs(os.path.dirname(local_file_path))
