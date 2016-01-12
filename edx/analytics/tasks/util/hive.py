@@ -257,6 +257,11 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         raise NotImplementedError
 
     @property
+    def data_task(self):
+        """Returns a luigi task that is used to insert real data into this partition."""
+        return None
+
+    @property
     def partition(self):
         """Returns a HivePartition object that represents the partition."""
         return HivePartition(self.hive_table_task.partition_by, self.partition_value)
@@ -267,6 +272,8 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return url_path_join(self.hive_table_task.table_location, self.partition.path_spec + '/')
 
     def requires(self):
+        if self.data_task is not None:
+            yield self.data_task
         yield self.hive_table_task
 
     def output(self):

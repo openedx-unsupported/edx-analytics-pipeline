@@ -215,6 +215,15 @@ class Record(object):
 
         return field_dict
 
+    def replace(self, **kwargs):
+        """
+        Returns: a new Record with identical values except for those specified in the kwargs, which override any
+            existing values for those fields.
+        """
+        new_attribute_values = self.to_ordered_dict()
+        new_attribute_values.update(kwargs)
+        return self.__class__(**new_attribute_values)
+
     def to_string_tuple(self, null_value=DEFAULT_NULL_VALUE):
         """
         Convert the record into a tuple of UTF-8 encoded byte strings.
@@ -249,6 +258,14 @@ class Record(object):
             field_values[field_name] = val
 
         return field_values
+
+    def to_separated_values(self, sep='\t', null_value=DEFAULT_NULL_VALUE):
+        """
+        Convert this record to a string with fields delimited by `sep`.
+
+        Returns: a UTF8 string representation of the record.
+        """
+        return sep.join(self.to_string_tuple(null_value=null_value))
 
     @classmethod
     def from_string_tuple(cls, string_tuple, null_value=DEFAULT_NULL_VALUE):
@@ -439,3 +456,21 @@ class DateField(Field):  # pylint: disable=abstract-method
 
     def deserialize_from_string(self, string_value):
         return datetime.date(*[int(x) for x in string_value.split('-')])
+
+
+class FloatField(Field):  # pylint: disable=abstract-method
+    """Represents a field that contains a floating point number."""
+
+    hive_type = sql_base_type = 'FLOAT'
+
+    def validate(self, value):
+        validation_errors = super(FloatField, self).validate(value)
+        if value is not None:
+            try:
+                float(value)
+            except (ValueError, TypeError):
+                validation_errors.append('The value is not a floating point number')
+        return validation_errors
+
+    def deserialize_from_string(self, string_value):
+        return float(string_value)
