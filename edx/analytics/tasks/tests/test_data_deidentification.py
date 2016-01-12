@@ -232,9 +232,11 @@ class TestDataDeidentification(unittest.TestCase):
 
     def test_mongo_deidentification(self):
         data = '{"author_id":"123456","author_username":"johndoe","body":"This is a body", ' \
+               '"title":"This is a forum post title",' \
                '"course_id":"course-v1:edX+DemoX+Test_2014","votes":{"down":["123456"],"up":["12345"]}}'
         expected = '{"author_id":"273678626","author_username":"username_273678626","body":"This is a body", ' \
-                   '"course_id":"course-v1:edX+DemoX+Test_2014","votes":{"down":["123456"],"up":["12345"]}}'
+                   '"title":"This is a forum post title",' \
+                   '"course_id":"course-v1:edX+DemoX+Test_2014","votes":{"down":["273678626"],"up":["302000641"]}}'
         output = self.run_task(task_cls=deid.DeidentifyMongoDumpsTask, source=data)
         self.assertDictEqual(json.loads(output), json.loads(expected))
 

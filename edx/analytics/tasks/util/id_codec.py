@@ -67,10 +67,11 @@ class PermutationGenerator(object):
 
 
 class UserIdRemapperMixin(object):
-    """Mixin class to provide rempad_id method. Ensures that there is only one instace of PermutationGenerator."""
+    """Mixin class to provide remap_id method. Ensures that there is only one instance of PermutationGenerator."""
 
     seed_value = luigi.IntParameter(
-        config_path={'section': 'id-codec', 'name': 'seed_value'}
+        config_path={'section': 'id-codec', 'name': 'seed_value'},
+        significant=False,  # Prevent this from being echoed in the console.
     )
     __generator_instance = None
 
@@ -84,6 +85,5 @@ class UserIdRemapperMixin(object):
         "Returns a reversible mapping of input id."
         return self.permutation_generator.permute(int(id_value))
 
-    # TODO: use this in data_deidentification.py
     def generate_deid_username_from_user_id(self, user_id):
         return "username_{0}".format(self.remap_id(user_id))

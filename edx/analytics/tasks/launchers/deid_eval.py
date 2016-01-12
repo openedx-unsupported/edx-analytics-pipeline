@@ -17,7 +17,6 @@ from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.deid_util import (
     backslash_encode_value,
     backslash_decode_value,
-    needs_backslash_decoding,
     Deidentifier,
 )
 
@@ -86,6 +85,7 @@ USERPROFILE_FIELDS = [
 
 UserProfileRecord = namedtuple('UserProfileRecord', USERPROFILE_FIELDS)  # pylint: disable=invalid-name
 
+
 def load_user_profile(userprofile_path):
     result = {}
     with open(userprofile_path, 'r') as infile:
@@ -106,6 +106,7 @@ USERINFO_FIELDS = [
 
 
 UserInfoRecord = namedtuple('UserInfoRecord', USERINFO_FIELDS)  # pylint: disable=invalid-name
+
 
 def load_user_info(userinfo_path):
     """Reads a custom user-info file from the local fs that contains username, email, user-id, fullname."""
@@ -147,6 +148,7 @@ EVENT_TYPES_WITH_DIFFERENT_USERIDS = [
     'edx.certificate.evidence_visited',
 ]
 
+
 class BulkDeidentifier(object):
 
     parameters = {}
@@ -168,7 +170,7 @@ class BulkDeidentifier(object):
 
         # Just put all the parameters with true boolean values into the entity set.
         # It doesn't matter if there are extras.
-        entity_list = [key for key, value in self.parameters.iteritems() if value == True]
+        entity_list = [key for key, value in self.parameters.iteritems() if value is True]
         self.deidentifier = Deidentifier(log_context=self.parameters['log_context'], entities=set(entity_list))
 
     def deidentify_directory(self, input_dir, output_dir):
@@ -264,7 +266,8 @@ class BulkDeidentifier(object):
                 if userid_entry is None:
                     log.error(u"user_id ('%s') is unknown to user_info %s", user_id, debug_str)
                 elif username_entry and userid_entry != username_entry:
-                    log.error(u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
+                    log.error(
+                        u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
                         userid_entry.user_id, userid_entry.username, username_entry.username, username_entry.user_id, debug_str,
                     )
 
@@ -292,9 +295,10 @@ class BulkDeidentifier(object):
                     # This turns out to be somewhat expected for certain event types where one user is doing something on behalf
                     # of another user.  The actor is in context, and the object is in event payload.
                     if event_type not in EVENT_TYPES_WITH_DIFFERENT_USERIDS:
-                        log.error(u"Context user_id ('%s'='%s') does not match event user_id ('%s'='%s') %s",
-                                  userid_entry.user_id, userid_entry.username, event_userid_entry.username, event_userid_entry.user_id, debug_str,
-                    )
+                        log.error(
+                            u"Context user_id ('%s'='%s') does not match event user_id ('%s'='%s') %s",
+                            userid_entry.user_id, userid_entry.username, event_userid_entry.username, event_userid_entry.user_id, debug_str,
+                        )
                 elif event_user_id != user_id:
                     log.error(u"Found user_id ('%s') in event that was different from context ('%s') %s", event_user_id, user_id, debug_str)
 
@@ -640,17 +644,17 @@ def main():
         '--name-context',
         help='Extract name context',
         action='store_true',
-    )    
+    )
     arg_parser.add_argument(
         '--facebook',
         help='Extract facebook urls',
         action='store_true',
-    )    
+    )
     arg_parser.add_argument(
         '--username',
         help='Extract username',
         action='store_true',
-    )    
+    )
     arg_parser.add_argument(
         '--fullname',
         help='Extract fullname.',
@@ -671,7 +675,7 @@ def main():
 
     profiler = None
     if args.pyinstrument:
-        profiler = Profiler() # or Profiler(use_signal=False), see below
+        profiler = Profiler()  # or Profiler(use_signal=False), see below
         profiler.start()
 
     try:

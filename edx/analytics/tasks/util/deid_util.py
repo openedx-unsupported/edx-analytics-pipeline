@@ -3,8 +3,30 @@
 import re
 import logging
 
+import luigi
+
+from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
+
 
 log = logging.getLogger(__name__)
+
+
+class DeidentifierParamsMixin(object):
+
+    entities = luigi.Parameter(is_list=True, default=[])
+    log_context = luigi.IntParameter(default=None)
+
+
+class DeidentifierMixin(UserIdRemapperMixin, DeidentifierParamsMixin):
+
+    def __init__(self, *args, **kwargs):
+        super(DeidentifierMixin, self).__init__(*args, **kwargs)
+        deid_args = {}
+        if 'entities' in kwargs and len(kwargs['entities']) > 0:
+            deid_args['entities'] = set(kwargs['entities'])
+        if 'log_context' in kwargs:
+            deid_args['log_context'] = kwargs['log_context']
+        self.deidentifier = Deidentifier(**deid_args)
 
 
 def backslash_decode_value(value):
@@ -12,7 +34,7 @@ def backslash_decode_value(value):
 
 
 def backslash_encode_value(value):
-    return unicode(value).replace('\\', '\\\\').replace('\r', '\\r').replace('\t','\\t').replace('\n', '\\n')
+    return value.replace('\\', '\\\\').replace('\r', '\\r').replace('\t', '\\t').replace('\n', '\\n')
 
 
 # Find \\r, \\t or \\n
@@ -32,6 +54,7 @@ def needs_backslash_decoding(value):
 # A negative value for log_context disables logging of matches.
 DEFAULT_LOG_CONTEXT = -1
 
+
 def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
     """
     Applies pattern to string and replaces all matches with <<label>>.
@@ -49,7 +72,7 @@ def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
         if log_context >= 0:
             left_edge = start - log_context if start > log_context else 0
             left = backslash_encode_value(string[left_edge:start])
-            right = backslash_encode_value(string[end:end+log_context])
+            right = backslash_encode_value(string[end:end + log_context])
             value1 = match.group(0)
             value = unicode(value1)
             log.info(u"Found %s:  %s<<%s>>%s", label, left, value, right)
@@ -92,8 +115,10 @@ POSSIBLE_PHONE_PATTERN = r'(\+?\b[\d][0-9 \(\).\-]{8,}[\d])\b'
 COMPILED_PHONE_PATTERN = re.compile(PHONE_PATTERN, re.VERBOSE)
 COMPILED_POSSIBLE_PHONE_PATTERN = re.compile(POSSIBLE_PHONE_PATTERN, re.VERBOSE)
 
+
 def find_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(COMPILED_PHONE_PATTERN, text, "PHONE_NUMBER", log_context)
+
 
 def find_possible_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", log_context)
@@ -108,6 +133,7 @@ EMAIL_CONTEXT = re.compile(
     re.IGNORECASE,
 )
 
+
 def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
 
@@ -115,6 +141,7 @@ NAME_CONTEXT = re.compile(
     r'\b(hi|hello|sincerely|yours truly|Dear|Mr|Ms|Mrs|regards|cordially|best wishes|cheers|my name)\b',
     re.IGNORECASE,
 )
+
 
 def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", log_context)
@@ -124,8 +151,10 @@ PHONE_CONTEXT = re.compile(
     re.IGNORECASE,
 )
 
+
 def find_phone_context(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", log_context)
+
 
 #####################
 # Facebook
@@ -136,6 +165,8 @@ FACEBOOK_PATTERN = re.compile(
     r'\b(https:\/\/www\.facebook\.com\/[\w.]+)\b',
     re.IGNORECASE,
 )
+
+
 def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", log_context)
 
@@ -147,6 +178,7 @@ def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
 # Look for a leading space.
 ZIPCODE_PATTERN = r'((?<= )\b\d{5}(?:[-\s]\d{4})?\b)'
 COMPILED_ZIPCODE_PATTERN = re.compile(ZIPCODE_PATTERN, re.IGNORECASE)
+
 
 def find_zipcodes(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(COMPILED_ZIPCODE_PATTERN, text, "ZIPCODE", log_context)
@@ -168,8 +200,10 @@ BASIC_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#
 
 COMPILED_POSSIBLE_EMAIL_PATTERN = re.compile(BASIC_EMAIL_PATTERN, re.IGNORECASE)
 
+
 def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(COMPILED_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
+
 
 def find_possible_emails(text, log_context=DEFAULT_LOG_CONTEXT):
     if '@' in text:
@@ -191,6 +225,7 @@ def find_possible_emails(text, log_context=DEFAULT_LOG_CONTEXT):
 #####################
 # username
 #####################
+
 
 def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
     username_pattern = re.compile(
@@ -227,7 +262,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # s/o = son of, d/o = daughter of, Others are: a/l = son of (Malay),
     # a/p = daughter of (Malay).  Also a/k, w/o.
     fullname2 = re.sub(r'\b(?:s\/o|d\/o|a\/l|a\/p|a\/k|w\/o)\b', ' ', fullname, flags=re.IGNORECASE)
-    
+
     # Check the name for bogus characters.  They may have special meanings if
     # embedded in a regexp.  (We should probably be escaping any periods,
     # if we were even including them.)  In fact, we should be using re.escape.
@@ -241,7 +276,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # legal in names but may have different meanings in regexps (i.e. apostrophe and period).
     # TODO: if a single comma is found, maybe linearize the name by swapping the delimited parts?
     fullname2 = fullname2.replace('"', ' ').replace('*', ' ').replace('(', ' ').replace(')', ' ').replace(',', ' ').replace('-', '\\-').replace("'", "\\'").replace('.', '\\.')
-    
+
     # Create regexp by breaking the name up.  Assume spaces.
     names = fullname2.strip().split()
     if len(names) == 0:
@@ -271,6 +306,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
 
 DEFAULT_ENTITIES = set(['email', 'username', 'fullname', 'phone'])
 
+
 class Deidentifier(object):
 
     log_context = DEFAULT_LOG_CONTEXT
@@ -281,6 +317,9 @@ class Deidentifier(object):
             self.log_context = kwargs['log_context']
         if 'entities' in kwargs:
             self.entities = kwargs['entities']
+
+    def is_logging_enabled(self):
+        return (self.log_context > 0)
 
     def deidentify_text(self, text, user_info=None, log_context=None, entities=None):
         """
@@ -403,7 +442,8 @@ class Deidentifier(object):
             # Only deidentify once backslashes have been decoded as many times as needed.
             updated_value = self.deidentify_text(obj, user_info, log_context, entities)
             if obj != updated_value:
-                log.info(u"Deidentified '%s'", label)
+                if self.is_logging_enabled():
+                    log.info(u"Deidentified '%s'", label)
                 return updated_value
             else:
                 return None
@@ -419,7 +459,7 @@ class Deidentifier(object):
             # It's an object, but not a string.  Don't change it.
             return None
 
- 
+
 #################
 # Implicit events
 #################
