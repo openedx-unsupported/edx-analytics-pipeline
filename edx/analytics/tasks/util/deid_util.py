@@ -3,8 +3,22 @@
 import re
 import logging
 
+import luigi
+
+from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
+
 
 log = logging.getLogger(__name__)
+
+
+class DeidentifierMixin(UserIdRemapperMixin):
+
+    entities = luigi.Parameter(is_list=True, default=[])
+    log_context = luigi.IntParameter(default=None)
+
+    def __init__(self, *args, **kwargs):
+        super(DeidentifierMixin, self).__init__(*args, **kwargs)
+        self.deidentifier = Deidentifier(log_context=self.log_context, entities=set(self.entities))
 
 
 def backslash_decode_value(value):

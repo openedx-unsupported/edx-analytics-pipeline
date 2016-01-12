@@ -1,6 +1,7 @@
 """Deidentify course state files by removing/stubbing user information."""
 
 import luigi
+import cjson
 import csv
 import json
 import os
@@ -8,8 +9,9 @@ import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
+# from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value
 from edx.analytics.tasks.util.file_util import FileCopyMixin
 
 import logging
@@ -19,7 +21,8 @@ import edx.analytics.tasks.util.csv_util
 log = logging.getLogger(__name__)
 
 
-class BaseDeidentifyDumpTask(UserIdRemapperMixin, luigi.Task):
+
+class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
     """
     Base class for deidentification of state files.
     """
@@ -158,8 +161,33 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
         return '*-courseware_studentmodule-*'
 
     def filter_row(self, row):
+        user_id = row[3]
+        user_info = {'user_id': user_id}
+        # TODO: find username from auth_user, and store in user_info.
+        # user_info['username'] = username
+        # TODO: find user name from auth_userprofile, and store in user_info.
+        # user_info['name'] = profile_entry.name
+
         row[3] = self.remap_id(row[3])  # student_id
-        #row[4] = ?  # state
+
+        # Courseware_studentmodule is not processed with the other SQL tables, so it
+        # is not escaped in the same way.  In particular, we will not decode and encode it,
+        # but merely transform double backslashes.
+        state_str = row[4].replace('\\\\', '\\')
+        try:
+            state_dict = cjson.decode(state_str, all_unicode=True)
+        except Exception as exc:
+            log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r", row[0], type(state_str), state_str)
+            state_dict = {}
+
+        # Traverse the dictionary, looking for entries that need to be scrubbed.
+        updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
+        if updated_state_dict is not None:
+            # Can't reset values, so update original fields.
+            updated_state = cjson.encode(updated_state_dict).replace('\\', '\\\\')
+            row[4] = updated_state
+            log.info(u"Deidentified state for user_id '%s' module_id '%s'", user_id, row[2])
+
         return row
 
 
@@ -236,10 +264,22 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
         return '*-wiki_articlerevision-*'
 
     def filter_row(self, row):
+        user_id = row[5]
+        user_info = {'user_id': user_id}
+        # TODO: find username from auth_user, and store in user_info.
+        # user_info['username'] = username
+        # TODO: find user name from auth_userprofile, and store in user_info.
+        # user_info['name'] = profile_entry.name
+
         row[2] = ''  # user_message
         row[3] = ''  # automatic_log
         row[4] = ''  # ip_address
         row[5] = self.remap_id(row[5])  # user_id
+
+        wiki_content = backslash_decode_value(row[12])
+        cleaned_content = self.deidentifier.deidentify_text(wiki_content, user_info)
+        row[12] = backslash_encode_value(cleaned_content)
+
         return row
 
 
@@ -277,9 +317,22 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def filter_row(self, row):
         """Replace/remove sensitive information."""
+        user_info = {'user_id': row.get('author_id'), 'username': row.get('author_username')}
+        # TODO: find user name from auth_userprofile, and store in user_info.
+        # user_info['name'] = profile_entry.name
+
+        # Remap author values.
         row['author_id'] = str(self.remap_id(row['author_id']))
         row['author_username'] = "username_{id}".format(id=row['author_id'])
-        # TODO: scrub body
+
+        # Clean the body of the forum post.
+        body = row['body']
+        row['body'] = self.deidentifier.deidentify_text(body, user_info)
+
+        # Also clean the title, since it also contains username and fullname matches.
+        title = row['title']
+        row['title'] = self.deidentifier.deidentify_text(title, user_info)
+
         # TODO: encrypt votes { up: [ user_ids.... ], down: [ user_ids...] }
         return row
 
