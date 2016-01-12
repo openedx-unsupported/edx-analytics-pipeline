@@ -30,8 +30,9 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
         super(DeidentificationAcceptanceTest, self).setUp()
         self.temporary_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.temporary_dir)
-        self.dump_root = os.path.join(self.test_src, 'course_exports', 'raw')
+        self.dump_root = url_path_join(self.test_src, 'course_exports', 'raw')
         self.filename_safe_course_id = get_filename_safe_course_id(self.COURSE_ID)
+        self.test_gpg_key_dir = url_path_join(self.test_root, 'gpg-keys')
 
     def setup_state_files(self):
         """Upload input fixture data files, needed to mimic the output produced by course-exporter which is not a part of this test."""
@@ -39,17 +40,17 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
         state_files_dir = os.path.join(self.data_dir, 'input', 'deidentification', 'state')
         for filename in os.listdir(state_files_dir):
             local_filepath = os.path.join(state_files_dir, filename)
-            dst = url_path_join(self.dump_root, self.filename_safe_course_id, 'state', self.EXPORT_DATE, filename)
-            self.upload_file(local_filepath, dst)
+            destination_url = url_path_join(self.dump_root, self.filename_safe_course_id, 'state', self.EXPORT_DATE, filename)
+            self.upload_file(local_filepath, destination_url)
 
-    def test_deidentification(self):
-        self.run_event_export_task()
-        self.setup_state_files()
-        self.run_data_deidentification_task()
-        self.run_events_deidentification_task()
-        self.maxDiff = None
-        self.validate_data_deidentification()
-        self.validate_events_deidentification()
+    def upload_gpg_keys(self):
+        gpg_key_dir = os.path.join('gpg-keys')
+        for key_filename in os.listdir(gpg_key_dir):
+            local_filepath = os.path.join(gpg_key_dir, key_filename)
+            destination_url = url_path_join(self.test_gpg_key_dir, key_filename)
+
+            if not key_filename.endswith('.key'):
+                self.upload_file(local_filepath, destination_url)
 
     def run_event_export_task(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 10, 15))
@@ -60,21 +61,26 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS)
         ])
 
-    def run_data_deidentification_task(self):
-        self.task.launch([
-            'DataDeidentificationTask',
-            '--course', self.filename_safe_course_id,
-            '--output-root', self.test_out,
-            '--dump-root', self.dump_root
-        ])
+    def test_deidentification(self):
+        self.run_event_export_task()
+        self.setup_state_files()
+        self.upload_gpg_keys()
+        self.run_deidentification_task()
+        self.maxDiff = None
+        #self.validate_data_deidentification()
+        #self.validate_events_deidentification()
 
-    def run_events_deidentification_task(self):
+    def run_deidentification_task(self):
         self.task.launch([
-            'EventDeidentificationTask',
+            'DeidentificationTask',
             '--course', self.filename_safe_course_id,
-            '--output-root', self.test_out,
             '--dump-root', self.dump_root,
-            '--interval', self.INTERVAL
+            '--intermediate-output-root', url_path_join(self.test_root, 'intermediate-output'),
+            '--event-log-interval', self.INTERVAL,
+            '--gpg_key_dir', self.test_gpg_key_dir,
+            '--gpg-master-key', 'daemon+master@edx.org',
+            '--output-root', self.test_out,
+            '--recipient', 'daemon@edx.org'
         ])
 
     def validate_data_deidentification(self):
