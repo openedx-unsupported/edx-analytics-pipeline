@@ -328,10 +328,14 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         # TODO: find user name from auth_userprofile, and store in user_info.
         # user_info['name'] = profile_entry.name
 
-        # Remap author values.
+        # Remap author values, if possible.
         author_id = row['author_id']
-        row['author_id'] = str(self.remap_id(author_id))
-        row['author_username'] = self.generate_deid_username_from_user_id(author_id)
+        try:
+            author_id = int(author_id)
+            row['author_id'] = str(self.remap_id(author_id))
+            row['author_username'] = self.generate_deid_username_from_user_id(author_id)
+        except ValueError:
+            log.error("Encountered non-integer value for author_id (%s) in forums data.", author_id)
 
         # Clean the body of the forum post.
         body = row['body']
@@ -344,7 +348,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
         # Remap user_id values that are stored in lists.
         if 'votes' in row:
-            votes =  row['votes']
+            votes = row['votes']
             if 'down' in votes and len(votes['down']) > 0:
                 votes['down'] = [str(self.remap_id(user_id)) for user_id in votes['down']]
             if 'up' in votes and len(votes['up']) > 0:
@@ -356,7 +360,9 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
             row['historical_abuse_flaggers'] = [str(self.remap_id(user_id)) for user_id in row['historical_abuse_flaggers']]
 
         if 'endorsement' in row and row['endorsement'] and 'user_id' in row['endorsement']:
-            row['endorsement']['user_id'] = str(self.remap_id(row['endorsement']['user_id']))
+            user_id = row['endorsement']['user_id']
+            if user_id is not None:
+                row['endorsement']['user_id'] = str(self.remap_id(user_id))
 
         return row
 
@@ -426,5 +432,7 @@ class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
                 'dump_root': self.dump_root,
                 'course': course,
                 'output_root': self.output_root,
+                'entities': self.entities,
+                'log_context': self.log_context,
             }
             yield DeidentifyCourseDumpTask(**kwargs)
