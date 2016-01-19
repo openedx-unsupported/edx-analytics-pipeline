@@ -119,10 +119,11 @@ def load_user_info(userinfo_path):
             # We'll also strip here, to remove the additional whitespace on usernames and fullnames.
             fields = [backslash_decode_value(field).strip() for field in fields]
             record = UserInfoRecord(*fields)
+            entry = {key: [value,] for key, value in record.__dict__.iteritems()}
             # Store records twice, once with an int key, and once with a string key.
-            # (They shouldn't collide.)
-            result[int(record.user_id)] = record
-            result[record.username] = record
+            # (They should therefore not collide.)
+            result[int(record.user_id)] = entry
+            result[record.username] = entry
     return result
 
 
@@ -227,6 +228,14 @@ class BulkDeidentifier(object):
         for key in sorted(self.missing_profile.iterkeys()):
             log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
+    def get_user_id_as_int(self, user_id):
+        if user_id is not None and not isinstance(user_id, int):
+            if len(user_id) == 0:
+                user_id = None
+            else:
+                user_id = int(user_id)
+        return user_id
+
     def get_userinfo_from_event(self, event, event_data):
         # Start simply, and just get obvious info.  See what it matches.
         # Need to check back on this, but we really only need to know
@@ -254,12 +263,7 @@ class BulkDeidentifier(object):
 
         # Get the user_id either as an int or None
         userid_entry = None
-        user_id = event.get('context', {}).get('user_id')
-        if user_id is not None and not isinstance(user_id, int):
-            if len(user_id) == 0:
-                user_id = None
-            else:
-                user_id = int(user_id)
+        user_id = self.get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
             if self.user_info is not None:
                 userid_entry = self.user_info.get(user_id)
@@ -272,14 +276,8 @@ class BulkDeidentifier(object):
                     )
 
         event_userid_entry = None
-        event_user_id = None
         if event_data and isinstance(event_data, dict):
-            event_user_id = event_data.get('user_id')
-            if event_user_id is not None and not isinstance(event_user_id, int):
-                if len(event_user_id) == 0:
-                    event_user_id = None
-                else:
-                    event_user_id = int(event_user_id)
+            event_user_id = self.get_user_id_as_int(event_data.get('user_id'))
             if event_user_id:
                 if self.user_info is not None:
                     event_userid_entry = self.user_info.get(event_user_id)
@@ -322,10 +320,6 @@ class BulkDeidentifier(object):
             log.error(u"Encountered event entry with no course_id: %r", line)
             return line
 
-        username = eventlog.get_event_username(event)
-        event_source = event.get('event_source')
-        event_type = event.get('event_type')
-
         # We cannot use this method as-is, since we need to know what was done to the event, so
         # that it can be transformed back to its original form once cleaned.
         # NOT event_data = eventlog.get_event_data(event)
@@ -359,8 +353,15 @@ class BulkDeidentifier(object):
         # to get to strings that can be properly interpreted.
         event_user_info = self.get_userinfo_from_event(event, event_data)
 
-        updated_event_data = self.deidentify_strings(event_data, u"event", username, event_user_info)
+        if 'POST' in event_data:
+            if self.parameters['skip_post']:
+                return None
+
+        updated_event_data = self.deidentifier.deidentify_structure(event_data, u"event", event_user_info)
+
         if updated_event_data is not None:
+            event_source = event.get('event_source')
+            event_type = event.get('event_type')
             log.info(u"Deidentified %s event with event_type = '%s'", event_source, event_type)
 
             if event_json_decoded:
@@ -409,13 +410,15 @@ class BulkDeidentifier(object):
         if record.state == 'state':
             return line.rstrip('\r\n')
 
-        profile_entry = None
+        user_info = {}
         if user_profile is not None:
             user_id = record.student_id
             if user_id != 'NULL':
                 profile_entry = user_profile.get(user_id)
                 if profile_entry is None:
                     self.missing_profile[user_id] += 1
+                else:
+                    user_info['name'] = [profile_entry.name,]
 
         # TODO: also read in auth_user, and store username for each user_id.
         pass
@@ -430,7 +433,8 @@ class BulkDeidentifier(object):
             return line
 
         # Traverse the dictionary, looking for entries that need to be scrubbed.
-        updated_state_dict = self.deidentify_strings(state_dict, u"state", None, profile_entry)
+        updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
+
         if updated_state_dict is not None:
             # Can't reset values, so update original fields.
             updated_state = json.dumps(updated_state_dict).replace('\\', '\\\\')
@@ -469,13 +473,15 @@ class BulkDeidentifier(object):
         fields = line.rstrip('\r\n').decode('utf8').split('\t')
         record = ArticleRevisionRecord(*fields)
 
-        profile_entry = None
+        user_info = {}
         if user_profile is not None:
             user_id = record.user_id
             if user_id != 'NULL':
                 profile_entry = user_profile.get(user_id)
                 if profile_entry is None:
                     log.error("Missing profile entry for user_id %s", user_id)
+                else:
+                    user_info['name'] = [profile_entry.name,]
 
         if record.ip_address != 'NULL' and record.ip_address != 'ip_address':
             log.warning("Found non-NULL IP address")
@@ -483,8 +489,8 @@ class BulkDeidentifier(object):
             log.warning(u"Found non-zero-length automatic_log: %s", record.automatic_log)
 
         # Can't reset values, so update original fields.
-        fields[12] = backslash_encode_value(self.deidentify_text(backslash_decode_value(record.content), None, profile_entry))
-        fields[2] = backslash_encode_value(self.deidentify_text(backslash_decode_value(record.user_message), None, profile_entry))
+        fields[12] = backslash_encode_value(self.deidentifier.deidentify_text(backslash_decode_value(record.content), user_info))
+        fields[2] = backslash_encode_value(self.deidentifier.deidentify_text(backslash_decode_value(record.user_message), user_info))
         return u"\t".join(fields).encode('utf-8')
 
     def deidentify_forum_file(self, input_filepath, output_dir):
@@ -525,9 +531,8 @@ class BulkDeidentifier(object):
             log.error("Failed to parse json for line: %r", line)
             return ""
 
-        # Clean the body of the forum post.
-        body = entry['body']
-        user_info = {'username': entry.get('author_username')}
+        # Get user information:
+        user_info = {'username': [entry.get('author_username'),]}
         profile_entry = None
         if user_profile is not None:
             user_id = entry.get('author_id')
@@ -535,30 +540,20 @@ class BulkDeidentifier(object):
             if profile_entry is None:
                 log.error(u"Missing profile entry for user_id %s username %s", user_id, username)
             else:
-                user_info['name'] = profile_entry.name
-        clean_body = self.deidentify_text(body, username, profile_entry)
+                user_info['name'] = [profile_entry.name,]
+
+        # Clean the body of the forum post.
+        body = entry['body']
+        clean_body = self.deidentifier.deidentify_text(body, user_info)
         entry['body'] = clean_body
 
         # Also clean the title, since it also contains username and fullname matches.
-        title = entry['title']
-        clean_title = self.deidentify_text(title, username, profile_entry)
-        entry['title'] = clean_title
+        if 'title' in entry:
+            title = entry['title']
+            clean_title = self.deidentifier.deidentify_text(title, user_info)
+            entry['title'] = clean_title
 
         return json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
-
-    def deidentify_text(self, text, username, user_profile_entry):
-        # PLACEHOLDER SHIM
-        user_info = {'username': username}
-        if user_profile_entry:
-            user_info['name'] = user_profile_entry.name
-        return self.deidentifier.deidentify_text(text, user_info)
-
-    def deidentify_strings(self, obj, label, username, user_profile_entry):
-        # PLACEHOLDER SHIM
-        user_info = {'username': username}
-        if user_profile_entry:
-            user_info['name'] = user_profile_entry.name
-        return self.deidentifier.deidentify_structure(obj, label, user_info)
 
 
 #####################
@@ -658,6 +653,11 @@ def main():
     arg_parser.add_argument(
         '--fullname',
         help='Extract fullname.',
+        action='store_true',
+    )
+    arg_parser.add_argument(
+        '--userid',
+        help='Extract user-id.',
         action='store_true',
     )
     arg_parser.add_argument(

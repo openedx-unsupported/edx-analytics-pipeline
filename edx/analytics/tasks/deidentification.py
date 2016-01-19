@@ -10,6 +10,8 @@ import urlparse
 import luigi
 
 from edx.analytics.tasks.encrypt import make_encrypted_file
+from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.util.deid_util import DeidentifierDownstreamMixin
 from edx.analytics.tasks.util.file_util import copy_file_to_file
 
 from edx.analytics.tasks.data_deidentification import DeidentifiedCourseDumpTask
@@ -24,7 +26,7 @@ from edx.analytics.tasks.util.tempdir import make_temp_directory
 log = logging.getLogger(__name__)
 
 
-class DeidentifiedCourseTaskMixin(object):
+class DeidentifiedCourseTaskMixin(DeidentifierDownstreamMixin, MapReduceJobTaskMixin):
     """Parameters used by DeidentifiedCourseTask."""
 
     deidentified_output_root = luigi.Parameter(
@@ -67,11 +69,20 @@ class DeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Task):
             dump_root=self.dump_root,
             course=self.course,
             output_root=output_root_with_version,
+            entities=self.entities,
+            log_context=self.log_context,
+            auth_user_path=self.auth_user_path,
+            auth_userprofile_path=self.auth_userprofile_path,
         )
         yield DeidentifyCourseEventsTask(
             dump_root=self.dump_root,
             course=self.course,
             output_root=output_root_with_version,
+            entities=self.entities,
+            log_context=self.log_context,
+            auth_user_path=self.auth_user_path,
+            auth_userprofile_path=self.auth_userprofile_path,
+            n_reduce_tasks=self.n_reduce_tasks,
         )
 
     def run(self):
@@ -160,6 +171,11 @@ class MultiCourseDeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Wrapp
                 deidentified_output_root=self.deidentified_output_root,
                 format_version=self.format_version,
                 pipeline_version=self.pipeline_version,
+                n_reduce_tasks=self.n_reduce_tasks,
+                entities=self.entities,
+                log_context=self.log_context,
+                auth_user_path=self.auth_user_path,
+                auth_userprofile_path=self.auth_userprofile_path,
             )
 
 

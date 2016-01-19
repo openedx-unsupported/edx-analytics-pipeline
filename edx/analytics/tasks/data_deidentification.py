@@ -9,10 +9,9 @@ import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-# from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierParamsMixin
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierDownstreamMixin
 from edx.analytics.tasks.util.file_util import FileCopyMixin
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 import logging
 
@@ -31,22 +30,31 @@ class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
     data_directory = luigi.Parameter()
 
     def output(self):
-        if len(self.input()) == 0:
+        if len(self.input()['data']) == 0:
             raise IOError("Course File '{filename}' not found for course '{course}'".format(
                 filename=self.file_pattern, course=self.course
             ))
 
         # TODO: should we change the filename to indicate that it has been de-identified?
-        output_filename = os.path.basename(self.input()[0].path)
+        output_filename = os.path.basename(self.input()['data'][0].path)
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
     def requires(self):
-        return PathSetTask([self.data_directory], [self.file_pattern])
+        base_reqs = {
+            # We want to process files that are zero-length.
+            'data': PathSetTask([self.data_directory], [self.file_pattern], include_zero_length=True)
+        }
+        base_reqs.update(self.user_info_requirements())
+        return base_reqs
 
     @property
     def file_pattern(self):
         """Provides the file pattern for input file."""
         raise NotImplementedError
+
+    @property
+    def file_input_target(self):
+        return self.input()['data'][0]
 
 
 class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
@@ -54,7 +62,7 @@ class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 writer = csv.writer(output_file, dialect='mysqlexport')
                 reader = csv.reader(input_file, dialect='mysqlexport')
 
@@ -162,13 +170,18 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
 
     def filter_row(self, row):
         user_id = row[3]
-        user_info = {'user_id': user_id}
-        # TODO: find username from auth_user, and store in user_info.
-        # user_info['username'] = username
-        # TODO: find user name from auth_userprofile, and store in user_info.
-        # user_info['name'] = profile_entry.name
+        user_info = {'user_id': [user_id,]}
+        try:
+            user_id = int(user_id)
+            entry = self.user_by_id[user_id]
+            if 'username' in entry:
+                user_info['username'] = [entry['username'],]
+            if 'name' in entry:
+                user_info['name'] = [entry['name'],]
+        except KeyError:
+            log.error("Unable to find CWSM user_id: %r in the user_by_id map of size %s", user_id, len(self.user_by_id))
 
-        row[3] = self.remap_id(row[3])  # student_id
+        row[3] = self.remap_id(user_id)  # student_id
 
         # Courseware_studentmodule is not processed with the other SQL tables, so it
         # is not escaped in the same way.  In particular, we will not decode and encode it,
@@ -200,9 +213,9 @@ class DeidentifyCertificatesGeneratedCertificate(DeidentifySqlDumpTask):
         return '*-certificates_generatedcertificate-*'
 
     def filter_row(self, row):
-        # TODO: determine if 'key' should also be set to ''
         row[1] = self.remap_id(row[1])  # user_id
         row[2] = ''  # download_url
+        row[5] = ''  # key
         row[8] = ''  # verify_uuid
         row[9] = ''  # download_uuid
         row[10] = ''  # name
@@ -253,9 +266,9 @@ class DeidentifyWikiArticleTask(DeidentifySqlDumpTask):
         return '*-wiki_article-*'
 
     def filter_row(self, row):
-        # TODO: decide if these should be emptied.
-        # row[4] = ? # owner_id
-        # row[5] = ? # group_id
+        # Removing these just to be safe.
+        row[4] = ''  # owner_id
+        row[5] = ''  # group_id
         return row
 
 
@@ -270,11 +283,16 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
         user_id = row[5]
         user_info = {}
         if user_id != 'NULL':
-            user_info['user_id'] = user_id
-        # TODO: find username from auth_user, and store in user_info.
-        # user_info['username'] = username
-        # TODO: find user name from auth_userprofile, and store in user_info.
-        # user_info['name'] = profile_entry.name
+            user_id = int(user_id)
+            user_info['user_id'] = [user_id,]
+            try:
+                entry = self.user_by_id[user_id]
+                if 'username' in entry:
+                    user_info['username'] = [entry['username'],]
+                if 'name' in entry:
+                    user_info['name'] = [entry['name'],]
+            except KeyError:
+                log.error("Unable to find wiki user_id: %s in the user_by_id map", user_id)
 
         row[2] = ''  # user_message
         row[3] = ''  # automatic_log
@@ -315,7 +333,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 for line in input_file:
                     row = json.loads(line)
                     filtered_row = self.filter_row(row)
@@ -324,18 +342,30 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def filter_row(self, row):
         """Replace/remove sensitive information."""
-        user_info = {'user_id': row.get('author_id'), 'username': row.get('author_username')}
-        # TODO: find user name from auth_userprofile, and store in user_info.
-        # user_info['name'] = profile_entry.name
-
-        # Remap author values, if possible.
-        author_id = row['author_id']
         try:
-            author_id = int(author_id)
+            author_id = int(row['author_id'])
+        except ValueError:
+            log.error("Encountered non-integer value for author_id (%s) in forums data.  Username = '%s'", author_id, row.get('author_username'))
+            author_id = None
+
+        if author_id is not None:
+            # Gather user_info.
+            user_info = {'user_id': [author_id,], 'username': [row.get('author_username'),]}
+            try:
+                entry = self.user_by_id[author_id]
+                if 'name' in entry:
+                    user_info['name'] = [entry['name'],]
+                # While we're at it, perform a sanity check on username.
+                decoded_username = row.get('author_username', '').decode('utf8')
+                if decoded_username != entry['username']:
+                    log.error("author_username '%s' for author_id: %s does not match cached value '%s'", decoded_username, author_id, entry['username'])
+            except KeyError:
+                log.error("Unable to find author_id: %s in the user_by_id map", author_id)
+
+            # Remap author values, if possible.
             row['author_id'] = str(self.remap_id(author_id))
             row['author_username'] = self.generate_deid_username_from_user_id(author_id)
-        except ValueError:
-            log.error("Encountered non-integer value for author_id (%s) in forums data.", author_id)
+
 
         # Clean the body of the forum post.
         body = row['body']
@@ -367,7 +397,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         return row
 
 
-class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
+class DeidentifiedCourseDumpTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
     """Wrapper task to deidentify data for a particular course."""
 
     course = luigi.Parameter()
@@ -381,7 +411,7 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
         dump_path = url_path_join(self.dump_root, filename_safe_course_id, 'state')
         auth_userprofile_targets = PathSetTask([dump_path], ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that
-        dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
+        dates = [target.path.rsplit('/', 2)[-2] for target in auth_userprofile_targets]
         # TODO: Make the date a parameter that defaults to the most recent, but allows the user to override?
         # This should return an error if no data is found, rather than getting a cryptic 'index out of range' error.
         if len(dates) == 0:
@@ -397,6 +427,8 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
             'data_directory': self.data_directory,
             'entities': self.entities,
             'log_context': self.log_context,
+            'auth_user_path': self.auth_user_path,
+            'auth_userprofile_path': self.auth_userprofile_path,
         }
         yield (
             DeidentifyAuthUserTask(**kwargs),
@@ -404,6 +436,7 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
             DeidentifyStudentCourseEnrollmentTask(**kwargs),
             DeidentifyUserApiUserCourseTagTask(**kwargs),
             DeidentifyStudentLanguageProficiencyTask(**kwargs),
+            # TODO: decide if CWSM should be optional, and if so, how to implement that.
             DeidentifyCoursewareStudentModule(**kwargs),
             DeidentifyCertificatesGeneratedCertificate(**kwargs),
             DeidentifyTeamsTask(**kwargs),
@@ -417,13 +450,13 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
         )
 
 
-class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
+class DataDeidentificationTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
     """Wrapper task for data deidentification."""
 
     course = luigi.Parameter(is_list=True)
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter(
-        config_path={'section': 'data-deidentification', 'name': 'output_root'}
+        config_path={'section': 'deidentification', 'name': 'output_root'}
     )
 
     def requires(self):
@@ -434,5 +467,7 @@ class DataDeidentificationTask(DeidentifierParamsMixin, luigi.WrapperTask):
                 'output_root': self.output_root,
                 'entities': self.entities,
                 'log_context': self.log_context,
+                'auth_user_path': self.auth_user_path,
+                'auth_userprofile_path': self.auth_userprofile_path,
             }
-            yield DeidentifyCourseDumpTask(**kwargs)
+            yield DeidentifiedCourseDumpTask(**kwargs)
