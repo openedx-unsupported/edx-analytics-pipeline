@@ -76,7 +76,7 @@ def get_s3_key(s3_conn, url):
     return key
 
 
-def generate_s3_sources(s3_conn, source, patterns=['*']):
+def generate_s3_sources(s3_conn, source, patterns=['*'], include_zero_length=False):
     """
     Returns a list of S3 sources that match filters.
 
@@ -106,7 +106,7 @@ def generate_s3_sources(s3_conn, source, patterns=['*']):
     # Skip keys that have zero size.  This allows directories
     # to be skipped, but also skips legitimate files that are
     # also zero-length.
-    keys = (s.key for s in bucket.list(root_with_slash) if s.size > 0)
+    keys = (s.key for s in bucket.list(root_with_slash) if s.size > 0 or include_zero_length)
 
     # Make paths relative by removing root
     paths = (k[len(root_with_slash):].lstrip('/') for k in keys)
