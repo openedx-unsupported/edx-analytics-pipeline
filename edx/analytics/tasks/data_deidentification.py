@@ -41,7 +41,8 @@ class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
     def requires(self):
-        return PathSetTask([self.data_directory], [self.file_pattern])
+        # We want to process files that are zero-length.
+        return PathSetTask([self.data_directory], [self.file_pattern], include_zero_length=True)
 
     @property
     def file_pattern(self):
@@ -404,6 +405,7 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, luigi.WrapperTask):
             DeidentifyStudentCourseEnrollmentTask(**kwargs),
             DeidentifyUserApiUserCourseTagTask(**kwargs),
             DeidentifyStudentLanguageProficiencyTask(**kwargs),
+            # TODO: decide if CWSM should be optional, and if so, how to implement that.
             DeidentifyCoursewareStudentModule(**kwargs),
             DeidentifyCertificatesGeneratedCertificate(**kwargs),
             DeidentifyTeamsTask(**kwargs),

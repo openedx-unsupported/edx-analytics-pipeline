@@ -119,7 +119,8 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
         {'event_source': 'server', 'event_type': 'list-instructors'},
         {'event_source': 'server', 'event_type': 'problem_rescore'},
         {'username': 'unknown'},
-        {'event': {'username': 'unknown'}},
+        # TODO: decide if this should throw an error, or should just be ignored (i.e. set to None/null).
+        # {'event': {'username': 'unknown'}},
         {'event_type': None},
         {'event_source': None},
     )

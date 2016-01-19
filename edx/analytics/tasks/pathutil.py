@@ -44,6 +44,7 @@ class PathSetTask(luigi.Task):
     )
     include = luigi.Parameter(is_list=True, default=('*',))
     manifest = luigi.Parameter(default=None)
+    include_zero_length = luigi.BooleanParameter(default=False)
 
     def __init__(self, *args, **kwargs):
         super(PathSetTask, self).__init__(*args, **kwargs)
@@ -56,15 +57,17 @@ class PathSetTask(luigi.Task):
                 # connect lazily as needed:
                 if self.s3_conn is None:
                     self.s3_conn = boto.connect_s3()
-                for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include):
+                for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include, self.include_zero_length):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
+                # TODO: implement exclude_zero_length to match S3 case.
                 for source in luigi.hdfs.listdir(src, recursive=True):
                     if any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
                         yield ExternalURL(source)
             else:
                 # Apply the include patterns to the relative path below the src directory.
+                # TODO: implement exclude_zero_length to match S3 case.
                 for dirpath, _dirnames, files in os.walk(src):
                     for filename in files:
                         filepath = os.path.join(dirpath, filename)

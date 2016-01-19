@@ -227,6 +227,14 @@ class BulkDeidentifier(object):
         for key in sorted(self.missing_profile.iterkeys()):
             log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
+    def get_user_id_as_int(self, user_id):
+        if user_id is not None and not isinstance(user_id, int):
+            if len(user_id) == 0:
+                user_id = None
+            else:
+                user_id = int(user_id)
+        return user_id
+
     def get_userinfo_from_event(self, event, event_data):
         # Start simply, and just get obvious info.  See what it matches.
         # Need to check back on this, but we really only need to know
@@ -254,12 +262,7 @@ class BulkDeidentifier(object):
 
         # Get the user_id either as an int or None
         userid_entry = None
-        user_id = event.get('context', {}).get('user_id')
-        if user_id is not None and not isinstance(user_id, int):
-            if len(user_id) == 0:
-                user_id = None
-            else:
-                user_id = int(user_id)
+        user_id = self.get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
             if self.user_info is not None:
                 userid_entry = self.user_info.get(user_id)
@@ -274,12 +277,7 @@ class BulkDeidentifier(object):
         event_userid_entry = None
         event_user_id = None
         if event_data and isinstance(event_data, dict):
-            event_user_id = event_data.get('user_id')
-            if event_user_id is not None and not isinstance(event_user_id, int):
-                if len(event_user_id) == 0:
-                    event_user_id = None
-                else:
-                    event_user_id = int(event_user_id)
+            event_user_id = self.get_user_id_as_int(event_data.get('user_id'))
             if event_user_id:
                 if self.user_info is not None:
                     event_userid_entry = self.user_info.get(event_user_id)
