@@ -388,7 +388,7 @@ class Deidentifier(object):
         return text
 
     def deidentify_structure(self, obj, label, user_info=None, log_context=None, entities=None):
-        """Returns a modified object if a string contained within were changed, None otherwise."""
+        """Returns a modified object if any string contained within it was deidentified, None otherwise."""
 
         # Special-purpose hack for development.
         # TODO:   Move this out!
@@ -410,7 +410,9 @@ class Deidentifier(object):
                 updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
                 if updated_value is not None:
                     changed = True
-                new_dict[key] = updated_value
+                    new_dict[key] = updated_value
+                else:
+                    new_dict[key] = value
             if changed:
                 return new_dict
             else:
@@ -423,7 +425,9 @@ class Deidentifier(object):
                 updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
                 if updated_value is not None:
                     changed = True
-                new_list.append(updated_value)
+                    new_list.append(updated_value)
+                else:
+                    new_list.append(value)
             if changed:
                 return new_list
             else:
