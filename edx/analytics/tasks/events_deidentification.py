@@ -314,7 +314,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             # Clean up remaining event payload recursively.
             updated_event_data = self.deidentifier.deidentify_structure(event_data, u"event", user_info)
             if updated_event_data is not None:
-                log.info(u"Deidentified payload: %s", debug_str)
+                if self.deidentifier.is_logging_enabled():
+                    log.info(u"Deidentified payload: %s", debug_str)
                 event_data = updated_event_data
 
             # Re-encode payload as a json string if it originally was.
@@ -356,5 +357,7 @@ class EventDeidentificationTask(DeidentifierParamsMixin, MapReduceJobTaskMixin, 
                 'output_root': self.output_root,
                 'explicit_event_whitelist': self.explicit_event_whitelist,
                 'n_reduce_tasks': self.n_reduce_tasks,
+                'entities': self.entities,
+                'log_context': self.log_context,
             }
             yield DeidentifyCourseEventsTask(**kwargs)
