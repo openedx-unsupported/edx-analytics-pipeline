@@ -167,14 +167,13 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
     """Task to package multiple courses at once."""
 
     course = luigi.Parameter(is_list=True)
-    request_id = luigi.Parameter()
 
     def requires(self):
         for course in self.course:
             yield DeidentifiedPackageTask(
                 course=course,
                 deidentified_output_root=self.deidentified_output_root,
-                output_root=url_path_join(self.output_root, self.request_id),
+                output_root=self.output_root,
                 recipient=self.recipient,
                 gpg_key_dir=self.gpg_key_dir,
                 gpg_master_key=self.gpg_master_key,
