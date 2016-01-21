@@ -163,7 +163,7 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
 
     def filter_row(self, row):
         user_id = row[3]
-        user_info = {'user_id': user_id}
+        user_info = {'user_id': [user_id,]}
         # TODO: find username from auth_user, and store in user_info.
         # user_info['username'] = username
         # TODO: find user name from auth_userprofile, and store in user_info.
@@ -271,7 +271,7 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
         user_id = row[5]
         user_info = {}
         if user_id != 'NULL':
-            user_info['user_id'] = user_id
+            user_info['user_id'] = [user_id,]
         # TODO: find username from auth_user, and store in user_info.
         # user_info['username'] = username
         # TODO: find user name from auth_userprofile, and store in user_info.
@@ -325,7 +325,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def filter_row(self, row):
         """Replace/remove sensitive information."""
-        user_info = {'user_id': row.get('author_id'), 'username': row.get('author_username')}
+        user_info = {'user_id': [row.get('author_id'),], 'username': [row.get('author_username'),]}
         # TODO: find user name from auth_userprofile, and store in user_info.
         # user_info['name'] = profile_entry.name
 

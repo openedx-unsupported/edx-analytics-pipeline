@@ -9,7 +9,7 @@ import csv
 import cjson
 import os
 import sys
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 
 from edx.analytics.tasks.pathutil import PathSetTask, EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
@@ -39,7 +39,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
     dump_root = luigi.Parameter(default=None)
 
     # TODO: placeholder for now.  Update with something real once plumbing works.
-    user_info = None
+    global_user_info = None
 
     def requires(self):
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
@@ -208,16 +208,21 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         event_source = event.get('event_source')
         debug_str = u" [source='{}' type='{}']".format(event_source, event_type)
 
+        # Create a user_info structure to collect relevant user information to look
+        # for elsewhere in the event.
+        user_info = defaultdict(list)
+
         # Fetch and then remap username.
         username_entry = None
         username = eventlog.get_event_username(event)
         if username is not None:
+            decoded_username = username.decode('utf8')
+            user_info['username'].append(decoded_username)
             # TODO: use whatever the lookup structure for getting fullname, given username.
-            if self.user_info is not None:
-                decoded_username = username.decode('utf8')
-                username_entry = self.user_info.get(decoded_username)
+            if self.global_user_info is not None:
+                username_entry = self.global_user_info.get(decoded_username)
                 if username_entry is None:
-                    log.error(u"username ('%s') is unknown to user_info %s", username, debug_str)
+                    log.error(u"username ('%s') is unknown to global_user_info %s", username, debug_str)
 
             try:
                 event['username'] = self.generate_deid_username_from_user_id(self.username_map[event['username']])
@@ -229,11 +234,12 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         userid_entry = None
         user_id = self.get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
+            user_info['user_id'].append(user_id)
             # TODO: use whatever the lookup structure for getting fullname, given user_id.
-            if self.user_info is not None:
-                userid_entry = self.user_info.get(user_id)
+            if self.global_user_info is not None:
+                userid_entry = self.global_user_info.get(user_id)
                 if userid_entry is None:
-                    log.error(u"user_id ('%s') is unknown to user_info %s", user_id, debug_str)
+                    log.error(u"user_id ('%s') is unknown to global_user_info %s", user_id, debug_str)
                 elif username_entry and userid_entry != username_entry:
                     log.error(
                         u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
@@ -247,9 +253,12 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             # TODO: should these be removed, or set to ''?
             event['context'].pop('host', None)
             event['context'].pop('ip', None)
+
             # Remap value of username in context, if it is present.  (Removed in more recent events.)
-            if 'username' in event['context']:
-                event['context']['username'] = self.remap_username(event['context']['username'])
+            if 'username' in event['context'] and len(event['context']['username'].strip()) > 0:
+                username = event['context']['username']
+                user_info['username'].append(username.strip())
+                event['context']['username'] = self.remap_username(username)
 
             # Clean event.context.path.
             if 'path' in event['context']:
@@ -273,25 +282,22 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             event_userid_entry = None
             event_user_id = self.get_user_id_as_int(event_data.get('user_id'))
             if event_user_id is not None:
+                user_info['user_id'].append(event_user_id)
                 # TODO: use whatever the lookup structure for getting fullname, given username.
-                if self.user_info is not None:
-                    event_userid_entry = self.user_info.get(event_user_id)
+                if self.global_user_info is not None:
+                    event_userid_entry = self.global_user_info.get(event_user_id)
                     if event_userid_entry is None:
-                        log.error(u"Event_user_id ('%s') is unknown to user_info %s", event_user_id, debug_str)
+                        log.error(u"Event_user_id ('%s') is unknown to global_user_info %s", event_user_id, debug_str)
                 event_data['user_id'] = self.remap_id(event_user_id)
 
-            # Remap value of username in context, if it is present.  (Removed in more recent events.)
-            # Also remap usernames appearing with different names.
+            # Remap values of usernames in payload, if present.  Usernames may appear with different key values.
             # TODO: confirm that these values are usernames, not user_id values.
             # TODO: decide how to handle requesting_student_id (on openassessmentblock.get_peer_submission events).
-            if 'username' in event_data:
-                event_data['username'] = self.remap_username(event_data['username'])
-            if 'instructor' in event_data:
-                event_data['instructor'] = self.remap_username(event_data['instructor'])
-            if 'student' in event_data:
-                event_data['student'] = self.remap_username(event_data['student'])
-            if 'user' in event_data:
-                event_data['user'] = self.remap_username(event_data['user'])
+            for username_key in ['username', 'instructor', 'student', 'user']:
+                if username_key in event_data and len(event_data[username_key].strip()) > 0:
+                    username = event_data[username_key].strip()
+                    user_info['username'].append(username)
+                    event_data[username_key] = self.remap_username(username)
 
             # Remove sensitive payload fields.
             # TODO: decide how to handle 'url' and 'report_url'.
@@ -301,15 +307,6 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             for key in ['answer', 'saved_response']:
                 if key in event_data and 'file_upload_key' in event_data[key]:
                     event_data[key].pop('file_upload_key')
-
-            # Determine what user_info to use. We choose the event
-            # user_id over the context, and fall back on the username.
-            if event_userid_entry is not None:
-                user_info = event_userid_entry
-            elif userid_entry is not None:
-                user_info = userid_entry
-            else:
-                user_info = username_entry
 
             # Clean up remaining event payload recursively.
             updated_event_data = self.deidentifier.deidentify_structure(event_data, u"event", user_info)
