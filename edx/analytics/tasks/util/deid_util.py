@@ -236,6 +236,19 @@ def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
 
 
 #####################
+# userid
+#####################
+
+
+def find_userid(text, user_id, log_context=DEFAULT_LOG_CONTEXT):
+    userid_pattern = re.compile(
+        r'\b({})\b'.format(user_id),
+        re.IGNORECASE,
+    )
+    return find_all_matches(userid_pattern, text, "USER_ID", log_context)
+
+
+#####################
 # user profile => fullname
 #####################
 
@@ -304,7 +317,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
 # General deidentification
 #################
 
-DEFAULT_ENTITIES = set(['email', 'username', 'fullname', 'phone'])
+DEFAULT_ENTITIES = set(['email', 'username', 'fullname', 'phone', 'userid'])
 
 
 class Deidentifier(object):
@@ -325,7 +338,9 @@ class Deidentifier(object):
         """
         Applies all selected deidentification patterns to text.
 
-        user_info is a dict (or namedtuple.__dict__), with 'username' and 'name' keys, if known.
+        user_info is a dict (or namedtuple.__dict__), with 'username', 'user_id' and 'name' keys, if known.
+            Values should be lists containing the value or values of that kind of data.  (That way,
+            we can look for more than one username in a forum post, for example.)
 
         log_context specifies the amount of context on either side of matches, when logging.
 
@@ -336,6 +351,7 @@ class Deidentifier(object):
             'username'
             'fullname'
             'phone'
+            'userid'
 
             Additions for development include:
 
@@ -351,9 +367,6 @@ class Deidentifier(object):
         if entities is None:
             entities = self.entities
 
-        username = user_info.get('username') if user_info else None
-        fullname = user_info.get('name') if user_info else None
-
         # Names can appear in emails and identifying urls, so find them before the names.
         if 'email' in entities:
             text = find_emails(text, log_context)
@@ -361,11 +374,19 @@ class Deidentifier(object):
         if 'facebook' in entities:
             text = find_facebook(text, log_context)
 
-        # Find Names.
-        if 'fullname' in entities and fullname is not None:
-            text = find_user_fullname(text, fullname, log_context)
-        if 'username' in entities and username is not None:
-            text = find_username(text, username, log_context)
+        # Find Names and IDs, using supplied information to search for.
+        if user_info is not None:
+            if 'fullname' in entities:
+                for fullname in user_info.get('name', []):
+                    text = find_user_fullname(text, fullname, log_context)
+
+            if 'username' in entities:
+                for username in user_info.get('username', []):
+                    text = find_username(text, username, log_context)
+
+            if 'userid' in entities:
+                for user_id in user_info.get('user_id', []):
+                    text = find_userid(text, user_id, log_context)
 
         # Find phone numbers.
         if 'phone' in entities:
@@ -389,14 +410,6 @@ class Deidentifier(object):
 
     def deidentify_structure(self, obj, label, user_info=None, log_context=None, entities=None):
         """Returns a modified object if any string contained within it was deidentified, None otherwise."""
-
-        # Special-purpose hack for development.
-        # TODO:   Move this out!
-        if label == 'event.POST':
-            if entities is not None and 'skip_post' in entities:
-                return None
-            elif 'skip_post' in self.entities:
-                return None
 
         if isinstance(obj, dict):
             new_dict = {}
@@ -460,7 +473,7 @@ class Deidentifier(object):
             else:
                 return None
         else:
-            # It's an object, but not a string.  Don't change it.
+            # It's an object, but not a string, list or dict.  Don't change it.  (It's probably an int.)
             return None
 
 
