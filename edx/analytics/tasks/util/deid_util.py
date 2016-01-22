@@ -35,17 +35,34 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 
     @property
     def user_by_id(self):
-        """For id as key, returns dict with 'username', 'user_id', and 'name' as keys."""
+        """
+        For id as key, returns dict with 'username', 'user_id', and 'name' as keys.
+
+        id should be an int.
+
+        'user_id' value returned is an iterable of ints.
+        'name' and 'username' values returned are iterables of unicode strings.
+        'name' may not always be present.
+        """
         self._initialize_user_info()
         return _user_by_id
 
     @property
     def user_by_username(self):
-        """For username as key, returns dict with 'username', 'user_id', and 'name' as keys."""
+        """
+        For username as key, returns dict with 'username', 'user_id', and 'name' as keys.
+
+        Username should be a unicode string.
+
+        'user_id' value returned is an iterable of ints.
+        'name' and 'username' values returned are iterables of unicode strings.
+        'name' may not always be present.
+        """
         self._initialize_user_info()
         return _user_by_username
 
     def _initialize_user_info(self):
+        # TODO:  docstring.
         global _user_by_id
         global _user_by_username
 
@@ -63,10 +80,12 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                         try:
                             user_id = int(split_line[0])
                         except ValueError:
-                            # TODO: add logging?  Does this happen often?  Ever?
                             log.error("Unexpected non-int value for user_id read from auth_user file: %s", split_line)
                             continue
-                        username = split_line[1].decode('utf8')
+                        username = split_line[1].decode('utf8').strip()
+                        if len(username) == 0:
+                            log.error("Unexpected whitespace value for username read from auth_user file: %s", split_line)
+                            continue
                         _user_by_id[user_id] = {'username': username, 'user_id': user_id}
                         # Point to the same object so that we can just store two pointers to the data instead of two
                         # copies of the data
@@ -81,7 +100,6 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                         try:
                             user_id = int(split_line[0])
                         except ValueError:
-                            # TODO: add logging?  Does this happen often?  Ever?
                             log.error("Unexpected non-int value for user_id read from auth_user_profile file: %s", split_line)
                             continue
                         name = split_line[1].decode('utf8')

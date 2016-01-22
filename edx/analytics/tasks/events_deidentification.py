@@ -33,7 +33,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
 
     course = luigi.Parameter(default=None)
     explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'events-deidentification', 'name': 'explicit_event_whitelist'}
+        config_path={'section': 'deidentification', 'name': 'explicit_event_whitelist'}
     )
     dump_root = luigi.Parameter(default=None)
 
@@ -162,29 +162,34 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
                 user_id = int(user_id)
         return user_id
 
-    def get_user_info_for_username(self, username):
-        """Return user_id (as an int) for a username, or None if not found."""
-        try:
-            user_info = self.user_by_username[username]
-        except KeyError:
-            log.error("Unable to find username: %s in the user_by_username map", username)
-            return None
-        return (user_info.get('user_id'), user_info.get('name'))
-
     def get_user_info_for_user_id(self, user_id):
-        """Return username and name for a user_id, or None if not found."""
+        """Return user_info entry for a user_id, or None if not found."""
+        try:
+            user_info = self.user_by_id[user_id]
+            return user_info
+        except KeyError:
+            log.error("Unable to find user_id %s in the user_by_id map", user_id)
+            return None
+
+    def get_user_info_for_username(self, username):
+        """Return user_info entry for a username, or None if not found."""
         try:
             user_info = self.user_by_username[username]
+            return user_info
         except KeyError:
             log.error("Unable to find username: %s in the user_by_username map", username)
             return None
-        return (user_info.get('username'), user_info.get('name'))
 
-    def remap_username(self, username):
+    def remap_username(self, username, user_info):
         """Return remapped version of username, or None if not remapped."""
-        user_id, _ = self.get_user_info_for_username(username)
-        if user_id is not None:
-            return self.generate_deid_username_from_user_id(user_id)
+        info = self.get_user_info_for_username(username)
+        if info is not None:
+            for key, value in info.iteritems():
+                user_info[key].add(value)
+            if 'user_id' in info:
+                return self.generate_deid_username_from_user_id(info['user_id'])
+
+        # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
         return None
 
     def get_log_string_for_event(self, event):
@@ -197,26 +202,33 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
         return debug_str
 
     def remap_user_info_in_event(self, event, event_data):
+        """
+        Harvest user info from event, and remap those values (in place) where appropriate.
+
+        Returns a dict of iterables, with key values of 'username', 'user_id', and 'name'.
+
+        """
         # Find user info, and
         debug_str = self.get_log_string_for_event(event)
         
         # Create a user_info structure to collect relevant user information to look
-        # for elsewhere in the event.
+        # for elsewhere in the event.  We need to return a dictionary of iterables,
+        # but since we will potentially be adding the same values repeatedly from
+        # different parts of the event, a set will make sure these are deduped.
         user_info = defaultdict(set)
 
-        user_info_found = []
+        # user_info_found = []
         # Fetch and then remap username.
-        username_entry = None
+        # username_entry = None
+
+        # Note that eventlog.get_event_username() does a strip on the username and checks for zero-len,
+        # so we don't have to do so here.
         username = eventlog.get_event_username(event)
         if username is not None:
-            # TODO: determine if it's important to decode this first.
-            decoded_username = username.decode('utf8')
-            user_info['username'].add(decoded_username)
-            info = self.get_user_info_for_username(username)
-            if info is not None:
-                user_info_found.append(info)
-                if 'user_id' in info:
-                    event['username'] = self.generate_deid_username_from_user_id(info['user_id'])
+            username = username.decode('utf8')
+            remapped_username = self.remap_username(username, user_info)
+            if remapped_username is not None:
+                event['username'] = remapped_username
             else:
                 # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
                 pass
@@ -226,25 +238,28 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
         user_id = self.get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
             user_info['user_id'].add(user_id)
-            # TODO: use whatever the lookup structure for getting fullname, given user_id.
-            if self.global_user_info is not None:
-                userid_entry = self.global_user_info.get(user_id)
-                if userid_entry is None:
-                    log.error(u"user_id ('%s') is unknown to global_user_info %s", user_id, debug_str)
-                elif username_entry and userid_entry != username_entry:
+            info = self.get_user_info_for_user_id(user_id)
+            if info is not None:
+                for key, value in info.iteritems():
+                    user_info[key].add(value)
+                if username is not None and 'username' in info and username != info['username']:
                     log.error(
-                        u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
-                        userid_entry.user_id, userid_entry.username, username_entry.username, username_entry.user_id, debug_str,
+                        u"user_id ('%s'=>'%s') does not match username ('%s') %s",
+                        user_id, info['username'], username, debug_str,
                     )
             event['context']['user_id'] = self.remap_id(user_id)
 
-        # Clean context.
+        # Clean username from context.
         if 'context' in event:
             # Remap value of username in context, if it is present.  (Removed in more recent events.)
             if 'username' in event['context'] and len(event['context']['username'].strip()) > 0:
-                username = event['context']['username']
-                user_info['username'].add(username.strip())
-                event['context']['username'] = self.remap_username(username)
+                context_username = event['context']['username'].strip().decode('utf8')
+                remapped_username = self.remap_username(context_username, user_info)
+                if remapped_username is not None:
+                    event['context']['username'] = remapped_username
+                else:
+                    # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
+                    pass
 
         # Look into the event payload.
         if event_data:
@@ -253,11 +268,10 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
             event_user_id = self.get_user_id_as_int(event_data.get('user_id'))
             if event_user_id is not None:
                 user_info['user_id'].add(event_user_id)
-                # TODO: use whatever the lookup structure for getting fullname, given username.
-                if self.global_user_info is not None:
-                    event_userid_entry = self.global_user_info.get(event_user_id)
-                    if event_userid_entry is None:
-                        log.error(u"Event_user_id ('%s') is unknown to global_user_info %s", event_user_id, debug_str)
+                info = self.get_user_info_for_user_id(event_user_id)
+                if info is not None:
+                    for key, value in info.iteritems():
+                        user_info[key].add(value)
                 event_data['user_id'] = self.remap_id(event_user_id)
 
             # Remap values of usernames in payload, if present.  Usernames may appear with different key values.
@@ -265,9 +279,16 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
             # TODO: decide how to handle requesting_student_id (on openassessmentblock.get_peer_submission events).
             for username_key in ['username', 'instructor', 'student', 'user']:
                 if username_key in event_data and len(event_data[username_key].strip()) > 0:
-                    username = event_data[username_key].strip()
-                    user_info['username'].add(username)
-                    event_data[username_key] = self.remap_username(username)
+                    event_username = event_data[username_key].strip().decode('utf8')
+                    remapped_username = self.remap_username(event_username, user_info)
+                    if remapped_username is not None:
+                        event_data[username_key] = remapped_username
+                    else:
+                        # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
+                        pass
+
+        # Finally return the fully-constructed dict.
+        return user_info
 
     def deidentify_event(self, event):
         """Deidentify event by removing/stubbing user information."""
@@ -279,7 +300,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
         event_data = eventlog.get_event_data(event)
         user_info = self.remap_user_info_in_event(event, event_data)
         
-        # Clean context.
+        # Clean or remove values from context.
         if 'context' in event:
             # These aren't present in current events, but are generated historically by some implicit events.
             # TODO: should these be removed, or set to ''?
@@ -292,13 +313,13 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
                 if updated_context_path is not None:
                     event['context']['path'] = updated_context_path
                     if self.deidentifier.is_logging_enabled():
-                        log.info(u"Deidentified event.context.path for user_id '%s' %s", user_id, debug_str)
+                        log.info(u"Deidentified event.context.path %s", debug_str)
 
             # TODO: check event.context.client.ip
             # TODO: check event.context.client.device.id
             # TODO: check event.context.client.device.userid
 
-        # Do remaining cleanup on the event payload (assuming user-based remapping has been done).
+        # Do remaining cleanup on the entire event payload (assuming user-based remapping has been done).
         if event_data:
             # Remove sensitive payload fields.
             # TODO: decide how to handle 'url' and 'report_url'.
@@ -316,7 +337,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
                     log.info(u"Deidentified payload: %s", debug_str)
                 event_data = updated_event_data
 
-            # Re-encode payload as a json string if it originally was.
+            # Re-encode payload as a json string if it originally was one.
+            # (This test works because we throw away string values that didn't parse as JSON.)
             if isinstance(event.get('event'), basestring):
                 event['event'] = cjson.encode(event_data)
             else:
@@ -325,8 +347,16 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
         # Delete or clean base properties other than username.
         event.pop('host', None)  # delete host
         event.pop('ip', None)  # delete ip
-        # Clean page
-        # Clean referer
+
+        # Clean page and referer
+        for key in ['page', 'referer']:
+            if key in event:
+                label = u"event.{}".format(key)
+                updated_value = self.deidentifier.deidentify_structure(event[key], label, user_info)
+                if updated_value is not None:
+                    event[key] = updated_value
+                    if self.deidentifier.is_logging_enabled():
+                        log.info(u"Deidentified %s %s", label, debug_str)
 
         return event
 
@@ -342,7 +372,7 @@ class EventDeidentificationTask(DeidentifierParamsMixin, UserInfoDownstreamMixin
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter()
     explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'events-deidentification', 'name': 'explicit_event_whitelist'}
+        config_path={'section': 'deidentification', 'name': 'explicit_event_whitelist'}
     )
 
     def requires(self):
