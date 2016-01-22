@@ -2,6 +2,7 @@
 Determine the number of users in each country.
 """
 import datetime
+import ipaddress
 import tempfile
 
 import luigi
@@ -25,11 +26,25 @@ class GeolocationMixin(object):
 
     Parameters:
         geolocation_data: a URL to the location of country-level geolocation data.
+        geodata_ipv6: Specify whether the database pointed by 'geolocation_data' is an IPv6 database or not.
+        country_name_for_private_ip: The country name for ip addresses inside the private ip range.
+        country_code_for_private_ip: The country code for ip addresses inside the private ip range.
     """
     geolocation_data = luigi.Parameter(
         config_path={'section': 'geolocation', 'name': 'geolocation_data'}
     )
-
+    geodata_ipv6 = luigi.BoolParameter(
+        config_path={'section': 'geolocation', 'name': 'geodata_ipv6'},
+        default=False
+    )
+    country_name_for_private_ip = luigi.Parameter(
+        config_path={'section': 'geolocation', 'name': 'country_name_for_private_ip'},
+        default=None
+    )
+    country_code_for_private_ip = luigi.Parameter(
+        config_path={'section': 'geolocation', 'name': 'country_code_for_private_ip'},
+        default=None
+    )
 
 class BaseUserLocationTask(GeolocationMixin):
     """
@@ -104,8 +119,34 @@ class BaseGeolocation(object):
 
         # This ip address might not provide a country name.
         try:
-            country = self.geoip.country_name_by_addr(last_ip)
-            code = self.geoip.country_code_by_addr(last_ip)
+            ipaddr = ipaddress.ip_address(unicode(last_ip))
+
+            # Raise an exception if 'last_ip' cannot be converted
+            # into a valid IPv4 or IPv6 address
+            if ipaddr is None: raise ValueError()
+
+            # If IPv6 database is used, then convert IPv4 address
+            # its mapped IPv6 version, so that we can use a single
+            # IPv6 database for both IPv4 and IPv6 addresses.
+            if self.geodata_ipv6 and ipaddr.version == 4:
+                last_ip = '::ffff:' + last_ip
+
+            # The IP database doesn't provide geo data for private address
+            # like '192.168.0.1'. However, for an open edx deployment
+            # inside a institution, the private address may exist in
+            # tracking logs. It is more reasonable to use a specific
+            # country name/code for such addresses rather than 'UNKNOWN'.
+            # This feature is enabled only when the two additional
+            # parameters are set.
+            if self.country_name_for_private_ip is not None and ipaddr.is_private:
+                country = self.country_name_for_private_ip
+            else:
+                country = self.geoip.country_name_by_addr(last_ip)
+
+            if self.country_code_for_private_ip is not None and ipaddr.is_private:
+                code = self.country_code_for_private_ip
+            else:
+                code = self.geoip.country_code_by_addr(last_ip)
         except Exception:
             log.exception("Encountered exception getting country:  user '%s', last_ip '%s' on '%s'.",
                           username, last_ip, last_timestamp)
@@ -234,6 +275,8 @@ class UsersPerCountry(MapReduceJobTask, BaseUserLocationTask):
             manifest=self.manifest,
             geolocation_data=self.geolocation_data,
             end_date=self.end_date,
+            country_name_for_private_ip=self.country_name_for_private_ip,
+            country_code_for_private_ip=self.country_code_for_private_ip,
         )
 
     def output(self):
@@ -333,6 +376,7 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
         manifest: a URL to a file location that can store the complete set of input files.
         end_date: events before or on this date are kept, and after this date are filtered out.
         geolocation_data: a URL to the location of country-level geolocation data.
+        geodata_ipv6: Specify whether the database pointed by 'geolocation_data' is an IPv6 database or not.
 
     Additional optional parameters are passed through to :py:class:`MapReduceJobTask`:
 
@@ -357,6 +401,7 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
     base_input_format = luigi.Parameter(default=None)
     end_date = luigi.DateParameter()
     geolocation_data = luigi.Parameter()
+    geodata_ipv6 = luigi.BoolParameter()
 
     def requires(self):
         return UsersPerCountry(
@@ -371,4 +416,5 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
             manifest=self.manifest,
             geolocation_data=self.geolocation_data,
             end_date=self.end_date,
+            geodata_ipv6=self.geodata_ipv6,
         )
