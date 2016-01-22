@@ -27,8 +27,10 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 
     def user_info_requirements(self):
         return {
-            'auth_user': ExternalURL(self.auth_user_path.rstrip('/') + '/'),
-            'auth_userprofile': ExternalURL(self.auth_userprofile_path.rstrip('/') + '/')
+            # 'auth_user': ExternalURL(self.auth_user_path.rstrip('/') + '/'),
+            # 'auth_userprofile': ExternalURL(self.auth_userprofile_path.rstrip('/') + '/')
+            'auth_user': ExternalURL(self.auth_user_path),
+            'auth_userprofile': ExternalURL(self.auth_userprofile_path),
         }
 
     @property
@@ -49,42 +51,58 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 
         if _user_by_id is None:
             log.info("Loading user_info data.")
-            _user_by_id = {}
-            _user_by_username = {}
+            try:
+                _user_by_id = {}
+                _user_by_username = {}
+                count = 0
+                input_targets = {k: v.output() for k, v in self.user_info_requirements().items()}
+                with input_targets['auth_user'].open('r') as auth_user_file:
+                    for line in auth_user_file:
+                        count += 1
+                        split_line = line.rstrip('\r\n').split('\x01')
+                        try:
+                            user_id = int(split_line[0])
+                        except ValueError:
+                            # TODO: add logging?  Does this happen often?  Ever?
+                            log.error("Unexpected non-int value for user_id read from auth_user file: %s", split_line)
+                            continue
+                        username = split_line[1].decode('utf8')
+                        _user_by_id[user_id] = {'username': username, 'user_id': user_id}
+                        # Point to the same object so that we can just store two pointers to the data instead of two
+                        # copies of the data
+                        _user_by_username[username] = _user_by_id[user_id]
+                    log.info("Finished loading %s auth_user records from %s into user_info data.", count, input_targets['auth_user'].path)
 
-            input_targets = {k: v.output() for k, v in self.user_info_requirements().items()}
-            with input_targets['auth_user'].open('r') as auth_user_file:
-                for line in auth_user_file:
-                    split_line = line.rstrip('\r\n').split('\x01')
-                    try:
-                        user_id = int(split_line[0])
-                    except ValueError:
-                        # TODO: add logging?  Does this happen often?  Ever?
-                        continue
-                    username = split_line[1]
-                    _user_by_id[user_id] = {'username': username, 'user_id': user_id}
-                    # Point to the same object so that we can just store two pointers to the data instead of two
-                    # copies of the data
-                    _user_by_username[username] = _user_by_id[user_id]
+                count = 0
+                with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
+                    for line in auth_user_profile_file:
+                        count += 1
+                        split_line = line.rstrip('\r\n').split('\x01')
+                        try:
+                            user_id = int(split_line[0])
+                        except ValueError:
+                            # TODO: add logging?  Does this happen often?  Ever?
+                            log.error("Unexpected non-int value for user_id read from auth_user_profile file: %s", split_line)
+                            continue
+                        name = split_line[1].decode('utf8')
+                        try:
+                            _user_by_id[user_id]['name'] = name
+                        except KeyError:
+                            # TODO: Look at whether this will break if the userprofile is more recent than the
+                            # auth_user file.  (We have no guarantee that they are dumped at the same time,
+                            # though we presume they were dumped on the same day, and presumably closer in time than that.)
+                            # So is this what we want the behavior to be?  Or rather to just not have a username for
+                            # this id?
+                            log.error("Unknown value for user_id read from auth_user_profile file: %s '%s'", user_id, name)
+                            pass
+                    log.info("Finished loading %s auth_userprofile records from %s into user_info data.", count, input_targets['auth_userprofile'].path)
 
-            with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
-                for line in auth_user_profile_file:
-                    split_line = line.rstrip('\r\n').split('\x01')
-                    try:
-                        user_id = int(split_line[0])
-                    except ValueError:
-                        # TODO: add logging?  Does this happen often?  Ever?
-                        continue
-                    name = split_line[1]
-                    try:
-                        _user_by_id[user_id]['name'] = name
-                    except KeyError:
-                        # TODO: Look at whether this will break if the userprofile is more recent than the
-                        # auth_user file.  (We have no guarantee that they are dumped at the same time,
-                        # though we presume they were dumped on the same day, and presumably closer in time than that.)
-                        # So is this what we want the behavior to be?  Or rather to just not have a username for
-                        # this id?
-                        pass
+            except Exception:
+                # Don't leave a half-initialized set of structures for the next task to use.
+                log.info("Failed to load user_info data -- resetting.")
+                _user_by_id = None
+                _user_by_username = None
+                raise
 
             log.info("Loaded user_info data.")
 
@@ -176,7 +194,7 @@ def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
 # (123)-456, so make that optional.
 US_PHONE_PATTERN = r"""(?:\+?1\s*(?:[.\- ]?\s*)?)?  # possible leading "+1"
                        (?:\([2-9]\d{2}\)\s*|[2-9]\d{2}\s*(?:[.\- ]\s*))?  # 3-digit area code, in parens or not
-                       \b\d{3}\s*(?:[.\- ]\s*)\d{4}"""   # regular 7-digit phone
+                       \b\d{3}\s*(?:[\- ]\s*)\d{4}"""   # regular 7-digit phone.  Note no use of dot here: too much like a float.
 
 
 # INTL_PHONE_PATTERN = r'\b(\+(9[976]\d|8[987530]\d|6[987]\d|5[90]\d|42\d|3[875]\d|2[98654321]\d|9[8543210]|8[6421]|6[6543210]|5[87654321]|4[987654310]|3[9643210]|2[70]|7|1)\d{1,14}$
@@ -379,7 +397,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # add the whole, then add each individual part if it's long enough.
     patterns.append(u" ".join(names))
     for name in names:
-        if len(name) > 2 and name not in STOPWORDS:
+        if len(name) > 2 and name not in STOPWORDS and not name.endswith('.'):
             patterns.append(name)
 
     # Because we're operating with unicode instead of raw strings, make sure that
