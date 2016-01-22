@@ -63,7 +63,7 @@ class EventExportByCourseMapTest(EventExportByCourseBaseTest):
         self.assert_no_map_output_for(line)
 
     def test_output_for_unwanted_event(self):
-        self.create_task(course_id=['Foo'])
+        self.create_task(course=['Foo'])
         line = self.create_event_log_line()
         self.assert_no_map_output_for(line)
 

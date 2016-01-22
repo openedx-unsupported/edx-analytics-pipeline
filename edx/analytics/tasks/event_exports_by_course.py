@@ -24,7 +24,7 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         config_path={'section': 'event-export-course', 'name': 'output_root'}
     )
 
-    course_id = luigi.Parameter(is_list=True, default=[])
+    course = luigi.Parameter(is_list=True, default=[])
 
     def mapper(self, line):
         event, date_string = self.get_event_and_date_string(line) or (None, None)
@@ -36,7 +36,7 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         if course_id is None:
             return
 
-        if self.course_id and course_id not in self.course_id:
+        if self.course and course_id not in self.course:
             return
 
         key = (date_string, course_id)
