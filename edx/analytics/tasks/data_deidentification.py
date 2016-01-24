@@ -9,7 +9,7 @@ import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierParamsMixin, UserInfoMixin, UserInfoDownstreamMixin
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierDownstreamMixin
 from edx.analytics.tasks.util.file_util import FileCopyMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
@@ -20,8 +20,7 @@ import edx.analytics.tasks.util.csv_util
 log = logging.getLogger(__name__)
 
 
-# TODO: decide if UserInfoMixin should just be combined with DeidentifierMixin.  Probably...
-class BaseDeidentifyDumpTask(DeidentifierMixin, UserInfoMixin, luigi.Task):
+class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
     """
     Base class for deidentification of state files.
     """
@@ -398,7 +397,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         return row
 
 
-class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, UserInfoDownstreamMixin, luigi.WrapperTask):
+class DeidentifiedCourseDumpTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
     """Wrapper task to deidentify data for a particular course."""
 
     course = luigi.Parameter()
@@ -451,13 +450,13 @@ class DeidentifiedCourseDumpTask(DeidentifierParamsMixin, UserInfoDownstreamMixi
         )
 
 
-class DataDeidentificationTask(DeidentifierParamsMixin, UserInfoDownstreamMixin, luigi.WrapperTask):
+class DataDeidentificationTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
     """Wrapper task for data deidentification."""
 
     course = luigi.Parameter(is_list=True)
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter(
-        config_path={'section': 'data-deidentification', 'name': 'output_root'}
+        config_path={'section': 'deidentification', 'name': 'output_root'}
     )
 
     def requires(self):

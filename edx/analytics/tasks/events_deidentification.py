@@ -14,7 +14,7 @@ from collections import namedtuple, defaultdict
 from edx.analytics.tasks.pathutil import PathSetTask, EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, DeidentifierParamsMixin, IMPLICIT_EVENT_TYPE_PATTERNS, UserInfoMixin, UserInfoDownstreamMixin
+from edx.analytics.tasks.util.deid_util import DeidentifierMixin, DeidentifierDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 import edx.analytics.tasks.util.csv_util
 from edx.analytics.tasks.util import eventlog
@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type"])
 
 
-class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMapReduceJobTask):
+class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask):
     """
     Task to deidentify events for a particular course.
 
@@ -365,7 +365,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, UserInfoMixin, MultiOutputMa
         return [numpy]
 
 
-class EventDeidentificationTask(DeidentifierParamsMixin, UserInfoDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
+class EventDeidentificationTask(DeidentifierDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
     """Wrapper task for course events deidentification."""
 
     course = luigi.Parameter(is_list=True)

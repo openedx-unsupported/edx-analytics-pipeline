@@ -125,13 +125,13 @@ class UserInfoMixin(UserInfoDownstreamMixin):
             log.info("Loaded user_info data.")
 
 
-class DeidentifierParamsMixin(object):
+class DeidentifierDownstreamMixin(UserInfoDownstreamMixin):
 
     entities = luigi.Parameter(is_list=True, default=[])
     log_context = luigi.IntParameter(default=None)
 
 
-class DeidentifierMixin(UserIdRemapperMixin, DeidentifierParamsMixin):
+class DeidentifierMixin(UserIdRemapperMixin, DeidentifierDownstreamMixin, UserInfoMixin):
 
     def __init__(self, *args, **kwargs):
         super(DeidentifierMixin, self).__init__(*args, **kwargs)
