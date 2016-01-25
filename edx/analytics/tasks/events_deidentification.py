@@ -121,13 +121,14 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             return None
 
         event_type = event.get('event_type')
-
         event_source = event.get('event_source')
-
         if event_type is None or event_source is None:
             return None
 
-        # TODO: filter out synthetic events as well.
+        # Filter out synthetic events.  These are identifiable by the
+        # 'synthesized' metadata being present in the event.
+        if 'synthesized' in event:
+            return None
 
         if event_source == 'server' and event_type.startswith('/'):
             return self.filter_implicit_event(event)
@@ -276,7 +277,6 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
 
             # Remap values of usernames in payload, if present.  Usernames may appear with different key values.
             # TODO: confirm that these values are usernames, not user_id values.
-            # TODO: decide how to handle requesting_student_id (on openassessmentblock.get_peer_submission events).
             for username_key in ['username', 'instructor', 'student', 'user']:
                 if username_key in event_data and len(event_data[username_key].strip()) > 0:
                     event_username = event_data[username_key].strip().decode('utf8')
@@ -306,24 +306,17 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             # TODO: should these be removed, or set to ''?
             event['context'].pop('host', None)
             event['context'].pop('ip', None)
-
-            # Clean event.context.path.
-            if 'path' in event['context']:
-                updated_context_path = self.deidentifier.deidentify_structure(event['context']['path'], u"context.path", user_info)
-                if updated_context_path is not None:
-                    event['context']['path'] = updated_context_path
-                    if self.deidentifier.is_logging_enabled():
-                        log.info(u"Deidentified event.context.path %s", debug_str)
-
-            # TODO: check event.context.client.ip
-            # TODO: check event.context.client.device.id
-            # TODO: check event.context.client.device.userid
+            # Not sure how to clean this, so removing.
+            event['context'].pop('path', None)
+            # Clean out some of the more obvious values in (mobile) client:
+            if 'client' in event['context']:
+                event['context']['client'].pop('device', None)
+                event['context']['client'].pop('ip', None)
 
         # Do remaining cleanup on the entire event payload (assuming user-based remapping has been done).
         if event_data:
-            # Remove sensitive payload fields.
-            # TODO: decide how to handle 'url' and 'report_url'.
-            for key in ['certificate_id', 'certificate_url', 'source_url', 'fileName', 'GET', 'POST']:
+            # Remove possibly sensitive payload fields (or fields we don't know how to clean).
+            for key in ['certificate_id', 'certificate_url', 'source_url', 'fileName', 'GET', 'POST', 'requesting_student_id', 'report_url', 'url', 'url_name']:
                 event_data.pop(key, None)
 
             for key in ['answer', 'saved_response']:
@@ -344,19 +337,9 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             else:
                 event['event'] = event_data
 
-        # Delete or clean base properties other than username.
-        event.pop('host', None)  # delete host
-        event.pop('ip', None)  # delete ip
-
-        # Clean page and referer
-        for key in ['page', 'referer']:
-            if key in event:
-                label = u"event.{}".format(key)
-                updated_value = self.deidentifier.deidentify_structure(event[key], label, user_info)
-                if updated_value is not None:
-                    event[key] = updated_value
-                    if self.deidentifier.is_logging_enabled():
-                        log.info(u"Deidentified %s %s", label, debug_str)
+        # Delete base properties other than username.
+        for key in ['host', 'ip', 'page', 'referer']:
+            event.pop(key, None)
 
         return event
 
