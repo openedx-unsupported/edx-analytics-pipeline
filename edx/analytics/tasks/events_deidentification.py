@@ -34,7 +34,7 @@ class DeidentifyCourseEventsTask(UserIdRemapperMixin, MultiOutputMapReduceJobTas
 
     course = luigi.Parameter(default=None)
     explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'events-deidentification', 'name': 'explicit_event_whitelist'}
+        config_path={'section': 'deidentification', 'name': 'explicit_event_whitelist'}
     )
     dump_root = luigi.Parameter(default=None)
 
