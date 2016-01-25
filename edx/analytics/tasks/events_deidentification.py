@@ -23,6 +23,7 @@ log = logging.getLogger(__name__)
 
 ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type"])
 
+REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask):
     """
@@ -190,7 +191,6 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             if 'user_id' in info:
                 return self.generate_deid_username_from_user_id(info['user_id'])
 
-        # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
         return None
 
     def get_log_string_for_event(self, event):
@@ -231,8 +231,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             if remapped_username is not None:
                 event['username'] = remapped_username
             else:
-                # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
-                pass
+                log.error("Redacting unrecognized username for '%s' field: %s", 'username', username)
+                event['username'] = REDACTED_USERNAME
 
         # Get the user_id from context, either as an int or None, and remap.
         userid_entry = None
@@ -259,8 +259,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 if remapped_username is not None:
                     event['context']['username'] = remapped_username
                 else:
-                    # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
-                    pass
+                    log.error("Redacting unrecognized username for '%s' field: %s", 'context.username', username)
+                    event['context']['username'] = REDACTED_USERNAME
 
         # Look into the event payload.
         if event_data:
@@ -284,8 +284,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     if remapped_username is not None:
                         event_data[username_key] = remapped_username
                     else:
-                        # TODO: what to do if the username isn't found.  Do we delete it?  Leave it?  Stub it?
-                        pass
+                        log.error("Redacting unrecognized username for 'event.%s' field: %s", username_key, username)
+                        event_data[username_key] = REDACTED_USERNAME
 
         # Finally return the fully-constructed dict.
         return user_info
