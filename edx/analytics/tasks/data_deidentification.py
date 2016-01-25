@@ -213,9 +213,9 @@ class DeidentifyCertificatesGeneratedCertificate(DeidentifySqlDumpTask):
         return '*-certificates_generatedcertificate-*'
 
     def filter_row(self, row):
-        # TODO: determine if 'key' should also be set to ''
         row[1] = self.remap_id(row[1])  # user_id
         row[2] = ''  # download_url
+        row[5] = ''  # key
         row[8] = ''  # verify_uuid
         row[9] = ''  # download_uuid
         row[10] = ''  # name
@@ -266,9 +266,9 @@ class DeidentifyWikiArticleTask(DeidentifySqlDumpTask):
         return '*-wiki_article-*'
 
     def filter_row(self, row):
-        # TODO: decide if these should be emptied.
-        # row[4] = ? # owner_id
-        # row[5] = ? # group_id
+        # Removing these just to be safe.
+        row[4] = ''  # owner_id
+        row[5] = ''  # group_id
         return row
 
 
