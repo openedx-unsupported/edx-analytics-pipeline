@@ -76,6 +76,9 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                 with input_targets['auth_user'].open('r') as auth_user_file:
                     for line in auth_user_file:
                         count += 1
+                        # TODO: Fix ugly hack to get around reading .metadata record information.
+                        if line.startswith('{'):
+                            line = line.split('}', 2)[1]
                         split_line = line.rstrip('\r\n').split('\x01')
                         try:
                             user_id = int(split_line[0])
@@ -96,6 +99,9 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                 with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
                     for line in auth_user_profile_file:
                         count += 1
+                        # TODO: Fix ugly hack to get around reading .metadata record information.
+                        if line.startswith('{'):
+                            line = line.split('}', 2)[1]
                         split_line = line.rstrip('\r\n').split('\x01')
                         try:
                             user_id = int(split_line[0])
