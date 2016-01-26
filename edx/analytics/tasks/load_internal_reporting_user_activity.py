@@ -3,13 +3,15 @@ Loads the user_activity table into the warehouse through the pipeline via Hive.
 
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
+import datetime
 import logging
 import luigi
-from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.user_activity import UserActivityTableTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, CredentialFileVerticaTarget
 from edx.analytics.tasks.database_imports import ImportAuthUserTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
 
 log = logging.getLogger(__name__)
 
@@ -80,15 +82,9 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def insert_source_task(self):
-        return (
-            # Get the location of the Hive table, so it can be opened and read.
-            AggregateInternalReportingUserActivityTableHive(
-                n_reduce_tasks=self.n_reduce_tasks,
-                interval=self.interval,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
-        )
+        hive_table = "internal_reporting_user_activity"
+        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
+        return ExternalURL(url=partition_location)
 
     @property
     def table(self):
@@ -224,3 +220,24 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
                 history_schema=self.history_schema
             )
         ]
+
+
+class UserActivityWorkflow(luigi.WrapperTask):
+
+    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    weeks = luigi.IntParameter(default=24)
+    n_reduce_tasks = luigi.Parameter()
+    interval = luigi.DateIntervalParameter()
+    pipeline_credentials = luigi.Parameter()
+
+    def requires(self):
+        yield CourseActivityWeeklyTask(
+            end_date=self.end_date,
+            weeks=self.weeks,
+            n_reduce_tasks=self.n_reduce_tasks,
+            credentials=self.pipeline_credentials,
+        )
+        yield AggregateInternalReportingUserActivityTableHive(
+            interval=self.interval,
+            n_reduce_tasks=self.n_reduce_tasks,
+        )
