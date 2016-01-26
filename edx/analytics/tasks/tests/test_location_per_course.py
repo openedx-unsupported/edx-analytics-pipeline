@@ -69,10 +69,23 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
         self.task.geoip = FakeGeoLocation()
+        self.task.country_name_for_private_ip = "PRIVATE NAME"
+        self.task.country_code_for_private_ip = "PRIVATE CODE"
+        self.task.geodata_ipv6 = True
         self.reduce_key = self.username
 
     def test_no_ip(self):
         self.assert_no_output([])
+
+    def test_private_ip(self):
+        inputs = [(self.timestamp, "192.168.0.1")]
+        expected = ((("PRIVATE NAME", "PRIVATE CODE"), self.username),)
+        self._check_output_complete_tuple(inputs, expected)
+
+    def test_single_ipv6(self):
+        inputs = [(self.timestamp, FakeGeoLocation.ip_address_3)]
+        expected = (((FakeGeoLocation.country_name_3, FakeGeoLocation.country_code_3), self.username),)
+        self._check_output_complete_tuple(inputs, expected)
 
     def test_single_ip(self):
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]

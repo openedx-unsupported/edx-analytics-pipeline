@@ -27,24 +27,33 @@ class FakeGeoLocation(object):
 
     ip_address_1 = "123.45.67.89"
     ip_address_2 = "98.76.54.123"
+    ip_address_3 = "2001:0123:4567::89ab:cdef"
     country_name_1 = "COUNTRY NAME 1"
     country_code_1 = "COUNTRY CODE 1"
     country_name_2 = "COUNTRY NAME 2"
     country_code_2 = "COUNTRY CODE 2"
+    country_name_3 = "COUNTRY NAME 3"
+    country_code_3 = "COUNTRY CODE 3"
+
+    def get_mapped_ipv6_address(ip_address):
+        """ip_address is assumed to be a valid IPv4 address"""
+        return "::ffff:" + ip_address;
 
     def country_name_by_addr(self, ip_address):
         """Generates a country name if ip address is recognized."""
         country_name_map = {
-            self.ip_address_1: self.country_name_1,
-            self.ip_address_2: self.country_name_2,
+            get_mapped_ipv6_address(self.ip_address_1): self.country_name_1,
+            get_mapped_ipv6_address(self.ip_address_2): self.country_name_2,
+            self.ip_address_3: self.country_name_3,
         }
         return country_name_map.get(ip_address)
 
     def country_code_by_addr(self, ip_address):
         """Generates a country code if ip address is recognized."""
         country_code_map = {
-            self.ip_address_1: self.country_code_1,
-            self.ip_address_2: self.country_code_2,
+            get_mapped_ipv6_address(self.ip_address_1): self.country_name_1,
+            get_mapped_ipv6_address(self.ip_address_2): self.country_name_2,
+            self.ip_address_3: self.country_code_3,
         }
         return country_code_map.get(ip_address)
 
@@ -129,10 +138,23 @@ class LastCountryForEachUserReducerTestCase(ReducerTestMixin, unittest.TestCase)
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.earlier_timestamp = "2013-12-15T15:38:32.805444"
         self.task.geoip = FakeGeoLocation()
+        self.task.country_name_for_private_ip = "PRIVATE NAME"
+        self.task.country_code_for_private_ip = "PRIVATE CODE"
+        self.task.geodata_ipv6 = True
         self.reduce_key = self.username
 
     def test_no_ip(self):
         self.assert_no_output([])
+
+    def test_private_ip(self):
+        inputs = [(self.timestamp, "192.168.0.1")]
+        expected = ((("PRIVATE NAME", "PRIVATE CODE"), self.username),)
+        self._check_output_complete_tuple(inputs, expected)
+
+    def test_single_ipv6(self):
+        inputs = [(self.timestamp, FakeGeoLocation.ip_address_3)]
+        expected = (((FakeGeoLocation.country_name_3, FakeGeoLocation.country_code_3), self.username),)
+        self._check_output_complete_tuple(inputs, expected)
 
     def test_single_ip(self):
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
