@@ -171,6 +171,7 @@ class MultiCourseDeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Wrapp
                 deidentified_output_root=self.deidentified_output_root,
                 format_version=self.format_version,
                 pipeline_version=self.pipeline_version,
+                n_reduce_tasks=self.n_reduce_tasks,
                 entities=self.entities,
                 log_context=self.log_context,
                 auth_user_path=self.auth_user_path,
