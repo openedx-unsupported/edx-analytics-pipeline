@@ -95,7 +95,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     deidentified_event = self.deidentify_event(filtered_event)
                     if deidentified_event is None:
                         return
-                    outfile.write(value.strip())
+                    outfile.write(cjson.encode(deidentified_event).strip())
                     outfile.write('\n')
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
                     # Do not remove it.
@@ -281,7 +281,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                         event_data[username_key] = remapped_username
                     else:
                         log.error("Redacting unrecognized username for 'event.%s' field: '%s' %s", username_key, event_username, debug_str)
-                event_data[username_key] = REDACTED_USERNAME
+                    event_data[username_key] = REDACTED_USERNAME
 
         # Finally return the fully-constructed dict.
         return user_info

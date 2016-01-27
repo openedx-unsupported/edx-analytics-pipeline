@@ -91,10 +91,6 @@ poll	server	xblock.poll.view_results
 pre-roll-video	browser	edx.video.bumper.loaded
 pre-roll-video	browser	edx.video.bumper.played
 pre-roll-video	browser	edx.video.bumper.stopped
-problem	browser	problem_check
-problem	browser	problem_graded
-problem	browser	problem_reset
-problem	browser	problem_save
 problem	browser	problem_show
 problem	server	problem_check
 problem	server	problem_check_fail
@@ -146,3 +142,9 @@ video	mobile	stop_video
 # unknown	server	progress
 # unknown	browser	site_search
 # unknown	browser	site_search_jump
+
+# These do not return JSON-encoded strings in their event payloads.
+# problem	browser	problem_check
+# problem	browser	problem_graded
+# problem	browser	problem_reset
+# problem	browser	problem_save
