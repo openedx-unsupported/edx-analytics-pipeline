@@ -218,10 +218,6 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         # different parts of the event, a set will make sure these are deduped.
         user_info = defaultdict(set)
 
-        # user_info_found = []
-        # Fetch and then remap username.
-        # username_entry = None
-
         # Note that eventlog.get_event_username() does a strip on the username and checks for zero-len,
         # so we don't have to do so here.
         username = eventlog.get_event_username(event)
@@ -231,7 +227,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             if remapped_username is not None:
                 event['username'] = remapped_username
             else:
-                log.error("Redacting unrecognized username for '%s' field: %s", 'username', username)
+                log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'username', username, debug_str)
                 event['username'] = REDACTED_USERNAME
 
         # Get the user_id from context, either as an int or None, and remap.
@@ -259,7 +255,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 if remapped_username is not None:
                     event['context']['username'] = remapped_username
                 else:
-                    log.error("Redacting unrecognized username for '%s' field: %s", 'context.username', username)
+                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username', context_username, debug_str)                    
                     event['context']['username'] = REDACTED_USERNAME
 
         # Look into the event payload.
@@ -276,7 +272,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 event_data['user_id'] = self.remap_id(event_user_id)
 
             # Remap values of usernames in payload, if present.  Usernames may appear with different key values.
-            # TODO: confirm that these values are usernames, not user_id values.
+            # TODO: confirm that these values are usernames, not user_id values. (User_id values will fail remapping.)
             for username_key in ['username', 'instructor', 'student', 'user']:
                 if username_key in event_data and len(event_data[username_key].strip()) > 0:
                     event_username = event_data[username_key].strip().decode('utf8')
@@ -284,8 +280,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     if remapped_username is not None:
                         event_data[username_key] = remapped_username
                     else:
-                        log.error("Redacting unrecognized username for 'event.%s' field: %s", username_key, username)
-                        event_data[username_key] = REDACTED_USERNAME
+                        log.error("Redacting unrecognized username for 'event.%s' field: '%s' %s", username_key, event_username, debug_str)
+                event_data[username_key] = REDACTED_USERNAME
 
         # Finally return the fully-constructed dict.
         return user_info
