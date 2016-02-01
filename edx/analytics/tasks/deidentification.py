@@ -186,37 +186,13 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 format_version=self.format_version,
             )
 
-class EventsDeidValidationTask(MapReduceJobTask):
-
-    course = luigi.Parameter()
-    deidentified_output_root = luigi.Parameter()
-    output_root = luigi.Parameter()
-
-    def requires(self):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
-        event_files_url = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'events')
-        return PathSetTask([event_files_url], ['*'])
-
-    def mapper(self, line):
-        email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
-        compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
-        match = re.search(compiled_pattern, line)
-        if not match:
-            return
-        
-        yield 1, line
-
-    def reducer(self, key, values):
-        yield values
-
-    def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'emails'))
 
 class DeidValidationTask(luigi.Task):
 
     dump_root = luigi.Parameter()
     deidentified_output_root = luigi.Parameter()
     course = luigi.Parameter(is_list=True)
+    output_root = luigi.Parameter()
 
 
     def run(self):
@@ -251,17 +227,12 @@ class DeidValidationTask(luigi.Task):
                     with open(copied_filepath, 'w') as outfile:
                         copy_file_to_file(infile, outfile)
 
-            # for target in PathSetTask([course_events_root], ['*']).output():
-            #     filename = os.path.basename(target.path)
-            #     copied_filepath = os.path.join(local_events_dir, filename)
-            #     with target.open('r') as infile:
-            #         with open(copied_filepath, 'w') as outfile:
-            #             copy_file_to_file(infile, outfile)
-
             if not len(os.listdir(local_deidentified_dir)) == 15:
                 print("==========================================")
                 print("FILE MISSING FOR: " + course)
                 print("==========================================")
+                with self.output().open('a') as output_file:
+                    output_file.write("FILE COUNT ERROR for: " + course + '\n')
 
             for raw_filename in os.listdir(local_raw_dir):
                 raw_line_count = int(subprocess.check_output(["wc", "-l", os.path.join(local_raw_dir, raw_filename)]).strip().split()[0])
@@ -270,6 +241,8 @@ class DeidValidationTask(luigi.Task):
                     print("==========================================")
                     print("MISMATCHING LINE COUNT FOR: " + raw_filename)
                     print("==========================================")
+                    with self.output().open('a') as output_file:
+                        output_file.write("MISMATCHING LINE COUNT FOR: " + raw_filename + '\n')
 
             email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
             compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
@@ -283,18 +256,10 @@ class DeidValidationTask(luigi.Task):
                          print("EMAIL FOUND IN: " + filename)
                          print(match.group(0))
                          print("==========================================")
-
-            # for filename in os.listdir(local_events_dir):
-            #     with open(os.path.join(local_events_dir, filename), 'r+') as f:
-            #         data = mmap.mmap(f.fileno(), 0)
-            #         match = re.search(compiled_pattern, data)
-            #         if match:
-            #              print("==========================================")
-            #              print("EMAIL FOUND IN: " + filename)
-            #              print(match.group(1))
-            #              print("==========================================")
+                         with self.output().open('a') as output_file:
+                             output_file.write("EMAIL:" + match.group(0) + " FOUND IN: " + filename + '\n')
 
             shutil.rmtree(temporary_dir)
 
-    def complete(self):
-        return False
+    def output(self):
+        return get_target_from_url(url_path_join(self.output_root, 'deid_validation'))
