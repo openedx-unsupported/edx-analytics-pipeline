@@ -209,14 +209,14 @@ class DeidValidationTask(luigi.Task):
                 copied_filepath = os.path.join(local_raw_dir, filename)
                 with target.open('r') as infile:
                     with open(copied_filepath, 'w') as outfile:
-                        copy_file_to_file(input_file, output_file)
+                        copy_file_to_file(infile, outfile)
 
             for target in PathSetTask([course_deidentified_output_root], ['*']).output():
                 filename = os.path.basename(target.path)
                 copied_filepath = os.path.join(local_deidentified_dir, filename)
                 with target.open('r') as infile:
                     with open(copied_filepath, 'w') as outfile:
-                        copy_file_to_file(input_file, output_file)
+                        copy_file_to_file(infile, outfile)
 
             if not len(os.listdir(local_deidentified_dir)) == 15:
                 print("==========================================")
