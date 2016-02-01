@@ -225,4 +225,4 @@ class DeidValidationTask(luigi.Task):
             shutil.rmtree(temporary_dir)
 
     def complete(self):
-        return True
+        return False
