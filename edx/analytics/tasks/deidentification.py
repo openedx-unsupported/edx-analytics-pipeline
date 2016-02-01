@@ -200,7 +200,7 @@ class DeidValidationTask(luigi.Task):
             filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
             course_deidentified_output_root = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'state', '2016-01-26')
             course_dump_root = url_path_join(self.dump_root, filename_safe_course_id, 'state', '2016-01-26')
-            course_events_root = url_path_join(self.dump_root, filename_safe_course_id, 'events')
+            course_events_root = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'events')
 
             temporary_dir = tempfile.mkdtemp()
             local_deidentified_dir = os.path.join(temporary_dir, 'deidentified')
