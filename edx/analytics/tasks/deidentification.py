@@ -24,6 +24,7 @@ from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.util import opaque_key_util
 from edx.analytics.tasks.util.tempdir import make_temp_directory
+from edx.analytics.tasks.mapreduce import MapReduceJobTask
 
 
 log = logging.getLogger(__name__)
