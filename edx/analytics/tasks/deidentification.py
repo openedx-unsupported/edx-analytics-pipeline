@@ -281,7 +281,7 @@ class DeidValidationTask(luigi.Task):
                     if match:
                          print("==========================================")
                          print("EMAIL FOUND IN: " + filename)
-                         print(match.group(1))
+                         print(match.group(0))
                          print("==========================================")
 
             # for filename in os.listdir(local_events_dir):
