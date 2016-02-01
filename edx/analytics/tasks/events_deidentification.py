@@ -95,7 +95,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     deidentified_event = self.deidentify_event(filtered_event)
                     if deidentified_event is None:
                         return
-                    outfile.write(value.strip())
+                    outfile.write(deidentified_event.strip())
                     outfile.write('\n')
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
                     # Do not remove it.
