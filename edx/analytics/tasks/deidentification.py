@@ -183,7 +183,7 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 format_version=self.format_version,
             )
 
-class DeidValidationTask(lugi.Task):
+class DeidValidationTask(luigi.Task):
 
     dump_root = luigi.Parameter()
     deidentified_output_root = luigi.Parameter()
