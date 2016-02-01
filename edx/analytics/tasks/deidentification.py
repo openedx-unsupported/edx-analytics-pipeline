@@ -192,6 +192,8 @@ class DeidValidationTask(luigi.Task):
 
     def run(self):
         for course in self.course:
+            print("=========================")
+            print("PROCESSING COURSE: " + course)
             filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
             course_deidentified_output_root = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'state', '2016-01-26')
             course_dump_root = url_path_join(self.dump_root, filename_safe_course_id, 'state', '2016-01-26')
