@@ -6,6 +6,9 @@ import errno
 import logging
 import tarfile
 import urlparse
+import tempfile
+import shutil
+
 
 import luigi
 
@@ -179,3 +182,45 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 gpg_master_key=self.gpg_master_key,
                 format_version=self.format_version,
             )
+
+class DeidValidationTask(lugi.Task):
+
+    dump_root = luigi.Parameter()
+    deidentified_output_root = luigi.Parameter()
+    course = luigi.Parameter(is_list=True)
+
+
+    def run(self):
+        for course in self.course:
+            filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
+            course_deidentified_output_root = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'state', '2016-01-26')
+            course_dump_root = url_path_join(self.dump_root, filename_safe_course_id, 'state', '2016-01-26')
+
+            temporary_dir = tempfile.mkdtemp()
+            local_deidentified_dir = os.path.join(temporary_dir, 'deidentified')
+            local_raw_dir = os.path.join(temporary_dir, 'raw')
+            os.makedirs(local_deidentified_dir)
+            os.makedirs(local_raw_dir)
+
+            for target in PathSetTask([course_dump_root], ['*']).output():
+                filename = os.path.basename(target.path)
+                copied_filepath = os.path.join(local_raw_dir, filename)
+                with target.open('r') as infile:
+                    with open(copied_filepath, 'w') as outfile:
+                        copy_file_to_file(input_file, output_file)
+
+            for target in PathSetTask([course_deidentified_output_root], ['*']).output():
+                filename = os.path.basename(target.path)
+                copied_filepath = os.path.join(local_deidentified_dir, filename)
+                with target.open('r') as infile:
+                    with open(copied_filepath, 'w') as outfile:
+                        copy_file_to_file(input_file, output_file)
+
+            if not len(os.listdir(local_deidentified_dir)) == 15:
+                print("==========================================")
+                print(course)
+                print("==========================================")
+            shutil.rmtree(temporary_dir)
+
+    def complete(self):
+        return True
