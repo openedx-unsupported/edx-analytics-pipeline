@@ -9,7 +9,8 @@ import urlparse
 import tempfile
 import shutil
 import subprocess
-
+import re
+import mmap
 
 import luigi
 
@@ -233,6 +234,19 @@ class DeidValidationTask(luigi.Task):
                     print("MISMATCHING LINE COUNT FOR: " + raw_filename)
                     print("==========================================")
 
+            email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
+            compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
+
+            for filename in os.listdir(local_deidentified_dir):
+                with open(os.path.join(local_deidentified_dir, filename), 'r+') as f:
+                    data = mmap.mmap(f.fileno(), 0)
+                    match = re.search(compiled_pattern, data)
+                    if match:
+                         print("==========================================")
+                         print("EMAIL FOUND IN: " + filename)
+                         print(match.group(1))
+                         print("==========================================")
+                
             shutil.rmtree(temporary_dir)
 
     def complete(self):
