@@ -204,7 +204,7 @@ class EventsDeidValidationTask(MapReduceJobTask):
         if not match:
             return
         
-        yield match.group(1), line
+        yield 1, line
 
     def reducer(self, key, values):
         yield values
