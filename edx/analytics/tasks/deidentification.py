@@ -185,7 +185,7 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 format_version=self.format_version,
             )
 
-class EventsDeidValidationTask(luigi.Task):
+class EventsDeidValidationTask(MapReduceJobTask):
 
     course = luigi.Parameter()
     deidentified_output_root = luigi.Parameter()
