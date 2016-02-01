@@ -232,7 +232,7 @@ class DeidValidationTask(luigi.Task):
                 print("FILE MISSING FOR: " + course)
                 print("==========================================")
 
-            output_file.write("DEID DATA FILES COUNT for: " + course + " is: " + len(os.listdir(local_deidentified_dir)) + '\n')
+            output_file.write("DEID DATA FILES COUNT for: " + course + " is: " + str(len(os.listdir(local_deidentified_dir))) + '\n')
 
             for raw_filename in os.listdir(local_raw_dir):
                 raw_line_count = int(subprocess.check_output(["wc", "-l", os.path.join(local_raw_dir, raw_filename)]).strip().split()[0])
