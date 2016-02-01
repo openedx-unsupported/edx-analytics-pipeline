@@ -200,12 +200,15 @@ class DeidValidationTask(luigi.Task):
             filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
             course_deidentified_output_root = url_path_join(self.deidentified_output_root, filename_safe_course_id, 'state', '2016-01-26')
             course_dump_root = url_path_join(self.dump_root, filename_safe_course_id, 'state', '2016-01-26')
+            course_events_root = url_path_join(self.dump_root, filename_safe_course_id, 'events')
 
             temporary_dir = tempfile.mkdtemp()
             local_deidentified_dir = os.path.join(temporary_dir, 'deidentified')
             local_raw_dir = os.path.join(temporary_dir, 'raw')
+            local_events_dir = os.path.join(temporary_dir, 'events')
             os.makedirs(local_deidentified_dir)
             os.makedirs(local_raw_dir)
+            os.makedirs(local_events_dir)
 
             for target in PathSetTask([course_dump_root], ['*']).output():
                 filename = os.path.basename(target.path)
@@ -217,6 +220,13 @@ class DeidValidationTask(luigi.Task):
             for target in PathSetTask([course_deidentified_output_root], ['*']).output():
                 filename = os.path.basename(target.path)
                 copied_filepath = os.path.join(local_deidentified_dir, filename)
+                with target.open('r') as infile:
+                    with open(copied_filepath, 'w') as outfile:
+                        copy_file_to_file(infile, outfile)
+
+            for target in PathSetTask([course_events_root], ['*']).output():
+                filename = os.path.basename(target.path)
+                copied_filepath = os.path.join(local_events_dir, filename)
                 with target.open('r') as infile:
                     with open(copied_filepath, 'w') as outfile:
                         copy_file_to_file(infile, outfile)
@@ -246,7 +256,17 @@ class DeidValidationTask(luigi.Task):
                          print("EMAIL FOUND IN: " + filename)
                          print(match.group(1))
                          print("==========================================")
-                
+
+            for filename in os.listdir(local_events_dir):
+                with open(os.path.join(local_events_dir, filename), 'r+') as f:
+                    data = mmap.mmap(f.fileno(), 0)
+                    match = re.search(compiled_pattern, data)
+                    if match:
+                         print("==========================================")
+                         print("EMAIL FOUND IN: " + filename)
+                         print(match.group(1))
+                         print("==========================================")
+
             shutil.rmtree(temporary_dir)
 
     def complete(self):
