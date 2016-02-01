@@ -228,7 +228,7 @@ class DeidValidationTask(luigi.Task):
             for raw_filename in os.listdir(local_raw_dir):
                 raw_line_count = int(subprocess.check_output(["wc", "-l", os.path.join(local_raw_dir, raw_filename)]).strip().split()[0])
                 deid_line_count = int(subprocess.check_output(["wc", "-l", os.path.join(local_deidentified_dir, raw_filename)]).strip().split()[0])
-                if raw_filename != deid_line_count:
+                if raw_line_count != deid_line_count:
                     print("==========================================")
                     print("MISMATCHING LINE COUNT FOR: " + raw_filename)
                     print("==========================================")
