@@ -14,7 +14,7 @@ import mmap
 
 import luigi
 
-from edx.analytics.tasks.encrypt import make_encrypted_file
+#from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.util.file_util import copy_file_to_file
 
 from edx.analytics.tasks.data_deidentification import DeidentifiedCourseDumpTask
