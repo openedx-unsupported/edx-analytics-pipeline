@@ -212,7 +212,7 @@ class DeidValidationTask(luigi.Task):
             os.makedirs(local_deidentified_dir)
             os.makedirs(local_raw_dir)
             os.makedirs(local_events_dir)
-
+            output_file = self.output().open('w')
             for target in PathSetTask([course_dump_root], ['*']).output():
                 filename = os.path.basename(target.path)
                 copied_filepath = os.path.join(local_raw_dir, filename)
@@ -231,8 +231,8 @@ class DeidValidationTask(luigi.Task):
                 print("==========================================")
                 print("FILE MISSING FOR: " + course)
                 print("==========================================")
-            with self.output().open('a') as output_file:
-                output_file.write("DEID DATA FILES COUNT for: " + course + " is: " + len(os.listdir(local_deidentified_dir)) + '\n')
+
+            output_file.write("DEID DATA FILES COUNT for: " + course + " is: " + len(os.listdir(local_deidentified_dir)) + '\n')
 
             for raw_filename in os.listdir(local_raw_dir):
                 raw_line_count = int(subprocess.check_output(["wc", "-l", os.path.join(local_raw_dir, raw_filename)]).strip().split()[0])
@@ -241,11 +241,11 @@ class DeidValidationTask(luigi.Task):
                     print("==========================================")
                     print("MISMATCHING LINE COUNT FOR: " + raw_filename)
                     print("==========================================")
-                with self.output().open('a') as output_file:
-                    output_file.write("==================================" + '\n')
-                    output_file.write(raw_filename + '\n')
-                    output_file.write("original line count: " + raw_line_count + '\n')
-                    output_file.write("deid line count: " + deid_line_count + '\n')
+
+                output_file.write("==================================" + '\n')
+                output_file.write(raw_filename + '\n')
+                output_file.write("original line count: " + raw_line_count + '\n')
+                output_file.write("deid line count: " + deid_line_count + '\n')
 
             email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
             compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
@@ -259,11 +259,11 @@ class DeidValidationTask(luigi.Task):
                          print("EMAIL FOUND IN: " + filename)
                          print(match.group(0))
                          print("==========================================")
-                         with self.output().open('a') as output_file:
-                             output_file.write("============EMAIL FOUND=============" + '\n')
-                             output_file.write("EMAIL:" + match.group(0) + " FOUND IN: " + filename + '\n')
-            with self.output().open('a') as output_file:
-                output_file.write("==============================" + '\n' + '\n' + '\n')
+                         output_file.write("============EMAIL FOUND=============" + '\n')
+                         output_file.write("EMAIL:" + match.group(0) + " FOUND IN: " + filename + '\n')
+            
+            output_file.write("==============================" + '\n' + '\n' + '\n')
+            output_file.close()
             shutil.rmtree(temporary_dir)
 
     def output(self):
