@@ -244,8 +244,8 @@ class DeidValidationTask(luigi.Task):
 
                 output_file.write("==================================" + '\n')
                 output_file.write(raw_filename + '\n')
-                output_file.write("original line count: " + raw_line_count + '\n')
-                output_file.write("deid line count: " + deid_line_count + '\n')
+                output_file.write("original line count: " + str(raw_line_count) + '\n')
+                output_file.write("deid line count: " + str(deid_line_count) + '\n')
 
             email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
             compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
