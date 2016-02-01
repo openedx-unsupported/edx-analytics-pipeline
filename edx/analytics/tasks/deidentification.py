@@ -247,21 +247,6 @@ class DeidValidationTask(luigi.Task):
                 output_file.write("original line count: " + str(raw_line_count) + '\n')
                 output_file.write("deid line count: " + str(deid_line_count) + '\n')
 
-            email_pattern = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
-            compiled_pattern = re.compile(email_pattern, re.IGNORECASE)
-
-            for filename in os.listdir(local_deidentified_dir):
-                with open(os.path.join(local_deidentified_dir, filename), 'r+') as f:
-                    data = mmap.mmap(f.fileno(), 0)
-                    match = re.search(compiled_pattern, data)
-                    if match:
-                         print("==========================================")
-                         print("EMAIL FOUND IN: " + filename)
-                         print(match.group(0))
-                         print("==========================================")
-                         output_file.write("============EMAIL FOUND=============" + '\n')
-                         output_file.write("EMAIL:" + match.group(0) + " FOUND IN: " + filename + '\n')
-            
             output_file.write("==============================" + '\n' + '\n' + '\n')
             output_file.close()
             shutil.rmtree(temporary_dir)
