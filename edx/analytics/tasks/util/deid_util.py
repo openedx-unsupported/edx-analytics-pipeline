@@ -123,7 +123,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 
             except Exception:
                 # Don't leave a half-initialized set of structures for the next task to use.
-                log.info("Failed to load user_info data -- resetting.")
+                log.exception("Failed to load user_info data -- resetting.")
                 _user_by_id = None
                 _user_by_username = None
                 raise

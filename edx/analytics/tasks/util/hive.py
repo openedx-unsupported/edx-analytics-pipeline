@@ -283,7 +283,6 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
             self.attempted_removal = True
 
 
-
 class OverwriteAwareHiveQueryRunner(HiveQueryRunner):
     """A custom hive query runner that logs the query being executed and is aware of the "overwrite" option."""
 

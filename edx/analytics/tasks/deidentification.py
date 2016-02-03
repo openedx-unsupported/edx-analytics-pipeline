@@ -101,6 +101,7 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
     """Task that packages deidentified course data."""
 
     course = luigi.Parameter()
+    temporary_dir = luigi.Parameter(default=None)
 
     def requires(self):
         return ExternalURL(url_path_join(self.course_files_url, 'metadata_file.json'))
@@ -120,7 +121,7 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
         ]
 
         path_task = PathSetTask([self.course_files_url], ['*.*'])
-        with make_temp_directory(prefix='deid-archive.') as tmp_directory:
+        with make_temp_directory(prefix='deid-archive.', dir=self.temporary_dir) as tmp_directory:
             for target in path_task.output():
                 with target.open('r') as input_file:
                     # Get path without urlscheme.
@@ -150,7 +151,7 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
                 log.info('Encrypted %d bytes', num_bytes)
 
             with self.output().open('w') as output_file:
-                with make_encrypted_file(output_file, key_file_targets, progress=report_encrypt_progress) as encrypted_output_file:
+                with make_encrypted_file(output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir) as encrypted_output_file:
                     with tarfile.open(mode='w:gz', fileobj=encrypted_output_file) as output_archive_file:
                         output_archive_file.add(tmp_directory, arcname='')
 
@@ -183,6 +184,7 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
     """Task to package multiple courses at once."""
 
     course = luigi.Parameter(is_list=True)
+    temporary_dir = luigi.Parameter(default=None)
 
     def requires(self):
         for course in self.course:
@@ -194,4 +196,5 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 gpg_key_dir=self.gpg_key_dir,
                 gpg_master_key=self.gpg_master_key,
                 format_version=self.format_version,
+                temporary_dir=self.temporary_dir,
             )

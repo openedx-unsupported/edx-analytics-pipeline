@@ -2,19 +2,19 @@
 Tests for data deidentification tasks.
 """
 
+
+import json
+from mock import MagicMock, sentinel
+import os
+import shutil
+import tempfile
+import textwrap
+
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.tests.target import FakeTarget, FakeTask
 import edx.analytics.tasks.data_deidentification as deid
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.url import url_path_join
-
-from mock import MagicMock
-from mock import sentinel
-
-import json
-import tempfile
-import os
-import shutil
 
 
 class TestDataDeidentification(unittest.TestCase):
@@ -27,16 +27,49 @@ class TestDataDeidentification(unittest.TestCase):
             course=sentinel.ignored,
             output_directory=sentinel.ignored,
             data_directory=sentinel.ignored,
+            auth_user_path=sentinel.ignored,
+            auth_userprofile_path=sentinel.ignored,
         )
 
-        fake_input = [FakeTarget(value=source)]
+        fake_input = {'data': [FakeTarget(value=source)]}
         task.input = MagicMock(return_value=fake_input)
 
         output_target = FakeTarget()
         task.output = MagicMock(return_value=output_target)
 
+        # TODO: cut-and-paste from test_events_deidentification.  Make this DRY.
+        auth_user = """
+            1 honor
+            2 audit
+            3 verified
+            4 staff
+        """
+        auth_user_profile = """
+            1	Honor Student
+            2	Audit John
+            3	Verified Vera
+            4	Static Staff
+        """
+        # These keys need to return a Task, whose output() is a Target.
+        user_info_setup = {
+            'auth_user': FakeTask(value=self.reformat_table(auth_user, output_delimiter='\x01')),
+            'auth_userprofile': FakeTask(value=self.reformat_table(auth_user_profile, output_delimiter='\x01', input_delimiter='\t')),
+        }
+        task.user_info_requirements = MagicMock(return_value=user_info_setup)
+
         task.run()
         return output_target.buffer.read()
+
+    def reformat_table(self, string, input_delimiter=' ', output_delimiter='\t'):
+        """
+        Args:
+            string: Input String to be formatted
+
+        Returns:
+            Formatted String.
+
+        """
+        return textwrap.dedent(string).strip().replace(input_delimiter, output_delimiter)
 
     def reformat(self, data):
         """Reformat data to make it like a TSV."""
@@ -149,7 +182,7 @@ class TestDataDeidentification(unittest.TestCase):
         ]
         expected = [
             header,
-            ['1', '273678626', '', '0.21', 'course-v1:edX+DemoX+Test_2014', 'key', '0', 'notpassing',
+            ['1', '273678626', '', '0.21', 'course-v1:edX+DemoX+Test_2014', '', '0', 'notpassing',
              '', '', '', '2015-10-16 12:53:49', '2015-10-16 12:53:49',
              '', 'honor']
         ]
@@ -210,7 +243,7 @@ class TestDataDeidentification(unittest.TestCase):
         ]
         expected = [
             header,
-            ['1234', '27567', '2013-08-08 22:00:58', '2013-09-30 16:52:21', 'owner_id', 'group_id', '1',
+            ['1234', '27567', '2013-08-08 22:00:58', '2013-09-30 16:52:21', '', '', '1',
              '2', '3', '4']
         ]
         self.check_output(deid.DeidentifyWikiArticleTask, data, expected)
@@ -264,5 +297,8 @@ class TestDeidentifyCourseDumpTask(unittest.TestCase):
         """Test to check whether the data_directory for a course is being set up correctly."""
         coursename = 'edx_demo_course'
         self.create_paths(coursename, dates=['2015-11-25', '2015-11-28', '2015-12-06'])
-        task = deid.DeidentifiedCourseDumpTask(course=coursename, dump_root=self.dump_root, output_root=self.output_root)
+        task = deid.DeidentifiedCourseDumpTask(
+            course=coursename, dump_root=self.dump_root, output_root=self.output_root,
+            auth_user_path=sentinel.ignored, auth_userprofile_path=sentinel.ignored,
+        )
         self.assertEquals(task.data_directory, url_path_join(self.dump_root, coursename, 'state', '2015-12-06'))

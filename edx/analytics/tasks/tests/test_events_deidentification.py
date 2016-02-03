@@ -3,16 +3,17 @@
 import luigi
 import textwrap
 from ddt import ddt, data, unpack
-from mock import MagicMock
+from mock import MagicMock, Mock
 
 from edx.analytics.tasks.events_deidentification import DeidentifyCourseEventsTask
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.tests.target import FakeTarget, FakeTask
+import edx.analytics.tasks.util.eventlog as eventlog
 
 
-class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
     DATE = '2013-12-17'
 
     def setUp(self):
@@ -60,35 +61,50 @@ class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin,
     def create_task(self):
         self.task = self.task_class(
             output_root='/fake/output',
+            auth_user_path='/fake/input1',
+            auth_userprofile_path='/fake/input2',
+            explicit_event_whitelist='explicit_events.tsv',
         )
-        event_list = """
-        admin browser edx.instructor.report.downloaded
-        admin server add-forum-admin
+        explicit_event_list = """
+            admin browser edx.instructor.report.downloaded
+            admin server add-forum-admin
 
-        admin server add-forum-community-TA
-        admin server add-forum-mod
-        admin server add-instructor
-        admin server list-staff
-        enrollment server edx.course.enrollment.activated
-        # problem server problem_rescore
+            admin server add-forum-community-TA
+            admin server add-forum-mod
+            admin server add-instructor
+            admin server list-staff
+            enrollment server edx.course.enrollment.activated
+            # problem server problem_rescore
         """
         auth_user = """
-        id username
-        1	honor
-        2	audit
-        3	verified
-        4	staff
+            1 honor
+            2 audit
+            3 verified
+            4 staff
         """
-        event_target = FakeTarget(value=self.reformat(event_list))
-        auth_user_targets = [FakeTarget(value=self.reformat(auth_user))]
+        # TODO: fix this!  We don't have a way of including spaces in the name values, since we're splitting
+        # these on whitespace.  Use something else.
+        auth_user_profile = """
+            1	Honor Student
+            2	Audit John
+            3	Verified Vera
+            4	Static Staff
+        """
+
         results = {
-            'auth_user': auth_user_targets,
-            'explicit_events': event_target
+            'explicit_events': FakeTarget(value=self.reformat(explicit_event_list)),
         }
         self.task.input_local = MagicMock(return_value=results)
         self.task.init_local()
 
-    def reformat(self, string):
+        # These keys need to return a Task, whose output() is a Target.
+        user_info_setup = {
+            'auth_user': FakeTask(value=self.reformat(auth_user, output_delimiter='\x01')),
+            'auth_userprofile': FakeTask(value=self.reformat(auth_user_profile, output_delimiter='\x01', input_delimiter='\t')),
+        }
+        self.task.user_info_requirements = MagicMock(return_value=user_info_setup)
+
+    def reformat(self, string, input_delimiter=' ', output_delimiter='\t'):
         """
         Args:
             string: Input String to be formatted
@@ -98,12 +114,12 @@ class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             is supposed to be tab separated
 
         """
-        return textwrap.dedent(string).strip().replace(' ', '\t')
+        return textwrap.dedent(string).strip().replace(input_delimiter, output_delimiter)
 
 
 @ddt
 class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
-
+    """Tests the filtering of events by the mapper.  No events are modified."""
     @data(
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/xblock/block-v1:edX+DemoX+Demo_Course_2015+type@video'},
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/instructor/api'},
@@ -118,11 +134,9 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74'},
         {'event_source': 'server', 'event_type': 'list-instructors'},
         {'event_source': 'server', 'event_type': 'problem_rescore'},
-        {'username': 'unknown'},
-        # TODO: decide if this should throw an error, or should just be ignored (i.e. set to None/null).
-        # {'event': {'username': 'unknown'}},
         {'event_type': None},
         {'event_source': None},
+        {'synthesized': {'date': 'blah'}}
     )
     def test_discarded_event_types(self, kwargs):
         line = self.create_event_log_line(**kwargs)
@@ -160,7 +174,52 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
         input_line = self.create_event_log_line(**kwargs)
         expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
         mapper_output_line = tuple(self.task.mapper(input_line))[0][1]
-        self.assertItemsEqual(expected_line, mapper_output_line)
+        # Mapper does no modification (i.e. no deidentification).  It only filters.
+        self.assertItemsEqual(input_line, mapper_output_line)
+
+
+@ddt
+class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
+
+    def compare_event_lines(self, expected_line, reducer_output_line):
+        # Cannot compare the lines, because the JSON is not ordered, so convert and compare as dicts.
+        reducer_output = eventlog.decode_json(reducer_output_line)
+        expected_event = eventlog.decode_json(expected_line)
+        self.assertItemsEqual(expected_event, reducer_output)
+
+    @data(
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/jump_to_id/617ecda9383e45039ab46014d96fc8eb'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/courseware/617ecda9383e45039ab46014d96fc8eb'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/info/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/progress/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/course_wiki/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/about'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/teams'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/617ecda9383e45039ab46014d96fc8eb/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/wiki/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/pdfbook/1'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/pdfbook/0/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/pdfbook/1/chapter/1'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/pdfbook/1/chapter/1/2'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/threads'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/comments'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/upload'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/users'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/4c871d8ebbdf140f2f9b39cdcfdca97ce21b6382/threads/create'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74/inline'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74/threads'},
+        {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74/threads/617ecda9383e45039ab46014'},
+        {'event_source': 'browser', 'event_type': 'edx.instructor.report.downloaded'},
+        {'event_source': 'server', 'event_type': 'list-staff'},
+    )
+    def test_simple_deid_event_types(self, kwargs):
+        input_line = self.create_event_log_line(**kwargs)
+        expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
+        reducer_output_line = self.task.deidentify_event_line(input_line)
+        self.compare_event_lines(expected_line, reducer_output_line)
 
     @data(
         (
@@ -199,8 +258,8 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
     def test_deidentified_events(self, input_kwargs, output_kwargs={}):
         input_line = self.create_event_log_line(**input_kwargs)
         expected_line = self.create_event_log_line(**dict(output_kwargs, **{'template_name': 'expected_event'}))
-        mapper_output_line = tuple(self.task.mapper(input_line))[0][1]
-        self.assertItemsEqual(expected_line, mapper_output_line)
+        reducer_output_line = self.task.deidentify_event_line(input_line)
+        self.compare_event_lines(expected_line, reducer_output_line)
 
 
 class DeidentifyCourseEventsOutputPathTest(EventsDeidentificationBaseTest):

@@ -576,7 +576,7 @@ class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQu
 
     columns = [
         ('end_date', 'DATE'),
-        ('course_id','VARCHAR(255) NOT NULL'),
+        ('course_id', 'VARCHAR(255) NOT NULL'),
         ('username', 'VARCHAR(255) NOT NULL'),
         ('days_active', 'INT'),
         ('problems_attempted', 'INT'),

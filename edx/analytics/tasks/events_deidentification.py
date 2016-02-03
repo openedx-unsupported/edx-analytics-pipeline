@@ -25,6 +25,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
+
 class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask):
     """
     Task to deidentify events for a particular course.
@@ -80,8 +81,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         event = eventlog.parse_json_event(line)
         date_string = event['time'].split("T")[0]
 
-        filtered_event = self.filter_event(event)
-
+        filtered_event = self._filter_event(event)
         if filtered_event is None:
             return
 
@@ -91,11 +91,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
             try:
                 for value in values:
-                    filtered_event = eventlog.parse_json_event(value)
-                    deidentified_event = self.deidentify_event(filtered_event)
-                    if deidentified_event is None:
-                        return
-                    outfile.write(cjson.encode(deidentified_event).strip())
+                    deidentified_event_line = self.deidentify_event_line(value)
+                    outfile.write(deidentified_event_line)
                     outfile.write('\n')
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
                     # Do not remove it.
@@ -116,7 +113,13 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             )
         )
 
-    def filter_event(self, event):
+    def deidentify_event_line(self, line):
+        """Parse an event line, deidentify it, and convert back to a line."""
+        input_event = eventlog.parse_json_event(line)
+        deidentified_event = self._deidentify_event(input_event)
+        return eventlog.encode_json(deidentified_event).strip()
+
+    def _filter_event(self, event):
         """Filter event using different event filtering criteria."""
         if event is None:
             return None
@@ -132,13 +135,13 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             return None
 
         if event_source == 'server' and event_type.startswith('/'):
-            return self.filter_implicit_event(event)
+            return self._filter_implicit_event(event)
         elif ExplicitEventType(event_source, event_type) in self.explicit_events:
             return event
 
         return None
 
-    def filter_implicit_event(self, event):
+    def _filter_implicit_event(self, event):
         """Filter implicit event using the whitelist patterns."""
 
         event_type = event.get('event_type')
@@ -155,7 +158,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
 
         return None
 
-    def get_user_id_as_int(self, user_id):
+    def _get_user_id_as_int(self, user_id):
         """Convert possible str value of user_id to int or None."""
         if user_id is not None and not isinstance(user_id, int):
             if len(user_id) == 0:
@@ -164,7 +167,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 user_id = int(user_id)
         return user_id
 
-    def get_user_info_for_user_id(self, user_id):
+    def _get_user_info_for_user_id(self, user_id):
         """Return user_info entry for a user_id, or None if not found."""
         try:
             user_info = self.user_by_id[user_id]
@@ -173,7 +176,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             log.error("Unable to find user_id %s in the user_by_id map", user_id)
             return None
 
-    def get_user_info_for_username(self, username):
+    def _get_user_info_for_username(self, username):
         """Return user_info entry for a username, or None if not found."""
         try:
             user_info = self.user_by_username[username]
@@ -182,9 +185,9 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             log.error("Unable to find username: %s in the user_by_username map", username)
             return None
 
-    def remap_username(self, username, user_info):
+    def _remap_username(self, username, user_info):
         """Return remapped version of username, or None if not remapped."""
-        info = self.get_user_info_for_username(username)
+        info = self._get_user_info_for_username(username)
         if info is not None:
             for key, value in info.iteritems():
                 user_info[key].add(value)
@@ -193,7 +196,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
 
         return None
 
-    def get_log_string_for_event(self, event):
+    def _get_log_string_for_event(self, event):
         # Create a string to use when logging errors, to provide some context.
         event_type = event.get('event_type')
         if isinstance(event_type, str):
@@ -202,7 +205,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         debug_str = u" [source='{}' type='{}']".format(event_source, event_type)
         return debug_str
 
-    def remap_user_info_in_event(self, event, event_data):
+    def _remap_user_info_in_event(self, event, event_data):
         """
         Harvest user info from event, and remap those values (in place) where appropriate.
 
@@ -210,8 +213,8 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
 
         """
         # Find user info, and
-        debug_str = self.get_log_string_for_event(event)
-        
+        debug_str = self._get_log_string_for_event(event)
+
         # Create a user_info structure to collect relevant user information to look
         # for elsewhere in the event.  We need to return a dictionary of iterables,
         # but since we will potentially be adding the same values repeatedly from
@@ -223,7 +226,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         username = eventlog.get_event_username(event)
         if username is not None:
             username = username.decode('utf8')
-            remapped_username = self.remap_username(username, user_info)
+            remapped_username = self._remap_username(username, user_info)
             if remapped_username is not None:
                 event['username'] = remapped_username
             else:
@@ -232,10 +235,10 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
 
         # Get the user_id from context, either as an int or None, and remap.
         userid_entry = None
-        user_id = self.get_user_id_as_int(event.get('context', {}).get('user_id'))
+        user_id = self._get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
             user_info['user_id'].add(user_id)
-            info = self.get_user_info_for_user_id(user_id)
+            info = self._get_user_info_for_user_id(user_id)
             if info is not None:
                 for key, value in info.iteritems():
                     user_info[key].add(value)
@@ -251,21 +254,21 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             # Remap value of username in context, if it is present.  (Removed in more recent events.)
             if 'username' in event['context'] and len(event['context']['username'].strip()) > 0:
                 context_username = event['context']['username'].strip().decode('utf8')
-                remapped_username = self.remap_username(context_username, user_info)
+                remapped_username = self._remap_username(context_username, user_info)
                 if remapped_username is not None:
                     event['context']['username'] = remapped_username
                 else:
-                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username', context_username, debug_str)                    
+                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username', context_username, debug_str)
                     event['context']['username'] = REDACTED_USERNAME
 
         # Look into the event payload.
         if event_data:
             # Get the user_id from payload and remap.
             event_userid_entry = None
-            event_user_id = self.get_user_id_as_int(event_data.get('user_id'))
+            event_user_id = self._get_user_id_as_int(event_data.get('user_id'))
             if event_user_id is not None:
                 user_info['user_id'].add(event_user_id)
-                info = self.get_user_info_for_user_id(event_user_id)
+                info = self._get_user_info_for_user_id(event_user_id)
                 if info is not None:
                     for key, value in info.iteritems():
                         user_info[key].add(value)
@@ -276,7 +279,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             for username_key in ['username', 'instructor', 'student', 'user']:
                 if username_key in event_data and len(event_data[username_key].strip()) > 0:
                     event_username = event_data[username_key].strip().decode('utf8')
-                    remapped_username = self.remap_username(event_username, user_info)
+                    remapped_username = self._remap_username(event_username, user_info)
                     if remapped_username is not None:
                         event_data[username_key] = remapped_username
                     else:
@@ -286,16 +289,16 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         # Finally return the fully-constructed dict.
         return user_info
 
-    def deidentify_event(self, event):
+    def _deidentify_event(self, event):
         """Deidentify event by removing/stubbing user information."""
 
         # Create a string to use when logging errors, to provide some context.
-        debug_str = self.get_log_string_for_event(event)        
+        debug_str = self._get_log_string_for_event(event)
 
         # Remap the user information stored in the event, and collect for later searching.
         event_data = eventlog.get_event_data(event)
-        user_info = self.remap_user_info_in_event(event, event_data)
-        
+        user_info = self._remap_user_info_in_event(event, event_data)
+
         # Clean or remove values from context.
         if 'context' in event:
             # These aren't present in current events, but are generated historically by some implicit events.
