@@ -119,7 +119,7 @@ def load_user_info(userinfo_path):
             # We'll also strip here, to remove the additional whitespace on usernames and fullnames.
             fields = [backslash_decode_value(field).strip() for field in fields]
             record = UserInfoRecord(*fields)
-            entry = {key: [value,] for key, value in record.__dict__.iteritems()}
+            entry = {key: [value, ] for key, value in record.__dict__.iteritems()}
             # Store records twice, once with an int key, and once with a string key.
             # (They should therefore not collide.)
             result[int(record.user_id)] = entry
@@ -418,7 +418,7 @@ class BulkDeidentifier(object):
                 if profile_entry is None:
                     self.missing_profile[user_id] += 1
                 else:
-                    user_info['name'] = [profile_entry.name,]
+                    user_info['name'] = [profile_entry.name, ]
 
         # TODO: also read in auth_user, and store username for each user_id.
         pass
@@ -481,7 +481,7 @@ class BulkDeidentifier(object):
                 if profile_entry is None:
                     log.error("Missing profile entry for user_id %s", user_id)
                 else:
-                    user_info['name'] = [profile_entry.name,]
+                    user_info['name'] = [profile_entry.name, ]
 
         if record.ip_address != 'NULL' and record.ip_address != 'ip_address':
             log.warning("Found non-NULL IP address")
@@ -532,7 +532,7 @@ class BulkDeidentifier(object):
             return ""
 
         # Get user information:
-        user_info = {'username': [entry.get('author_username'),]}
+        user_info = {'username': [entry.get('author_username'), ]}
         profile_entry = None
         if user_profile is not None:
             user_id = entry.get('author_id')
@@ -540,7 +540,7 @@ class BulkDeidentifier(object):
             if profile_entry is None:
                 log.error(u"Missing profile entry for user_id %s username %s", user_id, username)
             else:
-                user_info['name'] = [profile_entry.name,]
+                user_info['name'] = [profile_entry.name, ]
 
         # Clean the body of the forum post.
         body = entry['body']

@@ -5,7 +5,6 @@ import os
 import errno
 import logging
 import tarfile
-import tempfile
 import urlparse
 
 import luigi
@@ -155,7 +154,6 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
                 with make_encrypted_file(output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir) as encrypted_output_file:
                     with tarfile.open(mode='w:gz', fileobj=encrypted_output_file) as output_archive_file:
                         output_archive_file.add(tmp_directory, arcname='')
-
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, self.filename_safe_course_id + '.tar.gz.gpg'))

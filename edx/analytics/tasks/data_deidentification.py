@@ -170,14 +170,14 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
 
     def filter_row(self, row):
         user_id = row[3]
-        user_info = {'user_id': [user_id,]}
+        user_info = {'user_id': [user_id, ]}
         try:
             user_id = int(user_id)
             entry = self.user_by_id[user_id]
             if 'username' in entry:
-                user_info['username'] = [entry['username'],]
+                user_info['username'] = [entry['username'], ]
             if 'name' in entry:
-                user_info['name'] = [entry['name'],]
+                user_info['name'] = [entry['name'], ]
         except KeyError:
             log.error("Unable to find CWSM user_id: %r in the user_by_id map of size %s", user_id, len(self.user_by_id))
 
@@ -284,13 +284,13 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
         user_info = {}
         if user_id != 'NULL':
             user_id = int(user_id)
-            user_info['user_id'] = [user_id,]
+            user_info['user_id'] = [user_id, ]
             try:
                 entry = self.user_by_id[user_id]
                 if 'username' in entry:
-                    user_info['username'] = [entry['username'],]
+                    user_info['username'] = [entry['username'], ]
                 if 'name' in entry:
-                    user_info['name'] = [entry['name'],]
+                    user_info['name'] = [entry['name'], ]
             except KeyError:
                 log.error("Unable to find wiki user_id: %s in the user_by_id map", user_id)
 
@@ -350,11 +350,11 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
         if author_id is not None:
             # Gather user_info.
-            user_info = {'user_id': [author_id,], 'username': [row.get('author_username'),]}
+            user_info = {'user_id': [author_id, ], 'username': [row.get('author_username'), ]}
             try:
                 entry = self.user_by_id[author_id]
                 if 'name' in entry:
-                    user_info['name'] = [entry['name'],]
+                    user_info['name'] = [entry['name'], ]
                 # While we're at it, perform a sanity check on username.
                 decoded_username = row.get('author_username', '').decode('utf8')
                 if decoded_username != entry['username']:
@@ -365,7 +365,6 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
             # Remap author values, if possible.
             row['author_id'] = str(self.remap_id(author_id))
             row['author_username'] = self.generate_deid_username_from_user_id(author_id)
-
 
         # Clean the body of the forum post.
         body = row['body']
