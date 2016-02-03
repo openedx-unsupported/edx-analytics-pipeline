@@ -186,6 +186,7 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
     """Task to package multiple courses at once."""
 
     course = luigi.Parameter(is_list=True)
+    temporary_dir = luigi.Parameter(default=None)
 
     def requires(self):
         for course in self.course:
@@ -197,4 +198,5 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
                 gpg_key_dir=self.gpg_key_dir,
                 gpg_master_key=self.gpg_master_key,
                 format_version=self.format_version,
+                temporary_dir=self.temporary_dir,
             )
