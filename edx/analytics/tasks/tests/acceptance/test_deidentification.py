@@ -56,6 +56,13 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             if not key_filename.endswith('.key'):
                 self.upload_file(local_filepath, destination_url)
 
+    def upload_profile_data(self):
+        deid_dir = os.path.join(self.data_dir, 'input', 'deidentification')
+        for filename in ['auth_user', 'auth_userprofile']:
+            local_filepath = os.path.join(deid_dir, filename)
+            dst_url = url_path_join(self.test_root, 'warehouse', filename)
+            self.upload_file(local_filepath, dst_url)
+
     def run_event_export_task(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 10, 15))
         self.task.launch([
@@ -69,6 +76,7 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
         """Test deid workflow."""
         self.run_event_export_task()
         self.setup_state_files()
+        self.upload_profile_data()
         self.upload_gpg_keys()
         self.run_deidentification_task()
         self.run_deidentified_package_task()
@@ -83,7 +91,9 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             '--dump-root', self.dump_root,
             '--deidentified-output-root', url_path_join(self.test_root, 'deidentified-output'),
             '--format-version', self.FORMAT_VERSION,
-            '--pipeline-version', self.PIPELINE_VERSION
+            '--pipeline-version', self.PIPELINE_VERSION,
+            '--auth-user-path', url_path_join(self.test_root, 'warehouse', 'auth_user'),
+            '--auth-userprofile-path', url_path_join(self.test_root, 'warehouse', 'auth_userprofile')
         ])
 
     def run_deidentified_package_task(self):
