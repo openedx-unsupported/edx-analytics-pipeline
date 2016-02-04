@@ -34,8 +34,6 @@ class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
             raise IOError("Course File '{filename}' not found for course '{course}'".format(
                 filename=self.file_pattern, course=self.course
             ))
-
-        # TODO: should we change the filename to indicate that it has been de-identified?
         output_filename = os.path.basename(self.input()['data'][0].path)
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
@@ -189,12 +187,12 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
         state_str = row[4].replace('\\\\', '\\')
         try:
             state_dict = cjson.decode(state_str, all_unicode=True)
+            # Traverse the dictionary, looking for entries that need to be scrubbed.
+            updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
         except Exception as exc:
             log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r", row[0], type(state_str), state_str)
-            state_dict = {}
+            updated_state_dict = {}
 
-        # Traverse the dictionary, looking for entries that need to be scrubbed.
-        updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
         if updated_state_dict is not None:
             # Can't reset values, so update original fields.
             updated_state = cjson.encode(updated_state_dict).replace('\\', '\\\\')
@@ -345,12 +343,14 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         try:
             author_id = int(row['author_id'])
         except ValueError:
-            log.error("Encountered non-integer value for author_id (%s) in forums data.  Username = '%s'", author_id, row.get('author_username'))
+            log.error("Encountered non-integer value for author_id (%s) in forums data.  Username = '%s'", row.get('author_id'), row.get('author_username'))
             author_id = None
 
+        user_info = {}
         if author_id is not None:
             # Gather user_info.
-            user_info = {'user_id': [author_id, ], 'username': [row.get('author_username'), ]}
+            user_info['user_id'] = [author_id, ]
+            user_info['username'] = [row.get('author_username'), ]
             try:
                 entry = self.user_by_id[author_id]
                 if 'name' in entry:
@@ -450,7 +450,7 @@ class DeidentifiedCourseDumpTask(DeidentifierDownstreamMixin, luigi.WrapperTask)
 
 
 class DataDeidentificationTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
-    """Wrapper task for data deidentification."""
+    """Wrapper task for data deidentification development."""
 
     course = luigi.Parameter(is_list=True)
     dump_root = luigi.Parameter()

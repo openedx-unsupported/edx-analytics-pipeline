@@ -8,13 +8,14 @@ from mock import MagicMock, sentinel
 import os
 import shutil
 import tempfile
-import textwrap
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget, FakeTask
+from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.data_deidentification as deid
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.deid_util import reset_user_info_for_testing
+from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
+from edx.analytics.tasks.util.tests.test_deid_util import get_mock_user_info_requirements
 
 
 class TestDataDeidentification(unittest.TestCase):
@@ -36,40 +37,10 @@ class TestDataDeidentification(unittest.TestCase):
 
         output_target = FakeTarget()
         task.output = MagicMock(return_value=output_target)
-
-        # TODO: cut-and-paste from test_events_deidentification.  Make this DRY.
-        auth_user = """
-            1 honor
-            2 audit
-            3 verified
-            4 staff
-        """
-        auth_user_profile = """
-            1	Honor Student
-            2	Audit John
-            3	Verified Vera
-            4	Static Staff
-        """
-        # These keys need to return a Task, whose output() is a Target.
-        user_info_setup = {
-            'auth_user': FakeTask(value=self.reformat_table(auth_user, output_delimiter='\x01')),
-            'auth_userprofile': FakeTask(value=self.reformat_table(auth_user_profile, output_delimiter='\x01', input_delimiter='\t')),
-        }
-        task.user_info_requirements = MagicMock(return_value=user_info_setup)
-
+        task.user_info_requirements = get_mock_user_info_requirements()
+        reset_user_info_for_testing()
         task.run()
         return output_target.buffer.read()
-
-    def reformat_table(self, string, input_delimiter=' ', output_delimiter='\t'):
-        """
-        Args:
-            string: Input String to be formatted
-
-        Returns:
-            Formatted String.
-
-        """
-        return textwrap.dedent(string).strip().replace(input_delimiter, output_delimiter)
 
     def reformat(self, data):
         """Reformat data to make it like a TSV."""
@@ -154,19 +125,57 @@ class TestDataDeidentification(unittest.TestCase):
 
     def test_courseware_student_module_deidentification(self):
         header = ['id', 'module_type', 'module_id', 'student_id',
-                  'state', 'grade', 'created', 'modified', 'max_grade', 'done',
-                  'course_id']
+                  'state',
+                  'grade', 'created', 'modified', 'max_grade', 'done', 'course_id']
+        data = [
+            header,
+            ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '2',
+             '{"correct_map": {"123091b4012312r210r120r12r_2_1": {"hint": "", "hintmode": null, "correctness": "correct", '
+             '"msg": "\\\\nRandom HTML stuff:\\\\n\\\\ntest@example.com\\\\n+1-234-123456 will reach John.",'
+             '"answervariable": null, "npoints": 1.0, "queuestate": null}}, '
+             '"input_state": {"123091b4012312r210r120r12r_2_1": {}}, "last_submission_time": "2015-12-13T06:17:05Z", "attempts": 2, "seed": 1, "done": true,'
+             '"student_answers": {"123091b4012312r210r120r12r_2_1": "The answer\\\\r\\\\nwith multiple lines\\\\r\\\\naudit needed\\\\r\\\\n213-4567"}}',
+             '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
+        ]
+        expected = [
+            header,
+            ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '2147483648',
+             '{"correct_map": {"123091b4012312r210r120r12r_2_1": {"hint": "", "hintmode": null, "correctness": "correct", '
+             '"msg": "\\\\nRandom HTML stuff:\\\\n\\\\n<<EMAIL>>\\\\n<<PHONE_NUMBER>> will reach <<FULLNAME>>.", '
+             '"answervariable": null, "npoints": 1.0, "queuestate": null}}, '
+             '"input_state": {"123091b4012312r210r120r12r_2_1": {}}, "last_submission_time": "2015-12-13T06:17:05Z", "attempts": 2, "seed": 1, "done": true, '
+             '"student_answers": {"123091b4012312r210r120r12r_2_1": "The answer\\\\r\\\\nwith multiple lines\\\\r\\\\n<<FULLNAME>> needed\\\\r\\\\n<<PHONE_NUMBER>>"}}',
+             '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
+        ]
+        self.check_output(deid.DeidentifyCoursewareStudentModule, data, expected)
+
+    def test_courseware_student_module_deidentification_unmapped_id(self):
+        header = ['id', 'module_type', 'module_id', 'student_id',
+                  'state', 'grade', 'created', 'modified', 'max_grade', 'done', 'course_id']
         data = [
             header,
             ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '123456',
-             '{"attempts": 1, "seed": 1, "done": true}', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na',
-             'course-v1:edX+DemoX+Test_2014'],
+             '{}', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
         ]
         expected = [
             header,
             ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '273678626',
-             '{"attempts": 1, "seed": 1, "done": true}', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na',
-             'course-v1:edX+DemoX+Test_2014'],
+             '{}', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
+        ]
+        self.check_output(deid.DeidentifyCoursewareStudentModule, data, expected)
+
+    def test_courseware_student_module_deidentification_bad_state(self):
+        header = ['id', 'module_type', 'module_id', 'student_id',
+                  'state', 'grade', 'created', 'modified', 'max_grade', 'done', 'course_id']
+        data = [
+            header,
+            ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '2',
+             'this does not parse', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
+        ]
+        expected = [
+            header,
+            ['1', 'problem', 'block-v1:edX+DemoX+Test_2014+type@problem+block@123091b4012312r210r120r12r', '2147483648',
+             '{}', '0', '2015-10-13 19:22:24', '2015-10-13 19:40:20', '1', 'na', 'course-v1:edX+DemoX+Test_2014'],
         ]
         self.check_output(deid.DeidentifyCoursewareStudentModule, data, expected)
 
@@ -253,23 +262,92 @@ class TestDataDeidentification(unittest.TestCase):
                   'created', 'previous_revision_id', 'deleted', 'locked', 'article_id', 'content', 'title']
         data = [
             header,
-            ['23456', '1', 'This is a user message', 'automatic_log', '192.168.1.1', '123456', '2013-08-08 22:00:58',
-             '2013-08-08 22:00:58', '123', '0', '0', '123', 'This is the content', 'TITLE']
+            ['23456', '1', 'This is a user message', 'automatic_log', '192.168.1.1', '4', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by Static Staff and not Vera, and contains staff@example.com. For help, call 381-1234.',
+             'Article Title']
         ]
         expected = [
             header,
-            ['23456', '1', '', '', '', '273678626', '2013-08-08 22:00:58',
-             '2013-08-08 22:00:58', '123', '0', '0', '123', 'This is the content', 'TITLE']
+            ['23456', '1', '', '', '', '8388608', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by <<FULLNAME>> and not Vera, and contains <<EMAIL>>. For help, call <<PHONE_NUMBER>>.',
+             'Article Title']
+        ]
+        self.check_output(deid.DeidentifyWikiArticleRevisionTask, data, expected)
+
+    def test_wiki_article_revision_deidentification_unmapped_userid(self):
+        header = ['id', 'revision_number', 'user_message', 'automatic_log', 'ip_address', 'user_id', 'modified',
+                  'created', 'previous_revision_id', 'deleted', 'locked', 'article_id', 'content', 'title']
+        data = [
+            header,
+            ['23456', '1', 'This is a user message', 'automatic_log', '192.168.1.1', '12345', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by Static Staff and not Vera, and contains staff@example.com. For help, call 381-1234.',
+             'Article Title']
+        ]
+        expected = [
+            header,
+            ['23456', '1', '', '', '', '302000641', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by Static Staff and not Vera, and contains <<EMAIL>>. For help, call <<PHONE_NUMBER>>.',
+             'Article Title']
+        ]
+        self.check_output(deid.DeidentifyWikiArticleRevisionTask, data, expected)
+
+    def test_wiki_article_revision_deidentification_null_userid(self):
+        header = ['id', 'revision_number', 'user_message', 'automatic_log', 'ip_address', 'user_id', 'modified',
+                  'created', 'previous_revision_id', 'deleted', 'locked', 'article_id', 'content', 'title']
+        data = [
+            header,
+            ['23456', '1', 'This is a user message', 'automatic_log', '192.168.1.1', 'NULL', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by Static Staff and not Vera, and contains staff@example.com. For help, call 381-1234.',
+             'Article Title']
+        ]
+        expected = [
+            header,
+            ['23456', '1', '', '', '', 'NULL', '2013-08-08 22:00:58',
+             '2013-08-08 22:00:58', '123', '0', '0', '123',
+             'This is the content, revised by Static Staff and not Vera, and contains <<EMAIL>>. For help, call <<PHONE_NUMBER>>.',
+             'Article Title']
         ]
         self.check_output(deid.DeidentifyWikiArticleRevisionTask, data, expected)
 
     def test_mongo_deidentification(self):
-        data = '{"author_id":"123456","author_username":"johndoe","body":"This is a body", ' \
-               '"title":"This is a forum post title",' \
-               '"course_id":"course-v1:edX+DemoX+Test_2014","votes":{"down":["123456"],"up":["12345"]}}'
-        expected = '{"author_id":"273678626","author_username":"username_273678626","body":"This is a body", ' \
-                   '"title":"This is a forum post title",' \
-                   '"course_id":"course-v1:edX+DemoX+Test_2014","votes":{"down":["273678626"],"up":["302000641"]}}'
+        self.maxDiff = None
+        data = '{"author_id":"3","author_username":"deliberately_not_verified",' \
+               '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: 321-215-9152\\nEmail: vera@test.edx.org\\n\\nVera",' \
+               '"title":"Reply from Vera Verified (vera@test.edx.org)","course_id":"course-v1:edX+DemoX+Test_2014",' \
+               '"votes":{"down":["123456"],"up":["12345"],"count":2,"point":0,"down_count":1,"up_count":1},' \
+               '"endorsement": {"user_id": "4", "time": {"$date": "2015-09-18T01:01:56.743Z"}},' \
+               '"abuse_flaggers":["12345"],"historical_abuse_flaggers":["123456"]}'
+        expected = '{"author_id":"2147485696","author_username":"username_2147485696",' \
+                   '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: <<PHONE_NUMBER>>\\nEmail: <<EMAIL>>\\n\\n<<FULLNAME>>", ' \
+                   '"title":"Reply from <<FULLNAME>> <<FULLNAME>> (<<EMAIL>>)","course_id":"course-v1:edX+DemoX+Test_2014",' \
+                   '"votes":{"down":["273678626"],"up":["302000641"],"count":2,"point":0,"down_count":1,"up_count":1},' \
+                   '"endorsement": {"user_id": "8388608", "time": {"$date": "2015-09-18T01:01:56.743Z"}},' \
+                   '"abuse_flaggers":["302000641"],"historical_abuse_flaggers":["273678626"]}'
+        output = self.run_task(task_cls=deid.DeidentifyMongoDumpsTask, source=data)
+        self.assertDictEqual(json.loads(output), json.loads(expected))
+
+    def test_mongo_deidentification_with_nonint_id(self):
+        data = '{"author_id":"nonint","author_username":"nonint_user",' \
+               '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: 321-215-9152\\nEmail: vera@test.edx.org\\n\\nVera",' \
+               '"title":"Reply from Vera Verified (vera@test.edx.org)","course_id":"course-v1:edX+DemoX+Test_2014"}'
+        expected = '{"author_id":"nonint","author_username":"nonint_user",' \
+                   '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: <<PHONE_NUMBER>>\\nEmail: <<EMAIL>>\\n\\nVera", ' \
+                   '"title":"Reply from Vera Verified (<<EMAIL>>)","course_id":"course-v1:edX+DemoX+Test_2014"}'
+        output = self.run_task(task_cls=deid.DeidentifyMongoDumpsTask, source=data)
+        self.assertDictEqual(json.loads(output), json.loads(expected))
+
+    def test_mongo_deidentification_with_nonmapped_id(self):
+        data = '{"author_id":"12345","author_username":"nonmapped_user",' \
+               '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: 321-215-9152\\nEmail: vera@test.edx.org\\n\\nVera",' \
+               '"title":"Reply from Vera Verified (vera@test.edx.org)","course_id":"course-v1:edX+DemoX+Test_2014"}'
+        expected = '{"author_id":"302000641","author_username":"username_302000641",' \
+                   '"body":"Hi All,\\nI am having trouble.  Please text or email me.  Cell: <<PHONE_NUMBER>>\\nEmail: <<EMAIL>>\\n\\nVera", ' \
+                   '"title":"Reply from Vera Verified (<<EMAIL>>)","course_id":"course-v1:edX+DemoX+Test_2014"}'
         output = self.run_task(task_cls=deid.DeidentifyMongoDumpsTask, source=data)
         self.assertDictEqual(json.loads(output), json.loads(expected))
 
@@ -282,7 +360,7 @@ class TestDeidentifyCourseDumpTask(unittest.TestCase):
         self.temp_rootdir = tempfile.mkdtemp()
         self.dump_root = os.path.join(self.temp_rootdir, "dump_root")
         self.output_root = os.path.join(self.temp_rootdir, "output_root")
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
+        filename_safe_course_id = get_filename_safe_course_id(course)
         for date in dates:
             filepath = os.path.join(self.dump_root, filename_safe_course_id, 'state', date, 'auth_userprofile_file')
             os.makedirs(os.path.dirname(filepath))

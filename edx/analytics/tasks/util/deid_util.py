@@ -17,6 +17,13 @@ _user_by_id = None
 _user_by_username = None
 
 
+def reset_user_info_for_testing():
+    global _user_by_id
+    global _user_by_username
+    _user_by_id = None
+    _user_by_username = None
+
+
 class UserInfoDownstreamMixin(object):
 
     auth_user_path = luigi.Parameter()
@@ -27,8 +34,6 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 
     def user_info_requirements(self):
         return {
-            # 'auth_user': ExternalURL(self.auth_user_path.rstrip('/') + '/'),
-            # 'auth_userprofile': ExternalURL(self.auth_userprofile_path.rstrip('/') + '/')
             'auth_user': ExternalURL(self.auth_user_path),
             'auth_userprofile': ExternalURL(self.auth_userprofile_path),
         }
@@ -61,6 +66,57 @@ class UserInfoMixin(UserInfoDownstreamMixin):
         self._initialize_user_info()
         return _user_by_username
 
+    def _load_auth_user(self, input_targets):
+        count = 0
+        with input_targets['auth_user'].open('r') as auth_user_file:
+            for line in auth_user_file:
+                count += 1
+                # TODO: Fix ugly hack to get around reading .metadata record information.
+                if line.startswith('{'):
+                    line = line.split('}', 2)[1]
+                split_line = line.rstrip('\r\n').split('\x01')
+                try:
+                    user_id = int(split_line[0])
+                except ValueError:
+                    log.error("Unexpected non-int value for user_id read from auth_user file: %s", split_line)
+                    continue
+                username = split_line[1].decode('utf8').strip()
+                if len(username) == 0:
+                    log.error("Unexpected whitespace value for username read from auth_user file: %s", split_line)
+                    continue
+                _user_by_id[user_id] = {'username': username, 'user_id': user_id}
+                # Point to the same object so that we can just store two pointers to the data instead of two
+                # copies of the data
+                _user_by_username[username] = _user_by_id[user_id]
+            log.info("Finished loading %s auth_user records from %s into user_info data.", count, input_targets['auth_user'].path)
+
+    def _load_auth_user_profile(self, input_targets):
+        count = 0
+        with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
+            for line in auth_user_profile_file:
+                count += 1
+                # TODO: Fix ugly hack to get around reading .metadata record information.
+                if line.startswith('{'):
+                    line = line.split('}', 2)[1]
+                split_line = line.rstrip('\r\n').split('\x01')
+                try:
+                    user_id = int(split_line[0])
+                except ValueError:
+                    log.error("Unexpected non-int value for user_id read from auth_user_profile file: %s", split_line)
+                    continue
+                name = split_line[1].decode('utf8')
+                try:
+                    _user_by_id[user_id]['name'] = name
+                except KeyError:
+                    # TODO: Look at whether this will break if the userprofile is more recent than the
+                    # auth_user file.  (We have no guarantee that they are dumped at the same time,
+                    # though we presume they were dumped on the same day, and presumably closer in time than that.)
+                    # So is this what we want the behavior to be?  Or rather to just not have a username for
+                    # this id?
+                    log.error("Unknown value for user_id read from auth_user_profile file: %s '%s'", user_id, name)
+
+            log.info("Finished loading %s auth_userprofile records from %s into user_info data.", count, input_targets['auth_userprofile'].path)
+
     def _initialize_user_info(self):
         # TODO:  docstring.
         global _user_by_id
@@ -71,55 +127,9 @@ class UserInfoMixin(UserInfoDownstreamMixin):
             try:
                 _user_by_id = {}
                 _user_by_username = {}
-                count = 0
                 input_targets = {k: v.output() for k, v in self.user_info_requirements().items()}
-                with input_targets['auth_user'].open('r') as auth_user_file:
-                    for line in auth_user_file:
-                        count += 1
-                        # TODO: Fix ugly hack to get around reading .metadata record information.
-                        if line.startswith('{'):
-                            line = line.split('}', 2)[1]
-                        split_line = line.rstrip('\r\n').split('\x01')
-                        try:
-                            user_id = int(split_line[0])
-                        except ValueError:
-                            log.error("Unexpected non-int value for user_id read from auth_user file: %s", split_line)
-                            continue
-                        username = split_line[1].decode('utf8').strip()
-                        if len(username) == 0:
-                            log.error("Unexpected whitespace value for username read from auth_user file: %s", split_line)
-                            continue
-                        _user_by_id[user_id] = {'username': username, 'user_id': user_id}
-                        # Point to the same object so that we can just store two pointers to the data instead of two
-                        # copies of the data
-                        _user_by_username[username] = _user_by_id[user_id]
-                    log.info("Finished loading %s auth_user records from %s into user_info data.", count, input_targets['auth_user'].path)
-
-                count = 0
-                with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
-                    for line in auth_user_profile_file:
-                        count += 1
-                        # TODO: Fix ugly hack to get around reading .metadata record information.
-                        if line.startswith('{'):
-                            line = line.split('}', 2)[1]
-                        split_line = line.rstrip('\r\n').split('\x01')
-                        try:
-                            user_id = int(split_line[0])
-                        except ValueError:
-                            log.error("Unexpected non-int value for user_id read from auth_user_profile file: %s", split_line)
-                            continue
-                        name = split_line[1].decode('utf8')
-                        try:
-                            _user_by_id[user_id]['name'] = name
-                        except KeyError:
-                            # TODO: Look at whether this will break if the userprofile is more recent than the
-                            # auth_user file.  (We have no guarantee that they are dumped at the same time,
-                            # though we presume they were dumped on the same day, and presumably closer in time than that.)
-                            # So is this what we want the behavior to be?  Or rather to just not have a username for
-                            # this id?
-                            log.error("Unknown value for user_id read from auth_user_profile file: %s '%s'", user_id, name)
-                            pass
-                    log.info("Finished loading %s auth_userprofile records from %s into user_info data.", count, input_targets['auth_userprofile'].path)
+                self._load_auth_user(input_targets)
+                self._load_auth_user_profile(input_targets)
 
             except Exception:
                 # Don't leave a half-initialized set of structures for the next task to use.
@@ -227,110 +237,42 @@ INTL_PHONE_PATTERN = r'\+(?:\d[\- ]?){6,14}\d'
 
 # Note that we don't use the \b at the beginning: it's not a \W to \w transition when leading with paren or plus.
 PHONE_PATTERN = r'((?:' + US_PHONE_PATTERN + r'|' + INTL_PHONE_PATTERN + r'))\b'
-
-# http://blog.stevenlevithan.com/archives/validate-phone-number
-POSSIBLE_PHONE_PATTERN = r'(\+?\b[\d][0-9 \(\).\-]{8,}[\d])\b'
-
-
 COMPILED_PHONE_PATTERN = re.compile(PHONE_PATTERN, re.VERBOSE)
-COMPILED_POSSIBLE_PHONE_PATTERN = re.compile(POSSIBLE_PHONE_PATTERN, re.VERBOSE)
 
 
 def find_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
     return find_all_matches(COMPILED_PHONE_PATTERN, text, "PHONE_NUMBER", log_context)
 
 
-def find_possible_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", log_context)
-
-
-#####################
-# Personal context
-#####################
-
-EMAIL_CONTEXT = re.compile(
-    r'\b(my (?:personal )?e[\- ]?mail|e[\- ]mail me|e[\- ]mail(?: address)?|send e[\- ]mail|write me|talk with me|Skype|address|facebook)\b',
-    re.IGNORECASE,
-)
-
-
-def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
-
-NAME_CONTEXT = re.compile(
-    r'\b(hi|hello|sincerely|yours truly|Dear|Mr|Ms|Mrs|regards|cordially|best wishes|cheers|my name)\b',
-    re.IGNORECASE,
-)
-
-
-def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", log_context)
-
-PHONE_CONTEXT = re.compile(
-    r'(\bphone:|\bp:|b\c:|\bcall me\b|\(home\)|\(cell\)|my phone|phone number)',
-    re.IGNORECASE,
-)
-
-
-def find_phone_context(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", log_context)
-
-
-#####################
-# Facebook
-#####################
-
-# https://www.facebook.com/user.name
-FACEBOOK_PATTERN = re.compile(
-    r'\b(https:\/\/www\.facebook\.com\/[\w.]+)\b',
-    re.IGNORECASE,
-)
-
-
-def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", log_context)
-
-
-#####################
-# Zip codes
-#####################
-
-# Look for a leading space.
-ZIPCODE_PATTERN = r'((?<= )\b\d{5}(?:[-\s]\d{4})?\b)'
-COMPILED_ZIPCODE_PATTERN = re.compile(ZIPCODE_PATTERN, re.IGNORECASE)
-
-
-def find_zipcodes(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(COMPILED_ZIPCODE_PATTERN, text, "ZIPCODE", log_context)
-
-
 #####################
 # EMAIL
 #####################
 
-EMAIL_PATTERN = r'((?<=\s)([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)\.(?:edu|com|org)\b)'
-ORIG_EMAIL_PATTERN = r'(.*)\s+(([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)(.)(edu|com))\\s*(.*)'
-#emailPattern='(.*)\\s+([a-zA-Z0-9\\.]+)\\s*(\\(f.*b.*)?(@)\\s*([a-zA-Z0-9\\.\\s;]+)\\s*(\\.)\\s*(edu|com)\\s+(.*)'
-COMPILED_EMAIL_PATTERN = re.compile(EMAIL_PATTERN, re.IGNORECASE)
+# TODO: collapse this down to a single regex.  We don't need two.
+SIMPLE_EMAIL_PATTERN = r'((?<=\s)([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)\.(?:edu|com|org)\b)'
+# ORIG_EMAIL_PATTERN = r'(.*)\s+(([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)(.)(edu|com))\\s*(.*)'
+
+COMPILED_SIMPLE_EMAIL_PATTERN = re.compile(SIMPLE_EMAIL_PATTERN, re.IGNORECASE)
 
 # http://www.regular-expressions.info/email.html
-BASIC_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
-# case-insensitive didn't work properly for cap-init cases, so add A-Z explicitly:
-# BASIC_EMAIL_PATTERN = r'\b[A-Za-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[A-Za-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\b'
+LESS_SIMPLE_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
 
-COMPILED_POSSIBLE_EMAIL_PATTERN = re.compile(BASIC_EMAIL_PATTERN, re.IGNORECASE)
+COMPILED_EMAIL_PATTERN = re.compile(LESS_SIMPLE_EMAIL_PATTERN, re.IGNORECASE)
+
+
+def find_simple_emails(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_SIMPLE_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
 
 
 def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
-    return find_all_matches(COMPILED_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
-
-
-def find_possible_emails(text, log_context=DEFAULT_LOG_CONTEXT):
+    # Optimization: this check results in a significant speedup on long CWSM
+    # entries that contain no email.
     if '@' in text:
-        return find_all_matches(COMPILED_POSSIBLE_EMAIL_PATTERN, text, "EMAIL", log_context)
+        return find_all_matches(COMPILED_EMAIL_PATTERN, text, "EMAIL", log_context)
     else:
         return text
 
+# TODO:  add some of these, if they are still relevant, then delete.
 # Some failures:
 #
 # Regular is too limited, so it truncates:
@@ -407,8 +349,17 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
 
     # Strip parentheses and comma and the like, and escape the characters that are
     # legal in names but may have different meanings in regexps (i.e. apostrophe and period).
-    # TODO: if a single comma is found, maybe linearize the name by swapping the delimited parts?
-    fullname2 = fullname2.replace('"', ' ').replace('*', ' ').replace('(', ' ').replace(')', ' ').replace(',', ' ').replace('-', '\\-').replace("'", "\\'").replace('.', '\\.')
+    fullname2 = (
+        fullname2
+        .replace('"', ' ')
+        .replace('*', ' ')
+        .replace('(', ' ')
+        .replace(')', ' ')
+        .replace(',', ' ')
+        .replace('-', '\\-')
+        .replace("'", "\\'")
+        .replace('.', '\\.')
+    )
 
     # Create regexp by breaking the name up.  Assume spaces.
     names = fullname2.strip().split()
@@ -431,6 +382,66 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
         re.IGNORECASE,
     )
     return find_all_matches(fullname_pattern, text, "FULLNAME", log_context)
+
+
+#####################
+# Development:  Personal context
+#####################
+
+# These define patterns that help with finding false negatives:
+# identifying context phrases that might help locate instances
+# that should be but are not (yet) being found.
+
+# Find email addresses.
+EMAIL_CONTEXT = re.compile(
+    r'\b(my (?:personal )?e[\- ]?mail|e[\- ]mail me|e[\- ]mail(?: address)?|send e[\- ]mail|write me|talk with me|Skype|address|facebook)\b',
+    re.IGNORECASE,
+)
+
+
+def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
+
+# Find names.
+NAME_CONTEXT = re.compile(
+    r'\b(hi|hello|sincerely|yours truly|Dear|Mr|Ms|Mrs|regards|cordially|best wishes|cheers|my name)\b',
+    re.IGNORECASE,
+)
+
+
+def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", log_context)
+
+
+# Find phone numbers.
+PHONE_CONTEXT = re.compile(
+    r'(\bphone:|\bp:|b\c:|\bcall me\b|\(home\)|\(cell\)|my phone|phone number)',
+    re.IGNORECASE,
+)
+
+
+def find_phone_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", log_context)
+
+
+# http://blog.stevenlevithan.com/archives/validate-phone-number
+POSSIBLE_PHONE_PATTERN = r'(\+?\b[\d][0-9 \(\).\-]{8,}[\d])\b'
+COMPILED_POSSIBLE_PHONE_PATTERN = re.compile(POSSIBLE_PHONE_PATTERN, re.VERBOSE)
+
+
+def find_possible_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", log_context)
+
+
+# Find facebook references, e.g. https://www.facebook.com/user.name
+FACEBOOK_PATTERN = re.compile(
+    r'\b(https:\/\/www\.facebook\.com\/[\w.]+)\b',
+    re.IGNORECASE,
+)
+
+
+def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
+    return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", log_context)
 
 
 #################
@@ -490,7 +501,7 @@ class Deidentifier(object):
         # Names can appear in emails and identifying urls, so find them before the names.
         if 'email' in entities:
             text = find_emails(text, log_context)
-            text = find_possible_emails(text, log_context)
+            text = find_simple_emails(text, log_context)
         if 'facebook' in entities:
             text = find_facebook(text, log_context)
 
@@ -525,7 +536,6 @@ class Deidentifier(object):
         if 'name_context' in entities:
             text = find_name_context(text, log_context)
 
-        # text = find_zipcodes(text, log_context)
         return text
 
     def deidentify_structure(self, obj, label, user_info=None, log_context=None, entities=None):

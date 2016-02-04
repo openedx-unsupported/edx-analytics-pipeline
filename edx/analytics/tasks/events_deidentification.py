@@ -284,7 +284,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                         event_data[username_key] = remapped_username
                     else:
                         log.error("Redacting unrecognized username for 'event.%s' field: '%s' %s", username_key, event_username, debug_str)
-                    event_data[username_key] = REDACTED_USERNAME
+                        event_data[username_key] = REDACTED_USERNAME
 
         # Finally return the fully-constructed dict.
         return user_info

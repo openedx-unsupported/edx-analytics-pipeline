@@ -3,14 +3,15 @@
 import luigi
 import textwrap
 from ddt import ddt, data, unpack
-from mock import MagicMock, Mock
+from mock import MagicMock
 
 from edx.analytics.tasks.events_deidentification import DeidentifyCourseEventsTask
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.target import FakeTarget, FakeTask
+from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.util.eventlog as eventlog
+from edx.analytics.tasks.util.tests.test_deid_util import get_mock_user_info_requirements
 
 
 class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
@@ -76,33 +77,13 @@ class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             enrollment server edx.course.enrollment.activated
             # problem server problem_rescore
         """
-        auth_user = """
-            1 honor
-            2 audit
-            3 verified
-            4 staff
-        """
-        # TODO: fix this!  We don't have a way of including spaces in the name values, since we're splitting
-        # these on whitespace.  Use something else.
-        auth_user_profile = """
-            1	Honor Student
-            2	Audit John
-            3	Verified Vera
-            4	Static Staff
-        """
-
         results = {
             'explicit_events': FakeTarget(value=self.reformat(explicit_event_list)),
         }
         self.task.input_local = MagicMock(return_value=results)
         self.task.init_local()
 
-        # These keys need to return a Task, whose output() is a Target.
-        user_info_setup = {
-            'auth_user': FakeTask(value=self.reformat(auth_user, output_delimiter='\x01')),
-            'auth_userprofile': FakeTask(value=self.reformat(auth_user_profile, output_delimiter='\x01', input_delimiter='\t')),
-        }
-        self.task.user_info_requirements = MagicMock(return_value=user_info_setup)
+        self.task.user_info_requirements = get_mock_user_info_requirements()
 
     def reformat(self, string, input_delimiter=' ', output_delimiter='\t'):
         """
@@ -175,7 +156,7 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
         expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
         mapper_output_line = tuple(self.task.mapper(input_line))[0][1]
         # Mapper does no modification (i.e. no deidentification).  It only filters.
-        self.assertItemsEqual(input_line, mapper_output_line)
+        self.assertEquals(input_line, mapper_output_line)
 
 
 @ddt
@@ -185,7 +166,7 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
         # Cannot compare the lines, because the JSON is not ordered, so convert and compare as dicts.
         reducer_output = eventlog.decode_json(reducer_output_line)
         expected_event = eventlog.decode_json(expected_line)
-        self.assertItemsEqual(expected_event, reducer_output)
+        self.assertDictEqual(expected_event, reducer_output)
 
     @data(
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/jump_to_id/617ecda9383e45039ab46014d96fc8eb'},
@@ -222,19 +203,81 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
         self.compare_event_lines(expected_line, reducer_output_line)
 
     @data(
+        # Test remapping.
         (
-            {'username': 'honor', 'context': {'user_id': 1}},
-            {'username': 'username_2048', 'context': {'user_id': 2048}}
+            {'username': 'audit', 'context': {'user_id': 2}},
+            {'username': 'username_2147483648', 'context': {'user_id': 2147483648}}
         ),
         (
-            {'ip': '127.0.0.1', 'host': 'test_host'},
+            {'username': 'does_not_match_2', 'context': {'user_id': 2}},
+            {'username': 'REDACTED_USERNAME', 'context': {'user_id': 2147483648}}
         ),
         (
-            {'event': {'user_id': 1, 'username': 'honor'}},
-            {'event': {'user_id': 2048, 'username': 'username_2048'}},
+            {'username': 'audit', 'context': {'user_id': '2'}},
+            {'username': 'username_2147483648', 'context': {'user_id': 2147483648}}
         ),
         (
-            {'event': {'certificate_id': 'test_id', 'certificate_url': 'test_url', 'source_url': 'test_url', 'fileName': 'filename', 'GET': {}, 'POST': {}}},
+            {'username': 'audit', 'context': {'user_id': ''}},
+            {'username': 'username_2147483648', 'context': {'user_id': ''}},
+        ),
+        (
+            {'username': 'unmapped_username', 'context': {'user_id': 12345}},
+            {'username': 'REDACTED_USERNAME', 'context': {'user_id': 302000641}}
+        ),
+        (
+            {'context': {'user_id': 2, 'username': 'audit'}},
+            {'context': {'user_id': 2147483648, 'username': 'username_2147483648'}},
+        ),
+        (
+            {'context': {'user_id': 2, 'username': 'unmapped_username'}},
+            {'context': {'user_id': 2147483648, 'username': 'REDACTED_USERNAME'}},
+        ),
+        (
+            {'event': {'user_id': 2, 'username': 'audit', 'instructor': 'staff', 'student': 'unmapped', 'user': 'verified'}},
+            {'event': {
+                'user_id': 2147483648, 'username': 'username_2147483648', 'instructor': 'username_8388608',
+                'student': 'REDACTED_USERNAME', 'user': 'username_2147485696'
+            }},
+        ),
+        (
+            {"event": "{\"code\": \"6FrbD6Ro5z8\", \"user_id\": 2, \"currentTime\": 630.437320479}"},
+            {"event": "{\"code\": \"6FrbD6Ro5z8\", \"user_id\": 2147483648, \"currentTime\": 630.437320479}"}
+        ),
+        # Test removal.  The following fields should all be removed.
+        (
+            {
+                'ip': '127.0.0.1',
+                'host': 'test_host',
+                'referer': 'http://courses.edx.org/blah',
+                'page': 'http://courses.edx.org/blah',
+            },
+        ),
+        (
+            {'context': {
+                'host': 'test_host',
+                'ip': '127.0.0.1',
+                'path': 'http://courses.edx.org/blah',
+            }},
+            {'context': {}},
+        ),
+        (
+            {'context': {
+                'client': {
+                    'device': 'test_device',
+                    'ip': '127.0.0.1',
+                },
+            }},
+            {'context': {'client': {}}},
+        ),
+        (
+            {'event': {
+                'certificate_id': 'test_id',
+                'certificate_url': 'test_url',
+                'source_url': 'test_url',
+                'fileName': 'filename',
+                'GET': {},
+                'POST': {}
+            }},
             {'event': {}}
         ),
         (
@@ -242,20 +285,86 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
             {'event': {'answer': {}, 'saved_response': {}}}
         ),
         (
+            {"event": "{\"POST\": {\"input_642bed8fadc59b6cc5c2_2_1\": [\"choice_3\"]}, \"GET\": {}}"},
+            {"event": "{}"}
+        ),
+        # Test cleaning.
+        (
             {'event': "input_c7c8ee343b37ae4dd8cf_2_1=choice_"},
             {'event': "input_c7c8ee343b37ae4dd8cf_2_1=choice_"}
         ),
         (
-            {"event": "{\"POST\": {\"input_642bed8fadc59b6cc5c2_2_1\": [\"choice_3\"]}, \"GET\": {}}"},
-            {"event": "{}"}
+            {'event': {'body': 'audit performed by John, +1(805)213-4567  john@example.com'}},
+            {'event': {'body': 'audit performed by John, <<PHONE_NUMBER>>  <<EMAIL>>'}},
         ),
         (
-            {"event": "{\"code\": \"6FrbD6Ro5z8\", \"user_id\": 1, \"currentTime\": 630.437320479}"},
-            {"event": "{\"code\": \"6FrbD6Ro5z8\", \"user_id\": 2048, \"currentTime\": 630.437320479}"}
-        )
+            {'event': {
+                'username': 'audit',
+                'body': 'audit performed by John, +1(805)213-4567  john@example.com'
+            }},
+            {'event': {
+                'username': 'username_2147483648',
+                'body': '<<FULLNAME>> performed by <<FULLNAME>>, <<PHONE_NUMBER>>  <<EMAIL>>'
+            }},
+        ),
+        (
+            {'event': {
+                'user_id': '2',
+                'body': 'audit performed by John, +1(805)213-4567  john@example.com'
+            }},
+            {'event': {
+                'user_id': 2147483648,
+                'body': '<<FULLNAME>> performed by <<FULLNAME>>, <<PHONE_NUMBER>>  <<EMAIL>>'
+            }},
+        ),
+        (
+            {
+                'username': 'audit',
+                'event': {
+                    'body': 'audit performed by John, +1(805)213-4567  john@example.com'
+                }
+            },
+            {
+                'username': 'username_2147483648',
+                'event': {
+                    'body': '<<FULLNAME>> performed by <<FULLNAME>>, <<PHONE_NUMBER>>  <<EMAIL>>'
+                }
+            },
+        ),
+        (
+            {
+                'context': {'user_id': 2},
+                'event': {
+                    'body': 'audit performed by John, +1(805)213-4567  john@example.com'
+                }
+            },
+            {
+                'context': {'user_id': 2147483648},
+                'event': {
+                    'body': '<<FULLNAME>> performed by <<FULLNAME>>, <<PHONE_NUMBER>>  <<EMAIL>>'
+                }
+            },
+        ),
+        (
+            {'event': {
+                'arbitrary': ['nesting', {
+                    'of': 'static',
+                    'content': {'performed': 'by staff'},
+                    'contact': 'phone +1(805)213-4567  staff@example.com'
+                }]
+            }},
+            {'event': {
+                'arbitrary': ['nesting', {
+                    'of': '<<FULLNAME>>',
+                    'content': {'performed': 'by <<FULLNAME>>'},
+                    'contact': 'phone <<PHONE_NUMBER>>  <<EMAIL>>'
+                }]
+            }},
+        ),
     )
     @unpack
     def test_deidentified_events(self, input_kwargs, output_kwargs={}):
+        self.maxDiff = None
         input_line = self.create_event_log_line(**input_kwargs)
         expected_line = self.create_event_log_line(**dict(output_kwargs, **{'template_name': 'expected_event'}))
         reducer_output_line = self.task.deidentify_event_line(input_line)
