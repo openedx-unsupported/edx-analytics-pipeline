@@ -196,7 +196,7 @@ def parse_vagrant_ssh_config(arguments):
         elif key == "Port":
             port = value
         elif key == "IdentityFile":
-            arguments.private_key = value
+            arguments.private_key = value.strip('"')
 
     arguments.host = hostname + ':' + port
 
