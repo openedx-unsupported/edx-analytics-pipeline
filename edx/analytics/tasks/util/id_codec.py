@@ -1,4 +1,4 @@
-"""Various helper utilities to calculate reversible one-to-one mappings of sensitive ids"""
+"""Various helper utilities to calculate reversible one-to-one mappings of sensitive ids."""
 
 import base64
 import random
@@ -7,6 +7,8 @@ try:
     import numpy as np
 except ImportError:
     np = object
+    import logging
+    log = logging.getLogger(__name__)
     log.warn('Could not import numpy, any code that relies on it in this module will fail.')
 
 
@@ -44,23 +46,23 @@ class PermutationGenerator(object):
     def random_permutation_matrix(self, seed, matrix_dim):
         """Return a random permutation matrix of dimension matrix_dim using seed."""
         rng = random.Random(seed)
-        # where does each bit go?
+        # Decide where each bit goes.
         mapping = range(matrix_dim)
         rng.shuffle(mapping)
-        # Now make a matrix that does that
+        # Then make a matrix that does that.
         permutation = np.zeros((matrix_dim, matrix_dim), dtype=int)
         for i in range(matrix_dim):
             permutation[i, mapping[i]] = 1
         return permutation
 
     def permute(self, int_value):
-        """Given int int_value with bits bits, permute it using the specified bits-by-bits permutation."""
+        """Given int `int_value` with bits `bits`, permute it using the specified bits-by-bits permutation."""
         vec = self.int_to_binvec(int_value)
         permuted = vec.dot(self.permutation_matrix)
         return self.binvec_to_int(permuted)
 
     def unpermute(self, int_value):
-        """Given int int_value with bits bits, unpermute it using the specified bits-by-bits permutation."""
+        """Given int `int_value` with bits `bits`, unpermute it using the specified bits-by-bits permutation."""
         vec = self.int_to_binvec(int_value)
         permuted = vec.dot(self.permutation_matrix.T)
         return self.binvec_to_int(permuted)
@@ -85,5 +87,6 @@ class UserIdRemapperMixin(object):
         "Returns a reversible mapping of input id."
         return self.permutation_generator.permute(int(id_value))
 
-    def generate_deid_username_from_user_id(self, user_id):
+    def generate_obfuscated_username_from_user_id(self, user_id):
+        """Returns a username to use in obfuscation, based on remapped user_id."""
         return "username_{0}".format(self.remap_id(user_id))

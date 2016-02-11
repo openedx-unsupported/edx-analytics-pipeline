@@ -14,10 +14,10 @@ import sys
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.deid_util import (
+from edx.analytics.tasks.util.obfuscate_util import (
     backslash_encode_value,
     backslash_decode_value,
-    Deidentifier,
+    Obfuscator,
 )
 
 
@@ -150,7 +150,7 @@ EVENT_TYPES_WITH_DIFFERENT_USERIDS = [
 ]
 
 
-class BulkDeidentifier(object):
+class BulkObfuscator(object):
 
     parameters = {}
 
@@ -158,7 +158,7 @@ class BulkDeidentifier(object):
 
     user_info = None
 
-    deidentifier = None
+    obfuscator = None
 
     def __init__(self, **kwargs):
         log.info("Arguments = %s", kwargs)
@@ -172,34 +172,34 @@ class BulkDeidentifier(object):
         # Just put all the parameters with true boolean values into the entity set.
         # It doesn't matter if there are extras.
         entity_list = [key for key, value in self.parameters.iteritems() if value is True]
-        self.deidentifier = Deidentifier(log_context=self.parameters['log_context'], entities=set(entity_list))
+        self.obfuscator = Obfuscator(log_context=self.parameters['log_context'], entities=set(entity_list))
 
-    def deidentify_directory(self, input_dir, output_dir):
+    def obfuscate_directory(self, input_dir, output_dir):
         if output_dir is not None:
             create_directory(output_dir)
         if self.parameters['wiki']:
             for filepath in glob.glob(os.path.join(input_dir, '*wiki_articlerevision-prod-analytics.sql')):
-                self.deidentify_wiki_file(filepath, output_dir)
+                self.obfuscate_wiki_file(filepath, output_dir)
         if self.parameters['courseware']:
             for filepath in glob.glob(os.path.join(input_dir, '*courseware_studentmodule-prod-analytics.sql')):
-                self.deidentify_courseware_file(filepath, output_dir)
+                self.obfuscate_courseware_file(filepath, output_dir)
         if self.parameters['forum']:
             for filepath in glob.glob(os.path.join(input_dir, '*.mongo')):
-                self.deidentify_forum_file(filepath, output_dir)
+                self.obfuscate_forum_file(filepath, output_dir)
         if self.parameters['event']:
             # This is generalized beyond localfs/glob.
             task = PathSetTask(src=[input_dir], include=['*-events-*.log.gz'])
             requirements = task.requires()
             for requirement in requirements:
-                self.deidentify_event_file(requirement.output(), output_dir)
+                self.obfuscate_event_file(requirement.output(), output_dir)
 
-    def deidentify_event_file(self, input_target, output_dir):
+    def obfuscate_event_file(self, input_target, output_dir):
         # Check for loading user_profile:
         user_profile = None
         self.missing_profile = defaultdict(int)
 
         input_filepath = input_target.path
-        log.info(u"Deidentifying %s", input_filepath)
+        log.info(u"Obfuscating %s", input_filepath)
         with input_target.open('r') as infile:
             if input_filepath.endswith('.gz'):
                 if input_filepath.startswith('s3'):
@@ -215,14 +215,14 @@ class BulkDeidentifier(object):
 
             if output_dir is None:
                 for line in infile:
-                    self.deidentify_event_entry(line, user_profile)
+                    self.obfuscate_event_entry(line, user_profile)
             else:
                 filename = os.path.basename(input_filepath)
                 output_path = os.path.join(output_dir, filename)
                 with open(output_path, 'w') as output_file:
                     with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
                         for line in infile:
-                            clean_line = self.deidentify_event_entry(line, user_profile)
+                            clean_line = self.obfuscate_event_entry(line, user_profile)
                             outfile.write(clean_line)
                             outfile.write('\n')
         for key in sorted(self.missing_profile.iterkeys()):
@@ -308,7 +308,7 @@ class BulkDeidentifier(object):
         else:
             return username_entry
 
-    def deidentify_event_entry(self, line, user_profile):
+    def obfuscate_event_entry(self, line, user_profile):
         event = eventlog.parse_json_event(line)
         if event is None:
             # Unexpected here...
@@ -357,12 +357,12 @@ class BulkDeidentifier(object):
             if self.parameters['skip_post']:
                 return None
 
-        updated_event_data = self.deidentifier.deidentify_structure(event_data, u"event", event_user_info)
+        updated_event_data = self.obfuscator.obfuscate_structure(event_data, u"event", event_user_info)
 
         if updated_event_data is not None:
             event_source = event.get('event_source')
             event_type = event.get('event_type')
-            log.info(u"Deidentified %s event with event_type = '%s'", event_source, event_type)
+            log.info(u"Obfuscated %s event with event_type = '%s'", event_source, event_type)
 
             if event_json_decoded:
                 # TODO: should really use cjson, if that were originally used for decoding the json.
@@ -373,7 +373,7 @@ class BulkDeidentifier(object):
         # TODO: should really use cjson, if that were originally used for decoding the json.
         return json.dumps(event)
 
-    def deidentify_courseware_file(self, input_filepath, output_dir):
+    def obfuscate_courseware_file(self, input_filepath, output_dir):
         # Check for loading user_profile:
         user_profile = None
         self.missing_profile = defaultdict(int)
@@ -384,25 +384,25 @@ class BulkDeidentifier(object):
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            log.info(u"Deidentifying %s", input_filepath)
+            log.info(u"Obfuscating %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
-                    self.deidentify_courseware_entry(line, user_profile)
+                    self.obfuscate_courseware_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            log.info(u"Deidentifying %s to %s", input_filepath, output_path)
+            log.info(u"Obfuscating %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
                     for line in infile:
-                        clean_line = self.deidentify_courseware_entry(line, user_profile)
+                        clean_line = self.obfuscate_courseware_entry(line, user_profile)
                         outfile.write(clean_line)
                         outfile.write('\n')
         for key in sorted(self.missing_profile.iterkeys()):
             log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
-    def deidentify_courseware_entry(self, line, user_profile):
+    def obfuscate_courseware_entry(self, line, user_profile):
         fields = line.rstrip('\r\n').decode('utf8').split('\t')
         record = CoursewareRecord(*fields)
 
@@ -433,17 +433,17 @@ class BulkDeidentifier(object):
             return line
 
         # Traverse the dictionary, looking for entries that need to be scrubbed.
-        updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
+        updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
 
         if updated_state_dict is not None:
             # Can't reset values, so update original fields.
             updated_state = json.dumps(updated_state_dict).replace('\\', '\\\\')
             fields[4] = updated_state
-            log.info(u"Deidentified state for user_id '%s' module_id '%s'", record.student_id, record.module_id)
+            log.info(u"Obfuscated state for user_id '%s' module_id '%s'", record.student_id, record.module_id)
 
         return u"\t".join(fields).encode('utf-8')
 
-    def deidentify_wiki_file(self, input_filepath, output_dir):
+    def obfuscate_wiki_file(self, input_filepath, output_dir):
         # Check for loading user_profile:
         user_profile = None
         if self.parameters['fullname']:
@@ -453,23 +453,23 @@ class BulkDeidentifier(object):
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            log.info(u"Deidentifying %s", input_filepath)
+            log.info(u"Obfuscating %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
-                    self.deidentify_wiki_entry(line, user_profile)
+                    self.obfuscate_wiki_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            log.info(u"Deidentifying %s to %s", input_filepath, output_path)
+            log.info(u"Obfuscating %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
                     for line in infile:
-                        clean_line = self.deidentify_wiki_entry(line, user_profile)
+                        clean_line = self.obfuscate_wiki_entry(line, user_profile)
                         outfile.write(clean_line)
                         outfile.write('\n')
 
-    def deidentify_wiki_entry(self, line, user_profile):
+    def obfuscate_wiki_entry(self, line, user_profile):
         fields = line.rstrip('\r\n').decode('utf8').split('\t')
         record = ArticleRevisionRecord(*fields)
 
@@ -489,11 +489,11 @@ class BulkDeidentifier(object):
             log.warning(u"Found non-zero-length automatic_log: %s", record.automatic_log)
 
         # Can't reset values, so update original fields.
-        fields[12] = backslash_encode_value(self.deidentifier.deidentify_text(backslash_decode_value(record.content), user_info))
-        fields[2] = backslash_encode_value(self.deidentifier.deidentify_text(backslash_decode_value(record.user_message), user_info))
+        fields[12] = backslash_encode_value(self.obfuscator.obfuscate_text(backslash_decode_value(record.content), user_info))
+        fields[2] = backslash_encode_value(self.obfuscator.obfuscate_text(backslash_decode_value(record.user_message), user_info))
         return u"\t".join(fields).encode('utf-8')
 
-    def deidentify_forum_file(self, input_filepath, output_dir):
+    def obfuscate_forum_file(self, input_filepath, output_dir):
         # Check for loading user_profile:
         user_profile = None
         if self.parameters['fullname']:
@@ -503,23 +503,23 @@ class BulkDeidentifier(object):
             user_profile = load_user_profile(userprofile_filepath)
 
         if output_dir is None:
-            log.info("Deidentifying %s", input_filepath)
+            log.info("Obfuscating %s", input_filepath)
             with open(input_filepath, 'r') as infile:
                 for line in infile:
-                    self.deidentify_forum_entry(line, user_profile)
+                    self.obfuscate_forum_entry(line, user_profile)
         else:
             filename = os.path.basename(input_filepath)
             output_path = os.path.join(output_dir, filename)
-            log.info("Deidentifying %s to %s", input_filepath, output_path)
+            log.info("Obfuscating %s to %s", input_filepath, output_path)
 
             with open(output_path, 'w') as outfile:
                 with open(input_filepath, 'r') as infile:
                     for line in infile:
-                        clean_line = self.deidentify_forum_entry(line, user_profile)
+                        clean_line = self.obfuscate_forum_entry(line, user_profile)
                         outfile.write(clean_line)
                         outfile.write('\n')
 
-    def deidentify_forum_entry(self, line, user_profile):
+    def obfuscate_forum_entry(self, line, user_profile):
         # Round trip does not preserve content.  Original had no embedded spaces,
         # and entries were in alphabetic order.  This is addressed by modifying the
         # separators and setting sort_keys, but there are character encodings that
@@ -544,13 +544,13 @@ class BulkDeidentifier(object):
 
         # Clean the body of the forum post.
         body = entry['body']
-        clean_body = self.deidentifier.deidentify_text(body, user_info)
+        clean_body = self.obfuscator.obfuscate_text(body, user_info)
         entry['body'] = clean_body
 
         # Also clean the title, since it also contains username and fullname matches.
         if 'title' in entry:
             title = entry['title']
-            clean_title = self.deidentifier.deidentify_text(title, user_info)
+            clean_title = self.obfuscator.obfuscate_text(title, user_info)
             entry['title'] = clean_title
 
         return json.dumps(entry, ensure_ascii=False, sort_keys=True, separators=(',', ':')).encode('utf-8')
@@ -561,7 +561,7 @@ class BulkDeidentifier(object):
 def main():
     """Command-line utility for using (and testing) s3 utility methods."""
     logging.basicConfig(level=logging.DEBUG)
-    arg_parser = argparse.ArgumentParser(description='Perform deidentification of forum .mongo dump files.')
+    arg_parser = argparse.ArgumentParser(description='Perform obfuscation of forum .mongo dump files.')
 
     arg_parser.add_argument(
         'input',
@@ -569,7 +569,7 @@ def main():
     )
     arg_parser.add_argument(
         '-o', '--output',
-        help='Write deidentified mongo files to this location in the local file system.',
+        help='Write obfuscated mongo files to this location in the local file system.',
         default=None
     )
     arg_parser.add_argument(
@@ -584,26 +584,26 @@ def main():
         default=50,
     )
     #####################
-    # Flags to indicate what to deidentify.
+    # Flags to indicate what to obfuscate.
     #####################
     arg_parser.add_argument(
         '--forum',
-        help='Read in and deidentify forum posts.',
+        help='Read in and obfuscate forum posts.',
         action='store_true',
     )
     arg_parser.add_argument(
         '--wiki',
-        help='Read in and deidentify wiki documents.',
+        help='Read in and obfuscate wiki documents.',
         action='store_true',
     )
     arg_parser.add_argument(
         '--courseware',
-        help='Read in and deidentify courseware_studentmodule records.',
+        help='Read in and obfuscate courseware_studentmodule records.',
         action='store_true',
     )
     arg_parser.add_argument(
         '--event',
-        help='Read in and deidentify events.',
+        help='Read in and obfuscate events.',
         action='store_true',
     )
 
@@ -679,8 +679,8 @@ def main():
         profiler.start()
 
     try:
-        deid = BulkDeidentifier(**kwargs)
-        deid.deidentify_directory(args.input, args.output)
+        obfuscator = BulkObfuscator(**kwargs)
+        obfuscator.obfuscate_directory(args.input, args.output)
     finally:
         if profiler:
             profiler.stop()

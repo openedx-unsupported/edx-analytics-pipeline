@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Tests for deidentification utilities."""
+"""Tests for obfuscation utilities."""
 
 from ddt import data, ddt, unpack
 from mock import MagicMock, patch
 import textwrap
 
 from edx.analytics.tasks.tests import unittest
-import edx.analytics.tasks.util.deid_util as deid_util
+import edx.analytics.tasks.util.obfuscate_util as obfuscate_util
 from edx.analytics.tasks.tests.target import FakeTask
 
 
@@ -18,21 +18,24 @@ class BackslashHandlingTestCase(unittest.TestCase):
         'This is a test.\\nThis is another.',
     )
     def test_needs_backslash_decoding(self, text):
-        self.assertTrue(deid_util.needs_backslash_decoding(text))
+        self.assertTrue(obfuscate_util.needs_backslash_decoding(text))
 
     @data(
         'This is a test.\\nThis is another.\n',
         'This is a test.',
     )
     def test_needs_no_backslash_decoding(self, text):
-        self.assertFalse(deid_util.needs_backslash_decoding(text))
+        self.assertFalse(obfuscate_util.needs_backslash_decoding(text))
 
     @data(
         'This is a test.\\nThis is another.',
         'This is a test.\\\\\\nThis is another.',
+        u'This is a test.\\nThis is another.',
+        u'This is a test.\\\\\\nThis is another.',
+        u'This is a \u00e9 test.\\\\nThis is another.',        
     )
     def test_decoding_round_trip(self, text):
-        self.assertEquals(text, deid_util.backslash_encode_value(deid_util.backslash_decode_value(text)))
+        self.assertEquals(text, obfuscate_util.backslash_encode_value(obfuscate_util.backslash_decode_value(text)))
 
 
 @ddt
@@ -75,7 +78,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_simple_phone_numbers(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format("<<PHONE_NUMBER>>")
-        result = deid_util.find_phone_numbers(raw)
+        result = obfuscate_util.find_phone_numbers(raw)
         self.assertEquals(expected, result)
 
     @data(
@@ -90,7 +93,7 @@ class FindMatchesTestCase(unittest.TestCase):
     )
     def test_skip_non_phone_numbers(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
-        result = deid_util.find_phone_numbers(raw)
+        result = obfuscate_util.find_phone_numbers(raw)
         self.assertEquals(raw, result)
 
     @data(
@@ -100,7 +103,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_phone_numbers_in_context(self, text, result):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format(result)
-        actual = deid_util.find_phone_numbers(raw)
+        actual = obfuscate_util.find_phone_numbers(raw)
         self.assertEquals(expected, actual)
 
     #####################
@@ -112,6 +115,7 @@ class FindMatchesTestCase(unittest.TestCase):
         'test.user@gmail.com',
         'test_user@gmail.com',
         'Ttestuser@gmail.com',
+        'test.user+foo@gmail.com',
         'email1234-yes@yahoo.de',
         'info@edx.org',
         'Testers@yahoo.com',
@@ -127,7 +131,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_simple_emails(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format("<<EMAIL>>")
-        result = deid_util.find_emails(raw)
+        result = obfuscate_util.find_emails(raw)
         self.assertEquals(expected, result)
 
     @data(
@@ -138,17 +142,20 @@ class FindMatchesTestCase(unittest.TestCase):
     )
     def test_skip_non_emails(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
-        result = deid_util.find_emails(raw)
+        result = obfuscate_util.find_emails(raw)
         self.assertEquals(raw, result)
 
     @data(
-        ('https://example.com/stream?q=user:acct:person@example.com', 'https://example.com/stream?q=user:acct:<<EMAIL>>'),
+        (
+            'https://example.com/stream?q=user:acct:person@example.com',
+            'https://example.com/stream?q=user:acct:<<EMAIL>>'
+        ),
     )
     @unpack
     def test_find_emails_in_context(self, text, result):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format(result)
-        actual = deid_util.find_emails(raw)
+        actual = obfuscate_util.find_emails(raw)
         self.assertEquals(expected, actual)
 
     #####################
@@ -167,7 +174,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_simple_usernames(self, text, username):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format("<<USERNAME>>")
-        result = deid_util.find_username(raw, username)
+        result = obfuscate_util.find_username(raw, username)
         self.assertEquals(expected, result)
 
     @data(
@@ -176,15 +183,21 @@ class FindMatchesTestCase(unittest.TestCase):
     @unpack
     def test_skip_non_usernames(self, text, username):
         raw = self.SIMPLE_CONTEXT.format(text)
-        result = deid_util.find_username(raw, username)
+        result = obfuscate_util.find_username(raw, username)
         self.assertEquals(raw, result)
 
     @data(
         ("My name is Username, I'm from A.", "username", "My name is <<USERNAME>>, I'm from A."),
         ("My name is Username12345. I'm from A.", "username12345", "My name is <<USERNAME>>. I'm from A."),
         ("My name is John (username), I'm from A.", "username", "My name is John (<<USERNAME>>), I'm from A."),
-        ("My name is John (name=username), I'm from A.", "username", "My name is John (name=<<USERNAME>>), I'm from A."),
-        ("Visit my website http://username.com/this/link.", "username", "Visit my website http://<<USERNAME>>.com/this/link."),
+        (
+            "My name is John (name=username), I'm from A.", "username",
+            "My name is John (name=<<USERNAME>>), I'm from A."
+        ),
+        (
+            "Visit my website http://username.com/this/link.", "username",
+            "Visit my website http://<<USERNAME>>.com/this/link."
+        ),
         ("http://instagram.com/username", "username", "http://instagram.com/<<USERNAME>>"),
         ("[http://twitter.com/username]", "username", "[http://twitter.com/<<USERNAME>>]"),
     )
@@ -192,7 +205,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_usernames_in_context(self, text, username, result):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format(result)
-        actual = deid_util.find_username(raw, username)
+        actual = obfuscate_util.find_username(raw, username)
         self.assertEquals(expected, actual)
 
     #####################
@@ -220,6 +233,7 @@ class FindMatchesTestCase(unittest.TestCase):
         ('MacLast', 'First MacLast'),
         ('Björk'.decode('utf8'), 'Björn Björk'.decode('utf8')),
         ('Olav Øyaland'.decode('utf8'), 'Olav Øyaland'.decode('utf8')),
+        (u'T\u00e9st', u'my t\u00e9st'),
         # Nicknames and alternate forms of names are not found.
         # ('My name is Rob', 'Robert Last'),
     )
@@ -227,7 +241,7 @@ class FindMatchesTestCase(unittest.TestCase):
     def test_find_simple_fullnames(self, text, fullname):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format("<<FULLNAME>>")
-        result = deid_util.find_user_fullname(raw, fullname)
+        result = obfuscate_util.find_user_fullname(raw, fullname)
         self.assertEquals(expected, result)
 
     @data(
@@ -240,7 +254,7 @@ class FindMatchesTestCase(unittest.TestCase):
     @unpack
     def test_skip_non_fullnames(self, text, fullname):
         raw = self.SIMPLE_CONTEXT.format(text)
-        result = deid_util.find_user_fullname(raw, fullname)
+        result = obfuscate_util.find_user_fullname(raw, fullname)
         self.assertEquals(raw, result)
 
     @data(
@@ -250,12 +264,13 @@ class FindMatchesTestCase(unittest.TestCase):
         ('www.linkedin.com/pub/first-last-last2/1/200/190/', 'First Last-Last2',
          'www.linkedin.com/pub/<<FULLNAME>>-<<FULLNAME>>/1/200/190/'),
         ('My name is First Maiden Last.', 'First Last', 'My name is <<FULLNAME>> Maiden <<FULLNAME>>.'),
+        (u'This is a (T\u00e9st)', u'my t\u00e9st', 'This is a (<<FULLNAME>>)'),
     )
     @unpack
     def test_find_fullnames_in_context(self, text, fullname, result):
         raw = self.SIMPLE_CONTEXT.format(text)
         expected = self.SIMPLE_CONTEXT.format(result)
-        actual = deid_util.find_user_fullname(raw, fullname)
+        actual = obfuscate_util.find_user_fullname(raw, fullname)
         self.assertEquals(expected, actual)
 
     @data(
@@ -269,9 +284,9 @@ class FindMatchesTestCase(unittest.TestCase):
     )
     def test_reject_bad_fullnames(self, fullname):
         raw = self.SIMPLE_CONTEXT.format('dummy')
-        result = deid_util.find_user_fullname(raw, fullname)
+        result = obfuscate_util.find_user_fullname(raw, fullname)
         self.assertEquals(raw, result)
-        self.assertTrue(fullname in deid_util.REJECTED_NAMES)
+        self.assertTrue(fullname in obfuscate_util.REJECTED_NAMES)
 
 
 @ddt
@@ -280,7 +295,7 @@ class FindMatchLogContextTestCase(unittest.TestCase):
 
     def setUp(self):
         super(FindMatchLogContextTestCase, self).setUp()
-        patcher = patch('edx.analytics.tasks.util.deid_util.log')
+        patcher = patch('edx.analytics.tasks.util.obfuscate_util.log')
         self.mock_log = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -291,11 +306,12 @@ class FindMatchLogContextTestCase(unittest.TestCase):
 
     def test_no_logging(self):
         raw = "{}{}{}".format(self.LEFT_CONTEXT, self.TEXT, self.RIGHT_CONTEXT)
-        deid_util.find_phone_numbers(raw)
+        obfuscate_util.find_phone_numbers(raw)
         self.assertEquals(self.mock_log.info.call_count, 0)
 
     def find_logged_contexts(self, raw, log_context):
-        deid_util.find_phone_numbers(raw, log_context=log_context)
+        """Pull out strings from context-logging, to allow that to be tested."""
+        obfuscate_util.find_phone_numbers(raw, log_context=log_context)
         self.assertEquals(self.mock_log.info.call_count, 1)
         args, _ = self.mock_log.info.call_args
         self.assertEquals(len(args), 5)
@@ -338,7 +354,7 @@ class FindMatchLogContextTestCase(unittest.TestCase):
             self.LEFT_CONTEXT, self.TEXT, self.RIGHT_CONTEXT, self.TEXT,
             self.RIGHT_CONTEXT, self.TEXT, self.LEFT_CONTEXT
         )
-        deid_util.find_phone_numbers(raw, log_context=10)
+        obfuscate_util.find_phone_numbers(raw, log_context=10)
         self.assertEquals(self.mock_log.info.call_count, 3)
         args_list = self.mock_log.info.call_args_list
         # Create context lists in reverse so they can be popped.
@@ -372,8 +388,10 @@ DEFAULT_AUTH_USER_PROFILE = """
 
 
 def get_mock_user_info_requirements(auth_user=DEFAULT_AUTH_USER, auth_user_profile=DEFAULT_AUTH_USER_PROFILE):
-
+    """Replacement for get_user_info_requirements for testing purposes."""
+    
     def reformat_as_sqoop_output(string):
+        """Convert tab-delimited data to look like Sqoop output."""
         return textwrap.dedent(string).strip().replace('\t', '\x01')
 
     # These keys need to return a fake Task whose output() is a fake Target.
@@ -389,10 +407,10 @@ class UserInfoTestCase(unittest.TestCase):
 
     def setUp(self):
         super(UserInfoTestCase, self).setUp()
-        deid_util.reset_user_info_for_testing()
+        obfuscate_util.reset_user_info_for_testing()
 
     def test_default(self):
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements()
         self.assertDictEqual(user_info.user_by_id, {
             1: {'user_id': 1, 'username': 'honor', 'name': 'Honor Student'},
@@ -411,7 +429,7 @@ class UserInfoTestCase(unittest.TestCase):
         metadata = '{"start_time": "2015-01-01T10:30:35.123456", "end_time": "2016-01-01T-09:15:13.654321"}'
         my_auth_user = '{}1\ttest'.format(metadata)
         my_auth_user_profile = '{}1\tTest User'.format(metadata)
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user=my_auth_user, auth_user_profile=my_auth_user_profile
         )
@@ -424,7 +442,7 @@ class UserInfoTestCase(unittest.TestCase):
 
     def test_with_older_auth_user(self):
         my_auth_user = '1\ttest'
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user=my_auth_user,
         )
@@ -437,7 +455,7 @@ class UserInfoTestCase(unittest.TestCase):
 
     def test_with_older_auth_user_profile(self):
         my_auth_user_profile = '1\tTest User'
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user_profile=my_auth_user_profile,
         )
@@ -463,7 +481,7 @@ class UserInfoTestCase(unittest.TestCase):
              1	Test User
              two	Second User
         """
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user=my_auth_user, auth_user_profile=my_auth_user_profile
         )
@@ -485,7 +503,7 @@ class UserInfoTestCase(unittest.TestCase):
              1	Test User
              2	Second User
         """
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user=my_auth_user, auth_user_profile=my_auth_user_profile
         )
@@ -507,7 +525,7 @@ class UserInfoTestCase(unittest.TestCase):
              2	Second User
              3	Third User
         """
-        user_info = deid_util.UserInfoMixin()
+        user_info = obfuscate_util.UserInfoMixin()
         user_info.user_info_requirements = get_mock_user_info_requirements(
             auth_user=my_auth_user, auth_user_profile=my_auth_user_profile
         )
@@ -522,17 +540,18 @@ class UserInfoTestCase(unittest.TestCase):
 
 
 @ddt
-class DeidentifierTestCase(unittest.TestCase):
+class ObfuscatorTestCase(unittest.TestCase):
+    """Test Obfuscator methods."""
 
-    def test_deidentify_email_before_username(self):
-        deid = deid_util.Deidentifier()
+    def test_obfuscate_email_before_username(self):
+        obfuscator = obfuscate_util.Obfuscator()
         input_text = "Email is testusername@example.com."
-        result = deid.deidentify_text(
+        result = obfuscator.obfuscate_text(
             input_text,
             user_info={'username': ['testusername']},
         )
         self.assertEquals(result, 'Email is <<EMAIL>>.')
-        result = deid.deidentify_text(
+        result = obfuscator.obfuscate_text(
             input_text,
             user_info={'username': ['testusername']},
             entities=['username'],
@@ -553,8 +572,8 @@ class DeidentifierTestCase(unittest.TestCase):
     )
     @unpack
     def test_entity_flags(self, text, entities):
-        deid = deid_util.Deidentifier()
-        result = deid.deidentify_text(
+        obfuscator = obfuscate_util.Obfuscator()
+        result = obfuscator.obfuscate_text(
             text,
             user_info={
                 'username': ['testusername'],
@@ -566,7 +585,7 @@ class DeidentifierTestCase(unittest.TestCase):
         self.assertTrue(result.startswith('<<'))
         self.assertTrue(result.endswith('>>'))
 
-    def test_deidentify_list(self):
+    def test_obfuscate_list(self):
         input_obj = {
             'key': [
                 {'email': 'test@example.com'},
@@ -575,8 +594,8 @@ class DeidentifierTestCase(unittest.TestCase):
                 {'list': ['unchanging list value']},
             ]
         }
-        deid = deid_util.Deidentifier()
-        result = deid.deidentify_structure(input_obj, 'root')
+        obfuscator = obfuscate_util.Obfuscator()
+        result = obfuscator.obfuscate_structure(input_obj, 'root')
         expected = {'key': [
             {'email': '<<EMAIL>>'},
             {'dummy': 'unchanging value'},
@@ -594,8 +613,8 @@ class DeidentifierTestCase(unittest.TestCase):
     )
     @unpack
     def test_backslash_decoding(self, text, expected):
-        deid = deid_util.Deidentifier()
-        result = deid.deidentify_structure(text, 'root')
+        obfuscator = obfuscate_util.Obfuscator()
+        result = obfuscator.obfuscate_structure(text, 'root')
         self.assertEquals(result, expected)
 
     @data(
@@ -605,7 +624,7 @@ class DeidentifierTestCase(unittest.TestCase):
     )
     @unpack
     def test_unicode_decoding(self, text, expected):
-        deid = deid_util.Deidentifier()
+        obfuscator = obfuscate_util.Obfuscator()
         user_info = {'name': ['Olav Øyaland'.decode('utf8'), 'Test User']}
-        result = deid.deidentify_structure(text, 'root', user_info=user_info)
+        result = obfuscator.obfuscate_structure(text, 'root', user_info=user_info)
         self.assertEquals(result, expected)

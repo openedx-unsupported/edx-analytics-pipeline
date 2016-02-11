@@ -1,28 +1,28 @@
-"""Deidentify course state files by removing/stubbing user information."""
+"""Obfuscate course state files by removing/stubbing user information."""
 
 import luigi
 import cjson
 import csv
 import json
 import os
-import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, backslash_encode_value, backslash_decode_value, DeidentifierDownstreamMixin
+from edx.analytics.tasks.util.obfuscate_util import (
+    ObfuscatorMixin, backslash_encode_value, backslash_decode_value, ObfuscatorDownstreamMixin
+)
 from edx.analytics.tasks.util.file_util import FileCopyMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 import logging
 
-import edx.analytics.tasks.util.csv_util
 
 log = logging.getLogger(__name__)
 
 
-class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
+class BaseObfuscateDumpTask(ObfuscatorMixin, luigi.Task):
     """
-    Base class for deidentification of state files.
+    Base class for obfuscation of state files.
     """
 
     course = luigi.Parameter()
@@ -55,8 +55,8 @@ class BaseDeidentifyDumpTask(DeidentifierMixin, luigi.Task):
         return self.input()['data'][0]
 
 
-class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
-    """Task to deidentify an sql file."""
+class ObfuscateSqlDumpTask(BaseObfuscateDumpTask):
+    """Task to obfuscate an sql file."""
 
     def run(self):
         with self.output().open('w') as output_file:
@@ -80,8 +80,8 @@ class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
         raise NotImplementedError
 
 
-class DeidentifyAuthUserProfileTask(DeidentifySqlDumpTask):
-    """Task to deidentify auth_userprofile dump file."""
+class ObfuscateAuthUserProfileTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate auth_userprofile dump file."""
 
     @property
     def file_pattern(self):
@@ -102,8 +102,8 @@ class DeidentifyAuthUserProfileTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyAuthUserTask(DeidentifySqlDumpTask):
-    """Task to deidentify auth_user dump file."""
+class ObfuscateAuthUserTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate auth_user dump file."""
 
     @property
     def file_pattern(self):
@@ -112,7 +112,7 @@ class DeidentifyAuthUserTask(DeidentifySqlDumpTask):
     def filter_row(self, row):
         user_id = row[0]
         row[0] = self.remap_id(user_id)  # id
-        row[1] = self.generate_deid_username_from_user_id(user_id)
+        row[1] = self.generate_obfuscated_username_from_user_id(user_id)
         row[2] = ''  # first_name
         row[3] = ''  # last_name
         row[4] = ''  # email
@@ -124,8 +124,8 @@ class DeidentifyAuthUserTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyStudentCourseEnrollmentTask(DeidentifySqlDumpTask):
-    """Task to deidentify student_courseenrollment dump file."""
+class ObfuscateStudentCourseEnrollmentTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate student_courseenrollment dump file."""
 
     @property
     def file_pattern(self):
@@ -136,8 +136,8 @@ class DeidentifyStudentCourseEnrollmentTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyUserApiUserCourseTagTask(DeidentifySqlDumpTask):
-    """Task to deidentify user_api_usercoursetag dump file."""
+class ObfuscateUserApiUserCourseTagTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate user_api_usercoursetag dump file."""
 
     @property
     def file_pattern(self):
@@ -148,8 +148,8 @@ class DeidentifyUserApiUserCourseTagTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyStudentLanguageProficiencyTask(DeidentifySqlDumpTask):
-    """Task to deidentify student_languageproficiency dump file."""
+class ObfuscateStudentLanguageProficiencyTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate student_languageproficiency dump file."""
 
     @property
     def file_pattern(self):
@@ -159,8 +159,8 @@ class DeidentifyStudentLanguageProficiencyTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
-    """Task to deidentify courseware_studentmodule dump file."""
+class ObfuscateCoursewareStudentModule(ObfuscateSqlDumpTask):
+    """Task to obfuscate courseware_studentmodule dump file."""
 
     @property
     def file_pattern(self):
@@ -188,23 +188,24 @@ class DeidentifyCoursewareStudentModule(DeidentifySqlDumpTask):
         try:
             state_dict = cjson.decode(state_str, all_unicode=True)
             # Traverse the dictionary, looking for entries that need to be scrubbed.
-            updated_state_dict = self.deidentifier.deidentify_structure(state_dict, u"state", user_info)
-        except Exception as exc:
-            log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r", row[0], type(state_str), state_str)
+            updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
+        except Exception:
+            log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r",
+                          row[0], type(state_str), state_str)
             updated_state_dict = {}
 
         if updated_state_dict is not None:
             # Can't reset values, so update original fields.
             updated_state = cjson.encode(updated_state_dict).replace('\\', '\\\\')
             row[4] = updated_state
-            if self.deidentifier.is_logging_enabled():
-                log.info(u"Deidentified state for user_id '%s' module_id '%s'", user_id, row[2])
+            if self.obfuscator.is_logging_enabled():
+                log.info(u"Obfuscated state for user_id '%s' module_id '%s'", user_id, row[2])
 
         return row
 
 
-class DeidentifyCertificatesGeneratedCertificate(DeidentifySqlDumpTask):
-    """Task to deidentify certificates_generatedcertificate dump file."""
+class ObfuscateCertificatesGeneratedCertificate(ObfuscateSqlDumpTask):
+    """Task to obfuscate certificates_generatedcertificate dump file."""
 
     @property
     def file_pattern(self):
@@ -221,8 +222,8 @@ class DeidentifyCertificatesGeneratedCertificate(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyTeamsTask(DeidentifySqlDumpTask):
-    """Task to deidentify teams dump file."""
+class ObfuscateTeamsTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate teams dump file."""
 
     @property
     def file_pattern(self):
@@ -232,8 +233,8 @@ class DeidentifyTeamsTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyTeamsMembershipTask(DeidentifySqlDumpTask):
-    """Task to deidentify teams_membership dump file."""
+class ObfuscateTeamsMembershipTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate teams_membership dump file."""
 
     @property
     def file_pattern(self):
@@ -244,8 +245,8 @@ class DeidentifyTeamsMembershipTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyVerificationStatusTask(DeidentifySqlDumpTask):
-    """Task to deidentify verify_student_verificationstatus dump file."""
+class ObfuscateVerificationStatusTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate verify_student_verificationstatus dump file."""
 
     @property
     def file_pattern(self):
@@ -256,8 +257,8 @@ class DeidentifyVerificationStatusTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyWikiArticleTask(DeidentifySqlDumpTask):
-    """Task to deidentify wiki_article dump file."""
+class ObfuscateWikiArticleTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate wiki_article dump file."""
 
     @property
     def file_pattern(self):
@@ -270,8 +271,8 @@ class DeidentifyWikiArticleTask(DeidentifySqlDumpTask):
         return row
 
 
-class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
-    """Task to deidentify wiki_articlerevision dump file."""
+class ObfuscateWikiArticleRevisionTask(ObfuscateSqlDumpTask):
+    """Task to obfuscate wiki_articlerevision dump file."""
 
     @property
     def file_pattern(self):
@@ -300,30 +301,30 @@ class DeidentifyWikiArticleRevisionTask(DeidentifySqlDumpTask):
             row[5] = self.remap_id(user_id)
 
         wiki_content = backslash_decode_value(row[12].decode('utf8'))
-        cleaned_content = self.deidentifier.deidentify_text(wiki_content, user_info)
+        cleaned_content = self.obfuscator.obfuscate_text(wiki_content, user_info)
         row[12] = backslash_encode_value(cleaned_content).encode('utf8')
 
         return row
 
 
-class CourseStructureTask(FileCopyMixin, BaseDeidentifyDumpTask):
-    """Task to copy course_structure dump file, no deidentification needed."""
+class CourseStructureTask(FileCopyMixin, BaseObfuscateDumpTask):
+    """Task to copy course_structure dump file, no obfuscation needed."""
 
     @property
     def file_pattern(self):
         return '*-course_structure-*'
 
 
-class CourseContentTask(FileCopyMixin, BaseDeidentifyDumpTask):
-    """Task to copy course dump file, no deidentification needed."""
+class CourseContentTask(FileCopyMixin, BaseObfuscateDumpTask):
+    """Task to copy course dump file, no obfuscation needed."""
 
     @property
     def file_pattern(self):
         return '*-course-*'
 
 
-class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
-    """Task to deidentify mongo dump file."""
+class ObfuscateMongoDumpsTask(BaseObfuscateDumpTask):
+    """Task to obfuscate mongo dump file."""
 
     @property
     def file_pattern(self):
@@ -343,7 +344,8 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         try:
             author_id = int(row['author_id'])
         except ValueError:
-            log.error("Encountered non-integer value for author_id (%s) in forums data.  Username = '%s'", row.get('author_id'), row.get('author_username'))
+            log.error("Encountered non-integer value for author_id (%s) in forums data.  Username = '%s'",
+                      row.get('author_id'), row.get('author_username'))
             author_id = None
 
         user_info = {}
@@ -358,22 +360,23 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
                 # While we're at it, perform a sanity check on username.
                 decoded_username = row.get('author_username', '').decode('utf8')
                 if decoded_username != entry['username']:
-                    log.error("author_username '%s' for author_id: %s does not match cached value '%s'", decoded_username, author_id, entry['username'])
+                    log.error("author_username '%s' for author_id: %s does not match cached value '%s'",
+                              decoded_username, author_id, entry['username'])
             except KeyError:
                 log.error("Unable to find author_id: %s in the user_by_id map", author_id)
 
             # Remap author values, if possible.
             row['author_id'] = str(self.remap_id(author_id))
-            row['author_username'] = self.generate_deid_username_from_user_id(author_id)
+            row['author_username'] = self.generate_obfuscated_username_from_user_id(author_id)
 
         # Clean the body of the forum post.
         body = row['body']
-        row['body'] = self.deidentifier.deidentify_text(body, user_info)
+        row['body'] = self.obfuscator.obfuscate_text(body, user_info)
 
         # Also clean the title, if present, since it also contains username and fullname matches.
         if 'title' in row:
             title = row['title']
-            row['title'] = self.deidentifier.deidentify_text(title, user_info)
+            row['title'] = self.obfuscator.obfuscate_text(title, user_info)
 
         # Remap user_id values that are stored in lists.
         if 'votes' in row:
@@ -386,8 +389,9 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         if 'abuse_flaggers' in row and len(row['abuse_flaggers']) > 0:
             row['abuse_flaggers'] = [str(self.remap_id(user_id)) for user_id in row['abuse_flaggers']]
         if 'historical_abuse_flaggers' in row and len(row['historical_abuse_flaggers']) > 0:
-            row['historical_abuse_flaggers'] = [str(self.remap_id(user_id)) for user_id in row['historical_abuse_flaggers']]
-
+            row['historical_abuse_flaggers'] = [
+                str(self.remap_id(user_id)) for user_id in row['historical_abuse_flaggers']
+            ]
         if 'endorsement' in row and row['endorsement'] and 'user_id' in row['endorsement']:
             user_id = row['endorsement']['user_id']
             if user_id is not None:
@@ -396,15 +400,15 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         return row
 
 
-class DeidentifiedCourseDumpTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
-    """Wrapper task to deidentify data for a particular course."""
+class ObfuscatedCourseDumpTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
+    """Wrapper task to obfuscate data for a particular course."""
 
     course = luigi.Parameter()
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter()
 
     def __init__(self, *args, **kwargs):
-        super(DeidentifiedCourseDumpTask, self).__init__(*args, **kwargs)
+        super(ObfuscatedCourseDumpTask, self).__init__(*args, **kwargs)
 
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
         dump_path = url_path_join(self.dump_root, filename_safe_course_id, 'state')
@@ -430,32 +434,32 @@ class DeidentifiedCourseDumpTask(DeidentifierDownstreamMixin, luigi.WrapperTask)
             'auth_userprofile_path': self.auth_userprofile_path,
         }
         yield (
-            DeidentifyAuthUserTask(**kwargs),
-            DeidentifyAuthUserProfileTask(**kwargs),
-            DeidentifyStudentCourseEnrollmentTask(**kwargs),
-            DeidentifyUserApiUserCourseTagTask(**kwargs),
-            DeidentifyStudentLanguageProficiencyTask(**kwargs),
+            ObfuscateAuthUserTask(**kwargs),
+            ObfuscateAuthUserProfileTask(**kwargs),
+            ObfuscateStudentCourseEnrollmentTask(**kwargs),
+            ObfuscateUserApiUserCourseTagTask(**kwargs),
+            ObfuscateStudentLanguageProficiencyTask(**kwargs),
             # TODO: decide if CWSM should be optional, and if so, how to implement that.
-            DeidentifyCoursewareStudentModule(**kwargs),
-            DeidentifyCertificatesGeneratedCertificate(**kwargs),
-            DeidentifyTeamsTask(**kwargs),
-            DeidentifyTeamsMembershipTask(**kwargs),
-            DeidentifyVerificationStatusTask(**kwargs),
-            DeidentifyWikiArticleTask(**kwargs),
-            DeidentifyWikiArticleRevisionTask(**kwargs),
+            ObfuscateCoursewareStudentModule(**kwargs),
+            ObfuscateCertificatesGeneratedCertificate(**kwargs),
+            ObfuscateTeamsTask(**kwargs),
+            ObfuscateTeamsMembershipTask(**kwargs),
+            ObfuscateVerificationStatusTask(**kwargs),
+            ObfuscateWikiArticleTask(**kwargs),
+            ObfuscateWikiArticleRevisionTask(**kwargs),
             CourseContentTask(**kwargs),
             CourseStructureTask(**kwargs),
-            DeidentifyMongoDumpsTask(**kwargs),
+            ObfuscateMongoDumpsTask(**kwargs),
         )
 
 
-class DataDeidentificationTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
-    """Wrapper task for data deidentification development."""
+class DataObfuscationTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
+    """Wrapper task for data obfuscation development."""
 
     course = luigi.Parameter(is_list=True)
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'output_root'}
+        config_path={'section': 'obfuscation', 'name': 'output_root'}
     )
 
     def requires(self):
@@ -469,4 +473,4 @@ class DataDeidentificationTask(DeidentifierDownstreamMixin, luigi.WrapperTask):
                 'auth_user_path': self.auth_user_path,
                 'auth_userprofile_path': self.auth_userprofile_path,
             }
-            yield DeidentifiedCourseDumpTask(**kwargs)
+            yield ObfuscatedCourseDumpTask(**kwargs)

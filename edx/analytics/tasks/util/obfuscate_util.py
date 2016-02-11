@@ -1,4 +1,4 @@
-"""Utilities that are used for performing deidentification, or what passes for such."""
+"""Utilities that are used for performing obfuscation, or what passes for such."""
 
 import re
 import logging
@@ -13,26 +13,29 @@ log = logging.getLogger(__name__)
 
 
 # Define user-info maps to be global scope.
-_user_by_id = None
-_user_by_username = None
+_USER_BY_ID = None
+_USER_BY_USERNAME = None
 
 
 def reset_user_info_for_testing():
-    global _user_by_id
-    global _user_by_username
-    _user_by_id = None
-    _user_by_username = None
+    """Test method for clearing user_info tables between tests."""
+    global _USER_BY_ID  # pylint: disable=global-statement
+    global _USER_BY_USERNAME  # pylint: disable=global-statement
+    _USER_BY_ID = None
+    _USER_BY_USERNAME = None
 
 
 class UserInfoDownstreamMixin(object):
-
+    """Mixin providing parameters for downstream classes dependent on classes using UserInfoMixin."""
     auth_user_path = luigi.Parameter()
     auth_userprofile_path = luigi.Parameter()
 
 
 class UserInfoMixin(UserInfoDownstreamMixin):
+    """Mixin providing access to global maps of user_id, username, and name."""
 
     def user_info_requirements(self):
+        """Define values to add to requirements() for tasks including this mixin."""
         return {
             'auth_user': ExternalURL(self.auth_user_path),
             'auth_userprofile': ExternalURL(self.auth_userprofile_path),
@@ -50,7 +53,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
         'name' may not always be present.
         """
         self._initialize_user_info()
-        return _user_by_id
+        return _USER_BY_ID
 
     @property
     def user_by_username(self):
@@ -64,9 +67,11 @@ class UserInfoMixin(UserInfoDownstreamMixin):
         'name' may not always be present.
         """
         self._initialize_user_info()
-        return _user_by_username
+        return _USER_BY_USERNAME
 
     def _load_auth_user(self, input_targets):
+        """Load auth_user "username" data from Sqoop into global _USER_BY_ID and _USER_BY_USERNAME tables."""
+
         count = 0
         with input_targets['auth_user'].open('r') as auth_user_file:
             for line in auth_user_file:
@@ -84,13 +89,16 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                 if len(username) == 0:
                     log.error("Unexpected whitespace value for username read from auth_user file: %s", split_line)
                     continue
-                _user_by_id[user_id] = {'username': username, 'user_id': user_id}
+                _USER_BY_ID[user_id] = {'username': username, 'user_id': user_id}
                 # Point to the same object so that we can just store two pointers to the data instead of two
                 # copies of the data
-                _user_by_username[username] = _user_by_id[user_id]
-            log.info("Finished loading %s auth_user records from %s into user_info data.", count, input_targets['auth_user'].path)
+                _USER_BY_USERNAME[username] = _USER_BY_ID[user_id]
+            log.info("Finished loading %s auth_user records from %s into user_info data.",
+                     count, input_targets['auth_user'].path)
 
     def _load_auth_user_profile(self, input_targets):
+        """Load auth_userprofile "name" data from Sqoop into global _USER_BY_ID table."""
+
         count = 0
         with input_targets['auth_userprofile'].open('r') as auth_user_profile_file:
             for line in auth_user_profile_file:
@@ -106,7 +114,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                     continue
                 name = split_line[1].decode('utf8')
                 try:
-                    _user_by_id[user_id]['name'] = name
+                    _USER_BY_ID[user_id]['name'] = name
                 except KeyError:
                     # TODO: Look at whether this will break if the userprofile is more recent than the
                     # auth_user file.  (We have no guarantee that they are dumped at the same time,
@@ -115,18 +123,20 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                     # this id?
                     log.error("Unknown value for user_id read from auth_user_profile file: %s '%s'", user_id, name)
 
-            log.info("Finished loading %s auth_userprofile records from %s into user_info data.", count, input_targets['auth_userprofile'].path)
+            log.info("Finished loading %s auth_userprofile records from %s into user_info data.",
+                     count, input_targets['auth_userprofile'].path)
 
     def _initialize_user_info(self):
-        # TODO:  docstring.
-        global _user_by_id
-        global _user_by_username
+        """Make sure that user_info (auth_user and auth_userprofile) is loaded *once*."""
 
-        if _user_by_id is None:
+        global _USER_BY_ID  # pylint: disable=global-statement
+        global _USER_BY_USERNAME  # pylint: disable=global-statement
+
+        if _USER_BY_ID is None:
             log.info("Loading user_info data.")
             try:
-                _user_by_id = {}
-                _user_by_username = {}
+                _USER_BY_ID = {}
+                _USER_BY_USERNAME = {}
                 input_targets = {k: v.output() for k, v in self.user_info_requirements().items()}
                 self._load_auth_user(input_targets)
                 self._load_auth_user_profile(input_targets)
@@ -134,36 +144,41 @@ class UserInfoMixin(UserInfoDownstreamMixin):
             except Exception:
                 # Don't leave a half-initialized set of structures for the next task to use.
                 log.exception("Failed to load user_info data -- resetting.")
-                _user_by_id = None
-                _user_by_username = None
+                _USER_BY_ID = None
+                _USER_BY_USERNAME = None
                 raise
 
             log.info("Loaded user_info data.")
 
 
-class DeidentifierDownstreamMixin(UserInfoDownstreamMixin):
+class ObfuscatorDownstreamMixin(UserInfoDownstreamMixin):
+    """Class for defining Luigi functions used downstream of obfuscating classes."""
 
     entities = luigi.Parameter(is_list=True, default=[])
     log_context = luigi.IntParameter(default=None)
 
 
-class DeidentifierMixin(UserIdRemapperMixin, DeidentifierDownstreamMixin, UserInfoMixin):
+class ObfuscatorMixin(UserIdRemapperMixin, ObfuscatorDownstreamMixin, UserInfoMixin):
+    """Mixin combining Obfuscator, UserInfo maps and UserIdRemapper functionality."""
 
     def __init__(self, *args, **kwargs):
-        super(DeidentifierMixin, self).__init__(*args, **kwargs)
-        deid_args = {}
+        super(ObfuscatorMixin, self).__init__(*args, **kwargs)
+        obfuscate_args = {}
         if 'entities' in kwargs and len(kwargs['entities']) > 0:
-            deid_args['entities'] = set(kwargs['entities'])
+            obfuscate_args['entities'] = set(kwargs['entities'])
         if 'log_context' in kwargs:
-            deid_args['log_context'] = kwargs['log_context']
-        self.deidentifier = Deidentifier(**deid_args)
+            obfuscate_args['log_context'] = kwargs['log_context']
+        self.obfuscator = Obfuscator(**obfuscate_args)
 
 
 def backslash_decode_value(value):
+    """Implement simple backslash decoding, similar to .decode('string_escape')."""
+    # Assume that '<<BACKSLASH>>' doesn't appear in the text.
     return value.replace('\\\\', '<<BACKSLASH>>').replace('\\r', '\r').replace('\\t', '\t').replace('\\n', '\n').replace('<<BACKSLASH>>', '\\')
 
 
 def backslash_encode_value(value):
+    """Implement simple backslash encoding, similar to .encode('string_escape')."""
     return value.replace('\\', '\\\\').replace('\r', '\\r').replace('\t', '\\t').replace('\n', '\\n')
 
 
@@ -172,6 +187,7 @@ BACKSLASH_PATTERN = re.compile(r'\\[rtn]')
 
 
 def needs_backslash_decoding(value):
+    """Apply a heuristic to determine if a string value should be backslash-decoded before applying patterns."""
     # If there are any decoded values already present, then don't decode further.
     if '\t' in value or '\n' in value or '\r' in value:
         return False
@@ -231,7 +247,8 @@ US_PHONE_PATTERN = r"""(?:\+?1\s*(?:[.\- ]?\s*)?)?  # possible leading "+1"
                        \b\d{3}\s*(?:[\- ]\s*)\d{4}"""   # regular 7-digit phone.  Note no use of dot here: too much like a float.
 
 
-# INTL_PHONE_PATTERN = r'\b(\+(9[976]\d|8[987530]\d|6[987]\d|5[90]\d|42\d|3[875]\d|2[98654321]\d|9[8543210]|8[6421]|6[6543210]|5[87654321]|4[987654310]|3[9643210]|2[70]|7|1)\d{1,14}$
+# INTL_PHONE_PATTERN = r'\b(\+(9[976]\d|8[987530]\d|6[987]\d|5[90]\d|42\d|3[875]\d|2[98654321]\d|9[8543210]'
+#    '|8[6421]|6[6543210]|5[87654321]|4[987654310]|3[9643210]|2[70]|7|1)\d{1,14}$
 # Starts with +, then some digits which may have spaces, ending with a digit.
 INTL_PHONE_PATTERN = r'\+(?:\d[\- ]?){6,14}\d'
 
@@ -241,6 +258,7 @@ COMPILED_PHONE_PATTERN = re.compile(PHONE_PATTERN, re.VERBOSE)
 
 
 def find_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Replaces substrings in text that look like phone numbers."""
     return find_all_matches(COMPILED_PHONE_PATTERN, text, "PHONE_NUMBER", log_context)
 
 
@@ -255,16 +273,21 @@ SIMPLE_EMAIL_PATTERN = r'((?<=\s)([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)\.(?:edu
 COMPILED_SIMPLE_EMAIL_PATTERN = re.compile(SIMPLE_EMAIL_PATTERN, re.IGNORECASE)
 
 # http://www.regular-expressions.info/email.html
-LESS_SIMPLE_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
+# LESS_SIMPLE_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
+LESS_SIMPLE_EMAIL_PATTERN = r"""\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*
+                                @
+                                (?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b"""
 
-COMPILED_EMAIL_PATTERN = re.compile(LESS_SIMPLE_EMAIL_PATTERN, re.IGNORECASE)
+COMPILED_EMAIL_PATTERN = re.compile(LESS_SIMPLE_EMAIL_PATTERN, re.IGNORECASE + re.VERBOSE)
 
-
+# TODO: retire this once find_emails is shown to work.
 def find_simple_emails(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Replaces substrings in text that look like simple email addresses."""
     return find_all_matches(COMPILED_SIMPLE_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
 
 
 def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Replaces substrings in text that look like email addresses."""
     # Optimization: this check results in a significant speedup on long CWSM
     # entries that contain no email.
     if '@' in text:
@@ -290,6 +313,7 @@ def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
 
 
 def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
+    """Replaces the provided username value as it appears in text."""    
     username_pattern = re.compile(
         r'\b({})\b'.format(username),
         re.IGNORECASE,
@@ -303,6 +327,7 @@ def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
 
 
 def find_userid(text, user_id, log_context=DEFAULT_LOG_CONTEXT):
+    """Replaces the provided user_id value as it appears in text."""
     userid_pattern = re.compile(
         r'\b({})\b'.format(user_id),
         re.IGNORECASE,
@@ -328,6 +353,7 @@ STOPWORDS = ['the', 'and', 'can']
 
 
 def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
+    """Culls names from auth_user_profile.name and replaces them in text."""
 
     if fullname in REJECTED_NAMES:
         return text
@@ -379,7 +405,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # the slashes are escaped.
     fullname_pattern = re.compile(
         u'\\b({})\\b'.format(u"|".join(patterns)),
-        re.IGNORECASE,
+        re.IGNORECASE + re.UNICODE,
     )
     return find_all_matches(fullname_pattern, text, "FULLNAME", log_context)
 
@@ -400,6 +426,7 @@ EMAIL_CONTEXT = re.compile(
 
 
 def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Development: Find context phrases that might indicate the presence of an email address nearby."""
     return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
 
 # Find names.
@@ -410,6 +437,7 @@ NAME_CONTEXT = re.compile(
 
 
 def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Development: Find context phrases that might indicate the presence of a student's name nearby."""
     return find_all_matches(NAME_CONTEXT, text, "NAME_CONTEXT", log_context)
 
 
@@ -421,6 +449,7 @@ PHONE_CONTEXT = re.compile(
 
 
 def find_phone_context(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Development: Find context phrases that might indicate the presence of a phone number nearby."""
     return find_all_matches(PHONE_CONTEXT, text, "PHONE_CONTEXT", log_context)
 
 
@@ -430,6 +459,7 @@ COMPILED_POSSIBLE_PHONE_PATTERN = re.compile(POSSIBLE_PHONE_PATTERN, re.VERBOSE)
 
 
 def find_possible_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Development:  replace digit sequences that might be possible phone numbers."""
     return find_all_matches(COMPILED_POSSIBLE_PHONE_PATTERN, text, "POSSIBLE_PHONE_NUMBER", log_context)
 
 
@@ -441,17 +471,19 @@ FACEBOOK_PATTERN = re.compile(
 
 
 def find_facebook(text, log_context=DEFAULT_LOG_CONTEXT):
+    """Development:  replace references to facebook URLs."""
     return find_all_matches(FACEBOOK_PATTERN, text, "FACEBOOK", log_context)
 
 
 #################
-# General deidentification
+# General obfuscation
 #################
 
 DEFAULT_ENTITIES = set(['email', 'username', 'fullname', 'phone', 'userid'])
 
 
-class Deidentifier(object):
+class Obfuscator(object):
+    """Class for configuring and then applying obfuscation algorithms to data structures."""
 
     log_context = DEFAULT_LOG_CONTEXT
     entities = DEFAULT_ENTITIES
@@ -463,11 +495,16 @@ class Deidentifier(object):
             self.entities = kwargs['entities']
 
     def is_logging_enabled(self):
+        """
+        Indicates if logging should be performed, both inside and outside Obfuscator.
+
+        Logging outside includes providing information about the source of the data being obfuscated.
+        """
         return (self.log_context > 0)
 
-    def deidentify_text(self, text, user_info=None, log_context=None, entities=None):
+    def obfuscate_text(self, text, user_info=None, log_context=None, entities=None):
         """
-        Applies all selected deidentification patterns to text.
+        Applies all selected obfuscation patterns to text.
 
         user_info is a dict (or namedtuple.__dict__), with 'username', 'user_id' and 'name' keys, if known.
             Values should be lists containing the value or values of that kind of data.  (That way,
@@ -538,8 +575,8 @@ class Deidentifier(object):
 
         return text
 
-    def deidentify_structure(self, obj, label, user_info=None, log_context=None, entities=None):
-        """Returns a modified object if any string contained within it was deidentified, None otherwise."""
+    def obfuscate_structure(self, obj, label, user_info=None, log_context=None, entities=None):
+        """Returns a modified object if any string contained within it was obfuscated, None otherwise."""
 
         if isinstance(obj, dict):
             new_dict = {}
@@ -550,7 +587,7 @@ class Deidentifier(object):
                     new_label = u"{}.{}".format(label, key.decode('utf8'))
                 else:
                     new_label = u"{}.{}".format(label, key)
-                updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
+                updated_value = self.obfuscate_structure(value, new_label, user_info, log_context, entities)
                 if updated_value is not None:
                     changed = True
                     new_dict[key] = updated_value
@@ -565,7 +602,7 @@ class Deidentifier(object):
             changed = False
             for index, value in enumerate(obj):
                 new_label = u"{}[{}]".format(label, index)
-                updated_value = self.deidentify_structure(value, new_label, user_info, log_context, entities)
+                updated_value = self.obfuscate_structure(value, new_label, user_info, log_context, entities)
                 if updated_value is not None:
                     changed = True
                     new_list.append(updated_value)
@@ -580,24 +617,24 @@ class Deidentifier(object):
             if needs_backslash_decoding(obj):
                 decoded_obj = backslash_decode_value(obj)
                 new_label = u"{}*d".format(label)
-                updated_value = self.deidentify_structure(decoded_obj, new_label, user_info, log_context, entities)
+                updated_value = self.obfuscate_structure(decoded_obj, new_label, user_info, log_context, entities)
                 if updated_value is not None:
                     return backslash_encode_value(updated_value)
                 else:
                     return None
 
-            # Only deidentify once backslashes have been decoded as many times as needed.
-            updated_value = self.deidentify_text(obj, user_info, log_context, entities)
+            # Only obfuscate once backslashes have been decoded as many times as needed.
+            updated_value = self.obfuscate_text(obj, user_info, log_context, entities)
             if obj != updated_value:
                 if self.is_logging_enabled():
-                    log.info(u"Deidentified '%s'", label)
+                    log.info(u"Obfuscated '%s'", label)
                 return updated_value
             else:
                 return None
         elif isinstance(obj, str):
             unicode_obj = obj.decode('utf8')
             new_label = u"{}*u".format(label)
-            updated_value = self.deidentify_structure(unicode_obj, new_label, user_info, log_context, entities)
+            updated_value = self.obfuscate_structure(unicode_obj, new_label, user_info, log_context, entities)
             if updated_value is not None:
                 return updated_value.encode('utf8')
             else:
@@ -612,7 +649,7 @@ class Deidentifier(object):
 #################
 
 # These patterns define the subset of events with implicit event_type
-# values that are to be included in deidentified packages for RDX.
+# values that are to be included in obfuscated packages for RDX.
 # (Note that a pattern not ending with '$' only needs to match the beginning
 # of the event_type.)
 IMPLICIT_EVENT_TYPE_PATTERNS = [

@@ -1,4 +1,4 @@
-"""Tasks to deidentify course data for RDX."""
+"""Tasks to obfuscate course data for RDX."""
 
 import json
 import os
@@ -11,11 +11,11 @@ import luigi
 
 from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
-from edx.analytics.tasks.util.deid_util import DeidentifierDownstreamMixin
+from edx.analytics.tasks.util.obfuscate_util import ObfuscatorDownstreamMixin
 from edx.analytics.tasks.util.file_util import copy_file_to_file
 
-from edx.analytics.tasks.data_deidentification import DeidentifiedCourseDumpTask
-from edx.analytics.tasks.events_deidentification import DeidentifyCourseEventsTask
+from edx.analytics.tasks.data_obfuscation import ObfuscatedCourseDumpTask
+from edx.analytics.tasks.events_obfuscation import ObfuscateCourseEventsTask
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.url import ExternalURL
@@ -26,46 +26,46 @@ from edx.analytics.tasks.util.tempdir import make_temp_directory
 log = logging.getLogger(__name__)
 
 
-class DeidentifiedCourseTaskMixin(DeidentifierDownstreamMixin, MapReduceJobTaskMixin):
-    """Parameters used by DeidentifiedCourseTask."""
+class ObfuscatedCourseTaskMixin(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin):
+    """Parameters used by ObfuscatedCourseTask."""
 
-    deidentified_output_root = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'deidentified_output_root'}
+    obfuscated_output_root = luigi.Parameter(
+        config_path={'section': 'obfuscation', 'name': 'obfuscated_output_root'}
     )
     dump_root = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'dump_root'}
+        config_path={'section': 'obfuscation', 'name': 'dump_root'}
     )
     format_version = luigi.Parameter()
     pipeline_version = luigi.Parameter()
 
 
-class DeidentifiedPackageTaskMixin(object):
-    """Parameters used by DeidentifiedPackageTask."""
+class ObfuscatedPackageTaskMixin(object):
+    """Parameters used by ObfuscatedPackageTask."""
 
-    deidentified_output_root = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'deidentified_output_root'}
+    obfuscated_output_root = luigi.Parameter(
+        config_path={'section': 'obfuscation', 'name': 'obfuscated_output_root'}
     )
     gpg_key_dir = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'gpg_key_dir'}
+        config_path={'section': 'obfuscation', 'name': 'gpg_key_dir'}
     )
     gpg_master_key = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'gpg_master_key'}
+        config_path={'section': 'obfuscation', 'name': 'gpg_master_key'}
     )
     output_root = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'output_root'}
+        config_path={'section': 'obfuscation', 'name': 'output_root'}
     )
     recipient = luigi.Parameter(is_list=True)
     format_version = luigi.Parameter()
 
 
-class DeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Task):
-    """Depends on DeidentifiedCourseDumpTask & DeidentifyCourseEventsTask, writes metadata file to the output."""
+class ObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.Task):
+    """Depends on ObfuscatedCourseDumpTask & ObfuscateCourseEventsTask, writes metadata file to the output."""
 
     course = luigi.Parameter()
 
     def requires(self):
-        output_root_with_version = url_path_join(self.deidentified_output_root, self.format_version)
-        yield DeidentifiedCourseDumpTask(
+        output_root_with_version = url_path_join(self.obfuscated_output_root, self.format_version)
+        yield ObfuscatedCourseDumpTask(
             dump_root=self.dump_root,
             course=self.course,
             output_root=output_root_with_version,
@@ -74,7 +74,7 @@ class DeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Task):
             auth_user_path=self.auth_user_path,
             auth_userprofile_path=self.auth_userprofile_path,
         )
-        yield DeidentifyCourseEventsTask(
+        yield ObfuscateCourseEventsTask(
             dump_root=self.dump_root,
             course=self.course,
             output_root=output_root_with_version,
@@ -94,11 +94,13 @@ class DeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Task):
 
     def output(self):
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
-        return get_target_from_url(url_path_join(self.deidentified_output_root, self.format_version, filename_safe_course_id, 'metadata_file.json'))
+        return get_target_from_url(url_path_join(
+            self.obfuscated_output_root, self.format_version, filename_safe_course_id, 'metadata_file.json'
+        ))
 
 
-class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
-    """Task that packages deidentified course data."""
+class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
+    """Task that packages obfuscated course data."""
 
     course = luigi.Parameter()
     temporary_dir = luigi.Parameter(default=None)
@@ -107,9 +109,11 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
         return ExternalURL(url_path_join(self.course_files_url, 'metadata_file.json'))
 
     def __init__(self, *args, **kwargs):
-        super(DeidentifiedPackageTask, self).__init__(*args, **kwargs)
+        super(ObfuscatedPackageTask, self).__init__(*args, **kwargs)
         self.filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
-        self.course_files_url = url_path_join(self.deidentified_output_root, self.format_version, self.filename_safe_course_id)
+        self.course_files_url = url_path_join(
+            self.obfuscated_output_root, self.format_version, self.filename_safe_course_id
+        )
 
     def run(self):
         recipients = set(self.recipient)
@@ -121,7 +125,7 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
         ]
 
         path_task = PathSetTask([self.course_files_url], ['*.*'])
-        with make_temp_directory(prefix='deid-archive.', dir=self.temporary_dir) as tmp_directory:
+        with make_temp_directory(prefix='obfuscate-archive.', dir=self.temporary_dir) as tmp_directory:
             for target in path_task.output():
                 with target.open('r') as input_file:
                     # Get path without urlscheme.
@@ -151,7 +155,9 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
                 log.info('Encrypted %d bytes', num_bytes)
 
             with self.output().open('w') as output_file:
-                with make_encrypted_file(output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir) as encrypted_output_file:
+                with make_encrypted_file(
+                        output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir
+                ) as encrypted_output_file:
                     with tarfile.open(mode='w:gz', fileobj=encrypted_output_file) as output_archive_file:
                         output_archive_file.add(tmp_directory, arcname='')
 
@@ -159,17 +165,17 @@ class DeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Task):
         return get_target_from_url(url_path_join(self.output_root, self.filename_safe_course_id + '.tar.gz.gpg'))
 
 
-class MultiCourseDeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.WrapperTask):
-    """Task to deid multiple courses at once."""
+class MultiCourseObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.WrapperTask):
+    """Task to obfuscate multiple courses at once."""
 
     course = luigi.Parameter(is_list=True)
 
     def requires(self):
         for course in self.course:
-            yield DeidentifiedCourseTask(
+            yield ObfuscatedCourseTask(
                 course=course,
                 dump_root=self.dump_root,
-                deidentified_output_root=self.deidentified_output_root,
+                obfuscated_output_root=self.obfuscated_output_root,
                 format_version=self.format_version,
                 pipeline_version=self.pipeline_version,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -180,7 +186,7 @@ class MultiCourseDeidentifiedCourseTask(DeidentifiedCourseTaskMixin, luigi.Wrapp
             )
 
 
-class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.WrapperTask):
+class MultiCourseObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.WrapperTask):
     """Task to package multiple courses at once."""
 
     course = luigi.Parameter(is_list=True)
@@ -188,9 +194,9 @@ class MultiCourseDeidentifiedPackageTask(DeidentifiedPackageTaskMixin, luigi.Wra
 
     def requires(self):
         for course in self.course:
-            yield DeidentifiedPackageTask(
+            yield ObfuscatedPackageTask(
                 course=course,
-                deidentified_output_root=self.deidentified_output_root,
+                obfuscated_output_root=self.obfuscated_output_root,
                 output_root=self.output_root,
                 recipient=self.recipient,
                 gpg_key_dir=self.gpg_key_dir,

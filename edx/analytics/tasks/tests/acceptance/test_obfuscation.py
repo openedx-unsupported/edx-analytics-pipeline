@@ -1,4 +1,4 @@
-"""End to end test of deidentification."""
+"""End to end test of obfuscation."""
 
 import datetime
 import logging
@@ -19,18 +19,18 @@ from edx.analytics.tasks.util.file_util import copy_file_to_file
 log = logging.getLogger(__name__)
 
 
-class DeidentificationAcceptanceTest(AcceptanceTestCase):
-    """Validate data flow for deidentification process."""
+class ObfuscationAcceptanceTest(AcceptanceTestCase):
+    """Validate data flow for obfuscation process."""
 
     COURSE_ID = 'course-v1:edX+DemoX+Demo_Course'
-    INPUT_FILE = 'deidentification_tracking.log'
+    INPUT_FILE = 'obfuscation_tracking.log'
     EXPORT_DATE = '2015-11-13'
     INTERVAL = '2015-10-01-2015-12-31'
     FORMAT_VERSION = 'rdx-test'
     PIPELINE_VERSION = '9c3b6bc9cf1c1b26e39b6eba2ca0d1e76829862d'
 
     def setUp(self):
-        super(DeidentificationAcceptanceTest, self).setUp()
+        super(ObfuscationAcceptanceTest, self).setUp()
         self.temporary_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.temporary_dir)
         self.dump_root = url_path_join(self.test_src, 'course_exports', 'raw')
@@ -40,7 +40,7 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
     def setup_state_files(self):
         """Upload input fixture data files, needed to mimic the output produced by course-exporter which is not a part of this test."""
 
-        state_files_dir = os.path.join(self.data_dir, 'input', 'deidentification', 'state')
+        state_files_dir = os.path.join(self.data_dir, 'input', 'obfuscation', 'state')
         for filename in os.listdir(state_files_dir):
             local_filepath = os.path.join(state_files_dir, filename)
             dst_url = url_path_join(self.dump_root, self.filename_safe_course_id, 'state', self.EXPORT_DATE, filename)
@@ -57,9 +57,9 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
                 self.upload_file(local_filepath, destination_url)
 
     def upload_profile_data(self):
-        deid_dir = os.path.join(self.data_dir, 'input', 'deidentification')
+        obfuscation_dir = os.path.join(self.data_dir, 'input', 'obfuscation')
         for filename in ['auth_user', 'auth_userprofile']:
-            local_filepath = os.path.join(deid_dir, filename)
+            local_filepath = os.path.join(obfuscation_dir, filename)
             dst_url = url_path_join(self.test_root, 'warehouse', filename)
             self.upload_file(local_filepath, dst_url)
 
@@ -72,36 +72,36 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS)
         ])
 
-    def test_deidentification(self):
-        """Test deid workflow."""
+    def test_obfuscation(self):
+        """Test obfuscation workflow."""
         self.run_event_export_task()
         self.setup_state_files()
         self.upload_profile_data()
         self.upload_gpg_keys()
-        self.run_deidentification_task()
-        self.run_deidentified_package_task()
+        self.run_obfuscation_task()
+        self.run_obfuscated_package_task()
         self.maxDiff = None
-        self.validate_deidentification()
+        self.validate_obfuscation()
 
-    def run_deidentification_task(self):
-        """Run DeidentifiedCourseTask."""
+    def run_obfuscation_task(self):
+        """Run ObfuscatedCourseTask."""
         self.task.launch([
-            'DeidentifiedCourseTask',
+            'ObfuscatedCourseTask',
             '--course', self.filename_safe_course_id,
             '--dump-root', self.dump_root,
-            '--deidentified-output-root', url_path_join(self.test_root, 'deidentified-output'),
+            '--obfuscated-output-root', url_path_join(self.test_root, 'obfuscated-output'),
             '--format-version', self.FORMAT_VERSION,
             '--pipeline-version', self.PIPELINE_VERSION,
             '--auth-user-path', url_path_join(self.test_root, 'warehouse', 'auth_user'),
             '--auth-userprofile-path', url_path_join(self.test_root, 'warehouse', 'auth_userprofile')
         ])
 
-    def run_deidentified_package_task(self):
-        """Run DeidentifiedPackageTask."""
+    def run_obfuscated_package_task(self):
+        """Run ObfuscatedPackageTask."""
         self.task.launch([
-            'DeidentifiedPackageTask',
+            'ObfuscatedPackageTask',
             '--course', self.filename_safe_course_id,
-            '--deidentified-output-root', url_path_join(self.test_root, 'deidentified-output'),
+            '--obfuscated-output-root', url_path_join(self.test_root, 'obfuscated-output'),
             '--gpg-key-dir', self.test_gpg_key_dir,
             '--gpg-master-key', 'daemon+master@edx.org',
             '--output-root', self.test_out,
@@ -109,8 +109,8 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             '--format-version', self.FORMAT_VERSION
         ])
 
-    def validate_deidentification(self):
-        """Validates deid workflow."""
+    def validate_obfuscation(self):
+        """Validates obfuscation workflow."""
         output_target = PathSetTask([self.test_out], ['*.tar.gz.gpg']).output()[0]
         output_filename = os.path.basename(output_target.path)
         output_filepath = os.path.join(self.temporary_dir, output_filename)
@@ -135,15 +135,15 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
         self.assertItemsEqual(metadata_info['format_version'], self.FORMAT_VERSION)
         self.assertItemsEqual(metadata_info['pipeline_version'], self.PIPELINE_VERSION)
 
-        self.validate_data_deidentification()
-        self.validate_events_deidentification()
+        self.validate_data_obfuscation()
+        self.validate_events_obfuscation()
 
-    def validate_data_deidentification(self):
-        """Validates data deid."""
+    def validate_data_obfuscation(self):
+        """Validates data obfuscation."""
         data_dir = os.path.join(self.temporary_dir, 'state', self.EXPORT_DATE)
         for data_filename in os.listdir(data_dir):
             data_filepath = os.path.join(data_dir, data_filename)
-            expected_output_filepath = os.path.join(self.data_dir, 'output', 'deidentification', 'state', data_filename)
+            expected_output_filepath = os.path.join(self.data_dir, 'output', 'obfuscation', 'state', data_filename)
 
             if data_filename.endswith('mongo'):
                 with open(data_filepath) as mongo_output_file:
@@ -154,15 +154,15 @@ class DeidentificationAcceptanceTest(AcceptanceTestCase):
             else:
                 shell.run(['diff', data_filepath, expected_output_filepath])
 
-    def validate_events_deidentification(self):
-        """Validates events deid."""
+    def validate_events_obfuscation(self):
+        """Validates events obfuscation."""
         events_dir = os.path.join(self.temporary_dir, 'events')
         for events_filename in os.listdir(events_dir):
             events_filepath = os.path.join(events_dir, events_filename)
             decompressed_filepath = events_filepath[:-len('.gz')]
             fs.decompress_file(events_filepath, decompressed_filepath)
 
-            expected_events_filepath = os.path.join(self.data_dir, 'output', 'deidentification', 'events', events_filename[:-len('.gz')])
+            expected_events_filepath = os.path.join(self.data_dir, 'output', 'obfuscation', 'events', events_filename[:-len('.gz')])
 
             with open(decompressed_filepath) as events_output_file:
                 events_output = [json.loads(line) for line in events_output_file]

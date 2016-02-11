@@ -1,25 +1,26 @@
-"""Tests for events deidentification tasks."""
+"""Tests for events obfuscation tasks."""
 
-import luigi
 import textwrap
 from ddt import ddt, data, unpack
 from mock import MagicMock
 
-from edx.analytics.tasks.events_deidentification import DeidentifyCourseEventsTask
+from edx.analytics.tasks.events_obfuscation import ObfuscateCourseEventsTask
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.util.eventlog as eventlog
-from edx.analytics.tasks.util.tests.test_deid_util import get_mock_user_info_requirements
+from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 
 
-class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
+class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
+    """Base class for testing event obfuscation."""
+
     DATE = '2013-12-17'
 
     def setUp(self):
-        self.task_class = DeidentifyCourseEventsTask
-        super(EventsDeidentificationBaseTest, self).setUp()
+        self.task_class = ObfuscateCourseEventsTask
+        super(EventsObfuscationBaseTest, self).setUp()
         self.initialize_ids()
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.event_templates = {
@@ -99,7 +100,7 @@ class EventsDeidentificationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin,
 
 
 @ddt
-class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
+class EventsObfuscationMapTest(EventsObfuscationBaseTest):
     """Tests the filtering of events by the mapper.  No events are modified."""
     @data(
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/xblock/block-v1:edX+DemoX+Demo_Course_2015+type@video'},
@@ -152,18 +153,18 @@ class EventsDeidentificationMapTest(EventsDeidentificationBaseTest):
         {'event_source': 'server', 'event_type': 'list-staff'},
     )
     def test_allowed_event_types(self, kwargs):
+        # Mapper does no modification (i.e. no obfuscation).  It only filters.
         input_line = self.create_event_log_line(**kwargs)
-        expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
         mapper_output_line = tuple(self.task.mapper(input_line))[0][1]
-        # Mapper does no modification (i.e. no deidentification).  It only filters.
         self.assertEquals(input_line, mapper_output_line)
 
 
 @ddt
-class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
+class EventLineObfuscationTest(EventsObfuscationBaseTest):
+    """Test event obfuscation that is used by reducer method."""
 
     def compare_event_lines(self, expected_line, reducer_output_line):
-        # Cannot compare the lines, because the JSON is not ordered, so convert and compare as dicts.
+        """Compare events as dicts instead of JSON-encoded strings, due to ordering."""
         reducer_output = eventlog.decode_json(reducer_output_line)
         expected_event = eventlog.decode_json(expected_line)
         self.assertDictEqual(expected_event, reducer_output)
@@ -196,10 +197,10 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
         {'event_source': 'browser', 'event_type': 'edx.instructor.report.downloaded'},
         {'event_source': 'server', 'event_type': 'list-staff'},
     )
-    def test_simple_deid_event_types(self, kwargs):
+    def test_simple_obfuscate_event_types(self, kwargs):
         input_line = self.create_event_log_line(**kwargs)
         expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
-        reducer_output_line = self.task.deidentify_event_line(input_line)
+        reducer_output_line = self.task.obfuscate_event_line(input_line)
         self.compare_event_lines(expected_line, reducer_output_line)
 
     @data(
@@ -233,7 +234,9 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
             {'context': {'user_id': 2147483648, 'username': 'REDACTED_USERNAME'}},
         ),
         (
-            {'event': {'user_id': 2, 'username': 'audit', 'instructor': 'staff', 'student': 'unmapped', 'user': 'verified'}},
+            {'event': {
+                'user_id': 2, 'username': 'audit', 'instructor': 'staff', 'student': 'unmapped', 'user': 'verified'
+            }},
             {'event': {
                 'user_id': 2147483648, 'username': 'username_2147483648', 'instructor': 'username_8388608',
                 'student': 'REDACTED_USERNAME', 'user': 'username_2147485696'
@@ -281,7 +284,10 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
             {'event': {}}
         ),
         (
-            {'event': {'answer': {'file_upload_key': 'upload_key'}, 'saved_response': {'file_upload_key': 'upload_key'}}},
+            {'event': {
+                'answer': {'file_upload_key': 'upload_key'},
+                'saved_response': {'file_upload_key': 'upload_key'}
+            }},
             {'event': {'answer': {}, 'saved_response': {}}}
         ),
         (
@@ -363,17 +369,19 @@ class EventsDeidentificationReduceTest(EventsDeidentificationBaseTest):
         ),
     )
     @unpack
-    def test_deidentified_events(self, input_kwargs, output_kwargs={}):
-        self.maxDiff = None
+    def test_obfuscated_events(self, input_kwargs, output_kwargs={}):
         input_line = self.create_event_log_line(**input_kwargs)
         expected_line = self.create_event_log_line(**dict(output_kwargs, **{'template_name': 'expected_event'}))
-        reducer_output_line = self.task.deidentify_event_line(input_line)
+        reducer_output_line = self.task.obfuscate_event_line(input_line)
         self.compare_event_lines(expected_line, reducer_output_line)
 
 
-class DeidentifyCourseEventsOutputPathTest(EventsDeidentificationBaseTest):
+class ObfuscateCourseEventsOutputPathTest(EventsObfuscationBaseTest):
+    """Test output_path_for_key."""
 
     def test_output_path_for_key(self):
         self.task.course = 'edX_DemoX_Demo_Course'
         path = self.task.output_path_for_key(self.DATE)
-        self.assertEquals('/fake/output/edX_DemoX_Demo_Course/events/edX_DemoX_Demo_Course-events-2013-12-17.log.gz', path)
+        self.assertEquals(
+            '/fake/output/edX_DemoX_Demo_Course/events/edX_DemoX_Demo_Course-events-2013-12-17.log.gz', path
+        )

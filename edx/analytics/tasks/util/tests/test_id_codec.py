@@ -1,7 +1,7 @@
 """
 Tests for encoding/decoding id values.
 """
-from ddt import ddt, data, unpack
+from ddt import ddt, data
 
 import edx.analytics.tasks.util.id_codec as id_codec
 from edx.analytics.tasks.tests import unittest
@@ -17,8 +17,9 @@ class EncodeDecodeIdTest(unittest.TestCase):
 
     @data(
         '',
-        '\u00e9',
-        '\ufffd',
+        u'\ufffd'.encode('utf8'),
+        u'\u00e9'.encode('utf8'),
+        u'test',
     )
     def test_round_trip(self, suffix):
         encoded_id = id_codec.encode_id(SCOPE + suffix, TYPE + suffix, VALUE + suffix)

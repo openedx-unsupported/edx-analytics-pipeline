@@ -1,22 +1,22 @@
-"""Deidentify course event files by removing/stubbing user information."""
+"""Obfuscate course event files by removing/stubbing user information."""
 
 import logging
 import re
 import luigi
 import luigi.date_interval
 import gzip
-import csv
 import cjson
 import os
 import sys
 from collections import namedtuple, defaultdict
 
-from edx.analytics.tasks.pathutil import PathSetTask, EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
-from edx.analytics.tasks.util.deid_util import DeidentifierMixin, DeidentifierDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
+from edx.analytics.tasks.util.obfuscate_util import (
+    ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
+)
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-import edx.analytics.tasks.util.csv_util
 from edx.analytics.tasks.util import eventlog
 
 log = logging.getLogger(__name__)
@@ -26,16 +26,16 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
     """
-    Task to deidentify events for a particular course.
+    Task to obfuscate events for a particular course.
 
     Uses the output produced by EventExportByCourseTask as source for this task.
     """
 
     course = luigi.Parameter(default=None)
     explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'explicit_event_whitelist'}
+        config_path={'section': 'obfuscation', 'name': 'explicit_event_whitelist'}
     )
     dump_root = luigi.Parameter(default=None)
 
@@ -52,7 +52,7 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         return results
 
     def init_local(self):
-        super(DeidentifyCourseEventsTask, self).init_local()
+        super(ObfuscateCourseEventsTask, self).init_local()
 
         self.explicit_events = []
         if self.input_local().get('explicit_events') is not None:
@@ -91,12 +91,12 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
             try:
                 for value in values:
-                    deidentified_event_line = self.deidentify_event_line(value)
-                    outfile.write(deidentified_event_line)
+                    obfuscated_event_line = self.obfuscate_event_line(value)
+                    outfile.write(obfuscated_event_line)
                     outfile.write('\n')
                     # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
                     # Do not remove it.
-                    self.incr_counter('Deidentified Event Exports', 'Raw Bytes Written', len(value) + 1)
+                    self.incr_counter('Obfuscated Event Exports', 'Raw Bytes Written', len(value) + 1)
             finally:
                 outfile.close()
 
@@ -113,11 +113,11 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             )
         )
 
-    def deidentify_event_line(self, line):
-        """Parse an event line, deidentify it, and convert back to a line."""
+    def obfuscate_event_line(self, line):
+        """Parse an event line, obfuscate it, and convert back to a line."""
         input_event = eventlog.parse_json_event(line)
-        deidentified_event = self._deidentify_event(input_event)
-        return eventlog.encode_json(deidentified_event).strip()
+        obfuscated_event = self._obfuscate_event(input_event)
+        return eventlog.encode_json(obfuscated_event).strip()
 
     def _filter_event(self, event):
         """Filter event using different event filtering criteria."""
@@ -192,12 +192,12 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
             for key, value in info.iteritems():
                 user_info[key].add(value)
             if 'user_id' in info:
-                return self.generate_deid_username_from_user_id(info['user_id'])
+                return self.generate_obfuscated_username_from_user_id(info['user_id'])
 
         return None
 
     def _get_log_string_for_event(self, event):
-        # Create a string to use when logging errors, to provide some context.
+        """Create a string to use when logging errors, to provide some context."""
         event_type = event.get('event_type')
         if isinstance(event_type, str):
             event_type = event_type.decode('utf8')
@@ -234,7 +234,6 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 event['username'] = REDACTED_USERNAME
 
         # Get the user_id from context, either as an int or None, and remap.
-        userid_entry = None
         user_id = self._get_user_id_as_int(event.get('context', {}).get('user_id'))
         if user_id is not None:
             user_info['user_id'].add(user_id)
@@ -258,13 +257,13 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                 if remapped_username is not None:
                     event['context']['username'] = remapped_username
                 else:
-                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username', context_username, debug_str)
+                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username',
+                              context_username, debug_str)
                     event['context']['username'] = REDACTED_USERNAME
 
         # Look into the event payload.
         if event_data:
             # Get the user_id from payload and remap.
-            event_userid_entry = None
             event_user_id = self._get_user_id_as_int(event_data.get('user_id'))
             if event_user_id is not None:
                 user_info['user_id'].add(event_user_id)
@@ -283,14 +282,15 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     if remapped_username is not None:
                         event_data[username_key] = remapped_username
                     else:
-                        log.error("Redacting unrecognized username for 'event.%s' field: '%s' %s", username_key, event_username, debug_str)
+                        log.error("Redacting unrecognized username for 'event.%s' field: '%s' %s",
+                                  username_key, event_username, debug_str)
                         event_data[username_key] = REDACTED_USERNAME
 
         # Finally return the fully-constructed dict.
         return user_info
 
-    def _deidentify_event(self, event):
-        """Deidentify event by removing/stubbing user information."""
+    def _obfuscate_event(self, event):
+        """Obfuscate event by removing/stubbing user information."""
 
         # Create a string to use when logging errors, to provide some context.
         debug_str = self._get_log_string_for_event(event)
@@ -315,7 +315,9 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         # Do remaining cleanup on the entire event payload (assuming user-based remapping has been done).
         if event_data:
             # Remove possibly sensitive payload fields (or fields we don't know how to clean).
-            for key in ['certificate_id', 'certificate_url', 'source_url', 'fileName', 'GET', 'POST', 'requesting_student_id', 'report_url', 'url', 'url_name']:
+            for key in [
+                    'certificate_id', 'certificate_url', 'source_url', 'fileName', 'GET', 'POST',
+                    'requesting_student_id', 'report_url', 'url', 'url_name']:
                 event_data.pop(key, None)
 
             for key in ['answer', 'saved_response']:
@@ -323,10 +325,10 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
                     event_data[key].pop('file_upload_key')
 
             # Clean up remaining event payload recursively.
-            updated_event_data = self.deidentifier.deidentify_structure(event_data, u"event", user_info)
+            updated_event_data = self.obfuscator.obfuscate_structure(event_data, u"event", user_info)
             if updated_event_data is not None:
-                if self.deidentifier.is_logging_enabled():
-                    log.info(u"Deidentified payload: %s", debug_str)
+                if self.obfuscator.is_logging_enabled():
+                    log.info(u"Obfuscated payload: %s", debug_str)
                 event_data = updated_event_data
 
             # Re-encode payload as a json string if it originally was one.
@@ -347,20 +349,20 @@ class DeidentifyCourseEventsTask(DeidentifierMixin, MultiOutputMapReduceJobTask)
         return [numpy]
 
 
-class EventDeidentificationTask(DeidentifierDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
-    """Wrapper task for course events deidentification."""
+class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
+    """Wrapper task for course events obfuscation."""
 
     course = luigi.Parameter(is_list=True)
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter()
     explicit_event_whitelist = luigi.Parameter(
-        config_path={'section': 'deidentification', 'name': 'explicit_event_whitelist'}
+        config_path={'section': 'obfuscation', 'name': 'explicit_event_whitelist'}
     )
 
     def requires(self):
         for course in self.course:
-            # we already have course events dumped separately, so each DeidentifyCourseEventsTask would have a different source.
-            filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course)
+            # We already have course events dumped separately, so each ObfuscateCourseEventsTask
+            # would have a different source.
             kwargs = {
                 'course': course,
                 'dump_root': self.dump_root,
@@ -372,4 +374,4 @@ class EventDeidentificationTask(DeidentifierDownstreamMixin, MapReduceJobTaskMix
                 'auth_user_path': self.auth_user_path,
                 'auth_userprofile_path': self.auth_userprofile_path,
             }
-            yield DeidentifyCourseEventsTask(**kwargs)
+            yield ObfuscateCourseEventsTask(**kwargs)
