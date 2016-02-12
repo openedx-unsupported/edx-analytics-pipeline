@@ -15,7 +15,7 @@
   gather_facts: False
 
   vars:
-    - repo: git@github.com:edx/edx-analytics-pipeline.git
+    - repo: https://github.com/edx/edx-analytics-pipeline.git
     - branch: master
     # - root_data_dir: /var/lib/analytics-tasks
     # - root_log_dir: /var/log/analytics-tasks
