@@ -1,0 +1,406 @@
+fields:
+- graded
+# - annotation_token_secret
+- giturl
+- edxnotes
+- source_file
+- course_edit_method
+- default_tab
+- in_entrance_exam
+- showanswer
+- display_name
+- video_speed_optimizations
+- chrome
+- tags
+- due
+- start
+# - xml_attributes
+- days_early_for_beta
+- max_attempts
+- text_customization
+- parent
+- format
+# - matlab_api_key
+# - xqa_key
+# - annotation_storage_url
+- use_latex_compiler
+- video_bumper
+- static_asset_path
+- name
+- show_reset_button
+- hide_from_toc
+- group_access
+- rerandomize
+- user_partitions
+- graceperiod
+- edxnotes_visibility
+- visible_to_staff_only
+- url_name
+- parent_url
+xblocks:
+  assets:
+    fields: []
+  about:
+    fields:
+    - editor
+    - source_code
+#  acid:
+#    fields:
+#    - settings
+#  acid_parent:
+#    fields:
+#    - settings
+#    has_children: true
+  annotatable:
+    fields: []
+#  book:
+#    fields: []
+  chapter:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  conditional:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  course:
+    fields:
+    - remote_gradebook
+    - course_survey_name
+    - teams_configuration
+    - enable_timed_exams
+    - discussion_link
+    - course_survey_required
+    - tabs
+    - mobile_available
+    - discussion_sort_alpha
+    - is_new
+    - discussion_topics
+    - enrollment_start
+    - entrance_exam_id
+    - enrollment_domain
+    - due_date_display_format
+    - entrance_exam_minimum_score_pct
+    - certificates_show_before_end
+    - max_student_enrollments_allowed
+    - minimum_grade_credit
+    - announcement
+    - certificates_display_behavior
+    - allow_anonymous
+    - is_proctored_enabled
+    - html_textbooks
+    - end
+    - invitation_only
+    - no_grade
+    - catalog_visibility
+    - entrance_exam_enabled
+    - certificates
+    - pre_requisite_courses
+    - advertised_start
+    - default_time_limit_minutes
+    - advanced_modules
+    - disable_progress_graph
+    - end_of_course_survey_url
+    - cert_html_view_overrides
+    - pdf_textbooks
+    - language
+    - facebook_url
+    - cert_name_long
+    - is_entrance_exam
+    - show_timezone
+    - enable_proctored_exams
+    - social_sharing_url
+    - display_organization
+    - show_calculator
+    - info_sidebar_name
+    - display_coursenumber
+    - allow_public_wiki_access
+    - enrollment_end
+    - is_time_limited
+    - hide_progress_tab
+    - exam_review_rules
+    - cosmetic_display_price
+    - ccx_connector
+    - issue_badges
+    - cert_name_short
+    - cert_html_view_enabled
+    - discussion_blackouts
+#    - video_upload_pipeline
+    - cohort_config
+    - enable_subsection_gating
+    - css_class
+#    - lti_passports
+    - allow_anonymous_to_peers
+    - self_paced
+    - enable_ccx
+    - course_image
+    - is_practice_exam
+    - org
+    - course
+    has_children: true
+  course_info:
+    fields:
+    - editor
+    - source_code
+#  crowdsource_hinter:
+#    fields: []
+#    has_children: true
+  custom_tag_template:
+    fields: []
+  customtag:
+    fields: []
+#  discuss:
+#    fields: []
+  discussion:
+    fields:
+    - sort_key
+    - discussion_category
+    - discussion_target
+    - discussion_id
+  done:
+    fields:
+    - align
+    - weight
+  edx-reverification-block:
+    fields:
+    - grace_period
+    - attempts
+  edx_sga:
+    fields:
+    - weight
+    - points
+    - staff_score
+  error:
+    fields: []
+#  google-calendar:
+#    fields:
+#    - default_view
+#    - calendar_id
+#  google-document:
+#    fields:
+#    - embed_code
+#    - alt_text
+#  hidden:
+#    fields: []
+  html:
+    fields:
+    - source_code
+    - editor
+    - filename
+  image:
+    fields: []
+  imageannotation:
+    fields:
+    - instructor_tags
+    - annotation_mode
+    - instructor_email
+  library:
+    fields:
+    - advanced_modules
+    has_children: true
+  library_content:
+    fields:
+    - source_library_id
+    - max_count
+    - capa_type
+    - source_library_version
+    - has_score
+    - mode
+    has_children: true
+  lti:
+    fields:
+    - description
+    - custom_parameters
+    - weight
+    - ask_to_send_email
+    - accept_grades_past_due
+    - button_text
+    - has_score
+    - hide_launch
+    - open_in_a_new_page
+    - launch_url
+    - lti_id
+    - ask_to_send_username
+  lti_consumer:
+    fields:
+    - description
+    - custom_parameters
+    - inline_height
+    - weight
+    - ask_to_send_username
+    - ask_to_send_email
+    - accept_grades_past_due
+    - button_text
+    - has_score
+    - hide_launch
+    - launch_target
+    - modal_width
+    - launch_url
+    - modal_height
+    - lti_id
+  openassessment:
+    fields:
+    - weight
+    - allow_latex
+    - submission_start
+    - submission_due
+  poll:
+    fields:
+    - answers
+  poll_question:
+    fields: []
+  problem:
+    fields:
+    - attempts
+    - markdown
+    - weight
+    - submission_wait_seconds
+    - source_code
+    - force_save_button
+    has_children: false
+  problemset:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  randomize:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+#  rate:
+#    fields:
+#    - p
+#    - prompts
+#  raw:
+#    fields: []
+  recommender:
+    fields: []
+  section:
+    fields: []
+  sequential:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+#  slides:
+#    fields: []
+  split_test:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  static_tab:
+    fields:
+    - editor
+    - source_code
+  survey:
+    fields:
+    - answers
+    - questions
+  textannotation:
+    fields:
+    - instructor_tags
+    - diacritics
+    - annotation_mode
+    - source
+    - instructor_email
+  vertical:
+    fields:
+    - is_entrance_exam
+    has_children: true
+  video:
+    fields:
+    - youtube_id_1_25
+    - show_captions
+    - sub
+    - youtube_id_0_75
+    - youtube_id_1_0
+    - source
+    - only_on_web
+    - youtube_id_1_5
+    - download_video
+    - track
+    - start_time
+    - html5_sources
+    - handout
+    - download_track
+    - end_time
+    - transcripts
+    - edx_video_id
+    - youtube
+    has_children: false
+#  videoalpha:
+#    fields:
+#    - youtube_id_1_25
+#    - show_captions
+#    - sub
+#    - youtube_id_0_75
+#    - youtube_id_1_0
+#    - source
+#    - only_on_web
+#    - youtube_id_1_5
+#    - download_video
+#    - track
+#    - start_time
+#    - html5_sources
+#    - handout
+#    - download_track
+#    - end_time
+#    - transcripts
+#    - edx_video_id
+#  videoannotation:
+#    fields:
+#    - sourceurl
+#    - annotation_mode
+#    - poster_url
+#    - instructor_email
+#  videodev:
+#    fields: []
+  videosequence:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  word_cloud:
+    fields:
+    - num_inputs
+    - num_top_words
+    - display_student_percents
+  wrapper:
+    fields:
+    - is_entrance_exam
+    has_children: true
+  wiki:
+    fields:
+    - slug
