@@ -316,32 +316,55 @@ class ObfuscateWikiArticleRevisionTask(ObfuscateSqlDumpTask):
 
 class XBlockConfigMixin(object):
 
-    xblock_config = luigi.Parameter(
-        config_path={'section': 'obfuscation', 'name': 'xblock_config'}
+    xblock_obfuscation_config = luigi.Parameter(
+        config_path={'section': 'obfuscation', 'name': 'xblock_obfuscation_config'}
     )
 
     def requires(self):
         reqs = super(XBlockConfigMixin, self).requires()
-        if os.path.basename(self.xblock_config) != self.xblock_config:
-            reqs['xblock_config'] = ExternalURL(self.xblock_config)
+        if os.path.basename(self.xblock_obfuscation_config) != self.xblock_obfuscation_config:
+            reqs['xblock_config'] = ExternalURL(self.xblock_obfuscation_config)
         return reqs
 
     @property
-    def xblock_whitelist_config(self):
+    def xblock_config(self):
         if not hasattr(self, '_xblock_config'):
-            with read_config_file(self.xblock_config) as xblock_config_file:
+            with read_config_file(self.xblock_obfuscation_config) as xblock_config_file:
                 self._xblock_config = yaml.load(xblock_config_file)
 
         return self._xblock_config
 
     @property
-    def course_field_whitelist(self):
-        if not hasattr(self, '_course_field_whitelist'):
-            self._course_field_whitelist = set(
-                self.xblock_whitelist_config['xblocks'].get('course', {}).get('fields', [])
-            )
-            self._course_field_whitelist.update(self.xblock_whitelist_config['fields'])
-        return self._course_field_whitelist
+    def field_lists(self):
+        if not hasattr(self, '_field_lists'):
+            self._field_lists = {}
+            for block_type, block_config in self.xblock_config['xblocks'].iteritems():
+                self._field_lists[block_type] = {
+                    'whitelist': frozenset(block_config.get('fields', []) + self._xblock_config.get('fields', [])),
+                    'blacklist': frozenset(block_config.get('exclude_fields', []) + self._xblock_config.get('exclude_fields', [])),
+                }
+
+        return self._field_lists
+
+    def get_field_list(self, block_type, list_type):
+        return self.field_lists.get(block_type, {}).get(list_type, frozenset())
+
+    def get_field_whitelist(self, block_type):
+        return self.get_field_list(block_type, 'whitelist')
+
+    def get_field_blacklist(self, block_type):
+        return self.get_field_list(block_type, 'blacklist')
+
+    def remove_fields_from_dict(self, block_type, dict_to_modify):
+        to_remove = frozenset(dict_to_modify.keys()) - self.get_field_whitelist(block_type)
+        for attribute in to_remove:
+            dict_to_modify.pop(attribute)
+            if attribute in self.get_field_blacklist(block_type):
+                log.info('Removed blacklisted attribute "{0}" from "{1}"'.format(attribute, block_type))
+            else:
+                log.warning('Removed unknown attribute "{0}" from "{1}"'.format(attribute, block_type))
+
+        return to_remove
 
 
 class CourseStructureTask(XBlockConfigMixin, BaseObfuscateDumpTask):
@@ -357,16 +380,22 @@ class CourseStructureTask(XBlockConfigMixin, BaseObfuscateDumpTask):
                 course_structure = json.load(input_file)
                 for block_id, block_structure in course_structure.iteritems():
                     category = block_structure.get('category')
+                    metadata = block_structure.get('metadata', {})
                     if category == 'course':
-                        metadata = block_structure.get('metadata', {})
-                        to_remove = frozenset(metadata.keys()) - self.course_field_whitelist
-                        for attribute in to_remove:
-                            metadata.pop(attribute)
-                            log.info('Removed course attribute "{0}"'.format(attribute))
-                    elif category not in self.xblock_whitelist_config['xblocks']:
-                        block_structure['metadata'] = {}
-                        block_structure['redacted'] = True
-                        log.info('Removed metadata from unrecognized block "{0}"'.format(category))
+                        removed_fields = self.remove_fields_from_dict(category, metadata)
+                    elif category not in self.xblock_config['xblocks']:
+                        removed_fields = set(metadata.keys())
+                        for key in removed_fields:
+                            del metadata[key]
+                        if category in self.xblock_config.get('exclude_xblocks', set()):
+                            log.info('Removed metadata from blacklisted block "{0}"'.format(category))
+                        else:
+                            log.info('Removed metadata from unknown block "{0}"'.format(category))
+                    else:
+                        removed_fields = set()
+
+                    if len(removed_fields) > 0:
+                        block_structure['redacted_metadata'] = list(removed_fields)
 
                 json.dump(course_structure, output_file)
 
@@ -403,6 +432,7 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
     def clean_drafts(self, root_dir):
         drafts_path = os.path.join(root_dir, 'drafts')
         if os.path.exists(drafts_path):
+            log.info('Removing all drafts')
             shutil.rmtree(drafts_path)
 
     def read_course_url_name(self, root_dir):
@@ -412,17 +442,16 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
         return course_url_name
 
     def clean_course_policy(self, course_url_name, policy_file_path):
+        log.info('Cleaning course policy file "{0}"'.format(policy_file_path))
         with open(policy_file_path, 'r') as policy_file:
             policy = json.load(policy_file)
             course_root_policy = policy.get('course/' + course_url_name, {})
-            to_remove = frozenset(course_root_policy.keys()) - self.course_field_whitelist
-            for attribute in to_remove:
-                course_root_policy.pop(attribute)
-                log.info('Removed course attribute "{0}" in file "{1}"'.format(attribute, policy_file_path))
+            self.remove_fields_from_dict('course', course_root_policy)
         with open(policy_file_path, 'w') as policy_file:
             json.dump(policy, policy_file)
 
     def clean_xml_files(self, root_dir):
+        log.info('Cleaning XML files')
         xml_file_paths = [target.path for target in PathSetTask([root_dir], ['*.xml']).output()]
         for xml_file_path in xml_file_paths:
             et = xml.etree.ElementTree.parse(xml_file_path)
@@ -431,28 +460,37 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
             et.write(xml_file_path)
 
     def clean_element(self, element):
-        block_config = self.xblock_whitelist_config['xblocks'].get(element.tag)
+        block_config = self.xblock_config['xblocks'].get(element.tag)
+        removed_fields = set()
+        removed_children = set()
         if not block_config:
-            log.info('Unrecognized element "{0}", removing all attributes and children'.format(element.tag))
+            if element.tag in self.xblock_config.get('exclude_xblocks', set()):
+                log.info('Blacklisted element "{0}", removing all attributes and children'.format(element.tag))
+            else:
+                log.warning('Unrecognized element "{0}", removing all attributes and children'.format(element.tag))
+
             for attribute in element.attrib.keys():
                 if attribute != 'url_name':
                     element.attrib.pop(attribute)
+                    removed_fields.add(attribute)
             for child in element:
+                removed_children.add(child.tag)
                 element.remove(child)
 
-            element.set("redacted", "true")
+            element.set("redacted_attributes", "true")
         else:
-            fields = set(block_config.get('fields', []))
-            fields.update(self.xblock_whitelist_config['fields'])
-            attributes_to_remove = frozenset(element.attrib.keys()) - fields
-            for attribute in attributes_to_remove:
-                element.attrib.pop(attribute)
-                log.info('Removed unrecognized attribute "{0}" on element "{1}"'.format(attribute, element.tag))
+            removed_fields = self.remove_fields_from_dict(element.tag, element.attrib)
 
             if block_config.get('has_children', True):
                 for child_element in element:
-                    if child_element.tag not in fields:
+                    if child_element.tag not in block_config.get('fields', []):
                         self.clean_element(child_element)
+
+        if len(removed_fields) > 0:
+            element.set("redacted_attributes", ",".join(removed_fields))
+
+        if len(removed_children) > 0:
+            element.set("redacted_children", ",".join(removed_children))
 
 
 class ObfuscateMongoDumpsTask(BaseObfuscateDumpTask):
