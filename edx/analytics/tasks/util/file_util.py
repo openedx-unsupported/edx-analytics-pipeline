@@ -2,29 +2,15 @@
 Utility methods interact with files.
 """
 import logging
+import os
+from contextlib import contextmanager
+
+import sys
+
+from edx.analytics.tasks.url import get_target_from_url
 
 TRANSFER_BUFFER_SIZE = 1024 * 1024  # 1 MB
 log = logging.getLogger(__name__)
-
-
-class FileCopyMixin(object):
-    """Task to copy input file to output."""
-
-    def run(self):
-        """Copies input to output using using a fixed buffer."""
-
-        def report_progress(num_bytes):
-            """Update hadoop counters as the file is written"""
-            self.incr_counter('FileCopyTask', 'Bytes Written to Output', num_bytes)
-
-        input_target = self.input()
-
-        if hasattr(self, 'file_input_target'):
-            input_target = self.file_input_target
-
-        with self.output().open('w') as output_file:
-            with input_target.open('r') as input_file:
-                copy_file_to_file(input_file, output_file, progress=report_progress)
 
 
 def copy_file_to_file(src_file, output_file, progress=None):
@@ -44,3 +30,16 @@ def copy_file_to_file(src_file, output_file, progress=None):
         else:
             break
     log.info('Copy to output complete')
+
+
+@contextmanager
+def read_config_file(filename):
+    """Read a config file from either an external source (S3, HDFS etc) or the "share" directory of this repo."""
+    if os.path.basename(filename) != filename:
+        target = get_target_from_url(filename)
+        with target.open('r') as config_file:
+            yield config_file
+    else:
+        file_path = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks', filename)
+        with open(file_path, 'r') as config_file:
+            yield config_file

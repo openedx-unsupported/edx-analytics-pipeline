@@ -290,6 +290,7 @@ class FindMatchesTestCase(unittest.TestCase):
 
     @data(
         ('the best is what I am', 'I am the Beast'),
+        ('the best is what I am', 'I am The Beast'),
         # These are example overflags:
         # ('a mark on your paper', 'Mark Last'),
         # ('he said you would come', 'Said Last'),
