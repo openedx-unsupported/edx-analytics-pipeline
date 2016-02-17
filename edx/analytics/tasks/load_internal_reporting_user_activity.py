@@ -108,8 +108,8 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     @property
     def columns(self):
         return [
-            ('user_id', 'INTEGER'),
-            ('course_id', 'VARCHAR(256)'),
+            ('user_id', 'INTEGER NOT NULL'),
+            ('course_id', 'VARCHAR(256) NOT NULL'),
             ('date', 'DATE'),
             ('activity_type', 'VARCHAR(200)'),
             ('number_of_activities', 'INTEGER')
