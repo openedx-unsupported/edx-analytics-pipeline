@@ -2,12 +2,12 @@
 
 import base64
 import random
+import logging
 import luigi
 try:
     import numpy as np
 except ImportError:
     np = object
-    import logging
     log = logging.getLogger(__name__)
     log.warn('Could not import numpy, any code that relies on it in this module will fail.')
 

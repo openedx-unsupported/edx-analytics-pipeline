@@ -4,10 +4,10 @@ Tests for data obfuscation tasks.
 
 
 import json
-from mock import MagicMock, sentinel
 import os
 import shutil
 import tempfile
+from mock import MagicMock, sentinel
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.target import FakeTarget

@@ -134,7 +134,7 @@ class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
                     # occurs after course_files_path substring in target's path.
                     # Needed as target.path returns path with urlscheme for s3target & without for hdfstarget.
                     # Examples:
-                    # target.path: /edx-analytics-pipeline/output/edX_Demo_Course/events/edX_Demo_Course-events-2015-08-30.log.gz
+                    # target.path: /pipeline/output/edX_Demo_Course/events/edX_Demo_Course-events-2015-08-30.log.gz
                     # relative_path: events/edX_Demo_Course-events-2015-08-30.log.gz
                     # target.path: s3://some_bucket/output/edX_Demo_Course/state/2015-11-25/edX-Demo-Course-auth_user-prod-analytics.sql
                     # relative_path: state/2015-11-25/edX-Demo-Course-auth_user-prod-analytics.sql
@@ -156,7 +156,7 @@ class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
 
             with self.output().open('w') as output_file:
                 with make_encrypted_file(
-                        output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir
+                    output_file, key_file_targets, progress=report_encrypt_progress, dir=self.temporary_dir
                 ) as encrypted_output_file:
                     with tarfile.open(mode='w:gz', fileobj=encrypted_output_file) as output_archive_file:
                         output_archive_file.add(tmp_directory, arcname='')
@@ -171,7 +171,7 @@ class MultiCourseObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.WrapperTa
     course = luigi.Parameter(is_list=True)
 
     def requires(self):
-        for course in self.course:
+        for course in self.course:   # pylint: disable=not-an-iterable
             yield ObfuscatedCourseTask(
                 course=course,
                 dump_root=self.dump_root,
@@ -193,7 +193,7 @@ class MultiCourseObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Wrapper
     temporary_dir = luigi.Parameter(default=None)
 
     def requires(self):
-        for course in self.course:
+        for course in self.course:   # pylint: disable=not-an-iterable
             yield ObfuscatedPackageTask(
                 course=course,
                 obfuscated_output_root=self.obfuscated_output_root,

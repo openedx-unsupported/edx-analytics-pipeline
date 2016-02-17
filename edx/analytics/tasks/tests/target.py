@@ -43,4 +43,5 @@ class FakeTask(object):
         self.target = FakeTarget(path=path, value=value)
 
     def output(self):
+        """Return FakeTarget for use in tests."""
         return self.target

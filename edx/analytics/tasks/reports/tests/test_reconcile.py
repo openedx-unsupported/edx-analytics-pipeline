@@ -319,7 +319,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
     # Single ORDERITEM tests:
     ###################################
 
-    #### Single purchase ####
+    # Single purchase #
 
     def test_normal_purchase(self):
         orderitem = self.create_orderitem()
@@ -390,7 +390,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'transaction_audit_code': 'REFUND_FIRST' if amount != '-50.00' else 'REFUND_NEVER_PURCHASED',
         })
 
-    #### Two purchases ####
+    # Two purchases #
 
     @data(
         (False, '100.00', 'PURCHASE_FIRST', 'ERROR_PURCHASED_BALANCE_NOT_MATCHING_OVER_CHARGE'),
@@ -425,7 +425,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'orderitem_audit_code': 'PURCHASED_BALANCE_MATCHING',
         })
 
-    #### One purchase and one refund ####
+    # One purchase and one refund #
 
     def test_normal_refund(self):
         orderitem = self.create_orderitem(is_refunded=True)
@@ -459,7 +459,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'orderitem_audit_code': orderitem_status
         })
 
-    #### One purchase and two refunds ####
+    # One purchase and two refunds #
 
     @data(
         (True, '-100.00', 'REFUND_FIRST', 'ERROR_REFUNDED_BALANCE_NOT_MATCHING_OVER_REFUND'),

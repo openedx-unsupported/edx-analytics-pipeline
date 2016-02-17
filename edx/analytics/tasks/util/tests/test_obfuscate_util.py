@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """Tests for obfuscation utilities."""
 
+import textwrap
 from ddt import data, ddt, unpack
 from mock import MagicMock, patch
-import textwrap
 
 from edx.analytics.tasks.tests import unittest
 import edx.analytics.tasks.util.obfuscate_util as obfuscate_util
@@ -29,13 +29,45 @@ class BackslashHandlingTestCase(unittest.TestCase):
 
     @data(
         'This is a test.\\nThis is another.',
+        # 'This is a test.\\\nThis is another.',
         'This is a test.\\\\\\nThis is another.',
         u'This is a test.\\nThis is another.',
         u'This is a test.\\\\\\nThis is another.',
-        u'This is a \u00e9 test.\\\\nThis is another.',        
+        u'This is a \u00e9 test.\\\\nThis is another.',
     )
     def test_decoding_round_trip(self, text):
         self.assertEquals(text, obfuscate_util.backslash_encode_value(obfuscate_util.backslash_decode_value(text)))
+
+    @data(
+        'This is a test.\\nThis is another.',
+        'This is a test.\\\nThis is another.',
+        'This is a test.\\\\\\nThis is another.',
+        u'This is a test.\\nThis is another.',
+        u'This is a test.\\\\\\nThis is another.',
+        u'This is a \u00e9 test.\\\\nThis is another.',
+    )
+    def test_encoding_round_trip(self, text):
+        self.assertEquals(text, obfuscate_util.backslash_decode_value(obfuscate_util.backslash_encode_value(text)))
+
+    @data(
+        ('Test1\nTest2', 'Test1\\nTest2'),
+        ('Test1\\nTest2', 'Test1\\\\nTest2'),
+        ('Test1\\\nTest2', 'Test1\\\\\\nTest2'),
+    )
+    @unpack
+    def test_encoding(self, text, expected_result):
+        self.assertEquals(obfuscate_util.backslash_encode_value(text), expected_result)
+
+    @data(
+        ('Test1\\nTest2', 'Test1\nTest2'),
+        ('Test1\\\nTest2', 'Test1\\\nTest2'),
+        ('Test1\\\\nTest2', 'Test1\\nTest2'),
+        ('Test1\\\\\nTest2', 'Test1\\\nTest2'),
+        ('Test1\\\\\\nTest2', 'Test1\\\nTest2'),
+    )
+    @unpack
+    def test_decoding(self, text, expected_result):
+        self.assertEquals(obfuscate_util.backslash_decode_value(text), expected_result)
 
 
 @ddt
@@ -82,7 +114,7 @@ class FindMatchesTestCase(unittest.TestCase):
         self.assertEquals(expected, result)
 
     @data(
-        ##  These overflags need to be fixed:
+        # These overflags need to be fixed:
         # 'http://link.springer.com/article/10.1007%2Fs13524-014-0321-x',
         # u' Mindfulness, 1 \\u2013 8. DOI 10.1007/s12671-015-0408-5\nMarlatt, A. G., & Donavon, D. M. (2005)',
         # 'ISBN 0-813 2410-7',
@@ -127,6 +159,7 @@ class FindMatchesTestCase(unittest.TestCase):
         '123456789@example.com',
         'this_is_a_test@example.com',
         't0e1s2t3@test.abc.dk',
+        'First.Last@example.co.uk',
     )
     def test_find_simple_emails(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
@@ -136,9 +169,9 @@ class FindMatchesTestCase(unittest.TestCase):
 
     @data(
         'Twitter at @username.',
-        ##  These overflags need to be fixed:
-        # edx.org/asset-v1:edX+DemoX+1T2015+type@asset+block@File-Name.pdf
-        # https://www.google.ro/maps/place/Romania/@45.1234567,25.0123456,4z/
+        # These overflags need to be fixed:
+        #  edx.org/asset-v1:edX+DemoX+1T2015+type@asset+block@File-Name.pdf
+        #  https://www.google.ro/maps/place/Romania/@45.1234567,25.0123456,4z/
     )
     def test_skip_non_emails(self, text):
         raw = self.SIMPLE_CONTEXT.format(text)
@@ -150,6 +183,11 @@ class FindMatchesTestCase(unittest.TestCase):
             'https://example.com/stream?q=user:acct:person@example.com',
             'https://example.com/stream?q=user:acct:<<EMAIL>>'
         ),
+        (' (mailto:course@organization.edu), ', ' (mailto:<<EMAIL>>), '),
+        # At some point, it would be good to broaden the target for email
+        # matching to include mail headers that include a full name.  I.e.:
+        # 'From: "First Last" <firstlast@example.com.au>' =>
+        #  'From: <<EMAIL>>' instead of 'From: "First Last" <<<EMAIL>>>'.
     )
     @unpack
     def test_find_emails_in_context(self, text, result):
@@ -169,6 +207,11 @@ class FindMatchesTestCase(unittest.TestCase):
         ('USERNAME', 'username'),
         ('Username1234', 'username1234'),
         ('User-name', 'user-name'),
+        # We do not expect there to be usernames with non-ascii characters.
+        # ('Øyaland'.decode('utf8'), 'Øyaland'.decode('utf8')),
+        # However, there are usernames that contain leading and/or trailing dashes, and this
+        # confuses the regex as well.  That's because the \b boundaries don't match properly.
+        # ('-User-name-', '-user-name-'),
     )
     @unpack
     def test_find_simple_usernames(self, text, username):
@@ -233,6 +276,7 @@ class FindMatchesTestCase(unittest.TestCase):
         ('MacLast', 'First MacLast'),
         ('Björk'.decode('utf8'), 'Björn Björk'.decode('utf8')),
         ('Olav Øyaland'.decode('utf8'), 'Olav Øyaland'.decode('utf8')),
+        ('Øyaland'.decode('utf8'), 'Øyaland'.decode('utf8')),
         (u'T\u00e9st', u'my t\u00e9st'),
         # Nicknames and alternate forms of names are not found.
         # ('My name is Rob', 'Robert Last'),
@@ -246,7 +290,7 @@ class FindMatchesTestCase(unittest.TestCase):
 
     @data(
         ('the best is what I am', 'I am the Beast'),
-        ##  These are overflags.
+        # These are example overflags:
         # ('a mark on your paper', 'Mark Last'),
         # ('he said you would come', 'Said Last'),
         # ('he felt great joy', 'Joy Last'),
@@ -389,7 +433,7 @@ DEFAULT_AUTH_USER_PROFILE = """
 
 def get_mock_user_info_requirements(auth_user=DEFAULT_AUTH_USER, auth_user_profile=DEFAULT_AUTH_USER_PROFILE):
     """Replacement for get_user_info_requirements for testing purposes."""
-    
+
     def reformat_as_sqoop_output(string):
         """Convert tab-delimited data to look like Sqoop output."""
         return textwrap.dedent(string).strip().replace('\t', '\x01')

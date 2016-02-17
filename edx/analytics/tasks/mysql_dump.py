@@ -164,7 +164,10 @@ class MysqlSelectTask(luigi.Task):
         """
         converted_value = u'-'
         if value is not None:
-            converter = lambda x: x  # Noop
+
+            def converter(value):
+                """Provide default no-op conversion."""
+                return value
             for converter_spec in self.converters:
                 if isinstance(value, converter_spec[0]):
                     converter = converter_spec[1]

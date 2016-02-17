@@ -1,5 +1,21 @@
+"""
+Standalone script for applying low-level obfuscation to database dump and event files.
+
+Used in the development of database and event obfuscation.
+
+Makes use of external user information.
+
+  - For events, takes a "userinfo" argument, which points to a local file that contains
+    the results of a SQL query against the LMS prod replica.
+
+    "select au.username, au.email, aup.user_id, aup.name from auth_userprofile aup inner join auth_user au on au.id = aup.user_id"
+
+  - For database dumps, if "fullname" argument is specified, the auth_userprofile dump file is
+    read from the same directory as the database dump being analyzed.
+
+"""
+
 import argparse
-import cjson
 from collections import namedtuple, defaultdict
 from cStringIO import StringIO
 import errno
@@ -8,9 +24,10 @@ import gzip
 import json
 import logging
 import os
-from pyinstrument import Profiler
 import sys
 
+from pyinstrument import Profiler
+import cjson
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
@@ -87,6 +104,7 @@ UserProfileRecord = namedtuple('UserProfileRecord', USERPROFILE_FIELDS)  # pylin
 
 
 def load_user_profile(userprofile_path):
+    """Loads a per-course dump of user-profile data (not a Sqoop dump)."""
     result = {}
     with open(userprofile_path, 'r') as infile:
         for line in infile:
@@ -195,7 +213,6 @@ class BulkObfuscator(object):
 
     def obfuscate_event_file(self, input_target, output_dir):
         # Check for loading user_profile:
-        user_profile = None
         self.missing_profile = defaultdict(int)
 
         input_filepath = input_target.path
@@ -207,22 +224,22 @@ class BulkObfuscator(object):
                     # read into a buffer. (We assume the file is small
                     # enough to fit in memory.)
                     gzip_bytes = infile.read()
-                    buffer = StringIO(gzip_bytes)
-                    buffer.seek(0)
-                    infile = gzip.GzipFile(fileobj=buffer)
+                    read_buffer = StringIO(gzip_bytes)
+                    read_buffer.seek(0)
+                    infile = gzip.GzipFile(fileobj=read_buffer)
                 else:
                     infile = gzip.GzipFile(fileobj=infile)
 
             if output_dir is None:
                 for line in infile:
-                    self.obfuscate_event_entry(line, user_profile)
+                    self.obfuscate_event_entry(line)
             else:
                 filename = os.path.basename(input_filepath)
                 output_path = os.path.join(output_dir, filename)
                 with open(output_path, 'w') as output_file:
                     with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
                         for line in infile:
-                            clean_line = self.obfuscate_event_entry(line, user_profile)
+                            clean_line = self.obfuscate_event_entry(line)
                             outfile.write(clean_line)
                             outfile.write('\n')
         for key in sorted(self.missing_profile.iterkeys()):
@@ -272,7 +289,7 @@ class BulkObfuscator(object):
                 elif username_entry and userid_entry != username_entry:
                     log.error(
                         u"user_id ('%s'='%s') does not match username ('%s'='%s') %s",
-                        userid_entry.user_id, userid_entry.username, username_entry.username, username_entry.user_id, debug_str,
+                        userid_entry.get('user_id'), userid_entry.get('username'), username_entry.get('username'), username_entry.get('user_id'), debug_str,
                     )
 
         event_userid_entry = None
@@ -295,7 +312,7 @@ class BulkObfuscator(object):
                     if event_type not in EVENT_TYPES_WITH_DIFFERENT_USERIDS:
                         log.error(
                             u"Context user_id ('%s'='%s') does not match event user_id ('%s'='%s') %s",
-                            userid_entry.user_id, userid_entry.username, event_userid_entry.username, event_userid_entry.user_id, debug_str,
+                            userid_entry.get('user_id'), userid_entry.get('username'), event_userid_entry.get('username'), event_userid_entry.get('user_id'), debug_str,
                         )
                 elif event_user_id != user_id:
                     log.error(u"Found user_id ('%s') in event that was different from context ('%s') %s", event_user_id, user_id, debug_str)
@@ -308,7 +325,7 @@ class BulkObfuscator(object):
         else:
             return username_entry
 
-    def obfuscate_event_entry(self, line, user_profile):
+    def obfuscate_event_entry(self, line):
         event = eventlog.parse_json_event(line)
         if event is None:
             # Unexpected here...
@@ -532,7 +549,8 @@ class BulkObfuscator(object):
             return ""
 
         # Get user information:
-        user_info = {'username': [entry.get('author_username'), ]}
+        username = entry.get('author_username')
+        user_info = {'username': [username, ]}
         profile_entry = None
         if user_profile is not None:
             user_id = entry.get('author_id')
@@ -574,7 +592,7 @@ def main():
     )
     arg_parser.add_argument(
         '-u', '--userinfo',
-        help='Read a custom user-info file from the local fs that contains username, email, user-id, fullname.',
+        help='For events, read a custom user-info file from the local fs that contains username, email, user-id, fullname.',
         default=None
     )
     arg_parser.add_argument(

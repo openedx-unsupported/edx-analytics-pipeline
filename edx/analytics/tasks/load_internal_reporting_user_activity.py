@@ -203,13 +203,15 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
         warehouse loading task even if the view-building task has been built, and thus we require the warehouse load
         task here too.
         """
-        return [LoadInternalReportingUserActivityToWarehouse(
-            n_reduce_tasks=self.n_reduce_tasks,
-            interval=self.interval,
-            warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
-            schema=self.schema,
-            credentials=self.credentials),
+        return [
+            LoadInternalReportingUserActivityToWarehouse(
+                n_reduce_tasks=self.n_reduce_tasks,
+                interval=self.interval,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite,
+                schema=self.schema,
+                credentials=self.credentials
+            ),
             BuildInternalReportingUserActivityCombinedView(
                 n_reduce_tasks=self.n_reduce_tasks,
                 interval=self.interval,

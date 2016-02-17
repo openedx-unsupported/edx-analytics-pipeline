@@ -124,7 +124,7 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         return OverwriteAwareHiveQueryRunner()
 
 
-#TODO: rename this to HiveTableTask once the old one is removed
+# TODO: rename this to HiveTableTask once the old one is removed
 class BareHiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     """
     Abstract class that represents the metadata associated with a Hive table.

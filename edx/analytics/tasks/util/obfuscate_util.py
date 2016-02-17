@@ -116,11 +116,11 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                 try:
                     _USER_BY_ID[user_id]['name'] = name
                 except KeyError:
-                    # TODO: Look at whether this will break if the userprofile is more recent than the
-                    # auth_user file.  (We have no guarantee that they are dumped at the same time,
-                    # though we presume they were dumped on the same day, and presumably closer in time than that.)
-                    # So is this what we want the behavior to be?  Or rather to just not have a username for
-                    # this id?
+                    # Note that the userprofile may be more recent than the # auth_user file.
+                    # We have no guarantee that they are dumped at the same time, though we presume
+                    # they were dumped on the same day, and presumably closer in time than that.
+                    # It is presumed that none of these entries really matter, since they're after the
+                    # auth_user dump.
                     log.error("Unknown value for user_id read from auth_user_profile file: %s '%s'", user_id, name)
 
             log.info("Finished loading %s auth_userprofile records from %s into user_info data.",
@@ -174,7 +174,14 @@ class ObfuscatorMixin(UserIdRemapperMixin, ObfuscatorDownstreamMixin, UserInfoMi
 def backslash_decode_value(value):
     """Implement simple backslash decoding, similar to .decode('string_escape')."""
     # Assume that '<<BACKSLASH>>' doesn't appear in the text.
-    return value.replace('\\\\', '<<BACKSLASH>>').replace('\\r', '\r').replace('\\t', '\t').replace('\\n', '\n').replace('<<BACKSLASH>>', '\\')
+    return (
+        value
+        .replace('\\\\', '<<BACKSLASH>>')
+        .replace('\\r', '\r')
+        .replace('\\t', '\t')
+        .replace('\\n', '\n')
+        .replace('<<BACKSLASH>>', '\\')
+    )
 
 
 def backslash_encode_value(value):
@@ -241,10 +248,11 @@ def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
 # First digit cannot be '1'.  Leave off extensions for now.  Requires
 # a delimiter.  Permit a leading 1 or +1.  Won't match (123)456-7890
 # because of the leading 1.  No one would write (123).456 or
-# (123)-456, so make that optional.
+# (123)-456, so make that optional.  Note there is no use of dot in
+# the seven-digit phone number form: it's too much like a float.
 US_PHONE_PATTERN = r"""(?:\+?1\s*(?:[.\- ]?\s*)?)?  # possible leading "+1"
                        (?:\([2-9]\d{2}\)\s*|[2-9]\d{2}\s*(?:[.\- ]\s*))?  # 3-digit area code, in parens or not
-                       \b\d{3}\s*(?:[\- ]\s*)\d{4}"""   # regular 7-digit phone.  Note no use of dot here: too much like a float.
+                       \b\d{3}\s*(?:[\- ]\s*)\d{4}"""   # regular 7-digit phone.
 
 
 # INTL_PHONE_PATTERN = r'\b(\+(9[976]\d|8[987530]\d|6[987]\d|5[90]\d|42\d|3[875]\d|2[98654321]\d|9[8543210]'
@@ -266,24 +274,12 @@ def find_phone_numbers(text, log_context=DEFAULT_LOG_CONTEXT):
 # EMAIL
 #####################
 
-# TODO: collapse this down to a single regex.  We don't need two.
-SIMPLE_EMAIL_PATTERN = r'((?<=\s)([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)\.(?:edu|com|org)\b)'
-# ORIG_EMAIL_PATTERN = r'(.*)\s+(([a-zA-Z0-9\(\.\-]+)[@]([a-zA-Z0-9\.]+)(.)(edu|com))\\s*(.*)'
-
-COMPILED_SIMPLE_EMAIL_PATTERN = re.compile(SIMPLE_EMAIL_PATTERN, re.IGNORECASE)
-
 # http://www.regular-expressions.info/email.html
-# LESS_SIMPLE_EMAIL_PATTERN = r'\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b'
-LESS_SIMPLE_EMAIL_PATTERN = r"""\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*
-                                @
-                                (?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b"""
+EMAIL_PATTERN = r"""\b[a-z0-9!#$%&\'*+\/\=\?\^\_\`\{\|\}\~\-]+(?:\.[a-z0-9!#$%&\'*+\/\=?^_`{|}~-]+)*
+                 @
+                 (?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\b"""
 
-COMPILED_EMAIL_PATTERN = re.compile(LESS_SIMPLE_EMAIL_PATTERN, re.IGNORECASE + re.VERBOSE)
-
-# TODO: retire this once find_emails is shown to work.
-def find_simple_emails(text, log_context=DEFAULT_LOG_CONTEXT):
-    """Replaces substrings in text that look like simple email addresses."""
-    return find_all_matches(COMPILED_SIMPLE_EMAIL_PATTERN, text, "ORIG_EMAIL", log_context)
+COMPILED_EMAIL_PATTERN = re.compile(EMAIL_PATTERN, re.IGNORECASE + re.VERBOSE)
 
 
 def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
@@ -295,17 +291,6 @@ def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
     else:
         return text
 
-# TODO:  add some of these, if they are still relevant, then delete.
-# Some failures:
-#
-# Regular is too limited, so it truncates:
-# Found EMAIL:  ed to my account in <<blah@yahoomail.com>>.au
-
-# But extended doesn't deal well with case!
-# Found POSSIBLE_EMAIL:  il me at First.L<<ast@example.co.uk>>.
-
-# Leaving off name that precedes, as in email headers:
-# Found POSSIBLE_EMAIL:  rom: "First Last" <<<firstlast@example.com.au>>>
 
 #####################
 # username
@@ -313,9 +298,9 @@ def find_emails(text, log_context=DEFAULT_LOG_CONTEXT):
 
 
 def find_username(text, username, log_context=DEFAULT_LOG_CONTEXT):
-    """Replaces the provided username value as it appears in text."""    
+    """Replaces the provided username value as it appears in text."""
     username_pattern = re.compile(
-        r'\b({})\b'.format(username),
+        r'\b({})\b'.format(re.escape(username)),
         re.IGNORECASE,
     )
     return find_all_matches(username_pattern, text, "USERNAME", log_context)
@@ -339,8 +324,10 @@ def find_userid(text, user_id, log_context=DEFAULT_LOG_CONTEXT):
 # user profile => fullname
 #####################
 
-# Note the addition of the '$' at the
-# end: match() only constrains the beginning.
+# Define the set of characters that we're willing to accept (and
+# handle) in fullnames.  Note the addition of the '$' at the end:
+# match() only constrains the beginning.  This punctuation in this
+# list should match the punctuation remapped below (on fullname2).
 LEGAL_NAME_PATTERN = re.compile(r"[\w. \-\'\(\)\,\*\"]+$", re.UNICODE)
 
 # Cache a set of names that have been rejected, so that we don't retry
@@ -353,7 +340,7 @@ STOPWORDS = ['the', 'and', 'can']
 
 
 def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
-    """Culls names from auth_user_profile.name and replaces them in text."""
+    """Culls 'fullnames' originally from auth_userprofile.name and replaces them in text."""
 
     if fullname in REJECTED_NAMES:
         return text
@@ -362,18 +349,22 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # For the purposes of finding matches, just strip these out.
     # s/o = son of, d/o = daughter of, Others are: a/l = son of (Malay),
     # a/p = daughter of (Malay).  Also a/k, w/o.
-    fullname2 = re.sub(r'\b(?:s\/o|d\/o|a\/l|a\/p|a\/k|w\/o)\b', ' ', fullname, flags=re.IGNORECASE)
+    fullname2 = re.sub(r'\b(?:s\/o|d\/o|a\/l|a\/p|a\/k|w\/o)\b', ' ', fullname, flags=re.IGNORECASE + re.UNICODE)
 
-    # Check the name for bogus characters.  They may have special meanings if
-    # embedded in a regexp.  (We should probably be escaping any periods,
-    # if we were even including them.)  In fact, we should be using re.escape.
-    # TODO: switch to use re.escape.
+    # Check the name for characters we're not yet prepared to handle.
+    # They may have special meanings if embedded in a regexp.  (We
+    # should probably be escaping any periods, if we were even
+    # including them.)  In future, it may be enough to determine the subset
+    # of punctuation we want to strip, and then use re.escape for
+    # the remainder.  We might then no longer need this check.
+    # TODO: switch to using re.escape.
+    # TODO: also switch to regex instead of re, for better Unicode support.
     if not LEGAL_NAME_PATTERN.match(fullname2):
         log.error(u"Fullname '%r' contains unexpected characters.", fullname)
         REJECTED_NAMES.add(fullname)
         return text
 
-    # Strip parentheses and comma and the like, and escape the characters that are
+    # Strip parentheses and commas and the like, and escape the characters that are
     # legal in names but may have different meanings in regexps (i.e. apostrophe and period).
     fullname2 = (
         fullname2
@@ -500,7 +491,7 @@ class Obfuscator(object):
 
         Logging outside includes providing information about the source of the data being obfuscated.
         """
-        return (self.log_context > 0)
+        return self.log_context > 0
 
     def obfuscate_text(self, text, user_info=None, log_context=None, entities=None):
         """
@@ -538,7 +529,6 @@ class Obfuscator(object):
         # Names can appear in emails and identifying urls, so find them before the names.
         if 'email' in entities:
             text = find_emails(text, log_context)
-            text = find_simple_emails(text, log_context)
         if 'facebook' in entities:
             text = find_facebook(text, log_context)
 

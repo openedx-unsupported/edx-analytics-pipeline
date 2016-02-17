@@ -62,7 +62,10 @@ class StudentModulePerCourseTestCase(unittest.TestCase):
 
         # Verify addition of new lines at the end of each row
         calls = mock_output_file.write.mock_calls
-        get_argument = lambda call: call[1][0]
+
+        def get_argument(call):
+            """Pull out first argument in call."""
+            return call[1][0]
         result = ''.join(get_argument(c) for c in calls).split('\n')
 
         result_header = result[0]

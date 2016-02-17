@@ -1,14 +1,15 @@
 """Obfuscate course event files by removing/stubbing user information."""
 
-import logging
-import re
-import luigi
-import luigi.date_interval
 import gzip
-import cjson
+import logging
 import os
+import re
 import sys
 from collections import namedtuple, defaultdict
+
+import cjson
+import luigi
+import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
@@ -54,7 +55,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
 
-        self.explicit_events = []
+        self.explicit_events = set()
         if self.input_local().get('explicit_events') is not None:
             with self.input_local()['explicit_events'].open('r') as explicit_events_file:
                 self.explicit_events = self.parse_explicit_events_file(explicit_events_file)
@@ -302,7 +303,6 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
         # Clean or remove values from context.
         if 'context' in event:
             # These aren't present in current events, but are generated historically by some implicit events.
-            # TODO: should these be removed, or set to ''?
             event['context'].pop('host', None)
             event['context'].pop('ip', None)
             # Not sure how to clean this, so removing.
@@ -360,7 +360,7 @@ class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, lui
     )
 
     def requires(self):
-        for course in self.course:
+        for course in self.course:   # pylint: disable=not-an-iterable
             # We already have course events dumped separately, so each ObfuscateCourseEventsTask
             # would have a different source.
             kwargs = {

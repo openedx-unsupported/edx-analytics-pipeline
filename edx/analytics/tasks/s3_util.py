@@ -119,7 +119,10 @@ def generate_s3_sources(s3_conn, source, patterns=['*'], include_zero_length=Fal
 
 def _filter_matches(patterns, names):
     """Return only key names that match any of the include patterns."""
-    func = lambda n: any(fnmatch(n, p) for p in patterns)
+
+    def func(name):
+        """Check if any pattern matches the name."""
+        return any(fnmatch(name, pattern) for pattern in patterns)
     return (n for n in names if func(n))
 
 

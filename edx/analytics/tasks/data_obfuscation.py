@@ -1,10 +1,12 @@
 """Obfuscate course state files by removing/stubbing user information."""
 
-import luigi
-import cjson
 import csv
 import json
+import logging
 import os
+
+import cjson
+import luigi
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
@@ -13,8 +15,6 @@ from edx.analytics.tasks.util.obfuscate_util import (
 )
 from edx.analytics.tasks.util.file_util import FileCopyMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-
-import logging
 
 
 log = logging.getLogger(__name__)
@@ -52,6 +52,7 @@ class BaseObfuscateDumpTask(ObfuscatorMixin, luigi.Task):
 
     @property
     def file_input_target(self):
+        """Get filename of source for copying."""
         return self.input()['data'][0]
 
 
@@ -189,7 +190,7 @@ class ObfuscateCoursewareStudentModule(ObfuscateSqlDumpTask):
             state_dict = cjson.decode(state_str, all_unicode=True)
             # Traverse the dictionary, looking for entries that need to be scrubbed.
             updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
-        except Exception:
+        except Exception:   # pylint:  disable=broad-except
             log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r",
                           row[0], type(state_str), state_str)
             updated_state_dict = {}
@@ -463,7 +464,7 @@ class DataObfuscationTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
     )
 
     def requires(self):
-        for course in self.course:
+        for course in self.course:   # pylint: disable=not-an-iterable
             kwargs = {
                 'dump_root': self.dump_root,
                 'course': course,
