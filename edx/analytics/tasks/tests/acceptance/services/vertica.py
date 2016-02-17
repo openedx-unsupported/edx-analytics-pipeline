@@ -63,8 +63,6 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
-        if self.disabled:
-            raise unittest.SkipTest('The vertica service is disabled')
         return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 

@@ -1,17 +1,80 @@
+import boto
+import hashlib
 import json
 import logging
-import hashlib
 from luigi.s3 import S3Client
 import os
-import sys
 import shutil
 import unittest
 
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica
+from edx.analytics.tasks.url import url_path_join, get_target_from_url
 
 
 log = logging.getLogger(__name__)
+
+# Decorators for tagging tests
+
+def when_s3_available(function):
+    access_keys_defined = getattr(when_s3_available, 'access_keys_defined', None)
+    if access_keys_defined is None:
+        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
+        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
+        access_keys_defined = aws_access_key_id is not None and aws_secret_access_key is not None
+        when_s3_available.access_keys_defined = access_keys_defined  # Cache result to avoid having to compute it again
+    if access_keys_defined:
+        s3_available = getattr(when_s3_available, 's3_available', None)
+        if s3_available is None:
+            connection = boto.connect_s3()  # This will not error out if
+                                            # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
+                                            # so it can't be used to check if we have a valid connection to S3
+            try:
+                connection.get_all_buckets()
+            except boto.exception.S3ResponseError:
+                s3_available = False
+            else:
+                s3_available = True
+            finally:
+                when_s3_available.s3_available = s3_available  # Cache result to avoid having to compute it again
+        return unittest.skipIf(
+            not s3_available, 'S3 is not available'
+        )(function)
+    else:
+        return unittest.skip('AWS access keys not defined')(function)
+
+def when_exporter_available(function):
+    return unittest.skipIf(
+        os.getenv('EXPORTER') is None, 'Private Exporter code is not available'
+    )(function)
+
+def when_geolocation_data_available(function):
+    config = get_test_config()
+    geolocation_data = config.get('geolocation_data')
+    geolocation_data_available = bool(geolocation_data) and os.path.isfile(geolocation_data)
+    return unittest.skipIf(
+        not geolocation_data_available, 'Geolocation data is not available'
+    )(function)
+
+def when_vertica_available(function):
+    config = get_test_config()
+    vertica_available = bool(config.get('vertica_creds_url'))
+    return unittest.skipIf(
+        not vertica_available, 'Vertica service is not available'
+    )(function)
+
+# Utility functions
+
+def get_test_config():
+    config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
+    try:
+        with open(config_json, 'r') as config_json_file:
+            config = json.load(config_json_file)
+    except (IOError, TypeError):
+        try:
+            config = json.loads(config_json)
+        except TypeError:
+            config = {}
+    return config
 
 
 class AcceptanceTestCase(unittest.TestCase):
@@ -26,15 +89,7 @@ class AcceptanceTestCase(unittest.TestCase):
         except Exception:
             self.s3_client = None
 
-        config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
-        try:
-            with open(config_json, 'r') as config_json_file:
-                self.config = json.load(config_json_file)
-        except (IOError, TypeError):
-            try:
-                self.config = json.loads(config_json)
-            except TypeError:
-                self.config = {}
+        self.config = get_test_config()
 
         # The name of an existing job flow to run the test on
         assert('job_flow_name' in self.config or 'host' in self.config)

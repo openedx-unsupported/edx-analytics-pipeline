@@ -4,7 +4,7 @@ from datetime import datetime
 from luigi.date_interval import Date
 
 from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
 
 
 class LocationByCourseAcceptanceTest(AcceptanceTestCase):
@@ -20,6 +20,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         'load_auth_user_for_location_by_course.sql'
     ]
 
+    @when_geolocation_data_available
     def test_location_by_course(self):
         self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
 

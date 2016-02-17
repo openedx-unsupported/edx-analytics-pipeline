@@ -9,8 +9,8 @@ import StringIO
 
 from luigi.s3 import S3Target
 
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
 from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 
 
 log = logging.getLogger(__name__)
@@ -28,6 +28,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     WIDER_DATE_INTERVAL = "{}-{}".format(START_DATE, END_DATE + datetime.timedelta(days=1))
     SQL_FIXTURE = 'load_student_courseenrollment_for_enrollment_validation.sql'
 
+    @when_s3_available
     def test_enrollment_validation(self):
         # Initial setup.
         self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)

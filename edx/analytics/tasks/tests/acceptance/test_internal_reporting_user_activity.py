@@ -7,7 +7,7 @@ import logging
 import datetime
 import luigi
 import pandas
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 
 
@@ -40,6 +40,7 @@ class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
             log.debug(insert_query)
             cursor.execute(insert_query)
 
+    @when_vertica_available
     def test_internal_reporting_user_activity(self):
         """Tests the workflow for the internal reporting user activity table, end to end."""
 

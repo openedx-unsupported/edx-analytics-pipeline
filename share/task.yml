@@ -82,7 +82,7 @@
         - "{{ log_dir }}"
 
     - name: analytics tasks repository checked out
-      git: repo={{ repo }} dest={{ working_repo_dir }} version=release
+      git: repo={{ repo }} dest={{ working_repo_dir }} version=master
 
     - name: branch fetched
       command: git fetch --all chdir={{ working_repo_dir }}

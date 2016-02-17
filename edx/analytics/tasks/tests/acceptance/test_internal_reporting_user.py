@@ -5,12 +5,13 @@ End to end test of the internal reporting user table loading task.
 import os
 import logging
 import datetime
+import unittest
 
 import pandas
 
 from luigi.date_interval import Date
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 
 
@@ -33,6 +34,7 @@ class InternalReportingUserLoadAcceptanceTest(AcceptanceTestCase):
         # Put up the mock tracking log for user locations.
         self.upload_tracking_log(self.INPUT_FILE, datetime.datetime(2014, 7, 21))
 
+    @when_vertica_available
     def test_internal_reporting_user(self):
         """Tests the workflow for the internal reporting user table, end to end."""
 

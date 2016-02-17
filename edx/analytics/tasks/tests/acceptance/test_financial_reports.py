@@ -9,7 +9,7 @@ from cStringIO import StringIO
 import pandas
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
 
@@ -23,9 +23,6 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
 
     def setUp(self):
         super(FinancialReportsAcceptanceTest, self).setUp()
-
-        if self.vertica.disabled:
-            raise unittest.SkipTest('The vertica service is disabled')
 
         for input_file_name in ('paypal.tsv', 'cybersource_test.tsv'):
             src = url_path_join(self.data_dir, 'input', input_file_name)
@@ -44,6 +41,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
         for filename in os.listdir(sql_fixture_base_url):
             self.execute_sql_fixture_file(url_path_join(sql_fixture_base_url, filename), database=database)
 
+    @when_vertica_available
     def test_end_to_end(self):
         self.task.launch([
             'BuildFinancialReportsTask',
