@@ -8,6 +8,7 @@ import re
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.deid_util import UserInfoMixin, UserInfoDownstreamMixin
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.file_util import FileCopyMixin
@@ -19,7 +20,7 @@ import edx.analytics.tasks.util.csv_util
 log = logging.getLogger(__name__)
 
 
-class BaseDeidentifyDumpTask(UserIdRemapperMixin, luigi.Task):
+class BaseDeidentifyDumpTask(UserIdRemapperMixin, UserInfoMixin, luigi.Task):
     """
     Base class for deidentification of state files.
     """
@@ -29,22 +30,30 @@ class BaseDeidentifyDumpTask(UserIdRemapperMixin, luigi.Task):
     data_directory = luigi.Parameter()
 
     def output(self):
-        if len(self.input()) == 0:
+        if len(self.input()['data']) == 0:
             raise IOError("Course File '{filename}' not found for course '{course}'".format(
                 filename=self.file_pattern, course=self.course
             ))
 
         # TODO: should we change the filename to indicate that it has been de-identified?
-        output_filename = os.path.basename(self.input()[0].path)
+        output_filename = os.path.basename(self.input()['data'][0].path)
         return get_target_from_url(url_path_join(self.output_directory, output_filename))
 
     def requires(self):
-        return PathSetTask([self.data_directory], [self.file_pattern])
+        base_reqs = {
+            'data': PathSetTask([self.data_directory], [self.file_pattern])
+        }
+        base_reqs.update(self.user_info_requirements())
+        return base_reqs
 
     @property
     def file_pattern(self):
         """Provides the file pattern for input file."""
         raise NotImplementedError
+    
+    @property
+    def file_input_target(self):
+        return self.input()['data'][0]
 
 
 class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
@@ -52,7 +61,7 @@ class DeidentifySqlDumpTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 writer = csv.writer(output_file, dialect='mysqlexport')
                 reader = csv.reader(input_file, dialect='mysqlexport')
 
@@ -268,7 +277,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
 
     def run(self):
         with self.output().open('w') as output_file:
-            with self.input()[0].open('r') as input_file:
+            with self.input()['data'][0].open('r') as input_file:
                 for line in input_file:
                     row = json.loads(line)
                     filtered_row = self.filter_row(row)
@@ -284,7 +293,7 @@ class DeidentifyMongoDumpsTask(BaseDeidentifyDumpTask):
         return row
 
 
-class DeidentifiedCourseDumpTask(luigi.WrapperTask):
+class DeidentifiedCourseDumpTask(UserInfoDownstreamMixin, luigi.WrapperTask):
     """Wrapper task to deidentify data for a particular course."""
 
     course = luigi.Parameter()
@@ -298,7 +307,7 @@ class DeidentifiedCourseDumpTask(luigi.WrapperTask):
         auth_userprofile_targets = PathSetTask([url_path_join(self.dump_root, filename_safe_course_id, 'state')],
                                                ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that
-        dates = [re.search(r"\d{4}-\d{2}-\d{2}", target.path).group() for target in auth_userprofile_targets]
+        dates = [target.path.rsplit('/', 2)[-2] for target in auth_userprofile_targets]
         # TODO: Make the date a parameter that defaults to the most recent, but allows the user to override?
         latest_date = sorted(dates)[-1]
         self.data_directory = url_path_join(self.dump_root, filename_safe_course_id, 'state', latest_date)
@@ -308,7 +317,9 @@ class DeidentifiedCourseDumpTask(luigi.WrapperTask):
         kwargs = {
             'course': self.course,
             'output_directory': self.output_directory,
-            'data_directory': self.data_directory
+            'data_directory': self.data_directory,
+            'auth_user_path': self.auth_user_path,
+            'auth_userprofile_path': self.auth_userprofile_path,
         }
         yield (
             DeidentifyAuthUserTask(**kwargs),
