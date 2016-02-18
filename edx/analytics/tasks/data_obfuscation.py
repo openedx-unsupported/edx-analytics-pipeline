@@ -360,7 +360,7 @@ class XBlockConfigMixin(object):
         for attribute in to_remove:
             dict_to_modify.pop(attribute)
             if attribute in self.get_field_blacklist(block_type):
-                log.info('Removed blacklisted attribute "{0}" from "{1}"'.format(attribute, block_type))
+                log.debug('Removed blacklisted attribute "{0}" from "{1}"'.format(attribute, block_type))
             else:
                 log.warning('Removed unknown attribute "{0}" from "{1}"'.format(attribute, block_type))
 
@@ -381,18 +381,16 @@ class CourseStructureTask(XBlockConfigMixin, BaseObfuscateDumpTask):
                 for block_id, block_structure in course_structure.iteritems():
                     category = block_structure.get('category')
                     metadata = block_structure.get('metadata', {})
-                    if category == 'course':
+                    if category in self.xblock_config['xblocks']:
                         removed_fields = self.remove_fields_from_dict(category, metadata)
-                    elif category not in self.xblock_config['xblocks']:
+                    else:
                         removed_fields = set(metadata.keys())
                         for key in removed_fields:
                             del metadata[key]
                         if category in self.xblock_config.get('exclude_xblocks', set()):
-                            log.info('Removed metadata from blacklisted block "{0}"'.format(category))
+                            log.debug('Removed metadata from blacklisted block "{0}"'.format(category))
                         else:
-                            log.info('Removed metadata from unknown block "{0}"'.format(category))
-                    else:
-                        removed_fields = set()
+                            log.warning('Removed metadata from unknown block "{0}"'.format(category))
 
                     if len(removed_fields) > 0:
                         block_structure['redacted_metadata'] = list(removed_fields)
@@ -402,6 +400,8 @@ class CourseStructureTask(XBlockConfigMixin, BaseObfuscateDumpTask):
 
 class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
     """Task to copy course dump file, removing any unknown elements and fields."""
+
+    XML_PACKAGE_REF_ATTRIBUTE = 'url_name'
 
     @property
     def file_pattern(self):
@@ -432,7 +432,7 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
     def clean_drafts(self, root_dir):
         drafts_path = os.path.join(root_dir, 'drafts')
         if os.path.exists(drafts_path):
-            log.info('Removing all drafts')
+            log.debug('Removing all drafts')
             shutil.rmtree(drafts_path)
 
     def read_course_url_name(self, root_dir):
@@ -442,7 +442,7 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
         return course_url_name
 
     def clean_course_policy(self, course_url_name, policy_file_path):
-        log.info('Cleaning course policy file "{0}"'.format(policy_file_path))
+        log.debug('Cleaning course policy file "{0}"'.format(policy_file_path))
         with open(policy_file_path, 'r') as policy_file:
             policy = json.load(policy_file)
             course_root_policy = policy.get('course/' + course_url_name, {})
@@ -452,7 +452,7 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
             json.dump(policy, policy_file)
 
     def clean_xml_files(self, root_dir):
-        log.info('Cleaning XML files')
+        log.debug('Cleaning XML files')
         xml_file_paths = [target.path for target in PathSetTask([root_dir], ['*.xml']).output()]
         for xml_file_path in xml_file_paths:
             et = xml.etree.ElementTree.parse(xml_file_path)
@@ -464,26 +464,49 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
         block_config = self.xblock_config['xblocks'].get(element.tag)
         removed_fields = set()
         removed_children = set()
-        if not block_config:
+        if block_config:
+            removed_fields = self.remove_fields_from_dict(element.tag, element.attrib)
+
+            # The logic here is a bit tricky, a sub-element can either be a field of the current block or a child block.
+            # We just assume everything is a child block unless we are told otherwise by the configuration. Fields that
+            # can appear as sub-elements need to be declared in the field whitelist. Note that some wonkiness is
+            # possible if a field name happens to conflict with a block name. This could result in us thinking a child
+            # block is actually a field and ignoring it.
+            #
+            # We only "clean" a sub-element if and only if:
+            # 1) The current block does not have the property has_children=False. This is used to prevent traversal of
+            #    sub-elements for blocks that can have arbitrary children (like raw HTML). Note that by default we
+            #    traverse the sub-elements, we only disable this behavior if we have explicitly set this field to false.
+            # 2) The sub-element name does not appear in the field list for the current block.
+            declared_has_children = 'has_children' in block_config and block_config['has_children']
+            if block_config.get('has_children', True):
+                for child_element in element:
+                    if child_element.tag not in block_config.get('fields', []):
+                        if not declared_has_children:
+                            log.warning(
+                                'Found a block with non-field children that did not '
+                                'have has_children=True: {}'.format(element.tag)
+                            )
+                        self.clean_element(child_element)
+        else:
             if element.tag in self.xblock_config.get('exclude_xblocks', set()):
-                log.info('Blacklisted element "{0}", removing all attributes and children'.format(element.tag))
+                log.debug('Blacklisted element "{0}", removing all attributes and children'.format(element.tag))
             else:
                 log.warning('Unrecognized element "{0}", removing all attributes and children'.format(element.tag))
 
             for attribute in element.attrib.keys():
-                if attribute != 'url_name':
+                # This attribute is used to refer to an external definition of the element in a separate file. We
+                # preserve these so that it's clear what file belongs to this element. Note that the file will also
+                # have all of the relevant data stripped from it, so this is of limited utility, but it least explains
+                # the reason for the files existence.
+                if attribute != self.XML_PACKAGE_REF_ATTRIBUTE:
                     element.attrib.pop(attribute)
                     removed_fields.add(attribute)
-            for child in list(element):
-                removed_children.add(child.tag)
-                element.remove(child)
-        else:
-            removed_fields = self.remove_fields_from_dict(element.tag, element.attrib)
 
-            if block_config.get('has_children', True):
-                for child_element in element:
-                    if child_element.tag not in block_config.get('fields', []):
-                        self.clean_element(child_element)
+            # Make a copy of the list of children before modifying it
+            for child_element in list(element):
+                removed_children.add(child_element.tag)
+                element.remove(child_element)
 
         if len(removed_fields) > 0:
             element.set("redacted_attributes", ",".join(sorted(removed_fields)))

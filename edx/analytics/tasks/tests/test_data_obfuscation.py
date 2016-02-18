@@ -386,6 +386,12 @@ class TestDataObfuscation(unittest.TestCase):
                 'children': [
                     'block0'
                 ]
+            },
+            'block2': {
+                'category': 'lti',
+                'metadata': {
+                    'lti_id': 'foo'
+                }
             }
         })
         expected = {
@@ -403,6 +409,11 @@ class TestDataObfuscation(unittest.TestCase):
                 'children': [
                     'block0'
                 ]
+            },
+            'block2': {
+                'category': 'lti',
+                'metadata': {},
+                'redacted_metadata': ['lti_id'],
             }
         }
         output = self.run_task(task_cls=obfuscate.CourseStructureTask, source=data)
@@ -620,3 +631,17 @@ class TestCourseStructureTask(unittest.TestCase):
         self.write_file('course.xml', content)
         self.run_task()
         self.assert_xml_equal(expected, self.read_file('course.xml'))
+
+    def test_unknown_children_status_with_children(self):
+        # this block has not declared has_children=True, however, we should log a warning and clean any children if
+        # they do exist
+        content = '<poll display_name="Has children for some reason">' \
+                  '<cleanme cleaned="0"/>' \
+                  '</poll>'
+
+        expected = '<poll display_name="Has children for some reason">' \
+                   '<cleanme redacted_attributes="cleaned"/>' \
+                   '</poll>'
+        self.write_file('poll/test.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('poll/test.xml'))
