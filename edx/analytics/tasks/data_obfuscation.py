@@ -486,10 +486,10 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
                         self.clean_element(child_element)
 
         if len(removed_fields) > 0:
-            element.set("redacted_attributes", ",".join(removed_fields))
+            element.set("redacted_attributes", ",".join(sorted(removed_fields)))
 
         if len(removed_children) > 0:
-            element.set("redacted_children", ",".join(removed_children))
+            element.set("redacted_children", ",".join(sorted(removed_children)))
 
 
 class ObfuscateMongoDumpsTask(BaseObfuscateDumpTask):

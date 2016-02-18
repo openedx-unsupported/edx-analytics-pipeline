@@ -7,12 +7,14 @@ import json
 import tarfile
 import xml.etree.ElementTree as ET
 
+import errno
 from luigi import LocalTarget
 from mock import MagicMock, sentinel
 import os
 import shutil
 import tempfile
 from mock import MagicMock, sentinel
+import logging
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.target import FakeTarget
@@ -21,6 +23,9 @@ from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.obfuscate_util import reset_user_info_for_testing
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
+
+
+LOG = logging.getLogger(__name__)
 
 
 class TestDataObfuscation(unittest.TestCase):
@@ -518,15 +523,15 @@ class TestCourseStructureTask(unittest.TestCase):
 
     def test_single_course_xml(self):
         content = '<course url_name="foo" org="edX" course="DemoX">' \
-                    '<chapter>' \
-                      '<foo a="0" b="1" url_name="bar"><p>hello</p><p>world!</p></foo>' \
-                    '</chapter>' \
+                  '<chapter>' \
+                  '<foo a="0" b="1" url_name="bar"><p>hello</p><p>world!</p></foo>' \
+                  '</chapter>' \
                   '</course>'
 
         expected = '<course url_name="foo" org="edX" course="DemoX">' \
-                     '<chapter>' \
-                       '<foo redacted_attributes="a,b" redacted_children="p" url_name="bar" />' \
-                     '</chapter>' \
+                   '<chapter>' \
+                   '<foo redacted_attributes="a,b" redacted_children="p" url_name="bar" />' \
+                   '</chapter>' \
                    '</course>'
         self.write_file('course.xml', content)
         self.run_task()
@@ -534,7 +539,13 @@ class TestCourseStructureTask(unittest.TestCase):
 
     def write_file(self, relative_path, content):
         """Write a file in the staging area that will be included in the test course package"""
-        with open(os.path.join(self.course_root, relative_path), 'w') as course_file:
+        full_path = os.path.join(self.course_root, relative_path)
+        try:
+            os.makedirs(os.path.dirname(full_path))
+        except OSError as ose:
+            if ose.errno != errno.EEXIST:
+                raise
+        with open(full_path, 'w') as course_file:
             course_file.write(content)
 
     def read_file(self, relative_path):
@@ -556,8 +567,56 @@ class TestCourseStructureTask(unittest.TestCase):
             self.assertEqual(expected.text, actual.text)
             self.assertEqual(expected.tail, actual.tail)
         except AssertionError:
-            import sys
-            sys.stderr.write('Difference found at path %s', '.'.join(new_path))
+            LOG.error('Difference found at path "%s"', '.'.join(new_path))
+            LOG.error('Expected XML: %s', ET.tostring(expected))
+            LOG.error('Actual XML: %s', ET.tostring(actual))
             raise
+
         for expected_child, actual_child in zip(expected, actual):
             self.assert_xml_element_equal(expected_child, actual_child, new_path)
+
+    def test_separate_course_xml(self):
+        content = '<course course_image="foo.png" lti_passports="foo" unknown="1">' \
+                  '<chapter url_name="abcdefg"/>' \
+                  '</course>'
+
+        expected = '<course course_image="foo.png" redacted_attributes="lti_passports,unknown">' \
+                   '<chapter url_name="abcdefg"/>' \
+                   '</course>'
+        self.write_file('course/course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course/course.xml'))
+
+    def test_problem_with_children(self):
+        self.assert_unchanged_xml(
+            'problem/sky.xml',
+            '<problem display_name="Sky Color" markdown="null">'
+            '<p>What color is the sky?</p>'
+            '<multiplechoiceresponse>'
+            '<choice correct="false">Red</choice>'
+            '<choice correct="true">Blue</choice>'
+            '</multiplechoiceresponse>'
+            '</problem>'
+        )
+
+    def assert_unchanged_xml(self, relative_path, content):
+        """Clean the XML and make sure nothing was changed"""
+        self.write_file(relative_path, content)
+        self.run_task()
+        self.assert_xml_equal(content, self.read_file(relative_path))
+
+    def test_subelement_field_mixed_with_children(self):
+        # "textbook" is a field that is serialized to a sub-element of course, it should be excluded from further
+        # analysis
+        content = '<course url_name="foo" org="edX" course="DemoX">' \
+                  '<chapter><cleanme cleaned="0"/></chapter>' \
+                  '<textbook title="Textbook" book_url="https://s3.amazonaws.com/bucket/foo.txt"><unchanged cleaned="0"/></textbook>' \
+                  '</course>'
+
+        expected = '<course url_name="foo" org="edX" course="DemoX">' \
+                   '<chapter><cleanme redacted_attributes="cleaned"/></chapter>' \
+                   '<textbook title="Textbook" book_url="https://s3.amazonaws.com/bucket/foo.txt"><unchanged cleaned="0"/></textbook>' \
+                   '</course>'
+        self.write_file('course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course.xml'))

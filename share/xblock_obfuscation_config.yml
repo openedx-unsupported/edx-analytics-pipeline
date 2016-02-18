@@ -143,6 +143,7 @@ xblocks:
     - grading_policy
     - license
     - textbooks
+    - textbook
     exclude_fields:
     - lti_passports # contains LTI shared secrets
     - video_upload_pipeline # contains an API key for the video pipeline
