@@ -1,6 +1,7 @@
 """
 Tests for utilities that parse event logs.
 """
+from mock import patch
 
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.tests import unittest
@@ -73,32 +74,87 @@ class TimestampTest(unittest.TestCase):
         self.assertEquals(eventlog.datetime_to_datestamp(dt_value), "2013-12-17")
 
 
+class GetEventUsernameTest(unittest.TestCase):
+    """Verify that get_event_username works as expected."""
+
+    def test_missing_event_username(self):
+        item = {"something else": "not an event"}
+        self.assertIsNone(eventlog.get_event_username(item))
+
+    def test_empty_event_username(self):
+        item = {"username": "   "}
+        self.assertIsNone(eventlog.get_event_username(item))
+
+    def test_event_username_with_trailing_whitespace(self):
+        item = {"username": "bub\n"}
+        self.assertEquals(eventlog.get_event_username(item), u'bub')
+
+
 class GetEventDataTest(unittest.TestCase):
     """Verify that get_event_data works as expected."""
+
+    def setUp(self):
+        super(GetEventDataTest, self).setUp()
+        patcher = patch('edx.analytics.tasks.util.eventlog.log')
+        self.mock_log = patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_missing_event_data(self):
         item = {"something else": "not an event"}
         self.assertIsNone(eventlog.get_event_data(item))
-
-    def test_get_bad_string_event_data(self):
-        item = {"event": "a string but not JSON"}
-        self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.error.call_count, 1)
+        self.assertIn('missing event value', self.mock_log.error.call_args[0][0])
 
     def test_get_empty_string_event_data(self):
         item = {"event": ''}
         self.assertEquals(eventlog.get_event_data(item), {})
+        self.assertEquals(self.mock_log.error.call_count, 0)
+        self.assertEquals(self.mock_log.debug.call_count, 0)
+
+    def test_get_truncated_post_string_event_data(self):
+        post = '{"POST": "not JSON because of truncation %s'
+        post512 = post % ('a' * (512 + 2 - len(post)))
+        self.assertEquals(len(post512), 512)
+        item = {"event": post512}
+        self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.debug.call_count, 1)
+        self.assertIn('truncated event value', self.mock_log.debug.call_args[0][0])
+
+    def test_get_key_value_string_event_data(self):
+        item = {"event": "a=3,b=4"}
+        self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.debug.call_count, 1)
+        self.assertIn('key-value pairs', self.mock_log.debug.call_args[0][0])
 
     def test_get_json_string_event_data(self):
         item = {"event": '{ "a string": "that is JSON"}'}
         self.assertEquals(eventlog.get_event_data(item), {"a string": "that is JSON"})
+        self.assertEquals(self.mock_log.error.call_count, 0)
+        self.assertEquals(self.mock_log.debug.call_count, 0)
 
-    def test_event_data_with_unknown_type(self):
+    def test_get_bad_string_event_data(self):
+        item = {"event": "a string but not JSON"}
+        self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.error.call_count, 1)
+        self.assertIn('unparsable event value', self.mock_log.error.call_args[0][0])
+
+    def test_event_data_with_list_type(self):
         item = {"event": ["a list", "of strings"]}
         self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.debug.call_count, 1)
+        self.assertIn('value of type list', self.mock_log.debug.call_args[0][0])
 
     def test_get_dict_event_data(self):
         item = {"event": {"a dict": "that has strings"}}
         self.assertEquals(eventlog.get_event_data(item), {"a dict": "that has strings"})
+        self.assertEquals(self.mock_log.error.call_count, 0)
+        self.assertEquals(self.mock_log.debug.call_count, 0)
+
+    def test_event_data_with_unknown_type(self):
+        item = {"event": 1}
+        self.assertIsNone(eventlog.get_event_data(item))
+        self.assertEquals(self.mock_log.error.call_count, 1)
+        self.assertIn('unrecognized type', self.mock_log.error.call_args[0][0])
 
 
 class GetCourseIdTest(unittest.TestCase):

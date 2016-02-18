@@ -453,7 +453,9 @@ class AnswerDistributionPerCourseMixin(object):
                     if 'answer_value_id_map' in answer_metadata:
                         answer_value_id = answer['answer_value_id']
                         answer_value_id_map = answer_metadata['answer_value_id_map']
-                        get_answer_value = lambda code: answer_value_id_map.get(code, UNMAPPED_ANSWER_VALUE)
+
+                        def get_answer_value(code):
+                            return answer_value_id_map.get(code, UNMAPPED_ANSWER_VALUE)
                         if isinstance(answer_value_id, basestring):
                             answer['answer'] = get_answer_value(answer_value_id)
                         elif isinstance(answer_value_id, list):

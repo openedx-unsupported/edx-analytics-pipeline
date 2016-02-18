@@ -220,8 +220,8 @@ class PerStudentEngagementAcceptanceTest(AcceptanceTestCase):
             assert False, "Invalid interval type: {}".format(interval_type)
 
         self.assertItemsEqual(results, [
-            (end_date_expected, self.COURSE_ID, 'audit',    1, 0, 0, 3, 1),
-            (end_date_expected, self.COURSE_ID, 'honor',    1, 1, 0, 0, 2),
-            (end_date_expected, self.COURSE_ID, 'staff',    2, 0, 0, 1, 2),
+            (end_date_expected, self.COURSE_ID, 'audit', 1, 0, 0, 3, 1),
+            (end_date_expected, self.COURSE_ID, 'honor', 1, 1, 0, 0, 2),
+            (end_date_expected, self.COURSE_ID, 'staff', 2, 0, 0, 1, 2),
             (end_date_expected, self.COURSE_ID, 'verified', 0, 0, 1, 1, 0),
         ])

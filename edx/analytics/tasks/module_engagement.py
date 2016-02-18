@@ -2,8 +2,6 @@
 
 import logging
 
-log = logging.getLogger(__name__)
-
 import luigi
 import luigi.task
 from luigi import date_interval
@@ -21,6 +19,8 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask
 )
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField
+
+log = logging.getLogger(__name__)
 
 
 class ModuleEngagementRecord(Record):

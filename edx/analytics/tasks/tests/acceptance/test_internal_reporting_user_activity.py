@@ -72,10 +72,15 @@ class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
             date_column = 3
             event_type_column = 4
             event_count_column = 5
-            row_mapper = lambda row: (row[user_id_column], str(row[course_id_column]),
-                                      row[date_column].strftime('%Y-%m-%d'),
-                                      str(row[event_type_column]),
-                                      row[event_count_column])
+
+            def row_mapper(row):
+                return (
+                    row[user_id_column],
+                    str(row[course_id_column]),
+                    row[date_column].strftime('%Y-%m-%d'),
+                    str(row[event_type_column]),
+                    row[event_count_column]
+                )
             f_user_activity = set([row_mapper(row) for row in response])
 
             self.assertSetEqual(f_user_activity, expected_f_user_activity)

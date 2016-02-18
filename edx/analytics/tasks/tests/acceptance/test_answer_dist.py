@@ -64,13 +64,14 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
         self.assertEqual(len(outputs), 3)
 
         # Check that the results have data
+        def get_count(line):
+            return int(line.split(',')[3])
         for output in outputs:
             with S3Target(output).open() as f:
                 lines = [l for l in f][1:]  # Skip header
                 self.assertTrue(len(lines) > 0)
 
                 # Check that at least one of the count columns is non zero
-                get_count = lambda line: int(line.split(',')[3])
                 self.assertTrue(any(get_count(l) > 0 for l in lines))
 
 

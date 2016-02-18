@@ -35,7 +35,7 @@ def get_key_from_target(key_file_target):
 
 
 @contextmanager
-def make_encrypted_file(output_file, key_file_targets, recipients=None, progress=None):
+def make_encrypted_file(output_file, key_file_targets, recipients=None, progress=None, dir=None):
     """
     Creates a file object to be written to, whose contents will afterwards be encrypted.
 
@@ -45,7 +45,7 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None, progress
         recipients:  an optional list of recipients to be loaded.  If not specified, uses all loaded keys.
         progress:  a function that is called periodically as progress is made.
     """
-    with make_temp_directory(prefix="encrypt") as temp_dir:
+    with make_temp_directory(prefix="encrypt", dir=dir) as temp_dir:
         # Use temp directory to hold gpg keys.
         gpg = gnupg.GPG(gnupghome=temp_dir)
         gpg.encoding = 'utf-8'

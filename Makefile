@@ -51,13 +51,13 @@ coverage-local: test-local
 	python -m coverage xml -o coverage.xml
 	diff-cover coverage.xml --html-report diff_cover.html
 
-	# Compute quality
+	# Compute pep8 quality
 	diff-quality --violations=pep8 --html-report diff_quality_pep8.html
-	diff-quality --violations=pylint --html-report diff_quality_pylint.html
-
-	# Compute style violations
 	pep8 edx > pep8.report || echo "Not pep8 clean"
-	pylint -f parseable -s y edx > pylint.report || echo "Not pylint clean"
+
+	# Compute pylint quality
+	pylint -f parseable edx --msg-template "{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > pylint.report || echo "Not pylint clean"
+	diff-quality --violations=pylint --html-report diff_quality_pylint.html pylint.report
 
 coverage: test coverage-local
 

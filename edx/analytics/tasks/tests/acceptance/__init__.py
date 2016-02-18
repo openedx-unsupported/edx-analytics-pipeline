@@ -5,10 +5,7 @@ from luigi.s3 import S3Client
 import os
 import sys
 import shutil
-if sys.version_info[:2] <= (2, 6):
-    import unittest2 as unittest
-else:
-    import unittest
+import unittest
 
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica

@@ -7,10 +7,7 @@ from StringIO import StringIO
 
 
 class FakeTarget(object):
-    """
-    Fake luigi like target that saves data in memory, using a
-    StringIO buffer.
-    """
+    """Fake Luigi-like target that saves data in memory, using a StringIO buffer."""
     def __init__(self, path=None, value=''):
         self.value = value
         self.path = path
@@ -38,3 +35,13 @@ class FakeTarget(object):
 
     def exists(self):
         return len(self.value) > 0
+
+
+class FakeTask(object):
+    """Fake Luigi-like task that wraps a FakeTarget."""
+    def __init__(self, path=None, value=''):
+        self.target = FakeTarget(path=path, value=value)
+
+    def output(self):
+        """Return FakeTarget for use in tests."""
+        return self.target

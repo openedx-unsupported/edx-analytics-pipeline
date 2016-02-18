@@ -26,7 +26,7 @@ csv.field_size_limit(FIELD_SIZE_LIMIT)
 
 
 ######################################################################
-###       Abstract Import and Histogram Calculation Section        ###
+#       Abstract Import and Histogram Calculation Section            #
 ######################################################################
 class HistogramTaskFromSqoopParamsMixin(object):
     """
@@ -106,7 +106,7 @@ class HistogramFromStudentModuleSqoopWorkflowBase(
 
 
 ######################################################################
-###           Abstract Export to Mysql Workflow Section            ###
+#             Abstract Export to Mysql Workflow Section              #
 ######################################################################
 class HistogramFromSqoopToMySQLWorkflowBase(
     HistogramTaskFromSqoopParamsMixin,
@@ -147,7 +147,7 @@ class HistogramFromSqoopToMySQLWorkflowBase(
 
 
 ######################################################################
-###               Grade Distribution Section                       ###
+#                 Grade Distribution Section                         #
 ######################################################################
 class GradeDistFromStudentModuleMixin(object):
     """
@@ -226,7 +226,7 @@ class GradeDistFromSqoopToMySQLWorkflow(
 
 
 ######################################################################
-###                Open Distribution Section                       ###
+#                  Open Distribution Section                         #
 ######################################################################
 class SeqOpenDistFromStudentModuleMixin(object):
     """
