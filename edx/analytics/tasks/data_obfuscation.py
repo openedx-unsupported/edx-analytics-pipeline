@@ -446,7 +446,8 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
         with open(policy_file_path, 'r') as policy_file:
             policy = json.load(policy_file)
             course_root_policy = policy.get('course/' + course_url_name, {})
-            self.remove_fields_from_dict('course', course_root_policy)
+            removed_fields = self.remove_fields_from_dict('course', course_root_policy)
+            course_root_policy['redacted_attributes'] = list(removed_fields)
         with open(policy_file_path, 'w') as policy_file:
             json.dump(policy, policy_file)
 
@@ -473,11 +474,9 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
                 if attribute != 'url_name':
                     element.attrib.pop(attribute)
                     removed_fields.add(attribute)
-            for child in element:
+            for child in list(element):
                 removed_children.add(child.tag)
                 element.remove(child)
-
-            element.set("redacted_attributes", "true")
         else:
             removed_fields = self.remove_fields_from_dict(element.tag, element.attrib)
 

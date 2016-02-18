@@ -5,7 +5,7 @@ Tests for data obfuscation tasks.
 
 import json
 import tarfile
-from contextlib import contextmanager
+import xml.etree.ElementTree as ET
 
 from luigi import LocalTarget
 from mock import MagicMock, sentinel
@@ -438,6 +438,22 @@ class TestCourseStructureTask(unittest.TestCase):
 
     COURSE_ID = 'course-v1:edX+DemoX+Test_2014'
 
+    def setUp(self):
+        self.archive_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.archive_root)
+
+        course_id_filename = get_filename_safe_course_id(self.COURSE_ID)
+        self.course_root = os.path.join(self.archive_root, course_id_filename)
+        os.makedirs(self.course_root)
+
+        with open(os.path.join(self.course_root, 'course.xml'), 'w') as course_file:
+            course_file.write('<course url_name="foo" org="edX" course="DemoX"/>')
+
+        policy_dir_path = os.path.join(self.course_root, 'policies', 'foo')
+        os.makedirs(policy_dir_path)
+        with open(os.path.join(policy_dir_path, 'policy.json'), 'w') as policy_file:
+            json.dump({}, policy_file)
+
     def run_task(self):
         """Runs the task with fake targets."""
 
@@ -472,26 +488,76 @@ class TestCourseStructureTask(unittest.TestCase):
         self.output_course_root = os.path.join(output_archive_root, get_filename_safe_course_id(self.COURSE_ID))
 
     def test_draft_removal(self):
-        self.open_course_archive()
         os.makedirs(os.path.join(self.course_root, 'drafts'))
         self.run_task()
         self.assertTrue(os.path.exists(os.path.join(self.output_course_root, 'course.xml')))
         self.assertFalse(os.path.exists(os.path.join(self.output_course_root, 'drafts')))
 
-    def open_course_archive(self):
-        """Creates a course archive that can be customized by the test."""
+    def test_policy_cleaning(self):
+        policy_obj = {
+            'course/foo': {
+                'video_upload_pipeline': {
+                    'course_video_upload_token': 'abcdefg'
+                },
+                'start': '2015-10-05T00:00:00Z',
+                'rerandomize': 'always'
+            }
+        }
+        self.write_file('policies/foo/policy.json', json.dumps(policy_obj))
+        self.run_task()
+        self.assertDictEqual(
+            {
+                'course/foo': {
+                    'start': '2015-10-05T00:00:00Z',
+                    'rerandomize': 'always',
+                    'redacted_attributes': ['video_upload_pipeline']
+                }
+            },
+            json.loads(self.read_file('policies/foo/policy.json'))
+        )
 
-        self.archive_root = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.archive_root)
+    def test_single_course_xml(self):
+        content = '<course url_name="foo" org="edX" course="DemoX">' \
+                    '<chapter>' \
+                      '<foo a="0" b="1" url_name="bar"><p>hello</p><p>world!</p></foo>' \
+                    '</chapter>' \
+                  '</course>'
 
-        course_id_filename = get_filename_safe_course_id(self.COURSE_ID)
-        self.course_root = os.path.join(self.archive_root, course_id_filename)
-        os.makedirs(self.course_root)
+        expected = '<course url_name="foo" org="edX" course="DemoX">' \
+                     '<chapter>' \
+                       '<foo redacted_attributes="a,b" redacted_children="p" url_name="bar" />' \
+                     '</chapter>' \
+                   '</course>'
+        self.write_file('course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course.xml'))
 
-        with open(os.path.join(self.course_root, 'course.xml'), 'w') as course_file:
-            course_file.write('<course url_name="foo" org="edX" course="DemoX"/>')
+    def write_file(self, relative_path, content):
+        """Write a file in the staging area that will be included in the test course package"""
+        with open(os.path.join(self.course_root, relative_path), 'w') as course_file:
+            course_file.write(content)
 
-        policy_dir_path = os.path.join(self.course_root, 'policies', 'foo')
-        os.makedirs(policy_dir_path)
-        with open(os.path.join(policy_dir_path, 'policy.json'), 'w') as policy_file:
-            json.dump({}, policy_file)
+    def read_file(self, relative_path):
+        """Read a file from the temporary directory setup to hold the output after the course has been processed"""
+        with open(os.path.join(self.output_course_root, relative_path), 'r') as course_file:
+            return course_file.read()
+
+    def assert_xml_equal(self, expected, actual):
+        """Compare two XML documents to ensure they are equivalent"""
+        return self.assert_xml_element_equal(ET.fromstring(expected), ET.fromstring(actual), [])
+
+    def assert_xml_element_equal(self, expected, actual, path):
+        """Compare two XML elements to ensure they are equivalent"""
+        new_path = path + [actual.tag]
+        try:
+            self.assertEqual(expected.tag, actual.tag)
+            self.assertDictEqual(expected.attrib, actual.attrib)
+            self.assertEqual(len(expected), len(actual))
+            self.assertEqual(expected.text, actual.text)
+            self.assertEqual(expected.tail, actual.tail)
+        except AssertionError:
+            import sys
+            sys.stderr.write('Difference found at path %s', '.'.join(new_path))
+            raise
+        for expected_child, actual_child in zip(expected, actual):
+            self.assert_xml_element_equal(expected_child, actual_child, new_path)
