@@ -19,6 +19,7 @@ from edx.analytics.tasks.util.obfuscate_util import (
 )
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.file_util import read_config_file
 
 log = logging.getLogger(__name__)
 
@@ -55,14 +56,8 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
 
-        self.explicit_events = set()
-        if self.input_local().get('explicit_events') is not None:
-            with self.input_local()['explicit_events'].open('r') as explicit_events_file:
-                self.explicit_events = self.parse_explicit_events_file(explicit_events_file)
-        else:
-            default_filepath = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks', self.explicit_event_whitelist)
-            with open(default_filepath, 'r') as explicit_events_file:
-                self.explicit_events = self.parse_explicit_events_file(explicit_events_file)
+        with read_config_file(self.explicit_event_whitelist) as explicit_events_file:
+            self.explicit_events = self.parse_explicit_events_file(explicit_events_file)
 
     def parse_explicit_events_file(self, explicit_events_file):
         """Parse explicit_events_file and load in memory."""

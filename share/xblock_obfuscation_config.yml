@@ -1,0 +1,483 @@
+fields:
+- graded
+- edxnotes
+- source_file
+- course_edit_method
+- default_tab
+- in_entrance_exam
+- showanswer
+- display_name
+- video_speed_optimizations
+- chrome
+- tags
+- due
+- start
+- days_early_for_beta
+- max_attempts
+- text_customization
+- format
+- use_latex_compiler
+- video_bumper
+- static_asset_path
+- name
+- show_reset_button
+- hide_from_toc
+- group_access
+- rerandomize
+- user_partitions
+- graceperiod
+- visible_to_staff_only
+- url_name
+- parent_url
+exclude_fields:
+- annotation_token_secret # API key for the annotation service
+- xml_attributes # misc fields that needed to be serialized, not clear to me this won't contain secrets
+- matlab_api_key # API key for communicating with Matlab
+- xqa_key # not sure what this is, but it looks like it could be an API key
+- annotation_storage_url # not sure if secrets are included in the query string here or not
+- giturl # url may contain secrets
+xblocks:
+  assets:
+    fields: []
+  about:
+    fields:
+    - data
+    - editor
+    - source_code
+  annotatable:
+    fields:
+    - data
+  chapter:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  conditional:
+    fields:
+    - sources_list
+    - show_tag_list
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  course:
+    fields:
+    - course_survey_name
+    - teams_configuration
+    - enable_timed_exams
+    - discussion_link
+    - course_survey_required
+    - tabs
+    - mobile_available
+    - discussion_sort_alpha
+    - is_new
+    - discussion_topics
+    - enrollment_start
+    - entrance_exam_id
+    - enrollment_domain
+    - due_date_display_format
+    - entrance_exam_minimum_score_pct
+    - certificates_show_before_end
+    - max_student_enrollments_allowed
+    - minimum_grade_credit
+    - announcement
+    - certificates_display_behavior
+    - allow_anonymous
+    - is_proctored_enabled
+    - html_textbooks
+    - end
+    - invitation_only
+    - no_grade
+    - catalog_visibility
+    - entrance_exam_enabled
+    - pre_requisite_courses
+    - advertised_start
+    - default_time_limit_minutes
+    - advanced_modules
+    - disable_progress_graph
+    - end_of_course_survey_url
+    - cert_html_view_overrides
+    - pdf_textbooks
+    - language
+    - facebook_url
+    - cert_name_long
+    - is_entrance_exam
+    - show_timezone
+    - enable_proctored_exams
+    - social_sharing_url
+    - display_organization
+    - show_calculator
+    - info_sidebar_name
+    - display_coursenumber
+    - allow_public_wiki_access
+    - enrollment_end
+    - is_time_limited
+    - hide_progress_tab
+    - exam_review_rules
+    - cosmetic_display_price
+    - issue_badges
+    - cert_name_short
+    - cert_html_view_enabled
+    - discussion_blackouts
+    - cohort_config
+    - enable_subsection_gating
+    - css_class
+    - allow_anonymous_to_peers
+    - self_paced
+    - enable_ccx
+    - course_image
+    - is_practice_exam
+    - org
+    - course
+    - wiki_slug
+    - grading_policy
+    - license
+    - textbooks
+    - textbook
+    exclude_fields:
+    - lti_passports # contains LTI shared secrets
+    - video_upload_pipeline # contains an API key for the video pipeline
+    - remote_gradebook # we aren't sure if this is safe or not
+    - certificates # contains potentially sensitive info like signatures of university administrators
+    - ccx_connector # points to random private servers
+    has_children: true
+  course_info:
+    fields:
+    - editor
+    - source_code
+    - items
+    - data
+  custom_tag_template:
+    fields:
+    - data
+  customtag:
+    fields:
+    - data
+  discussion:
+    fields:
+    - data
+    - sort_key
+    - discussion_category
+    - discussion_target
+    - discussion_id
+  done:
+    fields:
+    - align
+    - weight
+  edx-reverification-block:
+    fields:
+    - grace_period
+    - attempts
+    - is_configured
+    - related_assessment
+  edx_sga:
+    fields:
+    - weight
+    - points
+    - staff_score
+  error:
+    fields:
+    - error_msg
+    - contents
+  html:
+    fields:
+    - data
+    - source_code
+    - editor
+    - filename
+  image:
+    fields: []
+  imageannotation:
+    fields:
+    - data
+    - instructor_tags
+    - annotation_mode
+    exclude_fields:
+    - instructor_email # we'd rather not share the instructor's email address
+  library:
+    fields:
+    - advanced_modules
+    has_children: true
+  library_content:
+    fields:
+    - source_library_id
+    - max_count
+    - capa_type
+    - source_library_version
+    - has_score
+    - mode
+    has_children: true
+  lti:
+    fields:
+    - description
+    - weight
+    - ask_to_send_email
+    - accept_grades_past_due
+    - button_text
+    - has_score
+    - hide_launch
+    - open_in_a_new_page
+    - ask_to_send_username
+    exclude_fields:
+    - lti_id # may contain secrets
+    - custom_parameters # unclear what this is
+    - launch_url # might contain secrets
+  lti_consumer:
+    fields:
+    - description
+    - inline_height
+    - weight
+    - ask_to_send_username
+    - ask_to_send_email
+    - accept_grades_past_due
+    - button_text
+    - has_score
+    - hide_launch
+    - launch_target
+    - modal_width
+    - modal_height
+    exclude_fields:
+    - lti_id # may contain secrets
+    - custom_parameters # unclear what this is
+    - launch_url # might contain secrets
+  openassessment:
+    fields:
+    - weight
+    - allow_latex
+    - submission_start
+    - submission_due
+    - rubric_feedback_default_text
+    - prompt
+    - leaderboard_show
+    - title
+    - file_upload_type_raw
+    - white_listed_file_types
+    - rubric_criteria
+    - allow_file_upload
+    - rubric_feedback_prompt
+    - editor_assessments_order
+    - rubric_assessments
+  poll:
+    fields:
+    - answers
+    - display_name
+    - private_results
+    - question
+    - max_submissions
+    - feedback
+  poll_question:
+    fields:
+    - question
+    - answers
+  problem:
+    fields:
+    - attempts
+    - markdown
+    - weight
+    - submission_wait_seconds
+    - source_code
+    - force_save_button
+    - data
+    has_children: false
+  problemset:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  randomize:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  section:
+    fields: []
+  sequential:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  split_test:
+    fields:
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    - group_id_to_child
+    - user_partition_id
+    has_children: true
+  static_tab:
+    fields:
+    - data
+    - editor
+    - source_code
+  survey:
+    fields:
+    - answers
+    - questions
+    - display_name
+    - private_results
+    - block_name
+    - max_submissions
+    - feedback
+  textannotation:
+    fields:
+    - data
+    - instructor_tags
+    - diacritics
+    - annotation_mode
+    - source
+    exclude_fields:
+    - instructor_email # we'd rather not share the instructor's email address
+  vertical:
+    fields:
+    - is_entrance_exam
+    has_children: true
+  video:
+    fields:
+    - data
+    - license
+    - youtube_id_1_25
+    - show_captions
+    - sub
+    - youtube_id_0_75
+    - youtube_id_1_0
+    - source
+    - only_on_web
+    - youtube_id_1_5
+    - download_video
+    - track
+    - start_time
+    - html5_sources
+    - handout
+    - download_track
+    - end_time
+    - transcripts
+    - edx_video_id
+    - youtube
+    has_children: false
+  videosequence:
+    fields:
+    - data
+    - is_entrance_exam
+    - is_time_limited
+    - exam_review_rules
+    - is_proctored_enabled
+    - default_time_limit_minutes
+    - is_practice_exam
+    has_children: true
+  word_cloud:
+    fields:
+    - data
+    - num_inputs
+    - num_top_words
+    - display_student_percents
+  wrapper:
+    fields:
+    - is_entrance_exam
+    has_children: true
+  wiki:
+    fields:
+    - slug
+exclude_xblocks:
+  acid:  # this is a debugging block
+    fields:
+    - content
+    - enabled_fields
+    - settings
+  acid_parent:  # this is a debugging block
+    fields:
+    - content
+    - enabled_fields
+    - settings
+    has_children: true
+  book:  # not frequently used
+    fields: []
+  crowdsource_hinter:  # not frequently used
+    fields:
+    - mod_queue
+    - debug
+    - hint_pk
+    - moderate
+    - data
+    - hints
+    has_children: true
+  discuss:  # not frequently used
+    fields: []
+  google-calendar:  # not frequently used
+    fields:
+    - default_view
+    - calendar_id
+  google-document:  # not frequently used
+    fields:
+    - embed_code
+    - alt_text
+  hidden:  # not frequently used
+    fields:
+    - data
+  rate:  # not frequently used
+    fields:
+    - display_name
+    - p
+    - prompts
+  raw:  # not frequently used
+    fields:
+    - data
+  recommender:  # not frequently used
+    fields:
+    - client_configuration
+    - default_recommendations
+    - version
+    - intro_enabled
+  slides:  # not frequently used
+    fields: []
+  videoalpha:  # not frequently used
+    fields:
+    - data
+    - license
+    - youtube_id_1_25
+    - show_captions
+    - sub
+    - youtube_id_0_75
+    - youtube_id_1_0
+    - source
+    - only_on_web
+    - youtube_id_1_5
+    - download_video
+    - track
+    - start_time
+    - html5_sources
+    - handout
+    - download_track
+    - end_time
+    - transcripts
+    - edx_video_id
+  videoannotation: # not frequently used
+    fields:
+    - data
+    - sourceurl
+    - annotation_mode
+    - poster_url
+    - instructor_email
+  videodev: # not frequently used
+    fields: []
