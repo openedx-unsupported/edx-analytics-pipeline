@@ -116,7 +116,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
                 try:
                     _USER_BY_ID[user_id]['name'] = name
                 except KeyError:
-                    # Note that the userprofile may be more recent than the # auth_user file.
+                    # Note that the userprofile may be more recent than the auth_user file.
                     # We have no guarantee that they are dumped at the same time, though we presume
                     # they were dumped on the same day, and presumably closer in time than that.
                     # It is presumed that none of these entries really matter, since they're after the
@@ -389,7 +389,7 @@ def find_user_fullname(text, fullname, log_context=DEFAULT_LOG_CONTEXT):
     # add the whole, then add each individual part if it's long enough.
     patterns.append(u" ".join(names))
     for name in names:
-        if len(name) > 2 and name not in STOPWORDS and not name.endswith('.'):
+        if len(name) > 2 and name.lower() not in STOPWORDS and not name.endswith('.'):
             patterns.append(name)
 
     # Because we're operating with unicode instead of raw strings, make sure that

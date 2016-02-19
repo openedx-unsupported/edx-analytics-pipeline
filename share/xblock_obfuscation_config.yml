@@ -1,0 +1,483 @@
+fields:
+- chrome
+- course_edit_method
+- days_early_for_beta
+- default_tab
+- display_name
+- due
+- edxnotes
+- format
+- graceperiod
+- graded
+- group_access
+- hide_from_toc
+- in_entrance_exam
+- max_attempts
+- name
+- parent_url
+- rerandomize
+- show_reset_button
+- showanswer
+- source_file
+- start
+- static_asset_path
+- tags
+- text_customization
+- url_name
+- use_latex_compiler
+- user_partitions
+- video_bumper
+- video_speed_optimizations
+- visible_to_staff_only
+exclude_fields:
+- annotation_storage_url
+- annotation_token_secret
+- giturl
+- matlab_api_key
+- xml_attributes
+- xqa_key
+xblocks:
+  about:
+    fields:
+    - data
+    - editor
+    - source_code
+  annotatable:
+    fields:
+    - data
+  assets:
+    fields: []
+  chapter:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    has_child_xblocks: true
+  conditional:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    - show_tag_list
+    - sources_list
+    has_child_xblocks: true
+  course:
+    exclude_fields:
+    - ccx_connector
+    - certificates
+    - lti_passports
+    - remote_gradebook
+    - video_upload_pipeline
+    fields:
+    - advanced_modules
+    - advertised_start
+    - allow_anonymous
+    - allow_anonymous_to_peers
+    - allow_public_wiki_access
+    - announcement
+    - catalog_visibility
+    - cert_html_view_enabled
+    - cert_html_view_overrides
+    - cert_name_long
+    - cert_name_short
+    - certificates_display_behavior
+    - certificates_show_before_end
+    - cohort_config
+    - cosmetic_display_price
+    - course
+    - course_image
+    - course_survey_name
+    - course_survey_required
+    - css_class
+    - default_time_limit_minutes
+    - disable_progress_graph
+    - discussion_blackouts
+    - discussion_link
+    - discussion_sort_alpha
+    - discussion_topics
+    - display_coursenumber
+    - display_organization
+    - due_date_display_format
+    - enable_ccx
+    - enable_proctored_exams
+    - enable_subsection_gating
+    - enable_timed_exams
+    - end
+    - end_of_course_survey_url
+    - enrollment_domain
+    - enrollment_end
+    - enrollment_start
+    - entrance_exam_enabled
+    - entrance_exam_id
+    - entrance_exam_minimum_score_pct
+    - exam_review_rules
+    - facebook_url
+    - grading_policy
+    - hide_progress_tab
+    - html_textbooks
+    - info_sidebar_name
+    - invitation_only
+    - is_entrance_exam
+    - is_new
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    - issue_badges
+    - language
+    - license
+    - max_student_enrollments_allowed
+    - minimum_grade_credit
+    - mobile_available
+    - no_grade
+    - org
+    - pdf_textbooks
+    - pre_requisite_courses
+    - self_paced
+    - show_calculator
+    - show_timezone
+    - social_sharing_url
+    - tabs
+    - teams_configuration
+    - textbook
+    - textbooks
+    - wiki_slug
+    has_child_xblocks: true
+  course_info:
+    fields:
+    - data
+    - editor
+    - items
+    - source_code
+  custom_tag_template:
+    fields:
+    - data
+  customtag:
+    fields:
+    - data
+  discussion:
+    fields:
+    - data
+    - discussion_category
+    - discussion_id
+    - discussion_target
+    - sort_key
+  done:
+    fields:
+    - align
+    - weight
+  edx-reverification-block:
+    fields:
+    - attempts
+    - grace_period
+    - is_configured
+    - related_assessment
+  edx_sga:
+    fields:
+    - points
+    - staff_score
+    - weight
+  error:
+    fields:
+    - contents
+    - error_msg
+  html:
+    fields:
+    - data
+    - editor
+    - filename
+    - source_code
+  image:
+    fields: []
+  imageannotation:
+    exclude_fields:
+    - instructor_email
+    fields:
+    - annotation_mode
+    - data
+    - instructor_tags
+  library:
+    fields:
+    - advanced_modules
+    has_child_xblocks: true
+  library_content:
+    fields:
+    - capa_type
+    - has_score
+    - max_count
+    - mode
+    - source_library_id
+    - source_library_version
+    has_child_xblocks: true
+  lti:
+    exclude_fields:
+    - custom_parameters
+    - launch_url
+    - lti_id
+    fields:
+    - accept_grades_past_due
+    - ask_to_send_email
+    - ask_to_send_username
+    - button_text
+    - description
+    - has_score
+    - hide_launch
+    - open_in_a_new_page
+    - weight
+  lti_consumer:
+    exclude_fields:
+    - custom_parameters
+    - launch_url
+    - lti_id
+    fields:
+    - accept_grades_past_due
+    - ask_to_send_email
+    - ask_to_send_username
+    - button_text
+    - description
+    - has_score
+    - hide_launch
+    - inline_height
+    - launch_target
+    - modal_height
+    - modal_width
+    - weight
+  openassessment:
+    fields:
+    - allow_file_upload
+    - allow_latex
+    - editor_assessments_order
+    - file_upload_type_raw
+    - leaderboard_show
+    - prompt
+    - rubric_assessments
+    - rubric_criteria
+    - rubric_feedback_default_text
+    - rubric_feedback_prompt
+    - submission_due
+    - submission_start
+    - title
+    - weight
+    - white_listed_file_types
+  poll:
+    fields:
+    - answers
+    - display_name
+    - feedback
+    - max_submissions
+    - private_results
+    - question
+  poll_question:
+    fields:
+    - answers
+    - question
+  problem:
+    fields:
+    - attempts
+    - data
+    - force_save_button
+    - markdown
+    - source_code
+    - submission_wait_seconds
+    - weight
+    has_child_xblocks: false
+  problemset:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    has_child_xblocks: true
+  randomize:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    has_child_xblocks: true
+  section:
+    fields: []
+  sequential:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    has_child_xblocks: true
+  split_test:
+    fields:
+    - default_time_limit_minutes
+    - exam_review_rules
+    - group_id_to_child
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    - user_partition_id
+    has_child_xblocks: true
+  static_tab:
+    fields:
+    - data
+    - editor
+    - source_code
+  survey:
+    fields:
+    - answers
+    - block_name
+    - display_name
+    - feedback
+    - max_submissions
+    - private_results
+    - questions
+  textannotation:
+    exclude_fields:
+    - instructor_email
+    fields:
+    - annotation_mode
+    - data
+    - diacritics
+    - instructor_tags
+    - source
+  vertical:
+    fields:
+    - is_entrance_exam
+    has_child_xblocks: true
+  video:
+    fields:
+    - data
+    - download_track
+    - download_video
+    - edx_video_id
+    - end_time
+    - handout
+    - html5_sources
+    - license
+    - only_on_web
+    - show_captions
+    - source
+    - start_time
+    - sub
+    - track
+    - transcripts
+    - youtube
+    - youtube_id_0_75
+    - youtube_id_1_0
+    - youtube_id_1_25
+    - youtube_id_1_5
+    has_child_xblocks: false
+  videosequence:
+    fields:
+    - data
+    - default_time_limit_minutes
+    - exam_review_rules
+    - is_entrance_exam
+    - is_practice_exam
+    - is_proctored_enabled
+    - is_time_limited
+    has_child_xblocks: true
+  wiki:
+    fields:
+    - slug
+  word_cloud:
+    fields:
+    - data
+    - display_student_percents
+    - num_inputs
+    - num_top_words
+  wrapper:
+    fields:
+    - is_entrance_exam
+    has_child_xblocks: true
+exclude_xblocks:
+  acid:
+    fields:
+    - content
+    - enabled_fields
+    - settings
+  acid_parent:
+    fields:
+    - content
+    - enabled_fields
+    - settings
+    has_child_xblocks: true
+  book:
+    fields: []
+  crowdsource_hinter:
+    fields:
+    - data
+    - debug
+    - hint_pk
+    - hints
+    - mod_queue
+    - moderate
+    has_child_xblocks: true
+  discuss:
+    fields: []
+  google-calendar:
+    fields:
+    - calendar_id
+    - default_view
+  google-document:
+    fields:
+    - alt_text
+    - embed_code
+  hidden:
+    fields:
+    - data
+  rate:
+    fields:
+    - display_name
+    - p
+    - prompts
+  raw:
+    fields:
+    - data
+  recommender:
+    fields:
+    - client_configuration
+    - default_recommendations
+    - intro_enabled
+    - version
+  slides:
+    fields: []
+  videoalpha:
+    fields:
+    - data
+    - download_track
+    - download_video
+    - edx_video_id
+    - end_time
+    - handout
+    - html5_sources
+    - license
+    - only_on_web
+    - show_captions
+    - source
+    - start_time
+    - sub
+    - track
+    - transcripts
+    - youtube_id_0_75
+    - youtube_id_1_0
+    - youtube_id_1_25
+    - youtube_id_1_5
+  videoannotation:
+    fields:
+    - annotation_mode
+    - data
+    - instructor_email
+    - poster_url
+    - sourceurl
+  videodev:
+    fields: []

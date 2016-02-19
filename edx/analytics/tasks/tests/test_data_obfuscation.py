@@ -2,11 +2,16 @@
 Tests for data obfuscation tasks.
 """
 
-
+import errno
 import json
+import logging
 import os
 import shutil
+import tarfile
 import tempfile
+import xml.etree.ElementTree as ET
+
+from luigi import LocalTarget
 from mock import MagicMock, sentinel
 
 from edx.analytics.tasks.tests import unittest
@@ -16,6 +21,9 @@ from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.obfuscate_util import reset_user_info_for_testing
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
+
+
+LOG = logging.getLogger(__name__)
 
 
 class TestDataObfuscation(unittest.TestCase):
@@ -357,6 +365,58 @@ class TestDataObfuscation(unittest.TestCase):
         output = self.run_task(task_cls=obfuscate.ObfuscateMongoDumpsTask, source=data)
         self.assertDictEqual(json.loads(output), json.loads(expected))
 
+    def test_course_structure(self):
+        data = json.dumps({
+            'block0': {
+                'category': 'unknownblock',
+                'metadata': {
+                    'foo': 'bar',
+                    'baz': 10
+                }
+            },
+            'block1': {
+                'category': 'course',
+                'metadata': {
+                    'lti_passports': 'x:foo:bar',
+                    'mobile_available': True,
+                    'unrecognized': 10
+                },
+                'children': [
+                    'block0'
+                ]
+            },
+            'block2': {
+                'category': 'lti',
+                'metadata': {
+                    'lti_id': 'foo'
+                }
+            }
+        })
+        expected = {
+            'block0': {
+                'category': 'unknownblock',
+                'metadata': {},
+                'redacted_metadata': ['foo', 'baz']
+            },
+            'block1': {
+                'category': 'course',
+                'metadata': {
+                    'mobile_available': True
+                },
+                'redacted_metadata': ['lti_passports', 'unrecognized'],
+                'children': [
+                    'block0'
+                ]
+            },
+            'block2': {
+                'category': 'lti',
+                'metadata': {},
+                'redacted_metadata': ['lti_id'],
+            }
+        }
+        output = self.run_task(task_cls=obfuscate.CourseStructureTask, source=data)
+        self.assertDictEqual(json.loads(output), expected)
+
 
 class TestObfuscateCourseDumpTask(unittest.TestCase):
     """Test for ObfuscateCourseDumpTask."""
@@ -386,3 +446,205 @@ class TestObfuscateCourseDumpTask(unittest.TestCase):
             auth_user_path=sentinel.ignored, auth_userprofile_path=sentinel.ignored,
         )
         self.assertEquals(task.data_directory, url_path_join(self.dump_root, coursename, 'state', '2015-12-06'))
+
+
+class TestCourseContentTask(unittest.TestCase):
+    """Ensure sensitive fields are removed from the course content export"""
+
+    COURSE_ID = 'course-v1:edX+DemoX+Test_2014'
+
+    def setUp(self):
+        self.archive_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.archive_root)
+
+        course_id_filename = get_filename_safe_course_id(self.COURSE_ID)
+        self.course_root = os.path.join(self.archive_root, course_id_filename)
+        os.makedirs(self.course_root)
+
+        with open(os.path.join(self.course_root, 'course.xml'), 'w') as course_file:
+            course_file.write('<course url_name="foo" org="edX" course="DemoX"/>')
+
+        policy_dir_path = os.path.join(self.course_root, 'policies', 'foo')
+        os.makedirs(policy_dir_path)
+        with open(os.path.join(policy_dir_path, 'policy.json'), 'w') as policy_file:
+            json.dump({}, policy_file)
+
+    def run_task(self):
+        """Runs the task with fake targets."""
+
+        output_archive_root = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, output_archive_root)
+
+        with tempfile.NamedTemporaryFile() as tmp_input_archive:
+            with tarfile.open(mode='w:gz', fileobj=tmp_input_archive) as input_archive_file:
+                input_archive_file.add(self.archive_root, arcname='')
+            tmp_input_archive.seek(0)
+
+            task = obfuscate.CourseContentTask(
+                course=sentinel.ignored,
+                output_directory=sentinel.ignored,
+                data_directory=sentinel.ignored,
+                auth_user_path=sentinel.ignored,
+                auth_userprofile_path=sentinel.ignored,
+            )
+
+            fake_input = {'data': [LocalTarget(path=tmp_input_archive.name)]}
+            task.input = MagicMock(return_value=fake_input)
+
+            output_target = FakeTarget()
+            task.output = MagicMock(return_value=output_target)
+            task.user_info_requirements = get_mock_user_info_requirements()
+            reset_user_info_for_testing()
+            task.run()
+
+            with tarfile.open(mode='r:gz', fileobj=output_target.buffer) as output_archive_file:
+                output_archive_file.extractall(output_archive_root)
+
+        self.output_course_root = os.path.join(output_archive_root, get_filename_safe_course_id(self.COURSE_ID))
+
+    def test_draft_removal(self):
+        os.makedirs(os.path.join(self.course_root, 'drafts'))
+        self.run_task()
+        self.assertTrue(os.path.exists(os.path.join(self.output_course_root, 'course.xml')))
+        self.assertFalse(os.path.exists(os.path.join(self.output_course_root, 'drafts')))
+
+    def test_policy_cleaning(self):
+        policy_obj = {
+            'course/foo': {
+                'video_upload_pipeline': {
+                    'course_video_upload_token': 'abcdefg'
+                },
+                'start': '2015-10-05T00:00:00Z',
+                'rerandomize': 'always'
+            }
+        }
+        self.write_file('policies/foo/policy.json', json.dumps(policy_obj))
+        self.run_task()
+        self.assertDictEqual(
+            {
+                'course/foo': {
+                    'start': '2015-10-05T00:00:00Z',
+                    'rerandomize': 'always',
+                    'redacted_attributes': ['video_upload_pipeline']
+                }
+            },
+            json.loads(self.read_file('policies/foo/policy.json'))
+        )
+
+    def test_single_course_xml(self):
+        content = '<course url_name="foo" org="edX" course="DemoX">' \
+                  '<chapter>' \
+                  '<foo a="0" b="1" url_name="bar"><p>hello</p><p>world!</p></foo>' \
+                  '</chapter>' \
+                  '</course>'
+
+        expected = '<course url_name="foo" org="edX" course="DemoX">' \
+                   '<chapter>' \
+                   '<foo redacted_attributes="a,b" redacted_children="p" url_name="bar" />' \
+                   '</chapter>' \
+                   '</course>'
+        self.write_file('course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course.xml'))
+
+    def write_file(self, relative_path, content):
+        """Write a file in the staging area that will be included in the test course package"""
+        full_path = os.path.join(self.course_root, relative_path)
+        try:
+            os.makedirs(os.path.dirname(full_path))
+        except OSError as ose:
+            if ose.errno != errno.EEXIST:
+                raise
+        with open(full_path, 'w') as course_file:
+            course_file.write(content)
+
+    def read_file(self, relative_path):
+        """Read a file from the temporary directory setup to hold the output after the course has been processed"""
+        with open(os.path.join(self.output_course_root, relative_path), 'r') as course_file:
+            return course_file.read()
+
+    def assert_xml_equal(self, expected, actual):
+        """Compare two XML documents to ensure they are equivalent"""
+        return self.assert_xml_element_equal(ET.fromstring(expected), ET.fromstring(actual), [])
+
+    def assert_xml_element_equal(self, expected, actual, path):
+        """Compare two XML elements to ensure they are equivalent"""
+        new_path = path + [actual.tag]
+        try:
+            self.assertEqual(expected.tag, actual.tag)
+            self.assertDictEqual(expected.attrib, actual.attrib)
+            self.assertEqual(len(expected), len(actual))
+            self.assertEqual(expected.text, actual.text)
+            self.assertEqual(expected.tail, actual.tail)
+        except AssertionError:
+            LOG.error('Difference found at path "%s"', '.'.join(new_path))
+            LOG.error('Expected XML: %s', ET.tostring(expected))
+            LOG.error('Actual XML: %s', ET.tostring(actual))
+            raise
+
+        for expected_child, actual_child in zip(expected, actual):
+            self.assert_xml_element_equal(expected_child, actual_child, new_path)
+
+    def test_separate_course_xml(self):
+        content = '<course course_image="foo.png" lti_passports="foo" unknown="1">' \
+                  '<chapter url_name="abcdefg"/>' \
+                  '</course>'
+
+        expected = '<course course_image="foo.png" redacted_attributes="lti_passports,unknown">' \
+                   '<chapter url_name="abcdefg"/>' \
+                   '</course>'
+        self.write_file('course/course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course/course.xml'))
+
+    def test_problem_with_children(self):
+        self.assert_unchanged_xml(
+            'problem/sky.xml',
+            '<problem display_name="Sky Color" markdown="null">'
+            '<p>What color is the sky?</p>'
+            '<multiplechoiceresponse>'
+            '<choice correct="false">Red</choice>'
+            '<choice correct="true">Blue</choice>'
+            '</multiplechoiceresponse>'
+            '</problem>'
+        )
+
+    def assert_unchanged_xml(self, relative_path, content):
+        """Clean the XML and make sure nothing was changed"""
+        self.write_file(relative_path, content)
+        self.run_task()
+        self.assert_xml_equal(content, self.read_file(relative_path))
+
+    def test_subelement_field_mixed_with_children(self):
+        # "textbook" is a field that is serialized to a sub-element of course, it should be excluded from further
+        # analysis
+        content = '<course url_name="foo" org="edX" course="DemoX">' \
+                  '<chapter><cleanme cleaned="0"/></chapter>' \
+                  '<textbook title="Textbook" book_url="https://s3.amazonaws.com/bucket/foo.txt">' \
+                  '<unchanged cleaned="0"/>' \
+                  '</textbook>' \
+                  '</course>'
+
+        expected = '<course url_name="foo" org="edX" course="DemoX">' \
+                   '<chapter><cleanme redacted_attributes="cleaned"/></chapter>' \
+                   '<textbook title="Textbook" book_url="https://s3.amazonaws.com/bucket/foo.txt">' \
+                   '<unchanged cleaned="0"/>' \
+                   '</textbook>' \
+                   '</course>'
+        self.write_file('course.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('course.xml'))
+
+    def test_unknown_children_status_with_children(self):
+        # this block has not declared has_children=True, however, we should log a warning and clean any children if
+        # they do exist
+        content = '<poll display_name="Has children for some reason">' \
+                  '<cleanme cleaned="0"/>' \
+                  '</poll>'
+
+        expected = '<poll display_name="Has children for some reason">' \
+                   '<cleanme redacted_attributes="cleaned"/>' \
+                   '</poll>'
+        self.write_file('poll/test.xml', content)
+        self.run_task()
+        self.assert_xml_equal(expected, self.read_file('poll/test.xml'))

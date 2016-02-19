@@ -114,7 +114,6 @@ class EventsObfuscationMapTest(EventsObfuscationBaseTest):
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74'},
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/c86e0e59006217ab4fa897d5d634d6e2644b4c74'},
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74'},
-        {'event_source': 'server', 'event_type': 'list-instructors'},
         {'event_source': 'server', 'event_type': 'problem_rescore'},
         {'event_type': None},
         {'event_source': None},
@@ -151,6 +150,7 @@ class EventsObfuscationMapTest(EventsObfuscationBaseTest):
         {'event_type': '/courses/course-v1:edX+DemoX+Demo_Course_2015/discussion/forum/c86e0e59006217ab4fa897d5d634d6e2644b4c74/threads/617ecda9383e45039ab46014'},
         {'event_source': 'browser', 'event_type': 'edx.instructor.report.downloaded'},
         {'event_source': 'server', 'event_type': 'list-staff'},
+        {'event_source': 'server', 'event_type': 'list-instructors'},
     )
     def test_allowed_event_types(self, kwargs):
         # Mapper does no modification (i.e. no obfuscation).  It only filters.
