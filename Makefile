@@ -20,8 +20,11 @@ bootstrap: uninstall
 	$(PIP_INSTALL) -U -r requirements/base.txt
 	python setup.py install --force
 
-develop: requirements
+develop: requirements develop-local
+
+develop-local: uninstall
 	python setup.py develop
+	python setup.py install_data
 
 system-requirements:
 	sudo apt-get update -q
