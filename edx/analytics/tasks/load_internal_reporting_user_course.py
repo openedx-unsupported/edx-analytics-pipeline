@@ -12,6 +12,7 @@ log = logging.getLogger(__name__)
 
 
 class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask):
+    """Loads the course_enrollment Hive table into the f_user_course table in Vertica data warehouse."""
 
     interval = luigi.DateIntervalParameter()
     n_reduce_tasks = luigi.Parameter()
