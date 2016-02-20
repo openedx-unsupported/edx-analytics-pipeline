@@ -68,7 +68,3 @@ coverage: test coverage-local
 todo:
 	pylint --disable=all --enable=W0511 edx
 
-jenkins: .tox
-	virtualenv ./venv
-	./venv/bin/pip install -U tox
-	./venv/bin/tox -v --recreate

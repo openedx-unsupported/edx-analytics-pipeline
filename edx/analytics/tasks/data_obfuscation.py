@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import tarfile
+import tempfile
 import xml.etree.ElementTree
 
 import cjson
@@ -16,7 +17,7 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join, External
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, backslash_encode_value, backslash_decode_value, ObfuscatorDownstreamMixin
 )
-from edx.analytics.tasks.util.file_util import read_config_file
+from edx.analytics.tasks.util.file_util import read_config_file, copy_file_to_file
 from edx.analytics.tasks.util.tempdir import make_temp_directory
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
@@ -413,23 +414,29 @@ class CourseContentTask(XBlockConfigMixin, BaseObfuscateDumpTask):
         with self.output().open('w') as output_file:
             with self.input()['data'][0].open('r') as input_file:
                 with make_temp_directory(prefix='obfuscate-course.') as tmp_directory:
-                    with tarfile.open(mode='r:gz', fileobj=input_file) as course_archive:
-                        course_archive.extractall(tmp_directory)
+                    with tempfile.TemporaryFile() as temp_input_file:
+                        # We cannot seek in HDFS streams, so copy the file to the local disk before extracting
+                        copy_file_to_file(input_file, temp_input_file)
+                        temp_input_file.flush()
+                        temp_input_file.seek(0)
 
-                    course_dir = os.listdir(tmp_directory)[0]
-                    root_dir = os.path.join(tmp_directory, course_dir)
+                        with tarfile.open(mode='r:gz', fileobj=temp_input_file) as course_archive:
+                            course_archive.extractall(tmp_directory)
 
-                    self.clean_drafts(root_dir)
+                        course_dir = os.listdir(tmp_directory)[0]
+                        root_dir = os.path.join(tmp_directory, course_dir)
 
-                    course_package_ref = self.read_course_package_ref(root_dir)
+                        self.clean_drafts(root_dir)
 
-                    policy_file_path = os.path.join(root_dir, 'policies', course_package_ref, 'policy.json')
-                    self.clean_course_policy(course_package_ref, policy_file_path)
+                        course_package_ref = self.read_course_package_ref(root_dir)
 
-                    self.clean_xml_files(root_dir)
+                        policy_file_path = os.path.join(root_dir, 'policies', course_package_ref, 'policy.json')
+                        self.clean_course_policy(course_package_ref, policy_file_path)
 
-                    with tarfile.open(mode='w:gz', fileobj=output_file) as output_archive_file:
-                        output_archive_file.add(tmp_directory, arcname='')
+                        self.clean_xml_files(root_dir)
+
+                        with tarfile.open(mode='w:gz', fileobj=output_file) as output_archive_file:
+                            output_archive_file.add(tmp_directory, arcname='')
 
     def clean_drafts(self, root_dir):
         """

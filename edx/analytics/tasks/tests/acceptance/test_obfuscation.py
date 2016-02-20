@@ -151,6 +151,14 @@ class ObfuscationAcceptanceTest(AcceptanceTestCase):
                 with open(expected_output_filepath) as expected_output_file:
                     expected_output_json = [json.loads(line) for line in expected_output_file]
                 self.assertItemsEqual(output_json, expected_output_json)
+            elif data_filename.endswith('.json'):
+                with open(data_filepath) as actual_output_file:
+                    output_json = json.load(actual_output_file)
+                with open(expected_output_filepath) as expected_output_file:
+                    expected_output_json = json.load(expected_output_file)
+                self.assertDictEqual(output_json, expected_output_json)
+            elif data_filename.endswith('.tar.gz'):
+                pass
             else:
                 shell.run(['diff', data_filepath, expected_output_filepath])
 
