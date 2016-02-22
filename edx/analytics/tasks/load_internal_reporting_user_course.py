@@ -47,7 +47,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     @property
     def auto_primary_key(self):
         """Use 'record_number' as primary key to match the schema"""
-        return ('record_number', 'AUTO_INCREMENT')
+        return None
 
     @property
     def default_columns(self):
