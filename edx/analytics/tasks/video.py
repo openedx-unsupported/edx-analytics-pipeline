@@ -16,6 +16,7 @@ from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelecti
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, HiveQueryToMysqlTask
+from edx.analytics.tasks.decorators import workflow_entry_point
 
 log = logging.getLogger(__name__)
 
@@ -623,6 +624,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, HiveQueryToMysqlTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
 
+@workflow_entry_point
 class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
     """Insert all video data into MySQL."""
 

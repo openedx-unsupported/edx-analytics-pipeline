@@ -17,6 +17,7 @@ from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import hive_database_name
+from edx.analytics.tasks.decorators import workflow_entry_point
 
 log = logging.getLogger(__name__)
 
@@ -324,6 +325,7 @@ class InsertToMysqlCourseEnrollByCountryTask(InsertToMysqlCourseEnrollByCountryT
         return ExternalURL(url=self.insert_source)
 
 
+@workflow_entry_point
 class InsertToMysqlCourseEnrollByCountryWorkflow(
         QueryLastCountryPerCourseMixin,
         LastCountryOfUserMixin,

@@ -59,3 +59,8 @@ override.cfg
 *.swp
 catalog_test.json
 course_structure.json
+
+# Sphinx docs
+docs
+sphinx_source/*.rst
+!sphinx_source/index.rst

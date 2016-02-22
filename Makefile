@@ -1,9 +1,9 @@
 
 # If a wheel repository is defined, then have pip use that.  But don't require the use of wheel.
 ifdef WHEEL_PYVER
-    PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
+	PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
 else
-    PIP_INSTALL = pip install --allow-external mysql-connector-python
+	PIP_INSTALL = pip install --allow-external mysql-connector-python
 endif
 
 .PHONY:	requirements test test-requirements .tox
@@ -64,6 +64,19 @@ coverage-local: test-local
 
 coverage: test coverage-local
 
+docs-requirements: requirements
+	$(PIP_INSTALL) -U -r requirements/docs.txt
+
+docs-local:
+	python sphinx_source/gen_tasks.py --entry-point=edx.analytics.tasks \
+		--labels "Workflow Entry Points" "Supporting Tasks" \
+		--categories workflow_entry_point ""
+	sphinx-build -b html sphinx_source docs
+
+docs-clean:
+	rm -rf docs
+
+docs: docs-requirements docs-local
 
 todo:
 	pylint --disable=all --enable=W0511 edx
