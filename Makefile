@@ -1,9 +1,9 @@
 
 # If a wheel repository is defined, then have pip use that.  But don't require the use of wheel.
 ifdef WHEEL_PYVER
-    PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
+	PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
 else
-    PIP_INSTALL = pip install --allow-external mysql-connector-python
+	PIP_INSTALL = pip install --allow-external mysql-connector-python
 endif
 
 .PHONY:	requirements test test-requirements .tox
@@ -63,6 +63,9 @@ coverage-local: test-local
 	diff-quality --violations=pylint --html-report diff_quality_pylint.html pylint.report
 
 coverage: test coverage-local
+
+docs:
+	sphinx-build -b html sphinx_source sphinx_docs
 
 
 todo:

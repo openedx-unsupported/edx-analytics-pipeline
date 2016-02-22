@@ -644,7 +644,10 @@ class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
 
     """
     answer_metadata = luigi.Parameter(default=None)
+    """ Test docstring for answer_metadata attribute """
+
     base_input_format = luigi.Parameter(default=None)
+    """ Test docstring for base_input_format attribute """
 
 
 class AnswerDistributionPerCourse(
@@ -868,7 +871,9 @@ class AnswerDistributionWorkflow(
 
     # Add additional args for MultiOutputMapReduceJobTask.
     output_root = luigi.Parameter()
+    """ Test docstring for output_root attribute """
     marker = luigi.Parameter()
+    """ Test docstring for marker attribute """
 
     def requires(self):
         kwargs = {
