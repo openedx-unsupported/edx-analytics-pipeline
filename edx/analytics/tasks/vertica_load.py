@@ -331,7 +331,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             connection.commit()
             log.debug("Committed transaction.")
         except Exception as exc:
-            log.debug("Rolled back the transaction; exception raised: %s", str(exc))
+            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()
             raise
         finally:
