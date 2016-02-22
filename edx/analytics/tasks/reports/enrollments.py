@@ -25,18 +25,45 @@ class CourseEnrollmentCountMixin(MapReduceJobTaskMixin):
     src = luigi.Parameter(
         is_list=True,
         config_path={'section': 'enrollment-reports', 'name': 'src'},
+        description='Location of daily enrollments per date. The format is a '
+        'Hadoop TSV file, with fields `course_id`, `date` and `count`.',
     )
     include = luigi.Parameter(is_list=True, default=('*',))
-    weeks = luigi.IntParameter(default=DEFAULT_NUM_WEEKS)
-    days = luigi.Parameter(default=DEFAULT_NUM_DAYS)
-    offsets = luigi.Parameter(default=None)
-    history = luigi.Parameter(default=None)
-    date = luigi.DateParameter(default=date.today())
+    weeks = luigi.IntParameter(
+        default=DEFAULT_NUM_WEEKS,
+        description='Number of weeks from the end date to request.',
+    )
+    days = luigi.Parameter(
+        default=DEFAULT_NUM_DAYS,
+        description='Number of days from the end date to request.',
+    )
+    offsets = luigi.Parameter(
+        default=None,
+        description='Location of seed values for each course. The format is a '
+        'Hadoop TSV file, with fields `course_id`, `date` and `offset`.',
+    )
+    history = luigi.Parameter(
+        default=None,
+        description='Location of historical values for total course enrollment. '
+        'The format is a TSV file, with fields `date` and `enrollments`.',
+    )
+    date = luigi.DateParameter(
+        default=date.today(),
+        description='End date of the last week requested. Default is today.',
+    )
     statuses = luigi.Parameter(default=None)
     manifest = luigi.Parameter(default=None)
     manifest_path = luigi.Parameter(default=None)
-    destination_directory = luigi.Parameter(default=None)
-    destination = luigi.Parameter(config_path={'section': 'enrollment-reports', 'name': 'destination'})
+    destination_directory = luigi.Parameter(
+        default=None,
+        description='Directory to store the resulting report and intermediate '
+        'results. The output format is an excel-compatible CSV file.',
+    )
+    destination = luigi.Parameter(
+        config_path={'section': 'enrollment-reports', 'name': 'destination'},
+        description='Location of the resulting report. The output format is a '
+        'Excel-compatible CSV file with `course_id` and one column per requested week.',
+    )
     credentials = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'credentials'}
     )
@@ -156,17 +183,7 @@ class CourseEnrollmentCountMixin(MapReduceJobTaskMixin):
 class EnrollmentsByWeek(luigi.Task, CourseEnrollmentCountMixin):
     """Calculates cumulative enrollments per week per course.
 
-    Parameters:
-        source: Location of daily enrollments per date. The format is a hadoop
-            tsv file, with fields course_id, date and count.
-        destination: Location of the resulting report. The output format is a
-            excel csv file with course_id and one column per requested week.
-        offsets: Location of seed values for each course. The format is a
-            hadoop tsv file, with fields course_id, date and offset.
-        date: End date of the last week requested.
-        weeks: Number of weeks from the end date to request.
-
-    Output:
+    Returns:
         Excel CSV file with one row per course. The columns are
         the cumulative enrollments counts for each week requested.
 

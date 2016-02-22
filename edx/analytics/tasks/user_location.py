@@ -23,39 +23,44 @@ class GeolocationMixin(object):
     """
     Defines parameters needed for geolocation lookups.
 
-    Parameters:
-        geolocation_data: a URL to the location of country-level geolocation data.
     """
     geolocation_data = luigi.Parameter(
-        config_path={'section': 'geolocation', 'name': 'geolocation_data'}
+        config_path={'section': 'geolocation', 'name': 'geolocation_data'},
+        description='A URL to the location of country-level geolocation data.',
     )
 
 
 class BaseUserLocationTask(GeolocationMixin):
     """
-    Parameters:
-        name: a unique identifier to distinguish one run from another.  It is used in
-            the construction of output filenames, so each run will have distinct outputs.
-        src:  a URL to the root location of input tracking log files.
-        dest:  a URL to the root location to write output file(s).
-        include:  a list of patterns to be used to match input files, relative to `src` URL.
-            The default value is ['*'].
-        manifest: a URL to a file location that can store the complete set of input files.
-        end_date: events before or on this date are kept, and after this date are filtered out.
-        geolocation_data: a URL to the location of country-level geolocation data.
+    Defines parameters needed for user location tasks.
 
     """
-    name = luigi.Parameter()
-    src = luigi.Parameter(is_list=True)
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-
-    # A manifest file is required by hadoop if there are too many
-    # input paths. It hits an operating system limit on the
-    # number of arguments passed to the mapper process on the task nodes.
-    manifest = luigi.Parameter(default=None)
-
-    end_date = luigi.DateParameter()
+    name = luigi.Parameter(
+        description='A unique identifier to distinguish one run from another.  It is used in '
+        'the construction of output filenames, so each run will have distinct outputs.',
+    )
+    src = luigi.Parameter(
+        is_list=True,
+        description='A list of URLs to the root location of input tracking log files.',
+    )
+    dest = luigi.Parameter(
+        description='A URL to the root location to write output file(s).',
+    )
+    include = luigi.Parameter(
+        is_list=True,
+        default=('*',),
+        description='A list of patterns to be used to match input files, relative to `src` URL. '
+        'The default value is [\'*\'].',
+    )
+    manifest = luigi.Parameter(
+        default=None,
+        description='A URL to a file location that can store the complete set of input files. '
+        'A manifest file is required by hadoop if there are too many input paths. It hits an operating system '
+        'limit on the number of arguments passed to the mapper process on the task nodes.',
+    )
+    end_date = luigi.DateParameter(
+        description='Events before or on this date are kept, and after this date are filtered out.',
+    )
 
 
 class BaseGeolocation(object):
@@ -264,14 +269,15 @@ class UsersPerCountryReport(luigi.Task):
     """
     Calculates TSV file containing number of users per country.
 
-    Parameters:
-        counts: Location of counts per country. The format is a hadoop
-            tsv file, with fields country, count, and date.
-        report: Location of the resulting report. The output format is a
-            excel csv file with country and count.
     """
-    counts = luigi.Parameter()
-    report = luigi.Parameter()
+    counts = luigi.Parameter(
+        description='Location of counts per country. The format is a Hadoop '
+        'TSV file, with fields `country`, `count`, and `date`.',
+    )
+    report = luigi.Parameter(
+        description='Location of the resulting report. The output format is a '
+        'Excel CSV file with `country` and `count`.',
+    )
 
     def requires(self):
         return ExternalURL(self.counts)
@@ -322,40 +328,32 @@ class UsersPerCountryReportWorkflow(MapReduceJobTaskMixin, UsersPerCountryReport
     """
     Generates report containing number of users per location (country).
 
-    Most parameters are passed through to :py:class:`LastCountryForEachUser`
-    via :py:class:`UsersPerCountry`.  These are:
-
-        name: a unique identifier to distinguish one run from another.  It is used in
-            the construction of output filenames, so each run will have distinct outputs.
-        src:  a URL to the root location of input tracking log files.
-        include:  a list of patterns to be used to match input files, relative to `src` URL.
-            The default value is ['*'].
-        manifest: a URL to a file location that can store the complete set of input files.
-        end_date: events before or on this date are kept, and after this date are filtered out.
-        geolocation_data: a URL to the location of country-level geolocation data.
-
-    Additional optional parameters are passed through to :py:class:`MapReduceJobTask`:
-
-        mapreduce_engine:  'hadoop' (the default) or 'local'.
-        base_input_format: override the input_format for Hadoop job to use. For example, when
-            running with manifest file above, specify "oddjob.ManifestTextInputFormat" for input_format.
-        lib_jar:  points to jar defining input_format, if any.
-        n_reduce_tasks: number of reducer tasks to use in upstream tasks.
-
-    Additional parameters are passed through to :py:class:`UsersPerCountryReport`:
-
-        counts: Location of counts per country. The format is a hadoop
-            tsv file, with fields country, count, and date.
-        report: Location of the resulting report. The output format is a
-            excel csv file with country and count.
     """
-
-    name = luigi.Parameter()
-    src = luigi.Parameter(is_list=True)
-    include = luigi.Parameter(is_list=True, default=('*',))
-    manifest = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
-    end_date = luigi.DateParameter()
+    name = luigi.Parameter(
+        description='A unique identifier to distinguish one run from another.  It is used in '
+        'the construction of output filenames, so each run will have distinct outputs.',
+    )
+    src = luigi.Parameter(
+        is_list=True,
+        description='A list of URLs to the root location of input tracking log files.',
+    )
+    include = luigi.Parameter(
+        is_list=True,
+        default=('*',),
+        description='A list of patterns to be used to match input files, relative to `src` URL. '
+        'The default value is [\'*\'].',
+    )
+    manifest = luigi.Parameter(
+        default=None,
+        description='A URL to a file location that can store the complete set of input files.',
+    )
+    base_input_format = luigi.Parameter(
+        default=None,
+        description='Events before or on this date are kept, and after this date are filtered out.',
+    )
+    end_date = luigi.DateParameter(
+        description='A URL to the location of country-level geolocation data.',
+    )
     geolocation_data = luigi.Parameter()
 
     def requires(self):

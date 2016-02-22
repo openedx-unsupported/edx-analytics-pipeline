@@ -562,10 +562,16 @@ class SettlementReportRecord(BaseSettlementReportRecord):
 class PaypalTaskMixin(OverwriteOutputMixin):
     """The parameters needed to run the paypal reports."""
 
-    output_root = luigi.Parameter()
-    date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    output_root = luigi.Parameter(
+        description='The parent folder to write the paypal transaction data to.',
+    )
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='The date to generate a report for. Default is today, UTC.',
+    )
     account_id = luigi.Parameter(
-        default_from_config={'section': 'paypal', 'name': 'account_id'}
+        default_from_config={'section': 'paypal', 'name': 'account_id'},
+        description='A human readable name for the paypal account data is being gathered for.',
     )
 
 
@@ -573,10 +579,6 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
     """
     Run a report, gather the data for the report and write it to the output as a TSV file.
 
-    Parameters:
-        output_root: The parent folder to write the paypal transaction data to.
-        date: The date to generate a report for.
-        account_id: A human readable name for the paypal account data is being gathered for.
     """
     # pylint: disable=no-member
 
@@ -673,10 +675,17 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
     interval = luigi.DateIntervalParameter(default=None)
     interval_start = luigi.DateParameter(
         default_from_config={'section': 'paypal', 'name': 'interval_start'},
-        significant=False
+        significant=False,
     )
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
-    output_root = luigi.Parameter(default=None)
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='Default is today, UTC.',
+    )
+    output_root = luigi.Parameter(
+        default=None,
+        description='URL of location to write output.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(PaypalTransactionsIntervalTask, self).__init__(*args, **kwargs)

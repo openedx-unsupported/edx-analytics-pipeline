@@ -24,42 +24,34 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """
     Group events by institution and export them for research purposes.
 
-    Parameters:
-        output_root: Directory to store the output in.
-        config: A URL to a YAML file that contains the list of organizations and servers to export events for.
-        org_id: A list of organizations to process data for. If provided, only these organizations will be processed.
-            Otherwise, all valid organizations will be processed.
-        environment: A single string that describe the single environment that generated the events.
-        interval: The range of dates to export logs for.
-
-        The following are defined in EventLogSelectionMixin:
-        source: A URL to a path that contains log files that contain the events.
-        pattern: A regex with a named capture group for the date that approximates the date that the events within were
-            emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
-            in order for them to be processed.
-
     """
 
     output_root = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'output_root'}
+        config_path={'section': 'event-export', 'name': 'output_root'},
+        description='Directory to store the output in.',
     )
     config = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'config'}
+        config_path={'section': 'event-export', 'name': 'config'},
+        description='A URL to a YAML file that contains the list of organizations and servers to export events for.',
     )
-    org_id = luigi.Parameter(is_list=True, default=[])
-
+    org_id = luigi.Parameter(
+        is_list=True,
+        default=[],
+        description='A list of organizations to process data for. If provided, only these organizations will be '
+        'processed.  Otherwise, all valid organizations will be processed.',
+    )
     gpg_key_dir = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'gpg_key_dir'}
+        config_path={'section': 'event-export', 'name': 'gpg_key_dir'},
     )
     gpg_master_key = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'gpg_master_key'}
+        config_path={'section': 'event-export', 'name': 'gpg_master_key'},
     )
     environment = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'environment'}
+        config_path={'section': 'event-export', 'name': 'environment'},
+        description='A single string that describe the single environment that generated the events.',
     )
-
     required_path_text = luigi.Parameter(
-        config_path={'section': 'event-export', 'name': 'required_path_text'}
+        config_path={'section': 'event-export', 'name': 'required_path_text'},
     )
 
     def requires_local(self):

@@ -30,18 +30,20 @@ class MysqlInsertTaskMixin(OverwriteOutputMixin):
     """
     Parameters for inserting a data set into RDBMS.
 
-        credentials: Path to the external access credentials file.
-        database:  The name of the database to which to write.
-        insert_chunk_size:  The number of rows to insert at a time.
-
     """
     database = luigi.Parameter(
-        config_path={'section': 'database-export', 'name': 'database'}
+        config_path={'section': 'database-export', 'name': 'database'},
+        description='The name of the database to which to write.',
     )
     credentials = luigi.Parameter(
-        config_path={'section': 'database-export', 'name': 'credentials'}
+        config_path={'section': 'database-export', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
     )
-    insert_chunk_size = luigi.IntParameter(default=100, significant=False)
+    insert_chunk_size = luigi.IntParameter(
+        default=100,
+        significant=False,
+        description='The number of rows to insert at a time.',
+    )
 
 
 class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):

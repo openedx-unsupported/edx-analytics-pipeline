@@ -18,18 +18,7 @@ class WeeklyIncrementalUsersAndEnrollments(luigi.Task, AllCourseEnrollmentCountM
     """
     Calculates weekly incremental changes in users and enrollments across courses.
 
-    Parameters:
-        registrations: Location of daily registrations per date. The format is a
-            TSV file, with fields date and count.
-        enrollments: Location of daily enrollments per date. The format is a
-            TSV file, with fields course_id, date and count.
-        destination: Location of the resulting report. The output format is an
-            excel-compatible CSV file.
-        date: End date of the last week requested.
-        weeks: Number of weeks from the end date to request.
-
-    Output:
-
+    Returns:
         Excel-compatible CSV file with a header row and four
         non-header rows.  The first column is a title for the row, and
         subsequent columns are the incremental counts for each week
@@ -197,17 +186,7 @@ class DailyRegistrationsEnrollmentsAndCourses(luigi.Task,
     """
     Calculates users registration and total enrollments across courses.
 
-    Parameters:
-        registrations: Location of daily registrations per date. The format is a
-            TSV file, with fields date and count.
-        enrollments: Location of daily enrollments per date. The format is a
-            TSV file, with fields course_id, date and count.
-        destination: Location of the resulting report. The output format is an
-            excel-compatible CSV file.
-        date: End date of the last week requested.
-        days: Number of days from the end date to request.
-
-    Output:
+    Returns:
         Excel-compatible CSV file with a header row.
         Columns are the days requested.
         First row is number of user registrations.

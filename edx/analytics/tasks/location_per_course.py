@@ -30,15 +30,10 @@ class LastCountryOfUserMixin(
     """
     Defines parameters for LastCountryOfUser task and downstream tasks that require it.
 
-    Parameters:
-        user_country_output: location of the resulting Hadoop output.
-
-    Also inherits parameters from :py:class:`MapReduceJobTaskMixin, :py:class:`EventLogSelectionDownstreamMixin`,
-    :py:class:`GeolocationMixin` and :py:class:`OverwriteOutputMixin` classes.
-
     """
     user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'}
+        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'},
+        description='Location of the resulting Hadoop output.',
     )
 
 
@@ -104,7 +99,6 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
     """
     Creates a Hive Table that points to Hadoop output of LastCountryOfUser task.
 
-    Parameters are defined by :py:class:`LastCountryOfUserMixin`.
     """
 
     @property
@@ -182,11 +176,10 @@ class QueryLastCountryPerCourseMixin(object):
     """
     Defines parameters for QueryLastCountryPerCourseTask
 
-    Parameters:
-        course_country_output:  location to write query results.
     """
     course_country_output = luigi.Parameter(
-        config_path={'section': 'query-country-per-course', 'name': 'course_country_output'}
+        config_path={'section': 'query-country-per-course', 'name': 'course_country_output'},
+        description='Location to write query results.',
     )
 
 

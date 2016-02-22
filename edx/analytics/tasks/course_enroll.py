@@ -179,22 +179,32 @@ class BaseCourseEnrollmentTaskDownstreamMixin(OverwriteOutputMixin, MapReduceJob
     """
     Base class mixin for course enrollment calculations.
 
-    Parameters:
-      name: a unique identifier to distinguish one run from another.  It is used in
-          the construction of output filenames, so each run will have distinct outputs.
-      src:  a URL to the root location of input tracking log files.
-      dest:  a URL to the root location to write output file(s).
-      include:  a list of patterns to be used to match input files, relative to `src` URL.
-          The default value is ['*'].
-      manifest: a URL to a file location that can store the complete set of input files.
-      run_date: the date to use as the partition version
     """
-    name = luigi.Parameter()
-    src = luigi.Parameter(is_list=True)
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    manifest = luigi.Parameter(default=None)
-    run_date = luigi.Parameter(default=datetime.date.today())
+    name = luigi.Parameter(
+        description='A unique identifier to distinguish one run from another.  It is used in '
+        'the construction of output filenames, so each run will have distinct outputs.',
+    )
+    src = luigi.Parameter(
+        is_list=True,
+        description='A list of URLs to the root location of input tracking log files.',
+    )
+    dest = luigi.Parameter(
+        description='A URL to the root location to write output file(s).',
+    )
+    include = luigi.Parameter(
+        is_list=True,
+        default=('*',),
+        description='A list of patterns to be used to match input files, relative to `src` URL. '
+        'The default value is [\'*\'].',
+    )
+    manifest = luigi.Parameter(
+        default=None,
+        description='A URL to a file location that can store the complete set of input files.',
+    )
+    run_date = luigi.Parameter(
+        default=datetime.date.today(),
+        description='The date to use as the partition version. Default is today.',
+    )
 
 
 ##################################

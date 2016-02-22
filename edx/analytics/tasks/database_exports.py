@@ -54,12 +54,14 @@ class StudentModulePerCourseTask(MultiOutputMapReduceJobTask):
     Separates a raw SQL dump of a courseware_studentmodule table into
     a different tsv file for each course.
 
-    Parameters:
-        dump_root: a URL location of the database dump.
-        output_suffix: added to the filenames for identification.
     """
-    dump_root = luigi.Parameter()
-    output_suffix = luigi.Parameter(default=None)
+    dump_root = luigi.Parameter(
+        description='A URL input path pointing to the raw output from the sqoop job.',
+    )
+    output_suffix = luigi.Parameter(
+        default=None,
+        description='Added to the filenames for identification.',
+    )
 
     def requires(self):
         return PathSetTask(self.dump_root)
@@ -114,23 +116,26 @@ class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
     Generates a raw SQL dump of a courseware_studentmodule table
     and separates it into a different tsv file for each course.
 
-    Parameters:
-        dump_root: a URL location of the database dump.
-        output_root: a URL location where the split files will be stored.
-        output_suffix: added to the filenames for identification.
-        delete_output_root: if True, recursively deletes the output_root at task creation.
-        credentials: Path to the external access credentials file.
-        num_mappers: The number of map tasks to ask Sqoop to use.
-        where:  A 'where' clause to be passed to Sqoop.
-        verbose: Sqoop prints more information while working.
-
     """
     credentials = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'},
+        description='Path to the external access credentials file. '
+        'The database will be read, not written to.',
     )
-    num_mappers = luigi.Parameter(default=None, significant=False)  # TODO: move to config
-    where = luigi.Parameter(default=None)
-    verbose = luigi.BooleanParameter(default=False, significant=False)
+    num_mappers = luigi.Parameter(  # TODO: move to config
+        default=None,
+        significant=False,
+        description='The number of map tasks to ask Sqoop to use.',
+    )
+    where = luigi.Parameter(
+        default=None,
+        description='A "where" clause to be passed to Sqoop.',
+    )
+    verbose = luigi.BooleanParameter(
+        default=False,
+        significant=False,
+        description='Sqoop prints more information while working.',
+    )
 
     def requires(self):
         table_name = 'courseware_studentmodule'

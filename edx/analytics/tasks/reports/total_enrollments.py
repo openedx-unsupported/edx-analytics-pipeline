@@ -145,19 +145,7 @@ class WeeklyAllUsersAndEnrollments(luigi.Task, AllCourseEnrollmentCountMixin):
     """
     Calculates total users and enrollments across all (known) courses per week.
 
-    Parameters:
-        enrollments: Location of daily enrollments per date. The format is a
-            TSV file, with fields course_id, date and count.
-        destination: Directory to store the resulting report and intermediate
-            results. The output format is an excel-compatible CSV file.
-        history:  Location of historical values for total course enrollment.
-            The format is a TSV file, with fields "date" and "enrollments".
-        offsets: Location of seed values for each course. The format is a
-            Hadoop TSV file, with fields "course_id", "date" and "offset".
-        date: End date of the last week requested.
-        weeks: Number of weeks from the end date to request.
-
-    Output:
+    Returns:
         Excel-compatible CSV file with a header row and two non-header
         rows.  The first column is a title for the row, and subsequent
         columns are the total counts for each week requested.  The

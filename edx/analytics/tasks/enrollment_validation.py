@@ -38,55 +38,58 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
     """
     Defines parameters for passing upstream to tasks that use CourseEnrollmentValidationTask.
 
-    Parameters:
-
-        output_root: A URL to a path where output event files will be written.
-
-        tuple_output:  A flag indicating that output should be in the form of tuples, not events.
-            Default = events.
-
-        generate_before:  A flag indicating that events should be created preceding the
-            specified interval. Default behavior is to suppress the generation of events
-            before the specified interval.
-
-        include_nonstate_changes:  A flag indicating that events should be created
-            to fix all transitions, even those that don't result in a change in enrollment
-            state.  An "activate" following another "activate" is one such example.
-            Default behavior is to skip generating events for non-state changes.
-
-        earliest_timestamp:  A "DateHour" parameter ("yyyy-mm-ddThh"), which if set,
-            specifies the earliest timestamp that should occur in the output.  Events
-            that would be generated before this timestamp would instead be assigned this
-            timestamp.  This is left unspecified by default.
-
-        expected_validation:  A "DateHour" parameter ("yyyy-mm-ddThh"), which if set,
-            specifies a point in time where every user with events before this time
-            should also have a corresponding validation event.  Those without such an
-            validation event were not really created, and events should be synthesized
-            to simulate "roll back" of the events.
-
     """
     # location to write output
-    output_root = luigi.Parameter()
+    output_root = luigi.Parameter(
+        description='A URL to a path where output event files will be written.',
+    )
 
     # Flag indicating whether to output synthetic events or tuples
-    tuple_output = luigi.BooleanParameter(default=False)
+    tuple_output = luigi.BooleanParameter(
+        default=False,
+        description='A flag indicating that output should be in the form of tuples, not events. '
+        'Default is False (output is events).',
+    )
 
     # If set, generates events that occur before the start of the specified interval.
     # Default is incremental validation.
-    generate_before = luigi.BooleanParameter(default=False)
+    generate_before = luigi.BooleanParameter(
+        default=False,
+        description='A flag indicating that events should be created preceding the '
+        'specified interval. Default behavior is to suppress the generation of events '
+        'before the specified interval.',
+    )
 
     # If set, events are included for transitions that don't result in a
     # change in enrollment state.  (For example, two activations in a row.)
-    include_nonstate_changes = luigi.BooleanParameter(default=False)
+    include_nonstate_changes = luigi.BooleanParameter(
+        default=False,
+        description='A flag indicating that events should be created '
+        'to fix all transitions, even those that don\'t result in a change in enrollment '
+        'state.  An "activate" following another "activate" is one such example. '
+        'Default behavior is to skip generating events for non-state changes.',
+    )
 
     # If set, events that would be generated before this timestamp would instead
     # be assigned this timestamp.
-    earliest_timestamp = luigi.DateHourParameter(default=None)
+    earliest_timestamp = luigi.DateHourParameter(
+        default=None,
+        description='A "DateHour" parameter ("yyyy-mm-ddThh"), which if set, '
+        'specifies the earliest timestamp that should occur in the output.  Events '
+        'that would be generated before this timestamp would instead be assigned this '
+        'timestamp.  This is left unspecified by default.',
+    )
 
     # If set, users with events before this timestamp would be expected to have
     # a corresponding validation event.
-    expected_validation = luigi.DateHourParameter(default=None)
+    expected_validation = luigi.DateHourParameter(
+        default=None,
+        description='A "DateHour" parameter ("yyyy-mm-ddThh"), which if set, '
+        'specifies a point in time where every user with events before this time '
+        'should also have a corresponding validation event.  Those without such an '
+        'validation event were not really created, and events should be synthesized '
+        'to simulate "roll back" of the events.',
+    )
 
 
 class CourseEnrollmentValidationTask(
@@ -604,14 +607,12 @@ class CourseEnrollmentValidationPerDateTask(
     """
     Outputs CourseEnrollmentValidationTask according to key (i.e. datestamp).
 
-    Parameters:
-        intermediate_output: a URL for the location to write intermediate output.
-
-    Other parameters are defined in mixins.
-
     """
 
-    intermediate_output = luigi.Parameter(default=None)
+    intermediate_output = luigi.Parameter(
+        default=None,
+        description='A URL for the location to write intermediate output.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentValidationPerDateTask, self).__init__(*args, **kwargs)
@@ -673,13 +674,6 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
     The date for the synthesized events is the end time of the Sqoop dump.  This
     is when the particular enrollment states were observed.
 
-    Parameters:
-
-        source_dir: the URL of the location of the desired database dump.  This should
-            include the 'dt=<date>' partition specification.
-
-    Other parameters are defined by MultiOutputMapReduceJobTask.
-
     """
     # Note: we could just read the corresponding validation data into
     # the reducer.  So this would just need to produce reducer input
@@ -690,7 +684,10 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
 
     # This defines the directory (with the dt=<date> partition) that contains
     # the desired database dump.
-    source_dir = luigi.Parameter()
+    source_dir = luigi.Parameter(
+        description='The URL of the location of the desired database dump.  This should '
+        'include the "dt=<date>" partition specification.',
+    )
 
     def requires_hadoop(self):
         # Check first if running locally with Sqoop output.
@@ -822,20 +819,19 @@ class CreateAllEnrollmentValidationEventsTask(WarehouseMixin, MapReduceJobTaskMi
     a courseenrollment dump for that date but no corresponding validation events.
     If so, it generates validation events from the courseenrollment dump.
 
-    Parameters:
-
-        interval: Date interval (specified as yyyy-mm-dd-yyyy-mm-dd) over which to check.
-
-        output_root:  root directory to which to write validation events.  Actual
-            output files get written to a subdirectory named with the dump date (yyyy-mm-dd).
-
-        credentials: Path to the external access credentials file, if performing a dump.
-            Default is to use value from config file for database-import.
-
     """
-    interval = luigi.DateIntervalParameter()
-    output_root = luigi.Parameter()
-    credentials = luigi.Parameter(default=None)
+    interval = luigi.DateIntervalParameter(
+        description='Date interval (specified as yyyy-mm-dd-yyyy-mm-dd) over which to check.',
+    )
+    output_root = luigi.Parameter(
+        description='Root directory to which to write validation events.  Actual '
+        'output files get written to a subdirectory named with the dump date (yyyy-mm-dd).',
+    )
+    credentials = luigi.Parameter(
+        default=None,
+        description='Path to the external access credentials file, if performing a dump. '
+        'Default is to use value from config file for database-import.',
+    )
 
     required_tasks = None
 

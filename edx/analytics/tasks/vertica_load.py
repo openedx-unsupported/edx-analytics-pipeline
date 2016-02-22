@@ -27,15 +27,14 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
     """
     Parameters for copying a database into Vertica.
 
-        credentials: Path to the external access credentials file.
-        schema:  The schema to which to write.
-        insert_chunk_size:  The number of rows to insert at a time.
     """
     schema = luigi.Parameter(
-        config_path={'section': 'vertica-export', 'name': 'schema'}
+        config_path={'section': 'vertica-export', 'name': 'schema'},
+        description='The schema to which to write.',
     )
     credentials = luigi.Parameter(
-        config_path={'section': 'vertica-export', 'name': 'credentials'}
+        config_path={'section': 'vertica-export', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
     )
     read_timeout = luigi.IntParameter(
         config_path={'section': 'vertica-export', 'name': 'read_timeout'}
