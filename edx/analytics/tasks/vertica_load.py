@@ -37,6 +37,9 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
     credentials = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'credentials'}
     )
+    read_timeout = luigi.IntParameter(
+        config_path={'section': 'vertica-export', 'name': 'read_timeout'}
+    )
 
 
 class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
@@ -187,7 +190,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 credentials_target=self.input()['credentials'],
                 table=self.table,
                 schema=self.schema,
-                update_id=self.update_id()
+                update_id=self.update_id(),
+                read_timeout=self.read_timeout,
             )
 
         return self.output_target
@@ -331,7 +335,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             connection.commit()
             log.debug("Committed transaction.")
         except Exception as exc:
-            log.debug("Rolled back the transaction; exception raised: %s", str(exc))
+            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()
             raise
         finally:
@@ -358,7 +362,7 @@ class CredentialFileVerticaTarget(VerticaTarget):
             values will not be executed.
     """
 
-    def __init__(self, credentials_target, schema, table, update_id):
+    def __init__(self, credentials_target, schema, table, update_id, read_timeout):
         with credentials_target.open('r') as credentials_file:
             cred = json.load(credentials_file)
             super(CredentialFileVerticaTarget, self).__init__(
@@ -368,7 +372,8 @@ class CredentialFileVerticaTarget(VerticaTarget):
                 password=cred.get('password'),
                 schema=schema,
                 table=table,
-                update_id=update_id
+                update_id=update_id,
+                read_timeout=read_timeout,
             )
 
     def exists(self, connection=None):

@@ -18,7 +18,7 @@ class VerticaTarget(luigi.Target):
     """
     marker_table = 'table_updates'
 
-    def __init__(self, host, user, password, schema, table, update_id):
+    def __init__(self, host, user, password, schema, table, update_id, read_timeout=None):
         """
         Initializes a VerticaTarget instance.
 
@@ -48,6 +48,7 @@ class VerticaTarget(luigi.Target):
         self.update_id = update_id
         # Default to using the schema data is being inserted into as the schema for the marker table.
         self.marker_schema = schema
+        self.read_timeout = read_timeout
 
     def touch(self, connection=None):
         """
@@ -102,7 +103,7 @@ class VerticaTarget(luigi.Target):
         # vertica-python 0.5.0 changes the code for connecting to databases to use kwargs instead of a dictionary.
         # The 'database' parameter is included for DBAPI reasons and does not actually affect the session.
         connection = vertica_python.connect(user=self.user, password=self.password, host=self.host, port=self.port,
-                                            database="", autocommit=autocommit)
+                                            database="", autocommit=autocommit, read_timeout=self.read_timeout)
         return connection
 
     def create_marker_table(self):
