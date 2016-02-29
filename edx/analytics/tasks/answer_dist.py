@@ -19,6 +19,7 @@ from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
+from edx.analytics.tasks.decorators import workflow_entry_point
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
@@ -635,16 +636,14 @@ class ProblemCheckEvent(
 class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
     """
     Parameters needed for calculating answer distribution.
-
-    Additional Parameters:
-        answer_metadata:  optional file to provide information about particular answers.
-            Includes problem_display_name, input_type, response_type, and question.
-        base_input_format:  The input format to use on the first map reduce job in the chain. This job takes in the most
-            input and may need a custom input format.
-
     """
-    answer_metadata = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
+    answer_metadata = luigi.Parameter(default=None, 
+		description="optional file to provide information about particular answers."
+            " Includes problem_display_name, input_type, response_type, and question.")
+
+    base_input_format = luigi.Parameter(default=None, 
+		description="The input format to use on the first map reduce job in the chain."
+			" This job takes in the most input and may need a custom input format.")
 
 
 class AnswerDistributionPerCourse(
@@ -859,6 +858,7 @@ class AnswerDistributionToMySQLTaskWorkflow(
         )
 
 
+@workflow_entry_point
 class AnswerDistributionWorkflow(
         AnswerDistributionDownstreamMixin,
         MysqlInsertTaskMixin,

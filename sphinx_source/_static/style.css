@@ -1,0 +1,15 @@
+/* Bug with docutil metadata fields appearing in included files:
+	https://github.com/sphinx-doc/sphinx/issues/1545
+   This CSS prevents the :orphan: tag in toctree.rst, which is required to
+   prevent warnings, from appearing on the index page. */
+#edx-analytics-tasks .field-name {
+	display: none; 
+}
+
+/* Wrap extra-long class names inside the table of contents and index pages */
+div.sphinxsidebar ul {
+	word-wrap: break-word;
+}
+table.indextable td {
+	word-break: break-all;
+}

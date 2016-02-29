@@ -12,6 +12,7 @@ from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, Event
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.decorators import workflow_entry_point
 
 
 log = logging.getLogger(__name__)
@@ -550,6 +551,7 @@ class EnrollmentDailyTask(EnrollmentTask):
         ]
 
 
+@workflow_entry_point
 class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 

@@ -13,6 +13,7 @@ from edx.analytics.tasks.url import get_target_from_url
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.decorators import workflow_entry_point
 
 log = logging.getLogger(__name__)
 
@@ -197,6 +198,7 @@ class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryToMysqlTask):
         )
 
 
+@workflow_entry_point
 class CourseActivityWeeklyTask(CourseActivityTask):
     """
     Number of users performing each category of activity each ISO week.
