@@ -362,7 +362,7 @@ class CredentialFileVerticaTarget(VerticaTarget):
             values will not be executed.
     """
 
-    def __init__(self, credentials_target, schema, table, update_id, read_timeout):
+    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None):
         with credentials_target.open('r') as credentials_file:
             cred = json.load(credentials_file)
             super(CredentialFileVerticaTarget, self).__init__(
