@@ -15,7 +15,6 @@ numpy==1.8.0 		# BSD
 pandas==0.13.0 		# BSD
 paypalrestsdk==1.9.0    # Paypal SDK License
 pbr==0.5.23 		# Apache
-psycopg2==2.6.1         # LGPL
 pyOpenSSL==0.15.1       # Apache 2.0
 pyasn1==0.1.7           # BSD
 pycparser==2.13         # BSD
