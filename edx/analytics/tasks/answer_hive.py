@@ -577,12 +577,12 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
         # TODO: this breaks when the starting date of the interval doesn't actually have data.
         #   This is requiring that the date of the first actual data be known,
         #   rather than putting in something safe (e.g. 2012-01-01 or even 2013-10-01).
-#        starting_partition = HivePartition('dt', self.interval.date_a.isoformat()) # pylint: disable=no-member
+        # starting_partition = HivePartition('dt', self.interval.date_a.isoformat()) # pylint: disable=no-member
         ending_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
         ending_partition = HivePartition('dt', ending_date.isoformat())
 
         return [
-#            HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
+            # HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
             HivePartitionTarget(self.table, ending_partition.as_dict(), database=hive_database_name()),
         ]
 
@@ -912,261 +912,6 @@ class AnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutpu
             writer.writerow(row_dict)
 
 
-class AnswerDistExperimentTask(AllProblemCheckEventsParamMixin, MapReduceJobTask, WarehouseMixin):
-    """
-    Blah.
-    """
-    output_root = luigi.Parameter()
-
-    def requires(self):
-        return LatestAnswers(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
-
-    def extra_modules(self):
-        import six
-        return [html5lib, six]
-
-    def mapper(self, line):
-        """
-        Groups inputs by course_id, writes all records with the same course_id to the same output file.
-
-        Each input line is expected to consist of two tab separated columns. The first column is expected to be the
-        course_id and is used to group the entries. The course_id is stripped from the output and the remaining column
-        is written to the appropriate output file in the same format it was read in (i.e. as an encoded JSON string).
-        """
-        # Ensure that the first column is interpreted as the grouping key by the hadoop streaming API.  Note that since
-        # Configuration values can change this behavior, the remaining tab separated columns are encoded in a python
-        # structure before returning to hadoop.  They are decoded in the reducer.
-        course_id, content = line.split('\t', 1)
-        yield course_id, content
-
-    def reducer(self, course_id, values):
-        for value in values:
-            part_id, user_id, _grouping_key, course_user_tags, timestamp = value.split('\t')
-            course_user_tag_dict = json.loads(course_user_tags)
-            if len(course_user_tag_dict) == 0:
-                yield course_id, part_id, user_id, "NONE", "NONE", timestamp
-            else:
-                for (experiment_id, group_id) in course_user_tag_dict.iteritems():
-                    yield course_id, part_id, user_id, experiment_id, group_id, timestamp
-                yield course_id, part_id, user_id, "ALL", "ALL", timestamp
-
-    def output(self):
-        return get_target_from_url(self.output_root)
-
-
-class LatestUserExperiment(AllProblemCheckEventsParamMixin, HiveTableTask):
-    """
-    A task to load answer-distribution information about experiments into Hive.
-    """
-    @property
-    def partition(self):
-        """Provides name of Hive database table partition."""
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-
-    @property
-    def table(self):
-        """Provides name of Hive database table."""
-        return 'latest_user_experiment'
-
-    @property
-    def columns(self):
-        return [
-            ('course_id', 'STRING'),
-            ('part_id', 'STRING'),
-            ('user_id', 'STRING'),
-            ('experiment_id', 'STRING'),
-            ('group_id', 'STRING'),
-            ('time', 'STRING'),
-        ]
-
-    def requires(self):
-        return AnswerDistExperimentTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            output_root=self.partition_location,  # this is the table, not the partition
-            warehouse_path=self.warehouse_path,
-        )
-
-
-class LatestExperimentAnswerDist(HiveAnswerTableFromQueryTask):
-
-    @property
-    def table(self):
-        return 'latest_experiment_answer_dist'
-
-    @property
-    def columns(self):
-        return [
-            ('course_id', 'STRING'),
-            ('part_id', 'STRING'),
-            ('variant', 'STRING'),
-            ('is_correct', 'STRING'),
-            ('answer_value', 'STRING'),
-            ('value_id', 'STRING'),
-            ('count', 'INT'),
-            ('problem_id', 'STRING'),
-            ('question', 'STRING'),
-            ('display_name', 'STRING'),
-            ('experiment_id', 'STRING'),
-            ('group_id', 'STRING'),
-        ]
-
-    @property
-    def insert_query(self):
-        return """
-        SELECT la.course_id, la.part_id,
-               lai.variant, lai.is_correct, lai.answer_value, lai.value_id,
-               count(la.user_id) as count,
-               lpi.problem_id, lpi.question, lpi.problem_display_name, lue.experiment_id, lue.group_id
-        FROM latest_answers la
-        INNER JOIN latest_problem_info lpi
-            ON (lpi.course_id = la.course_id AND lpi.part_id = la.part_id)
-        INNER JOIN latest_answer_info lai
-            ON (lai.course_id = la.course_id AND lai.part_id = la.part_id
-                AND lai.grouping_key = la.grouping_key)
-        INNER JOIN latest_user_experiment lue
-            ON (lue.course_id = la.course_id AND lue.part_id = la.part_id
-                AND lue.user_id = la.user_id)
-        GROUP BY la.course_id, la.part_id, la.grouping_key,
-                lai.variant, lai.is_correct, lai.answer_value, lai.value_id,
-                lpi.problem_id, lpi.question, lpi.problem_display_name, lue.experiment_id, lue.group_id
-        """
-
-    def requires(self):
-        yield LatestAnswerInfo(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
-        yield LatestAnswers(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
-        yield LatestUserExperiment(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
-
-
-class ExperimentAnswerDistOneFilePerCourseTask(AllProblemCheckEventsParamMixin, MultiOutputMapReduceJobTask, WarehouseMixin):
-    """
-    Blah.
-    """
-
-    def requires(self):
-        return LatestExperimentAnswerDist(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-        )
-
-    def extra_modules(self):
-        import six
-        return [html5lib, six]
-
-    def mapper(self, line):
-        """
-        Groups inputs by course_id, writes all records with the same course_id to the same output file.
-
-        Each input line is expected to consist of two tab separated columns. The first column is expected to be the
-        course_id and is used to group the entries. The course_id is stripped from the output and the remaining column
-        is written to the appropriate output file in the same format it was read in (i.e. as an encoded JSON string).
-        """
-        # Ensure that the first column is interpreted as the grouping key by the hadoop streaming API.  Note that since
-        # Configuration values can change this behavior, the remaining tab separated columns are encoded in a python
-        # structure before returning to hadoop.  They are decoded in the reducer.
-        course_id, content = line.split('\t', 1)
-        yield course_id, content
-
-    def output_path_for_key(self, course_id):
-        """
-        Match the course folder hierarchy that is expected by the instructor dashboard.
-
-        The instructor dashboard expects the file to be stored in a folder named sha1(course_id).  All files in that
-        directory will be displayed on the instructor dashboard for that course.
-        """
-        hashed_course_id = hashlib.sha1(course_id).hexdigest()
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
-        filename = u'{course_id}_experiment_answer_distribution.csv'.format(course_id=filename_safe_course_id)
-        return url_path_join(self.output_root, hashed_course_id, filename)
-
-    CSV_FIELD_NAMES = [
-        'ModuleID',
-        'PartID',
-        'Correct Answer',
-        'Count',
-        'ValueID',
-        'AnswerValue',
-        'Variant',
-        'ExperimentID',
-        'GroupID',
-        'Problem Display Name',
-        'Question',
-    ]
-
-    HIVE_FIELD_NAMES = [
-        'PartID',
-        'Variant',
-        'Correct Answer',
-        'AnswerValue',
-        'ValueID',
-        'Count',
-        'ModuleID',
-        'Question',
-        'Problem Display Name',
-        'ExperimentID',
-        'GroupID',
-    ]
-
-    def multi_output_reducer(self, _course_id, values, output_file):
-        """
-        Each entry should be written to the output file in csv format.
-
-        This output is visible to instructors, so use an excel friendly format (csv).
-        """
-        field_names = self.CSV_FIELD_NAMES
-        writer = csv.DictWriter(output_file, field_names)
-        writer.writerow(dict(
-            (k, k) for k in field_names
-        ))
-
-        def load_into_dict(content):
-            content_values = content.split('\t')
-            return {val[0]: val[1] for val in zip(self.HIVE_FIELD_NAMES, content_values)}
-
-        # Collect in memory the list of dicts to be output.  Then sort
-        # the list of dicts by their field names before encoding.
-        row_data = [load_into_dict(content) for content in values]
-        row_data = sorted(row_data, key=itemgetter(*field_names))
-
-        for row_dict in row_data:
-            writer.writerow(row_dict)
-
-
 class AnswerDistributionFromHiveToMySQLTaskWorkflow(AllProblemCheckEventsParamMixin, WarehouseMixin, MysqlInsertTask):
     """
     Define answer_distribution_from_hive table.
@@ -1188,14 +933,15 @@ class AnswerDistributionFromHiveToMySQLTaskWorkflow(AllProblemCheckEventsParamMi
                     course_id,
                     problem_id,
                     part_id,
-                    is_correct,
+                    1 if is_correct == 'True' else 0,
+                    0,  # TODO:  calculate this correctly.
                     count,
-                    value_id,
-                    answer_value,
+                    value_id if value_id else None,
+                    answer_value if answer_value else None,
                     try_str_to_float(answer_value),
-                    variant,
-                    display_name,
-                    question,
+                    variant if variant else None,
+                    display_name if display_name else None,
+                    question if question else None,
                 ]
                 yield output_list
 
@@ -1208,7 +954,8 @@ class AnswerDistributionFromHiveToMySQLTaskWorkflow(AllProblemCheckEventsParamMi
             ('module_id', 'VARCHAR(255) NOT NULL'),
             ('part_id', 'VARCHAR(255) NOT NULL'),
             ('correct', 'TINYINT(1) NOT NULL'),
-            ('count', 'INT(11) NOT NULL'),
+            ('first_response_count', 'INT(11) NOT NULL'),
+            ('last_response_count', 'INT(11) NOT NULL'),
             ('value_id', 'VARCHAR(255)'),
             ('answer_value_text', 'LONGTEXT'),
             ('answer_value_numeric', 'DOUBLE'),
@@ -1223,6 +970,7 @@ class AnswerDistributionFromHiveToMySQLTaskWorkflow(AllProblemCheckEventsParamMi
             ('course_id',),
             ('module_id',),
             ('part_id',),
+            ('course_id', 'module_id'),
         ]
 
     def init_copy(self, connection):
@@ -1289,6 +1037,5 @@ class HiveAnswerDistributionWorkflow(
 
         yield (
             AnswerDistOneFilePerCourseTask(**kwargs1),
-            ExperimentAnswerDistOneFilePerCourseTask(**kwargs1),
             AnswerDistributionFromHiveToMySQLTaskWorkflow(**kwargs2),
         )
