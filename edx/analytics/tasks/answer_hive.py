@@ -574,12 +574,15 @@ class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, Multipart
         # both are present, then assume that all data in between is present.
         # And if one or the other is not present, then assume that the interval is not present,
         # and trigger the entire task.
-        starting_partition = HivePartition('dt', self.interval.date_a.isoformat()) # pylint: disable=no-member
+        # TODO: this breaks when the starting date of the interval doesn't actually have data.
+        #   This is requiring that the date of the first actual data be known,
+        #   rather than putting in something safe (e.g. 2012-01-01 or even 2013-10-01).
+#        starting_partition = HivePartition('dt', self.interval.date_a.isoformat()) # pylint: disable=no-member
         ending_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
         ending_partition = HivePartition('dt', ending_date.isoformat())
 
         return [
-            HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
+#            HivePartitionTarget(self.table, starting_partition.as_dict(), database=hive_database_name()),
             HivePartitionTarget(self.table, ending_partition.as_dict(), database=hive_database_name()),
         ]
 
