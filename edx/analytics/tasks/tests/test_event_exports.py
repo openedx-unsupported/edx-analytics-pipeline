@@ -108,6 +108,25 @@ class EventExportTestCase(EventExportTestCaseBase):
         self.assertItemsEqual(task.org_id_whitelist, ['Bar2X', 'bar'])
         self.assertEqual(task.primary_org_ids_for_org_id, {'Bar2X': ['Bar2X'], 'bar': ['Bar2X']})
 
+    def test_ccx_course(self):
+        event = {
+            "event_type": "/courses/ccx-v1:FooX+CourseX+3T2015+ccx@82/ccx_coach",
+            "event_source": "server",
+            "time": self.EXAMPLE_TIME,
+            "context": {
+                "course_id": "ccx-v1:FooX+CourseX+3T2015+ccx@82"
+            }
+        }
+        line = json.dumps(event)
+
+        expected_output = [(
+            (self.EXAMPLE_DATE, 'FooX'),
+            line
+        )]
+        self.task.init_local()
+        result = self.run_mapper_for_server_file(self.SERVER_NAME_1, line)
+        self.assertItemsEqual(result, expected_output)
+
     def test_mapper(self):
         # The following should produce one output per input:
         expected_single_org_output = [
