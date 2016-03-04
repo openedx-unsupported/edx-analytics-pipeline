@@ -592,23 +592,31 @@ class BaseAnswerDistributionDownstreamMixin(object):
     """
     Base class for answer distribution calculations.
 
-    Parameters:
-        name: a unique identifier to distinguish one run from another.  It is used in
-            the construction of output filenames, so each run will have distinct outputs.
-        src:  a URL to the root location of input tracking log files.
-        dest:  a URL to the root location to write output file(s).
-        include:  a list of patterns to be used to match input files, relative to `src` URL.
-            The default value is ['*'].
-        manifest: a URL to a file location that can store the complete set of input files.
     """
-    name = luigi.Parameter()
-    src = luigi.Parameter(is_list=True)
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    # A manifest file is required by hadoop if there are too many
-    # input paths. It hits an operating system limit on the number of
-    # arguments passed to the mapper process on the task nodes.
-    manifest = luigi.Parameter(default=None)
+    name = luigi.Parameter(
+        description='A unique identifier to distinguish one run from another.  It is used in '
+        'the construction of output filenames, so each run will have distinct outputs.',
+    )
+    src = luigi.Parameter(
+        is_list=True,
+        description='A list of URLs to the root location of input tracking log files.',
+    )
+    dest = luigi.Parameter(
+        description='A URL to the root location to write output file(s).',
+    )
+    include = luigi.Parameter(
+        is_list=True,
+        default=('*',),
+        description='A list of patterns to be used to match input files, relative to `src` URL. '
+        'The default value is [\'*\'].',
+    )
+    manifest = luigi.Parameter(
+        default=None,
+        description='A URL to a file location that can store the complete set of input files. '
+        'A manifest file is required by Hadoop if it hits the OS limit on the length '
+        'of the command to run when launching the job using the Hadoop CLI. '
+        'This file will be written to if it doesn\'t exist, and read from if it already does.',
+    )
 
 
 class BaseAnswerDistributionTask(MapReduceJobTask):
@@ -637,13 +645,17 @@ class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
     """
     Parameters needed for calculating answer distribution.
     """
-    answer_metadata = luigi.Parameter(default=None, 
-		description="optional file to provide information about particular answers."
-            " Includes problem_display_name, input_type, response_type, and question.")
+    answer_metadata = luigi.Parameter(
+        default=None,
+        description="optional file to provide information about particular answers. "
+        "Includes problem_display_name, input_type, response_type, and question.",
+    )
 
-    base_input_format = luigi.Parameter(default=None, 
-		description="The input format to use on the first map reduce job in the chain."
-			" This job takes in the most input and may need a custom input format.")
+    base_input_format = luigi.Parameter(
+        default=None,
+        description="The input format to use on the first map reduce job in the chain. "
+        "This job takes in the most input and may need a custom input format.",
+    )
 
 
 class AnswerDistributionPerCourse(
@@ -693,14 +705,6 @@ class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, 
     """
     Groups answer distributions by course, producing a different file for each.
 
-    Most parameters are passed through to :py:class:`AnswerDistributionPerCourse`.
-    Additional parameters are defined by :py:class:`MultiOutputMapReduceJobTask`.:
-
-        output_root: location where the one-file-per-course outputs
-            are written.  This is distinct from `dest`, which is where
-            intermediate output is written.
-        delete_output_root: if True, recursively deletes the output_root at task creation.
-        marker:  a URL location where a marker file should be written.
     """
 
     def requires(self):
@@ -867,8 +871,13 @@ class AnswerDistributionWorkflow(
     """Calculate answer distribution and output to files and to database."""
 
     # Add additional args for MultiOutputMapReduceJobTask.
-    output_root = luigi.Parameter()
-    marker = luigi.Parameter()
+    output_root = luigi.Parameter(
+        description='Directory to store the output in.',
+    )
+    marker = luigi.Parameter(
+        description='A URL location where a marker file should be written. '
+        'Note: the task will not run if the marker file already exists.',
+    )
 
     def requires(self):
         kwargs = {

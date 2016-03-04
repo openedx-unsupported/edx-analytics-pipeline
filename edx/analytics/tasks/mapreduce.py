@@ -28,19 +28,31 @@ class MapReduceJobTaskMixin(object):
 
     mapreduce_engine = luigi.Parameter(
         config_path={'section': 'map-reduce', 'name': 'engine'},
-        significant=False
+        significant=False,
+        description='Name of the map reduce job engine to use.  Use `hadoop` (the default) or `local`.',
     )
     # TODO: remove these parameters
-    input_format = luigi.Parameter(default=None, significant=False)
-    lib_jar = luigi.Parameter(is_list=True, default=[], significant=False)
-
-    # Override the parent class definition of this parameter. This typically wants to scale with the cluster size so the
-    # user should be able to tweak it depending on their particular configuration.
-    n_reduce_tasks = luigi.Parameter(default=25, significant=False)
-
+    input_format = luigi.Parameter(
+        default=None,
+        significant=False,
+        description='The input_format for Hadoop job to use. For example, when '
+        'running with manifest file, specify "oddjob.ManifestTextInputFormat" for input_format.',
+    )
+    lib_jar = luigi.Parameter(
+        is_list=True,
+        default=[],
+        significant=False,
+        description='A list of library jars that the Hadoop job can make use of.',
+    )
+    n_reduce_tasks = luigi.Parameter(
+        default=25,
+        significant=False,
+        description='Number of reducer tasks to use in upstream tasks.  Scale this to your cluster size.',
+    )
     remote_log_level = luigi.Parameter(
         config_path={'section': 'map-reduce', 'name': 'remote_log_level'},
-        significant=False
+        significant=False,
+        description='Level of logging for the map reduce tasks.',
     )
 
 
@@ -237,16 +249,19 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     processed by the same reduce task, we only allow a single file to be output per key for safety.  In the future, the
     reducer output key could be used to determine the output file name, however.
 
-    Parameters:
-        output_root: a URL location where the split files will be stored.
-        delete_output_root: if True, recursively deletes the output_root at task creation.
-        marker:  a URL location to a directory where a marker file will be written on task completion.
     """
-    output_root = luigi.Parameter()
-    delete_output_root = luigi.BooleanParameter(default=False, significant=False)
+    output_root = luigi.Parameter(
+        description='A URL location where the split files will be stored.',
+    )
+    delete_output_root = luigi.BooleanParameter(
+        default=False,
+        significant=False,
+        description='If True, recursively deletes the `output_root` at task creation.',
+    )
     marker = luigi.Parameter(
         config_path={'section': 'map-reduce', 'name': 'marker'},
-        significant=False
+        significant=False,
+        description='A URL location to a directory where a marker file will be written on task completion.',
     )
 
     def output(self):

@@ -20,14 +20,6 @@ class DatabaseImportMixin(object):
     """
     Provides general parameters needed for accessing RDBMS databases.
 
-    Parameters:
-
-        destination: The directory to write the output files to.
-        credentials: Path to the external access credentials file.
-        num_mappers: The number of map tasks to ask Sqoop to use.
-        verbose: Print more information while working.  Default is False.
-        import_date:  Date to assign to Hive partition.  Default is today's date.
-
     Example Credentials File::
 
         {
@@ -38,18 +30,30 @@ class DatabaseImportMixin(object):
         }
     """
     destination = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'destination'}
+        config_path={'section': 'database-import', 'name': 'destination'},
+        description='The directory to write the output files to.'
     )
     credentials = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'credentials'}
+        config_path={'section': 'database-import', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
     )
     database = luigi.Parameter(
         default_from_config={'section': 'database-import', 'name': 'database'}
     )
-
-    import_date = luigi.DateParameter(default=None)
-    num_mappers = luigi.Parameter(default=None, significant=False)
-    verbose = luigi.BooleanParameter(default=False, significant=False)
+    import_date = luigi.DateParameter(
+        default=None,
+        description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
+    )
+    num_mappers = luigi.Parameter(
+        default=None,
+        significant=False,
+        description='The number of map tasks to ask Sqoop to use.',
+    )
+    verbose = luigi.BooleanParameter(
+        default=False,
+        significant=False,
+        description='Print more information while working.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(DatabaseImportMixin, self).__init__(*args, **kwargs)

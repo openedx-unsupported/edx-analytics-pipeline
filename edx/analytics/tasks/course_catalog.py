@@ -22,8 +22,14 @@ urllib3.contrib.pyopenssl.inject_into_urllib3()
 class PullCatalogMixin(OverwriteOutputMixin, WarehouseMixin):
     """Define common parameters for the course catalog API pull and downstream tasks."""
 
-    run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    catalog_path = luigi.Parameter(config_path={'section': 'course-catalog', 'name': 'catalog_path'})
+    run_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Default is today, UTC.',
+    )
+    catalog_path = luigi.Parameter(
+        config_path={'section': 'course-catalog', 'name': 'catalog_path'},
+        description='Base URL for the drupal catalog API, e.g. https://www.edx.org/api/catalog/v2/courses',
+    )
 
 
 class DailyPullCatalogTask(PullCatalogMixin, luigi.Task):

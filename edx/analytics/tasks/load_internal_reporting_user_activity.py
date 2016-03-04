@@ -66,14 +66,14 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     """
     Loads the user activity table from Hive into the Vertica data warehouse.
 
-    Parameters:
-        interval: a date_interval object containing the interval over which to pull data for user location.  Should
-                  usually be from the beginning of edX to the present day (i.e. through the previous day).
-        n_reduce_tasks: number of reduce tasks
-        overwrite: whether or not to overwrite existing outputs; set to False by default for now
     """
-    interval = luigi.DateIntervalParameter()
-    n_reduce_tasks = luigi.Parameter()
+    interval = luigi.DateIntervalParameter(
+        description='A date_interval object containing the interval over which to pull data for user location. '
+        'Should usually be from the beginning of edX to the present day (i.e. through the previous day).',
+    )
+    n_reduce_tasks = luigi.Parameter(
+        description='Number of reduce tasks',
+    )
 
     @property
     def partition(self):
@@ -226,7 +226,10 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
 
 class UserActivityWorkflow(luigi.WrapperTask):
 
-    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    end_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Default is today, UTC.',
+    )
     weeks = luigi.IntParameter(default=24)
     n_reduce_tasks = luigi.Parameter()
     interval = luigi.DateIntervalParameter()

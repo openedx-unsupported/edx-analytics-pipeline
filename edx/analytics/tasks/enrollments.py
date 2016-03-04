@@ -275,14 +275,24 @@ class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDown
     """All parameters needed to run the CourseEnrollmentTableTask task."""
 
     # Make the interval be optional:
-    interval = luigi.DateIntervalParameter(default=None)
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to export logs for. '
+        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
+    )
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
         config_path={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
+        description='The start date to export logs for.  Ignored if `interval` is provided.',
     )
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='The end date to export logs for.  Ignored if `interval` is provided. '
+        'Default is today, UTC.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentTableDownstreamMixin, self).__init__(*args, **kwargs)

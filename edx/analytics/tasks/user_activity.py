@@ -35,12 +35,11 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
     The output from this job is a table that represents the number of events seen for each user in each course in each
     category on each day.
 
-    Parameters:
-
-        output_root (str): path to store the output in.
     """
 
-    output_root = luigi.Parameter()
+    output_root = luigi.Parameter(
+        description='String path to store the output in.',
+    )
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -216,17 +215,19 @@ class CourseActivityWeeklyTask(CourseActivityTask):
 
     TODO: update table name and schema to be consistent with other tables.
 
-    Parameters:
-
-        end_date (date): A day within the upper bound week. The week that contains this date will *not* be included in
-            the analysis, however, all of the data up to the first day of this week will be included. This is consistent
-            with all of our existing closed-open intervals.
-        weeks (int): The number of weeks to include in the analysis, counting back from the week that contains the
-            end_date.
     """
 
-    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    weeks = luigi.IntParameter(default=24)
+    end_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='A day within the upper bound week. The week that contains this date will *not* be included '
+        'in the analysis, however, all of the data up to the first day of this week will be included. This is '
+        'consistent with all of our existing closed-open intervals. Default is today, UTC.',
+    )
+    weeks = luigi.IntParameter(
+        default=24,
+        description='The number of weeks to include in the analysis, counting back from the week that contains '
+        'the end_date.',
+    )
 
     @property
     def interval(self):
@@ -338,15 +339,18 @@ class CourseActivityMonthlyTask(CourseActivityTask):
     following month pass in 1 to the "months" parameter. This will not analyze data for the month that contains the
     current day (since it is not complete). It will only compute data for the previous month.
 
-    Parameters:
-        end_date (date): A date within the month that will be the upper bound of the closed-open interval.
-        months (int): The number of months to include in the analysis, counting back from the month that contains the
-            end_date.
-
     """
 
-    end_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
-    months = luigi.IntParameter(default=6)
+    end_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='A date within the month that will be the upper bound of the closed-open interval. '
+        'Default is today, UTC.',
+    )
+    months = luigi.IntParameter(
+        default=6,
+        description='The number of months to include in the analysis, counting back from the month that contains '
+        'the end_date.',
+    )
 
     @property
     def interval(self):

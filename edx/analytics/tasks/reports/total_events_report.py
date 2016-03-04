@@ -16,14 +16,16 @@ class TotalEventsReport(luigi.Task):
     """
     Calculates TSV file containing count of events
 
-    Parameters:
-        report: Location of the resulting report. The output format is a
-            excel csv file with date and count of events for that day.
-        counts: Location for the map reduce output. It is a collection of output
-            files that are consolidated to produce the report.
     """
-    report = luigi.Parameter()
-    counts = luigi.Parameter()
+    report = luigi.Parameter(
+        description='Location of the resulting report. The output format is a '
+        'Excel CSV file with date and count of events for that day.',
+    )
+    counts = luigi.Parameter(
+        description='Location of event counts per day. It is a collection of output '
+        'files that are consolidated to produce the report. The format is a '
+        'Hadoop TSV file, with fields "country", "count", and "date".',
+    )
 
     def requires(self):
         return ExternalURL(self.counts)
@@ -67,24 +69,6 @@ class TotalEventsReportWorkflow(MapReduceJobTaskMixin, TotalEventsReport, EventL
     """
     Generates report for an event count by date for all events.
 
-    Parameters required for :py:class `EventLogSelectionDownstreamMixin`:
-
-        source:  a URL to the root location of input tracking log files (e.g., s3://my_bucket/foo/).
-        interval: events within this date range are counted.
-        pattern: regex pattern for files to be included when counting total events.
-        (See :py:class `EventLogSelectionTask` for more details.)
-
-    Additional parameters are passed through to :py:class:`TotalEventsReport`:
-
-        counts: Location of event counts per day. The format is a hadoop
-            tsv file, with fields country, count, and date.
-        report: Location of the resulting report. The output format is an
-            excel csv file with country and count.
-
-    The following optional parameters are passed through to :py:class:`MapReduceJobTask`:
-
-        mapreduce_engine
-        n_reduce_tasks
     """
 
     def requires(self):

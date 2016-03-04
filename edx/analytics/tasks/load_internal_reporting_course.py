@@ -27,7 +27,10 @@ class LoadInternalReportingCourseMixin(WarehouseMixin, OverwriteOutputMixin):
     Mixin to handle parameters common to the tasks involved in loading the internal reporting course table,
     including calling the course structure API.
     """
-    run_date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    run_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Default is today, UTC.',
+    )
     api_root_url = luigi.Parameter(
         config_path={'section': 'course-structure', 'name': 'api_root_url'}
     )

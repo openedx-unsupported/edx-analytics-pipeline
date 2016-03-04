@@ -19,9 +19,12 @@ log = logging.getLogger(__name__)
 class PullFromCybersourceTaskMixin(OverwriteOutputMixin):
     """Define common parameters for Cybersource pull and downstream tasks."""
 
-    merchant_id = luigi.Parameter()
-    # URL of location to write output.
-    output_root = luigi.Parameter()
+    merchant_id = luigi.Parameter(
+        description='Cybersource merchant identifier.',
+    )
+    output_root = luigi.Parameter(
+        description='URL of location to write output.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(PullFromCybersourceTaskMixin, self).__init__(*args, **kwargs)
@@ -48,7 +51,10 @@ class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
 
     """
     # Date to fetch Cybersource report.
-    run_date = luigi.DateParameter(default=datetime.date.today())
+    run_date = luigi.DateParameter(
+        default=datetime.date.today(),
+        description='Default is today.',
+    )
 
     # This is the table that we had been using for gathering and
     # storing historical Cybersource data.  It adds one additional
@@ -110,11 +116,13 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
     other payment accounts.
 
     """
-    # Date to fetch Cybersource report.
-    run_date = luigi.DateParameter(default=datetime.date.today())
-
-    # URL of location to write output.
-    output_root = luigi.Parameter()
+    run_date = luigi.DateParameter(
+        default=datetime.date.today(),
+        description='Date to fetch Cybersource report. Default is today.',
+    )
+    output_root = luigi.Parameter(
+        description='URL of location to write output.',
+    )
 
     def requires(self):
         args = {
@@ -182,11 +190,20 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
 class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Determines a set of dates to pull, and requires them."""
 
-    interval = luigi.DateIntervalParameter(default=None)
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
+    interval = luigi.DateIntervalParameter(
+        default=None,
+    )
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='Default is today, UTC.',
+    )
 
     # Overwrite parameter definition to make it optional.
-    output_root = luigi.Parameter(default=None)
+    output_root = luigi.Parameter(
+        default=None,
+        description='URL of location to write output.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(IntervalPullFromCybersourceTask, self).__init__(*args, **kwargs)

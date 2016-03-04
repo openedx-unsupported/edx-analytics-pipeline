@@ -32,19 +32,25 @@ class PathSetTask(luigi.Task):
     """
     A task to select a subset of files in an S3 bucket or local FS.
 
-    Parameters:
-
-      src: a URL pointing to a folder in s3:// or local FS.
-      include:  a list of patterns to use to select.  Multiple patterns are OR'd.
-      manifest: a URL pointing to a manifest file location.
     """
     src = luigi.Parameter(
         is_list=True,
-        config_path={'section': 'event-logs', 'name': 'source'}
+        config_path={'section': 'event-logs', 'name': 'source'},
+        description='A URL pointing to a folder in s3:// or local FS.',
     )
-    include = luigi.Parameter(is_list=True, default=('*',))
-    manifest = luigi.Parameter(default=None)
-    include_zero_length = luigi.BooleanParameter(default=False)
+    include = luigi.Parameter(
+        is_list=True,
+        default=('*',),
+        description='A list of patterns to use to select.  Multiple patterns are OR\'d.',
+    )
+    manifest = luigi.Parameter(
+        default=None,
+        description='A URL pointing to a manifest file location.',
+    )
+    include_zero_length = luigi.BooleanParameter(
+        default=False,
+        description='If True, include files/directories with size zero.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(PathSetTask, self).__init__(*args, **kwargs)
@@ -107,15 +113,23 @@ class EventLogSelectionDownstreamMixin(object):
 
     source = luigi.Parameter(
         is_list=True,
-        config_path={'section': 'event-logs', 'name': 'source'}
+        config_path={'section': 'event-logs', 'name': 'source'},
+        description='A URL to a path that contains log files that contain the events. (e.g., s3://my_bucket/foo/).',
     )
-    interval = luigi.DateIntervalParameter()
+    interval = luigi.DateIntervalParameter(
+        description='The range of dates to export logs for.',
+    )
     expand_interval = luigi.TimeDeltaParameter(
-        config_path={'section': 'event-logs', 'name': 'expand_interval'}
+        config_path={'section': 'event-logs', 'name': 'expand_interval'},
+        description='A time interval to add to the beginning and end of the interval to expand the windows of '
+        'files captured.',
     )
     pattern = luigi.Parameter(
         is_list=True,
-        config_path={'section': 'event-logs', 'name': 'pattern'}
+        config_path={'section': 'event-logs', 'name': 'pattern'},
+        description='A regex with a named capture group for the date that approximates the date that the events '
+        'within were emitted. Note that the search interval is expanded, so events don\'t have to be in exactly '
+        'the right file in order for them to be processed.',
     )
 
 
@@ -127,14 +141,6 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
     that a pattern can be used to find them. Filenames are expected to contain a date which represents an approximation
     of the date found in the events themselves.
 
-    Parameters:
-        source: A URL to a path that contains log files that contain the events.
-        interval: The range of dates to export logs for.
-        expand_interval: A time interval to add to the beginning and end of the interval to expand the windows of files
-            captured.
-        pattern: A regex with a named capture group for the date that approximates the date that the events within were
-            emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
-            in order for them to be processed.
     """
 
     def __init__(self, *args, **kwargs):
@@ -232,12 +238,6 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
     """
     Extract events corresponding to a specified time interval and outputs them from a mapper.
 
-    Parameters:
-        source: A URL to a path that contains log files that contain the events.
-        interval: The range of dates to export logs for.
-        pattern: A regex with a named capture group for the date that approximates the date that the events within were
-            emitted. Note that the search interval is expanded, so events don't have to be in exactly the right file
-            in order for them to be processed.
     """
 
     def requires(self):

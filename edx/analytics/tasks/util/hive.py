@@ -25,7 +25,8 @@ class WarehouseMixin(object):
     """Task that is aware of the data warehouse."""
 
     warehouse_path = luigi.Parameter(
-        config_path={'section': 'hive', 'name': 'warehouse_path'}
+        config_path={'section': 'hive', 'name': 'warehouse_path'},
+        description='A URL location of the data warehouse.',
     )
 
 
@@ -375,8 +376,14 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
     """Populates a MySQL table with the results of a hive query."""
 
-    overwrite = luigi.BooleanParameter(default=True)  # Overwrite the MySQL data?
-    hive_overwrite = luigi.BooleanParameter(default=False)
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='If True, overwrite the MySQL data.',
+    )
+    hive_overwrite = luigi.BooleanParameter(
+        default=False,
+        description='If True, overwrite the hive data.',
+    )
 
     SQL_TO_HIVE_TYPE = {
         'varchar': 'STRING',

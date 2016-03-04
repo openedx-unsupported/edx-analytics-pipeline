@@ -15,11 +15,11 @@ class UserRegistrationsPerDay(MysqlSelectTask):
     """
     Determine the number of users that registered accounts each day.
 
-    Parameters:
-        date_interval: The range of dates to gather data for.
     """
 
-    date_interval = luigi.DateIntervalParameter()
+    date_interval = luigi.DateIntervalParameter(
+        description='The range of dates to gather data for.',
+    )
 
     @property
     def query(self):

@@ -74,18 +74,19 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
     Loads the user table from Hive into the Vertica data warehouse.
 
-    Parameters:
-        interval: a date_interval object containing the interval over which to pull data for user location.
-                  Should usually be from the beginning of the Open edX installation to the present day
-                  (i.e. through the previous day).
-        user_country_output: location for intermediate output of location_per_course task.
-        n_reduce_tasks: number of reduce tasks
     """
-    interval = luigi.DateIntervalParameter()
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'}
+    interval = luigi.DateIntervalParameter(
+        description='A date_interval object containing the interval over which to pull data for user location. '
+        'Should usually be from the beginning of the Open edX installation to the present day '
+        '(i.e. through the previous day).',
     )
-    n_reduce_tasks = luigi.Parameter()
+    user_country_output = luigi.Parameter(
+        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'},
+        description='Location for intermediate output of location_per_course task.',
+    )
+    n_reduce_tasks = luigi.Parameter(
+        description='Number of reduce tasks',
+    )
 
     @property
     def partition(self):

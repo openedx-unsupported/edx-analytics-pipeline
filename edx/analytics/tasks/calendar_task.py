@@ -37,12 +37,11 @@ class CalendarTask(CalendarDownstreamMixin, luigi.Task):
     It is also intended to contain business-specific metadata about dates in the future, such as fiscal year boundaries,
     fiscal quarter boundaries and even holidays or other days of special interest for analysis purposes.
 
-    Parameters:
-
-        output_root (str): path to store the calendar data
     """
 
-    output_root = luigi.Parameter()
+    output_root = luigi.Parameter(
+        description='URL to store the calendar data.',
+    )
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'data.tsv'))
