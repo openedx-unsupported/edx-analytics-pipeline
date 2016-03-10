@@ -7,7 +7,7 @@ import logging
 
 from luigi.s3 import S3Target
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
 from edx.analytics.tasks.url import url_path_join
 
 
@@ -41,6 +41,7 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
 class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
     """Acceptance test for the CSV-generating Answer Distribution Task"""
 
+    @when_s3_available
     def test_answer_distribution(self):
         self.task.launch([
             'AnswerDistributionOneFilePerCourseTask',
@@ -78,6 +79,7 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
 class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTest):
     """Acceptance tests for Answer Distribution Tasks -> MySQL"""
 
+    @when_s3_available
     def test_answer_distribution_mysql(self):
         self.task.launch([
             'AnswerDistributionToMySQLTaskWorkflow',

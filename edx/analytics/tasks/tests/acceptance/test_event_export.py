@@ -6,12 +6,11 @@ import os
 import logging
 import tempfile
 import textwrap
-import time
 import shutil
 
 from luigi.s3 import S3Target
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
 from edx.analytics.tasks.url import url_path_join
 
@@ -77,6 +76,7 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
             if not key_filename.endswith('.key'):
                 self.s3_client.put(full_local_path, remote_url)
 
+    @when_s3_available
     def test_event_log_exports_using_manifest(self):
         config_override = {
             'manifest': {

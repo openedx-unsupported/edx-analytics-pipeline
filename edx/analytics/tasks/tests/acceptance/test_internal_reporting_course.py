@@ -12,7 +12,7 @@ import pandas
 
 from datetime import date
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 
 
@@ -46,6 +46,8 @@ class DCourseLoadAcceptanceTest(AcceptanceTestCase):
         # Upload mocked results of the API call
         self.s3_client.put(src, dst)
 
+    @when_s3_available
+    @when_vertica_available
     def test_internal_reporting_course(self):
         """Tests the workflow for the d_course table, end to end."""
 

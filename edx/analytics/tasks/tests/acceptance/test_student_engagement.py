@@ -10,7 +10,7 @@ import re
 
 from luigi.s3 import S3Target
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
 from edx.analytics.tasks.url import url_path_join
 
 from pandas import read_csv
@@ -47,6 +47,7 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         },
     }
 
+    @when_s3_available
     def test_student_engagement(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 4, 10))
         self.execute_sql_fixture_file('load_student_engagement.sql')

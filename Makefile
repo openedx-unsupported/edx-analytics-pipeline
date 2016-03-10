@@ -49,6 +49,9 @@ test: test-requirements develop test-local
 test-acceptance: test-requirements
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
+test-acceptance-local:
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+
 coverage-local: test-local
 	python -m coverage html
 	python -m coverage xml -o coverage.xml
@@ -80,4 +83,3 @@ docs: docs-requirements docs-local
 
 todo:
 	pylint --disable=all --enable=W0511 edx
-
