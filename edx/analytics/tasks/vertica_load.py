@@ -101,6 +101,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """List of tuples defining name and definition of automatically-filled columns."""
         return [('created', 'TIMESTAMP DEFAULT NOW()')]
 
+    @property
+    def projections(self):
+        """Provides queries to use after table creation to create projections.
+
+        Queries are defined as a list of format strings, taking schema and table as arguments.
+        """
+        return []
+
     def create_schema(self, connection):
         """
         Override to provide code for creating the target schema, if not existing.
@@ -166,11 +174,17 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 other_col=self.foreign_key_mapping[column][1]
             )
 
-        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
+        create_query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
             schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs
         )
-        log.debug(query)
-        connection.cursor().execute(query)
+
+        # Add post-table-creation projections to the queries to be executed.
+        queries = [create_query]
+        queries.extend([proj.format(schema=self.schema, table=self.table) for proj in self.projections])
+
+        for query in queries:
+            log.debug(query)
+            connection.cursor().execute(query)
 
     def update_id(self):
         """This update id will be a unique identifier for this insert on this table."""
