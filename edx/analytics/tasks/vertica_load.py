@@ -1,6 +1,7 @@
 """
 Support for loading data into an HP Vertica database.
 """
+from collections import namedtuple
 import json
 import logging
 
@@ -21,6 +22,12 @@ except ImportError:
     # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
     # them, instead just fail noisily if we attempt to use these libraries.
     vertica_client_available = False  # pylint: disable-msg=C0103
+
+PROJECTION_TYPE_NORMAL = 'Normal'
+PROJECTION_TYPE_AGGREGATE = 'Aggregate'
+
+VerticaProjection = namedtuple('VerticaProjection',  # pylint: disable=invalid-name
+                               ['name', 'type', 'definition',])
 
 
 class VerticaCopyTaskMixin(OverwriteOutputMixin):
@@ -103,9 +110,9 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     @property
     def projections(self):
-        """Provides queries to use after table creation to create projections.
+        """Provides projection definitions to use after table creation and initialization to create projections.
 
-        Queries are defined as a list of format strings, taking schema and table as arguments.
+        Return value should be a list of VerticaProjection namedtuple objects.
         """
         return []
 
@@ -174,15 +181,32 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 other_col=self.foreign_key_mapping[column][1]
             )
 
-        create_query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
             schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs
         )
+        log.debug(query)
+        connection.cursor().execute(query)
 
-        # Add post-table-creation projections to the queries to be executed.
-        queries = [create_query]
-        queries.extend([proj.format(schema=self.schema, table=self.table) for proj in self.projections])
+    def drop_aggregate_projections(self, connection):
+        """
+        Drop any projections that are aggregates.
 
-        for query in queries:
+        Aggregate projections must be removed from a table before its contents can be deleted.
+        """
+        for projection in self.projections:
+            if projection.type == PROJECTION_TYPE_AGGREGATE:
+                query = "DROP PROJECTION IF EXISTS {name};".format(name=projection.name)
+                log.debug(query)
+                connection.cursor().execute(query)
+
+    def create_projections(self, connection):
+        """
+        Define all projections on table.
+        """
+        for projection in self.projections:
+            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                name=projection.name, definition=projection.definition
+            )
             log.debug(query)
             connection.cursor().execute(query)
 
@@ -336,7 +360,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             self.create_schema(connection)
             self.create_table(connection)
 
+            self.drop_aggregate_projections(connection)
             self.init_copy(connection)
+            self.create_projections(connection)
+
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
 

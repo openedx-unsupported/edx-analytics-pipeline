@@ -4,7 +4,9 @@ Loads the user_course table into the warehouse through the pipeline via Hive.
 import luigi
 import logging
 
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.vertica_load import (
+    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
+)
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
 
@@ -55,8 +57,11 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
     @property
     def projections(self):
-        return [
-            """CREATE PROJECTION IF NOT EXISTS {schema}.{table}_projection_1
+        projection_templates = [
+            VerticaProjection(
+                "{schema}.{table}_projection_1",
+                PROJECTION_TYPE_NORMAL,
+                """
 (
  record_number ENCODING COMMONDELTA_COMP,
  user_id ENCODING RLE,
@@ -79,8 +84,12 @@ AS
           enrollment_is_active,
           user_id,
           record_number
-UNSEGMENTED ALL NODES;""",
-            """CREATE PROJECTION IF NOT EXISTS {schema}.{table}_projection_2
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_2",
+                PROJECTION_TYPE_NORMAL,
+                """
 (
  user_id ENCODING RLE,
  course_id ENCODING RLE,
@@ -100,8 +109,12 @@ AS
           course_id,
           enrollment_mode,
           user_id
-UNSEGMENTED ALL NODES;""",
-            """CREATE PROJECTION IF NOT EXISTS {schema}.{table}_projection_3
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_3",
+                PROJECTION_TYPE_NORMAL,
+                """
 (
  course_id ENCODING RLE,
  date ENCODING RLE,
@@ -118,8 +131,12 @@ AS
           course_id,
           enrollment_is_active,
           enrollment_mode
-UNSEGMENTED ALL NODES;""",
-            """CREATE PROJECTION IF NOT EXISTS {schema}.{table}_first_enrollment
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_first_enrollment",
+                PROJECTION_TYPE_AGGREGATE,
+                """
 (
  enrollment_is_active ENCODING RLE,
  course_id ENCODING RLE,
@@ -132,8 +149,12 @@ AS
         user_id,
         MIN(date)
  FROM {schema}.{table}
-     GROUP BY 1, 2, 3;""",
-            """CREATE PROJECTION IF NOT EXISTS {schema}.{table}_first_enrollment_by_type
+     GROUP BY 1, 2, 3;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_first_enrollment_by_type",
+                PROJECTION_TYPE_AGGREGATE,
+                """
 (
  enrollment_is_active ENCODING RLE,
  enrollment_mode ENCODING RLE,
@@ -148,5 +169,16 @@ AS
         user_id,
         MIN(date)
  FROM {schema}.{table}
- GROUP BY 1, 2, 3, 4;""",
+ GROUP BY 1, 2, 3, 4;"""
+            ),
+        ]
+
+        # Use templates to format actual values.
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in projection_templates
         ]
