@@ -199,16 +199,29 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 log.debug(query)
                 connection.cursor().execute(query)
 
-    def create_projections(self, connection):
+    def create_aggregate_projections(self, connection):
+        """
+        Define all aggregate projections on table.
+        """
+        for projection in self.projections:
+            if projection.type == PROJECTION_TYPE_AGGREGATE:
+                query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                    name=projection.name, definition=projection.definition
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+
+    def create_nonaggregate_projections(self, connection):
         """
         Define all projections on table.
         """
         for projection in self.projections:
-            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
-                name=projection.name, definition=projection.definition
-            )
-            log.debug(query)
-            connection.cursor().execute(query)
+            if projection.type != PROJECTION_TYPE_AGGREGATE:
+                query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                    name=projection.name, definition=projection.definition
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
 
     def update_id(self):
         """This update id will be a unique identifier for this insert on this table."""
@@ -260,6 +273,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         # clear table contents
         self.attempted_removal = True
         if self.overwrite:
+            # Before changing the current contents table, we have to make sure there
+            # are no aggregate projections on it.
+            self.drop_aggregate_projections(connection)
+
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
@@ -359,10 +376,11 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # create schema and table only if necessary:
             self.create_schema(connection)
             self.create_table(connection)
+            self.create_nonaggregate_projections(connection)
 
-            self.drop_aggregate_projections(connection)
+            # we should do nothing between initialization and copying
+            # that would commit the transaction.
             self.init_copy(connection)
-            self.create_projections(connection)
 
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
@@ -374,6 +392,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # We commit only if both operations completed successfully.
             connection.commit()
             log.debug("Committed transaction.")
+
+            # Once we are done with the regular load, go ahead
+            # and make sure that aggregate projections are also added.
+            # This may be slow, but they would cause commits anyway.
+            self.create_aggregate_projections(connection)
+
         except Exception as exc:
             log.exception("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()

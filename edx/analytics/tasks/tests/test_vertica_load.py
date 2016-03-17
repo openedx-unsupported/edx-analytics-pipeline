@@ -13,7 +13,9 @@ from mock import MagicMock
 from mock import patch
 from mock import sentinel
 
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.vertica_load import (
+    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
+)
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.target import FakeTarget
 from edx.analytics.tasks.tests.config import with_luigi_config
@@ -50,6 +52,41 @@ class CopyToPredefinedVerticaDummyTable(CopyToVerticaDummyTable):
     @property
     def columns(self):
         return ['course_id', 'interval_start', 'interval_end', 'label', 'count']
+
+
+class CopyToVerticaDummyTableWithProjections(CopyToVerticaDummyTable):
+    """
+    Define table for testing with projections.
+    """
+
+    @property
+    def projections(self):
+        projection_templates = [
+            VerticaProjection(
+                "{schema}.{table}_projection_1",
+                PROJECTION_TYPE_NORMAL,
+                "PROJECTION_DEFINITION_1 on {schema}.{table}",
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_2",
+                PROJECTION_TYPE_AGGREGATE,
+                "PROJECTION_DEFINITION_2 on {schema}.{table}",
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_3",
+                PROJECTION_TYPE_NORMAL,
+                "PROJECTION_DEFINITION_3 on {schema}.{table}",
+            ),
+        ]
+        # Use templates to format actual values.
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in projection_templates
+        ]
 
 
 class VerticaCopyTaskTest(unittest.TestCase):
@@ -146,6 +183,31 @@ class VerticaCopyTaskTest(unittest.TestCase):
         with self.assertRaises(NotImplementedError):
             task.create_table(connection)
 
+    @with_luigi_config('vertica-export', 'schema', 'foobar')
+    def test_create_nonaggregate_projections(self):
+        connection = MagicMock()
+        self.create_task(cls=CopyToVerticaDummyTableWithProjections).create_nonaggregate_projections(connection)
+        connection.cursor().execute.assert_has_calls([
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;')
+        ])
+
+    @with_luigi_config('vertica-export', 'schema', 'foobar')
+    def test_create_aggregate_projections(self):
+        connection = MagicMock()
+        self.create_task(cls=CopyToVerticaDummyTableWithProjections).create_aggregate_projections(connection)
+        connection.cursor().execute.assert_has_calls([
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
+        ])
+
+    @with_luigi_config('vertica-export', 'schema', 'foobar')
+    def test_drop_aggregate_projections(self):
+        connection = MagicMock()
+        self.create_task(cls=CopyToVerticaDummyTableWithProjections).drop_aggregate_projections(connection)
+        connection.cursor().execute.assert_has_calls([
+            call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;')
+        ])
+
     def _get_source_string(self, num_rows=1):
         """Returns test data to be input to database table."""
         template = 'course{num}\t2014-05-01\t2014-05-08\tACTIVE\t{count}\n'
@@ -211,7 +273,6 @@ class VerticaCopyTaskTest(unittest.TestCase):
     def test_create_schema(self):
         task = self.create_task()
         task.run()
-
         mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
         mock_cursor.execute.assert_has_calls([
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
@@ -221,4 +282,46 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             )
+        ])
+
+    @with_luigi_config(('vertica-export', 'schema', 'foobar'))
+    def test_create_schema_with_projections_and_no_overwrite(self):
+        task = self.create_task(cls=CopyToVerticaDummyTableWithProjections)
+        task.run()
+
+        mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
+        mock_cursor.execute.assert_has_calls([
+            call("CREATE SCHEMA IF NOT EXISTS foobar"),
+            call(
+                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
+                "(id AUTO_INCREMENT,course_id VARCHAR(255),"
+                "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
+                "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+            ),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
+        ])
+
+    @with_luigi_config(('vertica-export', 'schema', 'foobar'))
+    def test_create_schema_with_projections_and_overwrite(self):
+        task = self.create_task(cls=CopyToVerticaDummyTableWithProjections, overwrite=True)
+        task.run()
+
+        mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
+        # expected = [
+        mock_cursor.execute.assert_has_calls([
+            call("CREATE SCHEMA IF NOT EXISTS foobar"),
+            call(
+                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
+                "(id AUTO_INCREMENT,course_id VARCHAR(255),"
+                "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
+                "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+            ),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;'),
+            call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;'),
+            call('DELETE FROM foobar.dummy_table'),
+            # This is after the commit, so it's not using the cursor.
+            # call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
         ])
