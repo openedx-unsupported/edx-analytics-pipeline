@@ -10,3 +10,9 @@ CREATE TABLE `shoppingcart_courseregcodeitem` (
   PRIMARY KEY (`orderitem_ptr_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
+--
+-- Dumping data for table `shoppingcart_courseregcodeitem`
+--
+
+INSERT INTO `shoppingcart_courseregcodeitem` VALUES
+  (34,'course-v1:AccTest+ShoppingCart+Paid','honor');

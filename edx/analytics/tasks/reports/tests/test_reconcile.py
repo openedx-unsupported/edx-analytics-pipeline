@@ -39,6 +39,10 @@ class ReconciliationTaskMixin(object):
             'line_item_price': '50.00',
             'line_item_unit_price': '50.00',
             'line_item_quantity': '1',
+            'coupon_id': '',
+            'discount_amount': '0',
+            'voucher_id': '',
+            'voucher_code': '',
             'product_class': 'seat',  # e.g. seat, donation
             'course_id': 'edx/demo_course/2014',  # Was called course_key
             'product_detail': 'verified',  # contains course mode
@@ -292,6 +296,10 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'order_line_item_price': None,
             'order_line_item_unit_price': None,
             'order_line_item_quantity': None,
+            'order_coupon_id': None,
+            'order_discount_amount': None,
+            'order_voucher_id': None,
+            'order_voucher_code': None,
             'order_refunded_amount': None,
             'order_refunded_quantity': None,
             'order_user_id': None,
