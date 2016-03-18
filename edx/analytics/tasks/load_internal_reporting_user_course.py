@@ -57,7 +57,7 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
 
     @property
     def projections(self):
-        projection_templates = [
+        return [
             VerticaProjection(
                 "{schema}.{table}_projection_1",
                 PROJECTION_TYPE_NORMAL,
@@ -171,14 +171,4 @@ AS
  FROM {schema}.{table}
  GROUP BY 1, 2, 3, 4;"""
             ),
-        ]
-
-        # Use templates to format actual values.
-        return [
-            VerticaProjection
-            (
-                template.name.format(schema=self.schema, table=self.table),
-                template.type,
-                template.definition.format(schema=self.schema, table=self.table),
-            ) for template in projection_templates
         ]

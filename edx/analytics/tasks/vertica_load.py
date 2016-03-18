@@ -112,7 +112,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     def projections(self):
         """Provides projection definitions to use after table creation and initialization to create projections.
 
-        Return value should be a list of VerticaProjection namedtuple objects.
+        Return value should be a list of VerticaProjection namedtuple objects.  The name and
+        definition fields may be templates using "{schema}" and "{table}".
         """
         return []
 
@@ -187,41 +188,67 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
+    def _get_aggregate_projections(self):
+        """Get projections that are aggregates, and fill in values."""
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in self.projections if template.type == PROJECTION_TYPE_AGGREGATE
+        ]
+
+    def _get_nonaggregate_projections(self):
+        """Get projections that are not aggregates, and fill in values."""
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in self.projections if template.type != PROJECTION_TYPE_AGGREGATE
+        ]
+
     def drop_aggregate_projections(self, connection):
         """
         Drop any projections that are aggregates.
 
         Aggregate projections must be removed from a table before its contents can be deleted.
         """
-        for projection in self.projections:
-            if projection.type == PROJECTION_TYPE_AGGREGATE:
-                query = "DROP PROJECTION IF EXISTS {name};".format(name=projection.name)
-                log.debug(query)
-                connection.cursor().execute(query)
+        for projection in self._get_aggregate_projections():
+            query = "DROP PROJECTION IF EXISTS {name};".format(name=projection.name)
+            log.debug(query)
+            connection.cursor().execute(query)
 
     def create_aggregate_projections(self, connection):
         """
         Define all aggregate projections on table.
         """
-        for projection in self.projections:
-            if projection.type == PROJECTION_TYPE_AGGREGATE:
-                query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
-                    name=projection.name, definition=projection.definition
-                )
-                log.debug(query)
-                connection.cursor().execute(query)
+        projections = self._get_aggregate_projections()
+        for projection in projections:
+            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                name=projection.name, definition=projection.definition
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
+        # If any projections were created, start a refresh as well.
+        if len(projections) > 0:
+            query = 'SELECT start_refresh();'
+            log.debug(query)
+            connection.cursor().execute(query)
 
     def create_nonaggregate_projections(self, connection):
         """
         Define all projections on table.
         """
-        for projection in self.projections:
-            if projection.type != PROJECTION_TYPE_AGGREGATE:
-                query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
-                    name=projection.name, definition=projection.definition
-                )
-                log.debug(query)
-                connection.cursor().execute(query)
+        for projection in self._get_nonaggregate_projections():
+            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                name=projection.name, definition=projection.definition
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
 
     def update_id(self):
         """This update id will be a unique identifier for this insert on this table."""

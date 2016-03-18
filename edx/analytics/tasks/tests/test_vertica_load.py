@@ -61,31 +61,22 @@ class CopyToVerticaDummyTableWithProjections(CopyToVerticaDummyTable):
 
     @property
     def projections(self):
-        projection_templates = [
+        return [
             VerticaProjection(
                 "{schema}.{table}_projection_1",
                 PROJECTION_TYPE_NORMAL,
-                "PROJECTION_DEFINITION_1 on {schema}.{table}",
+                "DEFINITION_1 on {schema}.{table}",
             ),
             VerticaProjection(
                 "{schema}.{table}_projection_2",
                 PROJECTION_TYPE_AGGREGATE,
-                "PROJECTION_DEFINITION_2 on {schema}.{table}",
+                "DEFINITION_2 on {schema}.{table}",
             ),
             VerticaProjection(
                 "{schema}.{table}_projection_3",
                 PROJECTION_TYPE_NORMAL,
-                "PROJECTION_DEFINITION_3 on {schema}.{table}",
+                "DEFINITION_3 on {schema}.{table}",
             ),
-        ]
-        # Use templates to format actual values.
-        return [
-            VerticaProjection
-            (
-                template.name.format(schema=self.schema, table=self.table),
-                template.type,
-                template.definition.format(schema=self.schema, table=self.table),
-            ) for template in projection_templates
         ]
 
 
@@ -129,6 +120,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         }
 
         fake_output = MagicMock(return_value=self.mock_vertica_connector)
+        self.mock_vertica_connector.marker_table = "name_of_marker_table"
 
         task.input = MagicMock(return_value=fake_input)
         task.output = fake_output
@@ -187,26 +179,27 @@ class VerticaCopyTaskTest(unittest.TestCase):
     def test_create_nonaggregate_projections(self):
         connection = MagicMock()
         self.create_task(cls=CopyToVerticaDummyTableWithProjections).create_nonaggregate_projections(connection)
-        connection.cursor().execute.assert_has_calls([
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;')
-        ])
+        self.assertEquals([
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 DEFINITION_3 on foobar.dummy_table;')
+        ], connection.cursor().execute.mock_calls)
 
     @with_luigi_config('vertica-export', 'schema', 'foobar')
     def test_create_aggregate_projections(self):
         connection = MagicMock()
         self.create_task(cls=CopyToVerticaDummyTableWithProjections).create_aggregate_projections(connection)
-        connection.cursor().execute.assert_has_calls([
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
-        ])
+        self.assertEquals([
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
+            call('SELECT start_refresh();'),
+        ], connection.cursor().execute.mock_calls)
 
     @with_luigi_config('vertica-export', 'schema', 'foobar')
     def test_drop_aggregate_projections(self):
         connection = MagicMock()
         self.create_task(cls=CopyToVerticaDummyTableWithProjections).drop_aggregate_projections(connection)
-        connection.cursor().execute.assert_has_calls([
+        self.assertEquals([
             call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;')
-        ])
+        ], connection.cursor().execute.mock_calls)
 
     def _get_source_string(self, num_rows=1):
         """Returns test data to be input to database table."""
@@ -274,7 +267,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task = self.create_task()
         task.run()
         mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
-        mock_cursor.execute.assert_has_calls([
+        expected = [
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
             call(
                 "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
@@ -282,7 +275,8 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             )
-        ])
+        ]
+        self.assertEquals(expected, mock_cursor.execute.mock_calls)
 
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
     def test_create_schema_with_projections_and_no_overwrite(self):
@@ -290,7 +284,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task.run()
 
         mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
-        mock_cursor.execute.assert_has_calls([
+        expected = [
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
             call(
                 "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
@@ -298,10 +292,12 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             ),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;'),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
-        ])
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 DEFINITION_3 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
+            call('SELECT start_refresh();'),
+        ]
+        self.assertEquals(expected, mock_cursor.execute.mock_calls)
 
     @with_luigi_config(('vertica-export', 'schema', 'foobar'))
     def test_create_schema_with_projections_and_overwrite(self):
@@ -309,8 +305,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         task.run()
 
         mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
-        # expected = [
-        mock_cursor.execute.assert_has_calls([
+        expected = [
             call("CREATE SCHEMA IF NOT EXISTS foobar"),
             call(
                 "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
@@ -318,10 +313,12 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             ),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 PROJECTION_DEFINITION_1 on foobar.dummy_table;'),
-            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 PROJECTION_DEFINITION_3 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 DEFINITION_1 on foobar.dummy_table;'),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 DEFINITION_3 on foobar.dummy_table;'),
             call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;'),
             call('DELETE FROM foobar.dummy_table'),
-            # This is after the commit, so it's not using the cursor.
-            # call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 PROJECTION_DEFINITION_2 on foobar.dummy_table;'),
-        ])
+            call("DELETE FROM foobar.name_of_marker_table where target_table='foobar.dummy_table';"),
+            call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
+            call('SELECT start_refresh();'),
+        ]
+        self.assertEquals(expected, mock_cursor.execute.mock_calls)
