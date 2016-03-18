@@ -21,6 +21,9 @@ from edx.analytics.tasks.database_imports import (
     ImportProductCatalogAttributeValues,
     ImportCurrentOrderState,
     ImportCurrentOrderLineState,
+    ImportCurrentOrderDiscountState,
+    ImportCouponVoucherIndirectionState,
+    ImportCouponVoucherState,
     ImportCurrentRefundRefundLineState,
     ImportAuthUserTask,
 )
@@ -55,9 +58,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportProductCatalogAttributes(**kwargs),
             ImportProductCatalogAttributeValues(**kwargs),
 
-            # Otto Current State and Line Item Tables.
+            # Otto Current State, Line Item, and Coupon Tables.
             ImportCurrentOrderState(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
+            ImportCurrentOrderDiscountState(**kwargs),
+            ImportCouponVoucherIndirectionState(**kwargs),
+            ImportCouponVoucherState(**kwargs),
 
             # Otto Refund Tables.
             ImportCurrentRefundRefundLineState(**kwargs),
@@ -100,6 +106,10 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('user_email', 'STRING'),
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
+            ('coupon_id', 'INT'),
+            ('discount_amount', 'DECIMAL'),
+            ('voucher_id', 'INT'),
+            ('voucher_code', 'STRING'),
             ('status', 'STRING'),
             ('refunded_amount', 'DECIMAL'),
             ('refunded_quantity', 'INT'),
@@ -145,6 +155,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     u.email AS user_email,
                     o.date_placed AS date_placed,
                     o.currency AS iso_currency_code,
+
+                    -- Discount/coupon/voucher information
+                    vcv.coupon_id AS coupon_id,
+                    od.amount AS discount_amount,
+                    od.voucher_id AS voucher_id,
+                    od.voucher_code AS voucher_code,
 
                     -- If a refund was found, mark this order as refunded
                     CASE
@@ -195,6 +211,13 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     GROUP BY order_line_id
                 ) r ON r.order_line_id = ol.id
 
+                -- Get discount information. Each order may have one voucher code applied.
+                -- We are relying on the ecommerce restriction that each order contains one line
+                -- and each order can have no more than one voucher applied.
+                LEFT OTUER JOIN order_orderdiscount od ON od.order_id = o.id
+                LEFT OUTER JOIN voucher_couponvouchers_vouchers vcvv ON vcvv.voucher_id = od.voucher_id
+                LEFT OUTER JOIN voucher_couponvouchers vcv ON vcv.id = vcvv.couponvouchers_id
+
                 -- Only process complete orders
                 WHERE ol.status = "Complete"
 
@@ -242,6 +265,11 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     au.email as user_email,
                     o.purchase_time AS date_placed,
                     UPPER(o.currency) AS iso_currency_code,
+
+                    NULL AS coupon_id,
+                    0 AS discount_amount,
+                    NULL AS voucher_id,
+                    NULL AS voucher_code,
 
                     -- Either "purchased" or "refunded"
                     oi.status AS status,

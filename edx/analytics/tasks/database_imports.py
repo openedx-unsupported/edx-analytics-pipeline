@@ -675,6 +675,76 @@ class ImportCurrentOrderLineState(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportCurrentOrderDiscountState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports current order discount records from an ecommerce table to a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'order_orderdiscount'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('category', 'STRING'),
+            ('offer_id', 'INT'),
+            ('offer_name', 'STRING'),
+            ('voucher_id', 'INT'),
+            ('voucher_code', 'STRING'),
+            ('frequency', 'INT'),
+            ('amount', 'DECIMAL'),
+            ('message', 'STRING'),
+            ('order_id', 'INT'),
+        ]
+
+
+class ImportCouponVoucherIndirectionState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports the voucher_couponvouchers table from the ecommerce database to
+    a destination directory and a HIVE metastore.
+
+    This table is just an extra layer of indirection in the source schema design and is required
+    to translate a 'couponvouchers_id' into a coupon id.
+    Coupons are represented as products in the product table, which is imported separately.
+    A coupon can have many voucher codes associated with it.
+    """
+    @property
+    def table_name(self):
+        return 'voucher_couponvouchers'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('coupon_id', 'INT'),
+        ]
+
+
+class ImportCouponVoucherState(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports the voucher_couponvouchers_vouchers table from the ecommerce
+    database to a destination directory and a HIVE metastore.
+
+    A coupon can have many voucher codes associated with it. This table associates voucher IDs
+    with 'couponvouchers_id's, which are stored in the voucher_couponvouchers table and
+    have a 1:1 relationship to coupon IDs.
+    """
+    @property
+    def table_name(self):
+        return 'voucher_couponvouchers_vouchers'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('couponvouchers_id', 'INT'),
+            ('voucher_id', 'INT'),
+        ]
+
+
 class ImportCourseModeTask(ImportMysqlToHiveTableTask):
     """
     Course Information: Imports course_modes table to both a destination directory and a HIVE metastore.
