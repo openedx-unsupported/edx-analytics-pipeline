@@ -14,6 +14,8 @@ from edx.analytics.tasks.database_imports import (
     ImportShoppingCartOrder,
     ImportShoppingCartOrderItem,
     ImportShoppingCartPaidCourseRegistration,
+    ImportShoppingCartCoupon,
+    ImportShoppingCartCouponRedemption,
     ImportEcommerceUser,
     ImportProductCatalog,
     ImportProductCatalogClass,
@@ -79,6 +81,8 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportShoppingCartPaidCourseRegistration(**kwargs),
             ImportShoppingCartDonation(**kwargs),
             ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
+            ImportShoppingCartCoupon(**kwargs),
+            ImportShoppingCartCouponRedemption(**kwargs),
 
             # Other LMS tables.
             ImportAuthUserTask(**kwargs),
@@ -107,7 +111,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
             ('coupon_id', 'INT'),
-            ('discount_amount', 'DECIMAL'),
+            ('discount_amount', 'DECIMAL'),  # Total discount in currency amount, i.e. unit_discount * qty
             ('voucher_id', 'INT'),
             ('voucher_code', 'STRING'),
             ('status', 'STRING'),
@@ -214,7 +218,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 -- Get discount information. Each order may have one voucher code applied.
                 -- We are relying on the ecommerce restriction that each order contains one line
                 -- and each order can have no more than one voucher applied.
-                LEFT OTUER JOIN order_orderdiscount od ON od.order_id = o.id
+                LEFT OUTER JOIN order_orderdiscount od ON od.order_id = o.id
                 LEFT OUTER JOIN voucher_couponvouchers_vouchers vcvv ON vcvv.voucher_id = od.voucher_id
                 LEFT OUTER JOIN voucher_couponvouchers vcv ON vcv.id = vcvv.couponvouchers_id
 
@@ -266,10 +270,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     o.purchase_time AS date_placed,
                     UPPER(o.currency) AS iso_currency_code,
 
+                    -- Coupon information. Shopping cart has no distinction between voucher codes and coupons.
+                    -- The tables also only store the percentage discount, not the discount amount, so calculate it:
                     NULL AS coupon_id,
-                    0 AS discount_amount,
-                    NULL AS voucher_id,
-                    NULL AS voucher_code,
+                    ((oi.list_price - oi.unit_cost) * oi.qty) AS discount_amount, -- coupon.percentage_discount would have rounding issues
+                    coupon.id AS voucher_id,
+                    coupon.code AS voucher_code,
 
                     -- Either "purchased" or "refunded"
                     oi.status AS status,
@@ -289,6 +295,18 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 LEFT OUTER JOIN shoppingcart_paidcourseregistration pcr ON pcr.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_courseregcodeitem crc ON crc.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_donation d ON d.orderitem_ptr_id = oi.id
+
+                -- Join coupon information. Need to use course_id because one order can contain multiple items,
+                -- but the database tables only link coupons to the whole order and not the specific line item.
+                LEFT OUTER JOIN shoppingcart_couponredemption couponred ON couponred.order_id = o.id
+                LEFT OUTER JOIN shoppingcart_coupon coupon ON (coupon.id = couponred.coupon_id AND coupon.course_id = (
+                    CASE
+                        WHEN ci.orderitem_ptr_id IS NOT NULL THEN ci.course_id
+                        WHEN pcr.orderitem_ptr_id IS NOT NULL THEN pcr.course_id
+                        WHEN crc.orderitem_ptr_id IS NOT NULL THEN crc.course_id
+                        WHEN d.orderitem_ptr_id IS NOT NULL THEN d.course_id
+                    END
+                ))
 
                 -- Ignore "cart", "defunct-cart" and "paying" statuses since they won't have corresponding transactions
                 WHERE oi.status IN ('purchased', 'refunded')

@@ -465,6 +465,51 @@ class ImportShoppingCartCourseRegistrationCodeItem(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportShoppingCartCoupon(ImportMysqlToHiveTableTask):
+    """
+    Imports coupon definitions from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_coupon'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('code', 'STRING'),
+            ('description', 'STRING'),
+            ('course_id', 'STRING'),
+            ('percentage_discount', 'INT'),
+            ('created_at', 'TIMESTAMP'),
+            ('is_active', 'BOOLEAN'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('created_by_id', 'INT'),
+        ]
+
+
+class ImportShoppingCartCouponRedemption(ImportMysqlToHiveTableTask):
+    """
+    Imports coupon redeptions from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+
+    """
+    @property
+    def table_name(self):
+        return 'shoppingcart_couponredemption'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('coupon_id', 'INT'),
+            ('order_id', 'INT'),
+            ('user_id', 'INT'),
+        ]
+
+
 class ImportEcommerceUser(ImportMysqlToHiveTableTask):
     """Ecommerce: Users: Imports users from an external ecommerce table to a destination dir."""
 
