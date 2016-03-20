@@ -47,6 +47,7 @@ ORDERITEM_FIELDS = [
     'refunded_amount',
     'refunded_quantity',
     'payment_ref_id',  # This is the value to compare with the transactions.
+    'partner_short_code',
 ]
 
 BaseOrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)  # pylint: disable=invalid-name
@@ -102,6 +103,14 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
     '9918',
 )
 
+# Map organization IDs of White Label partners with data in ShoppingCart to Otto partner short codes.
+SHOPPINGCART_PARTNERS = {
+    'MITProfessionalX': 'MITPE',
+}
+
+# Partner short code for edX, used for ShoppingCart orders for organizations that don't appear in the map above.
+EDX_PARTNER_SHORT_CODE = 'EDX'
+
 
 class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
     """Define parameters needed downstream for running ReconcileOrdersAndTransactionsTask."""
@@ -137,7 +146,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         if len(fields) == len(ORDERITEM_FIELDS):
             # Assume it's an order.
             record_type = OrderItemRecord.__name__
-            key = fields[-1]
+            key = fields[-2]  # payment_ref_id
             # Convert Hive null values ('\\N') in fields like 'product_detail' to string typed values:
             typed_defaults = {
                 'discount_amount': '0.0',
@@ -151,7 +160,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         elif len(fields) == len(TRANSACTION_FIELDS):
             # Assume it's a transaction.
             record_type = TransactionRecord.__name__
-            key = fields[3]
+            key = fields[3]  # payment_ref_id
             # Convert nulls in 'transaction_fee'.
             if fields[6] == '\\N':
                 fields[6] = None
@@ -188,6 +197,11 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         else:
             return "ERROR_WRONGSTATUS_{}".format(status)
 
+    def _get_partner(self, course_id):
+        """Heuristic to determine the partner short code of order items from ShoppingCart."""
+        org = get_org_id_for_course(course_id)
+        return SHOPPINGCART_PARTNERS.get(org) or EDX_PARTNER_SHORT_CODE
+
     def _extract_transactions(self, values):
         """
         Pulls orderitems and transactions out of input values iterable.
@@ -196,7 +210,12 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         transactions = []
         for (record_type, fields) in values:
             if record_type == 'OrderItemRecord':
-                orderitems.append(OrderItemRecord(*fields))
+                orderitem = OrderItemRecord(*fields)
+                if not orderitem.partner_short_code:
+                    orderitem = orderitem._replace(  # pylint: disable=no-member,protected-access
+                        partner_short_code=self._get_partner(orderitem.course_id),
+                    )
+                orderitems.append(orderitem)
             elif record_type == 'TransactionRecord':
                 transactions.append(TransactionRecord(*fields))
         # Standardize the ordering.
@@ -339,7 +358,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         elif trans_balance == 0.0:
             audit_code = "{}_WAS_REFUNDED".format(audit_code)
         elif (trans_balance == -1 * orderitem.line_item_price and
-                ('REFUND_AGAIN' in trans_audit_codes or 'REFUND_AGAIN_STATUS_NOT_REFUNDED' in trans_audit_codes)):
+              ('REFUND_AGAIN' in trans_audit_codes or 'REFUND_AGAIN_STATUS_NOT_REFUNDED' in trans_audit_codes)):
             audit_code = "{}_WAS_REFUNDED_TWICE".format(audit_code)
         elif trans_balance == 2 * orderitem.line_item_price and 'PURCHASE_AGAIN' in trans_audit_codes:
             audit_code = "{}_WAS_CHARGED_TWICE".format(audit_code)
@@ -610,6 +629,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             audit_code[0],
             audit_code[1],
             audit_code[2],
+            orderitem.partner_short_code if orderitem else EDX_PARTNER_SHORT_CODE,
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
             orderitem.order_id if orderitem else None,
             encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else None,
@@ -657,6 +677,7 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: d
     "order_audit_code",
     "orderitem_audit_code",
     "transaction_audit_code",
+    "partner_short_code",
     "payment_ref_id",
     "order_id",
     "unique_order_id",
@@ -726,6 +747,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('order_audit_code', 'STRING'),
             ('orderitem_audit_code', 'STRING'),
             ('transaction_audit_code', 'STRING'),
+            ('partner_short_code', 'STRING'),
             ('payment_ref_id', 'STRING'),
             ('order_id', 'INT'),
             ('unique_order_id', 'STRING'),
@@ -899,6 +921,7 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('order_audit_code', 'VARCHAR(255)'),
             ('orderitem_audit_code', 'VARCHAR(255)'),
             ('transaction_audit_code', 'VARCHAR(255)'),
+            ('partner_short_code', 'VARCHAR(8)'),
             ('payment_ref_id', 'VARCHAR(128)'),
             ('order_id', 'INTEGER'),
             ('unique_order_id', 'VARCHAR(255)'),

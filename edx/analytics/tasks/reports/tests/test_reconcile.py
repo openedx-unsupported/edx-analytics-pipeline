@@ -12,6 +12,7 @@ from edx.analytics.tasks.reports.reconcile import (
     TransactionRecord,
     OrderTransactionRecord,
     LOW_ORDER_ID_SHOPPINGCART_ORDERS,
+    EDX_PARTNER_SHORT_CODE,
 )
 
 TEST_DATE = '2015-06-01'
@@ -54,6 +55,7 @@ class ReconciliationTaskMixin(object):
             'refunded_amount': '0.0',
             'refunded_quantity': '0',
             'payment_ref_id': DEFAULT_REF_ID,
+            'partner_short_code': EDX_PARTNER_SHORT_CODE if kwargs.get('order_processor') != 'shoppingcart' else '',
         }
         if is_refunded:
             params.update(**{
@@ -214,6 +216,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'order_audit_code': 'ERROR_ORDER_NOT_BALANCED',
             'orderitem_audit_code': 'ERROR_NO_TRANSACTION',
             'transaction_audit_code': 'NO_TRANSACTION',
+            'partner_short_code': EDX_PARTNER_SHORT_CODE,
             'transaction_date': None,
             'transaction_id': None,
             'unique_transaction_id': None,
@@ -227,6 +230,24 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'transaction_amount_per_item': None,
             'transaction_fee_per_item': None,
         })
+
+    @data(
+        ('otto', 'course-v1:MITx+15.071x_3+1T2016', 'EDX', 'EDX'),
+        ('otto', 'course-v1:MITx+15.071x_3+1T2016', '', EDX_PARTNER_SHORT_CODE),
+        ('otto', 'course-v1:MITPE+12345+1T2016', 'MITPE', 'MITPE'),
+        ('shoppingcart', 'course-v1:MITx+15.071x_3+1T2016', '', EDX_PARTNER_SHORT_CODE),
+        ('shoppingcart', 'edX/DemoX/Demo_Course', '', EDX_PARTNER_SHORT_CODE),
+        ('shoppingcart', 'course-v1:MITPE+12345+1T2016', '', 'MITPE'),
+        ('shoppingcart', 'MITPE/12345/1T2016', '', 'MITPE'),
+    )
+    @unpack
+    def test_partner_short_code(self, order_processor, course_id, partner_short_code, expected_short_code):
+        orderitem = self.create_orderitem(
+            order_processor=order_processor,
+            course_id=course_id,
+            partner_short_code=partner_short_code,
+        )
+        self._check_output([orderitem], {'partner_short_code': expected_short_code})
 
     def test_honor_order(self):
         # The honor code is not actually important here, the zero price is.
