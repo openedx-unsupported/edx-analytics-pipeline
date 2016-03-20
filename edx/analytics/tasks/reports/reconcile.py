@@ -3,6 +3,7 @@
 from collections import namedtuple, defaultdict
 import csv
 from decimal import Decimal
+import json
 import logging
 from operator import attrgetter
 
@@ -47,6 +48,7 @@ ORDERITEM_FIELDS = [
     'refunded_amount',
     'refunded_quantity',
     'payment_ref_id',  # This is the value to compare with the transactions.
+    'partner_short_code',
 ]
 
 ORDERITEM_FIELD_INDICES = {field_name: index for index, field_name in enumerate(ORDERITEM_FIELDS)}
@@ -123,6 +125,21 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     """
 
     output_root = luigi.Parameter()
+    shoppingcart_partners = luigi.Parameter(
+        config_path={'section': 'financial-reports', 'name': 'shoppingcart-partners'},
+        description="JSON string containing a dictionary mapping organization IDs of White Label partners "
+        "with data in ShoppingCart to the corresponding Otto partner short code.  The short code to be used "
+        "for other organization IDs must be given as value for the key \"DEFAULT\", to have a default that "
+        "is not NULL.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(ReconcileOrdersAndTransactionsTask, self).__init__(*args, **kwargs)
+        if self.shoppingcart_partners:
+            self.shoppingcart_partners_dict = json.loads(self.shoppingcart_partners)
+        else:
+            self.shoppingcart_partners_dict = {}
+        self.default_partner_short_code = self.shoppingcart_partners_dict.get("DEFAULT")
 
     def requires(self):
         yield (
@@ -139,7 +156,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         if len(fields) == len(ORDERITEM_FIELDS):
             # Assume it's an order.
             record_type = OrderItemRecord.__name__
-            key = fields[-1]
+            key = fields[-2]  # payment_ref_id
             # Convert Hive null values ('\\N') in fields like 'product_detail':
             defaults = (
                 ('product_detail', ''),
@@ -149,6 +166,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 ('coupon_id', None),
                 ('voucher_id', None),
                 ('voucher_code', ''),
+                ('partner_short_code', ''),
             )
             for field_name, default_value in defaults:
                 index = ORDERITEM_FIELD_INDICES[field_name]
@@ -158,7 +176,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         elif len(fields) == len(TRANSACTION_FIELDS):
             # Assume it's a transaction.
             record_type = TransactionRecord.__name__
-            key = fields[3]
+            key = fields[3]  # payment_ref_id
             # Convert nulls in 'transaction_fee'.
             if fields[6] == '\\N':
                 fields[6] = None
@@ -195,6 +213,11 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         else:
             return "ERROR_WRONGSTATUS_{}".format(status)
 
+    def _get_partner(self, course_id):
+        """Heuristic to determine the partner short code of order items from ShoppingCart."""
+        org = get_org_id_for_course(course_id)
+        return self.shoppingcart_partners_dict.get(org) or self.default_partner_short_code
+
     def _extract_transactions(self, values):
         """
         Pulls orderitems and transactions out of input values iterable.
@@ -203,6 +226,10 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         transactions = []
         for (record_type, fields) in values:
             if record_type == 'OrderItemRecord':
+                if not fields[ORDERITEM_FIELD_INDICES['partner_short_code']]:
+                    fields[ORDERITEM_FIELD_INDICES['partner_short_code']] = self._get_partner(
+                        fields[ORDERITEM_FIELD_INDICES['course_id']]
+                    )
                 orderitems.append(OrderItemRecord(*fields))
             elif record_type == 'TransactionRecord':
                 transactions.append(TransactionRecord(*fields))
@@ -342,7 +369,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         elif trans_balance == 0.0:
             audit_code = "{}_WAS_REFUNDED".format(audit_code)
         elif (trans_balance == -1 * orderitem.line_item_price and
-                ('REFUND_AGAIN' in trans_audit_codes or 'REFUND_AGAIN_STATUS_NOT_REFUNDED' in trans_audit_codes)):
+              ('REFUND_AGAIN' in trans_audit_codes or 'REFUND_AGAIN_STATUS_NOT_REFUNDED' in trans_audit_codes)):
             audit_code = "{}_WAS_REFUNDED_TWICE".format(audit_code)
         elif trans_balance == 2 * orderitem.line_item_price and 'PURCHASE_AGAIN' in trans_audit_codes:
             audit_code = "{}_WAS_CHARGED_TWICE".format(audit_code)
@@ -613,6 +640,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             audit_code[0],
             audit_code[1],
             audit_code[2],
+            orderitem.partner_short_code if orderitem else self.default_partner_short_code,
             orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
             orderitem.order_id if orderitem else None,
             encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else None,
@@ -660,6 +688,7 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: d
     "order_audit_code",
     "orderitem_audit_code",
     "transaction_audit_code",
+    "partner_short_code",
     "payment_ref_id",
     "order_id",
     "unique_order_id",
@@ -729,6 +758,7 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('order_audit_code', 'STRING'),
             ('orderitem_audit_code', 'STRING'),
             ('transaction_audit_code', 'STRING'),
+            ('partner_short_code', 'STRING'),
             ('payment_ref_id', 'STRING'),
             ('order_id', 'INT'),
             ('unique_order_id', 'STRING'),
@@ -902,6 +932,7 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('order_audit_code', 'VARCHAR(255)'),
             ('orderitem_audit_code', 'VARCHAR(255)'),
             ('transaction_audit_code', 'VARCHAR(255)'),
+            ('partner_short_code', 'VARCHAR(8)'),
             ('payment_ref_id', 'VARCHAR(128)'),
             ('order_id', 'INTEGER'),
             ('unique_order_id', 'VARCHAR(255)'),

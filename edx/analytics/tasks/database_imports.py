@@ -551,6 +551,8 @@ class ImportProductCatalog(ImportMysqlToHiveTableTask):
             ('is_discountable', 'STRING'),
             ('parent_id', 'INT'),
             ('product_class_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('expires', 'TIMESTAMP'),
         ]
 
 
@@ -787,6 +789,26 @@ class ImportCouponVoucherState(ImportMysqlToHiveTableTask):
             ('id', 'INT'),
             ('couponvouchers_id', 'INT'),
             ('voucher_id', 'INT'),
+        ]
+
+
+class ImportEcommercePartner(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Current: Imports Partner information from an ecommerce table to a
+    destination directory and a HIVE metastore.
+    """
+
+    @property
+    def table_name(self):
+        return 'partner_partner'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('code', 'STRING'),
+            ('name', 'STRING'),
+            ('short_code', 'STRING'),
         ]
 
 

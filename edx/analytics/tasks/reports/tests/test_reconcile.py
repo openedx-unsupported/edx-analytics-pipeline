@@ -3,6 +3,7 @@
 from ddt import ddt, data, unpack
 
 from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.tests.config import with_luigi_config
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.reports.reconcile import (
     ReconcileOrdersAndTransactionsTask,
@@ -54,6 +55,7 @@ class ReconciliationTaskMixin(object):
             'refunded_amount': '0.0',
             'refunded_quantity': '0',
             'payment_ref_id': DEFAULT_REF_ID,
+            'partner_short_code': 'edx' if kwargs.get('order_processor') != 'shoppingcart' else '',
         }
         if is_refunded:
             params.update(**{
@@ -214,6 +216,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'order_audit_code': 'ERROR_ORDER_NOT_BALANCED',
             'orderitem_audit_code': 'ERROR_NO_TRANSACTION',
             'transaction_audit_code': 'NO_TRANSACTION',
+            'partner_short_code': 'edx',
             'transaction_date': None,
             'transaction_id': None,
             'unique_transaction_id': None,
@@ -227,6 +230,37 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'transaction_amount_per_item': None,
             'transaction_fee_per_item': None,
         })
+
+    @data(
+        ('otto', 'course-v1:MITx+15.071x_3+1T2016', 'edx', 'edx'),
+        ('otto', 'course-v1:MITx+15.071x_3+1T2016', '', 'edx'),
+        ('otto', 'course-v1:OpenCraftX+12345+1T2016', 'OCX', 'OCX'),
+        ('shoppingcart', 'course-v1:MITx+15.071x_3+1T2016', '', 'edx'),
+        ('shoppingcart', 'edX/DemoX/Demo_Course', '', 'edx'),
+        ('shoppingcart', 'course-v1:OpenCraftX+12345+1T2016', '', 'OCX'),
+        ('shoppingcart', 'OpenCraftX/12345/1T2016', '', 'OCX'),
+    )
+    @unpack
+    @with_luigi_config('financial-reports', 'shoppingcart-partners', '{"OpenCraftX": "OCX", "DEFAULT": "edx"}')
+    def test_partner_short_code(self, order_processor, course_id, partner_short_code, expected_short_code):
+        self.create_task()  # Recreate task to pick up overridden Luigi configuration
+        orderitem = self.create_orderitem(
+            order_processor=order_processor,
+            course_id=course_id,
+            partner_short_code=partner_short_code,
+        )
+        self._check_output([orderitem], {'partner_short_code': expected_short_code})
+
+    @data(
+        ('', None),
+        ('OCX', 'OCX'),
+    )
+    @unpack
+    @with_luigi_config('financial-reports', 'shoppingcart-partners', '{}')
+    def test_partner_short_code_no_default(self, partner_short_code, expected_short_code):
+        self.create_task()  # Recreate task to pick up overridden Luigi configuration
+        orderitem = self.create_orderitem(partner_short_code=partner_short_code)
+        self._check_output([orderitem], {'partner_short_code': expected_short_code})
 
     def test_honor_order(self):
         # The honor code is not actually important here, the zero price is.
