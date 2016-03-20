@@ -62,6 +62,13 @@ def when_vertica_available(function):
         not vertica_available, 'Vertica service is not available'
     )(function)
 
+def when_vertica_not_available(function):
+    config = get_test_config()
+    vertica_available = bool(config.get('vertica_creds_url'))
+    return unittest.skipIf(
+        vertica_available, 'Vertica service is available'
+    )(function)
+
 # Utility functions
 
 def get_test_config():
