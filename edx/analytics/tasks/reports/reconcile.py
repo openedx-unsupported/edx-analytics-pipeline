@@ -39,6 +39,10 @@ ORDERITEM_FIELDS = [
     'user_email',
     'date_placed',
     'iso_currency_code',
+    'coupon_id',
+    'discount_amount',
+    'voucher_id',
+    'voucher_code',
     'status',
     'refunded_amount',
     'refunded_quantity',
@@ -133,13 +137,15 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             # Assume it's an order.
             record_type = OrderItemRecord.__name__
             key = fields[-1]
-            # Convert nulls in 'product_detail', 'refunded_amount', 'refunded_quantity'.
-            if fields[10] == '\\N':
-                fields[10] = ''
-            if fields[16] == '\\N':
-                fields[16] = '0.0'
-            if fields[17] == '\\N':
-                fields[17] = '0'
+            # Convert Hive null values ('\\N') in fields like 'product_detail' to string typed values:
+            typed_defaults = {
+                'discount_amount': '0.0',
+                'refunded_amount': '0.0',
+                'refunded_quantity': '0',
+            }
+            for index, value in enumerate(fields):
+                if value == '\\N':
+                    fields[index] = typed_defaults.get(ORDERITEM_FIELDS[index], '')
 
         elif len(fields) == len(TRANSACTION_FIELDS):
             # Assume it's a transaction.
@@ -621,6 +627,10 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             orderitem.line_item_price if orderitem else None,
             orderitem.line_item_unit_price if orderitem else None,
             orderitem.line_item_quantity if orderitem else None,
+            orderitem.coupon_id if orderitem else None,
+            orderitem.discount_amount if orderitem else None,
+            orderitem.voucher_id if orderitem else None,
+            orderitem.voucher_code if orderitem else None,
             orderitem.refunded_amount if orderitem else None,
             orderitem.refunded_quantity if orderitem else None,
             orderitem.user_id if orderitem else None,
@@ -661,6 +671,10 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: d
     "order_line_item_price",
     "order_line_item_unit_price",
     "order_line_item_quantity",
+    "order_coupon_id",
+    "order_discount_amount",
+    "order_voucher_id",
+    "order_voucher_code",
     "order_refunded_amount",
     "order_refunded_quantity",
     "order_user_id",
@@ -726,6 +740,10 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('order_line_item_price', 'DECIMAL'),
             ('order_line_item_unit_price', 'DECIMAL'),
             ('order_line_item_quantity', 'INT'),
+            ('order_coupon_id', 'INT'),
+            ('order_discount_amount', 'DECIMAL'),
+            ('order_voucher_id', 'INT'),
+            ('order_voucher_code', 'STRING'),
             ('order_refunded_amount', 'DECIMAL'),
             ('order_refunded_quantity', 'INT'),
             ('order_user_id', 'INT'),
@@ -895,6 +913,10 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('order_line_item_price', 'DECIMAL(12,2)'),
             ('order_line_item_unit_price', 'DECIMAL(12,2)'),
             ('order_line_item_quantity', 'INTEGER'),
+            ('order_coupon_id', 'INTEGER'),
+            ('order_discount_amount', 'DECIMAL(12,2)'),
+            ('order_voucher_id', 'INTEGER'),
+            ('order_voucher_code', 'VARCHAR(255)'),
             ('order_refunded_amount', 'DECIMAL(12,2)'),
             ('order_refunded_quantity', 'INTEGER'),
             ('order_user_id', 'INTEGER'),
