@@ -1,6 +1,7 @@
 """
 Support for loading data into an HP Vertica database.
 """
+from collections import namedtuple
 import json
 import logging
 
@@ -21,6 +22,12 @@ except ImportError:
     # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
     # them, instead just fail noisily if we attempt to use these libraries.
     vertica_client_available = False  # pylint: disable-msg=C0103
+
+PROJECTION_TYPE_NORMAL = 'Normal'
+PROJECTION_TYPE_AGGREGATE = 'Aggregate'
+
+VerticaProjection = namedtuple('VerticaProjection',  # pylint: disable=invalid-name
+                               ['name', 'type', 'definition',])
 
 
 class VerticaCopyTaskMixin(OverwriteOutputMixin):
@@ -101,6 +108,15 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """List of tuples defining name and definition of automatically-filled columns."""
         return [('created', 'TIMESTAMP DEFAULT NOW()')]
 
+    @property
+    def projections(self):
+        """Provides projection definitions to use after table creation and initialization to create projections.
+
+        Return value should be a list of VerticaProjection namedtuple objects.  The name and
+        definition fields may be templates using "{schema}" and "{table}".
+        """
+        return []
+
     def create_schema(self, connection):
         """
         Override to provide code for creating the target schema, if not existing.
@@ -172,6 +188,68 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
+    def _get_aggregate_projections(self):
+        """Get projections that are aggregates, and fill in values."""
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in self.projections if template.type == PROJECTION_TYPE_AGGREGATE
+        ]
+
+    def _get_nonaggregate_projections(self):
+        """Get projections that are not aggregates, and fill in values."""
+        return [
+            VerticaProjection
+            (
+                template.name.format(schema=self.schema, table=self.table),
+                template.type,
+                template.definition.format(schema=self.schema, table=self.table),
+            ) for template in self.projections if template.type != PROJECTION_TYPE_AGGREGATE
+        ]
+
+    def drop_aggregate_projections(self, connection):
+        """
+        Drop any projections that are aggregates.
+
+        Aggregate projections must be removed from a table before its contents can be deleted.
+        """
+        for projection in self._get_aggregate_projections():
+            query = "DROP PROJECTION IF EXISTS {name};".format(name=projection.name)
+            log.debug(query)
+            connection.cursor().execute(query)
+
+    def create_aggregate_projections(self, connection):
+        """
+        Define all aggregate projections on table.
+        """
+        projections = self._get_aggregate_projections()
+        for projection in projections:
+            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                name=projection.name, definition=projection.definition
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
+        # If any projections were created, start a refresh as well.
+        if len(projections) > 0:
+            query = 'SELECT start_refresh();'
+            log.debug(query)
+            connection.cursor().execute(query)
+
+    def create_nonaggregate_projections(self, connection):
+        """
+        Define all projections on table.
+        """
+        for projection in self._get_nonaggregate_projections():
+            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
+                name=projection.name, definition=projection.definition
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
     def update_id(self):
         """This update id will be a unique identifier for this insert on this table."""
         # For MySQL tasks, we take the hash of the task id, but since Vertica does not similarly
@@ -222,6 +300,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         # clear table contents
         self.attempted_removal = True
         if self.overwrite:
+            # Before changing the current contents table, we have to make sure there
+            # are no aggregate projections on it.
+            self.drop_aggregate_projections(connection)
+
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {schema}.{table}".format(schema=self.schema, table=self.table)
@@ -321,8 +403,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # create schema and table only if necessary:
             self.create_schema(connection)
             self.create_table(connection)
+            self.create_nonaggregate_projections(connection)
 
+            # we should do nothing between initialization and copying
+            # that would commit the transaction.
             self.init_copy(connection)
+
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
 
@@ -333,6 +419,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # We commit only if both operations completed successfully.
             connection.commit()
             log.debug("Committed transaction.")
+
+            # Once we are done with the regular load, go ahead
+            # and make sure that aggregate projections are also added.
+            # This may be slow, but they would cause commits anyway.
+            self.create_aggregate_projections(connection)
+
         except Exception as exc:
             log.exception("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()

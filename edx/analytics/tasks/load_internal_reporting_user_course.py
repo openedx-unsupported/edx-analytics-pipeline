@@ -4,7 +4,9 @@ Loads the user_course table into the warehouse through the pipeline via Hive.
 import luigi
 import logging
 
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.vertica_load import (
+    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
+)
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
 
@@ -52,3 +54,121 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     @property
     def default_columns(self):
         return None
+
+    @property
+    def projections(self):
+        return [
+            VerticaProjection(
+                "{schema}.{table}_projection_1",
+                PROJECTION_TYPE_NORMAL,
+                """
+(
+ record_number ENCODING COMMONDELTA_COMP,
+ user_id ENCODING RLE,
+ course_id ENCODING RLE,
+ date ENCODING COMMONDELTA_COMP,
+ enrollment_mode ENCODING AUTO,
+ enrollment_is_active ENCODING RLE,
+ enrollment_change ENCODING BLOCKDICT_COMP
+)
+AS
+ SELECT record_number,
+        user_id,
+        course_id,
+        date,
+        enrollment_mode,
+        enrollment_is_active,
+        enrollment_change
+ FROM {schema}.{table}
+ ORDER BY course_id,
+          enrollment_is_active,
+          user_id,
+          record_number
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_2",
+                PROJECTION_TYPE_NORMAL,
+                """
+(
+ user_id ENCODING RLE,
+ course_id ENCODING RLE,
+ date ENCODING RLE,
+ enrollment_mode ENCODING RLE,
+ enrollment_is_active ENCODING RLE
+)
+AS
+ SELECT user_id,
+        course_id,
+        date,
+        enrollment_mode,
+        enrollment_is_active
+ FROM {schema}.{table}
+ ORDER BY enrollment_is_active,
+          date,
+          course_id,
+          enrollment_mode,
+          user_id
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_projection_3",
+                PROJECTION_TYPE_NORMAL,
+                """
+(
+ course_id ENCODING RLE,
+ date ENCODING RLE,
+ enrollment_mode ENCODING RLE,
+ enrollment_is_active ENCODING RLE
+)
+AS
+ SELECT course_id,
+        date,
+        enrollment_mode,
+        enrollment_is_active
+ FROM {schema}.{table}
+ ORDER BY date,
+          course_id,
+          enrollment_is_active,
+          enrollment_mode
+UNSEGMENTED ALL NODES;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_first_enrollment",
+                PROJECTION_TYPE_AGGREGATE,
+                """
+(
+ enrollment_is_active ENCODING RLE,
+ course_id ENCODING RLE,
+ user_id ENCODING AUTO,
+ first_enrolled ENCODING AUTO
+)
+AS
+ SELECT enrollment_is_active,
+        course_id,
+        user_id,
+        MIN(date)
+ FROM {schema}.{table}
+     GROUP BY 1, 2, 3;"""
+            ),
+            VerticaProjection(
+                "{schema}.{table}_first_enrollment_by_type",
+                PROJECTION_TYPE_AGGREGATE,
+                """
+(
+ enrollment_is_active ENCODING RLE,
+ enrollment_mode ENCODING RLE,
+ course_id ENCODING RLE,
+ user_id ENCODING AUTO,
+ first_enrolled ENCODING AUTO
+)
+AS
+ SELECT enrollment_is_active,
+        enrollment_mode,
+        course_id,
+        user_id,
+        MIN(date)
+ FROM {schema}.{table}
+ GROUP BY 1, 2, 3, 4;"""
+            ),
+        ]
