@@ -8,7 +8,12 @@ import logging
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
-from edx.analytics.tasks.location_per_course import LastCountryOfUserMixin, QueryLastCountryPerCourseMixin, ImportLastCountryOfUserToHiveTask
+from edx.analytics.tasks.location_per_course import (
+    LastCountryOfUserMixin,
+    QueryLastCountryPerCourseMixin,
+    ImportLastCountryOfUserToHiveTask,
+    InsertToMysqlCourseEnrollByCountryWorkflow,
+)
 
 log = logging.getLogger(__name__)
 
