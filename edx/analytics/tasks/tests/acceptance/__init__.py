@@ -16,31 +16,22 @@ log = logging.getLogger(__name__)
 # Decorators for tagging tests
 
 def when_s3_available(function):
-    access_keys_defined = getattr(when_s3_available, 'access_keys_defined', None)
-    if access_keys_defined is None:
-        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        access_keys_defined = aws_access_key_id is not None and aws_secret_access_key is not None
-        when_s3_available.access_keys_defined = access_keys_defined  # Cache result to avoid having to compute it again
-    if access_keys_defined:
-        s3_available = getattr(when_s3_available, 's3_available', None)
-        if s3_available is None:
-            connection = boto.connect_s3()  # This will not error out if
-                                            # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
-                                            # so it can't be used to check if we have a valid connection to S3
-            try:
-                connection.get_all_buckets()
-            except boto.exception.S3ResponseError:
-                s3_available = False
-            else:
-                s3_available = True
-            finally:
-                when_s3_available.s3_available = s3_available  # Cache result to avoid having to compute it again
-        return unittest.skipIf(
-            not s3_available, 'S3 is not available'
-        )(function)
-    else:
-        return unittest.skip('AWS access keys not defined')(function)
+    s3_available = getattr(when_s3_available, 's3_available', None)
+    if s3_available is None:
+        connection = boto.connect_s3()  # This will not error out if
+                                        # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
+                                        # so it can't be used to check if we have a valid connection to S3
+        try:
+            connection.get_all_buckets()
+        except boto.exception.S3ResponseError:
+            s3_available = False
+        else:
+            s3_available = True
+        finally:
+            when_s3_available.s3_available = s3_available  # Cache result to avoid having to compute it again
+    return unittest.skipIf(
+        not s3_available, 'S3 is not available'
+    )(function)
 
 def when_exporter_available(function):
     return unittest.skipIf(
