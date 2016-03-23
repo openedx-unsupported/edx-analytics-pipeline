@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 # Decorators for tagging tests
 
+
 def when_s3_available(function):
     access_keys_defined = getattr(when_s3_available, 'access_keys_defined', None)
     if access_keys_defined is None:
@@ -25,9 +26,9 @@ def when_s3_available(function):
     if access_keys_defined:
         s3_available = getattr(when_s3_available, 's3_available', None)
         if s3_available is None:
-            connection = boto.connect_s3()  # This will not error out if
-                                            # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
-                                            # so it can't be used to check if we have a valid connection to S3
+            connection = boto.connect_s3()
+            # ^ The above line will not error out if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+            # are set, so it can't be used to check if we have a valid connection to S3. Instead:
             try:
                 connection.get_all_buckets()
             except boto.exception.S3ResponseError:
@@ -42,10 +43,12 @@ def when_s3_available(function):
     else:
         return unittest.skip('AWS access keys not defined')(function)
 
+
 def when_exporter_available(function):
     return unittest.skipIf(
         os.getenv('EXPORTER') is None, 'Private Exporter code is not available'
     )(function)
+
 
 def when_geolocation_data_available(function):
     config = get_test_config()
@@ -55,12 +58,14 @@ def when_geolocation_data_available(function):
         not geolocation_data_available, 'Geolocation data is not available'
     )(function)
 
+
 def when_vertica_available(function):
     config = get_test_config()
     vertica_available = bool(config.get('vertica_creds_url'))
     return unittest.skipIf(
         not vertica_available, 'Vertica service is not available'
     )(function)
+
 
 def when_vertica_not_available(function):
     config = get_test_config()
@@ -69,7 +74,9 @@ def when_vertica_not_available(function):
         vertica_available, 'Vertica service is available'
     )(function)
 
+
 # Utility functions
+
 
 def get_test_config():
     config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
