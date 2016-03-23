@@ -111,7 +111,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
         data = pandas.read_table(output, header=None, names=columns, parse_dates=True)
         # Re-order dataframe for consistent comparison:
         for frame in (data, expected):
-            frame.sort(['order_id', 'payment_ref_id', 'transaction_type'], inplace=True)
+            frame.sort(['payment_ref_id', 'transaction_type'], inplace=True, ascending=[True, False])
             frame.reset_index(drop=True, inplace=True)
         try:
             assert_frame_equal(data, expected)

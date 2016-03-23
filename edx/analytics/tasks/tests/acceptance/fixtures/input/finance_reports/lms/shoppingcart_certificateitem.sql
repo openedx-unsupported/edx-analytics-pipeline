@@ -15,4 +15,7 @@ CREATE TABLE `shoppingcart_certificateitem` (
 -- Dumping data for table `shoppingcart_certificateitem`
 --
 
-INSERT INTO `shoppingcart_certificateitem` VALUES (4,'DemoX/DemoCourse/1T2015',1,'verified');
+INSERT INTO `shoppingcart_certificateitem` VALUES 
+  (4,'DemoX/DemoCourse/1T2015',1,'verified'),
+  (31,'course-v1:AccTest+ShoppingCart+Verified',30,'verified'),
+  (32,'course-v1:AccTest+ShoppingCart+Verified',30,'verified');

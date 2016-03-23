@@ -10,3 +10,10 @@ CREATE TABLE `shoppingcart_couponredemption` (
   `user_id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+
+--
+-- Dumping data for table `shoppingcart_couponredemption`
+--
+
+INSERT INTO `shoppingcart_couponredemption` VALUES
+  (4,3,13,11);

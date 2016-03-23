@@ -18,5 +18,10 @@ CREATE TABLE `catalogue_productattribute` (
 -- Dumping data for table `catalogue_productattribute`
 --
 
-INSERT INTO `catalogue_productattribute` VALUES (1,'course_key','course_key','text',1,NULL,1),(2,'id_verification_required','id_verification_required','boolean',0,NULL,1),(3,'certificate_type','certificate_type','text',0,NULL,1),(4,'credit_provider','credit_provider','text',0,NULL,1),(5,'credit_hours','credit_hours','integer',0,NULL,1);
-
+INSERT INTO `catalogue_productattribute` VALUES
+  (1,'course_key','course_key','text',1,NULL,1),
+  (2,'id_verification_required','id_verification_required','boolean',0,NULL,1),
+  (3,'certificate_type','certificate_type','text',0,NULL,1),
+  (4,'credit_provider','credit_provider','text',0,NULL,1),
+  (5,'credit_hours','credit_hours','integer',0,NULL,1),
+  (10,'Coupon vouchers','coupon_vouchers','entity',1,NULL,3);
