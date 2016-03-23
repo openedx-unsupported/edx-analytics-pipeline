@@ -8,7 +8,7 @@ from cStringIO import StringIO
 
 import luigi
 import pandas
-from pandas.util.testing import assert_frame_equal
+from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
@@ -80,7 +80,8 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
 
     @when_vertica_not_available
     def test_end_to_end_without_vertica(self):
-        # Same test as test_end_to_end except for the vertica part
+        # Similar to test_end_to_end but it excludes the vertica part and it checks data values,
+        # not just data shape.
         table_name = 'reconciled_order_transactions'
         output_root = url_path_join(
             self.warehouse_path, table_name, 'dt=' + self.UPPER_BOUND_DATE
@@ -121,4 +122,13 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             print(data)
             print('----- vs expected: -----')
             print(expected)
+            if data.shape != expected.shape:
+                print("Data shapes differ.")
+            else:
+                for index, series in data.iterrows():
+                    # Try to print a more helpful/localized difference message:
+                    try:
+                        assert_series_equal(data.iloc[index, :], expected.iloc[index, :])
+                    except AssertionError:
+                        print("First differing row: {index}".format(index=index))
             raise
