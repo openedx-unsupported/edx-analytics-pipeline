@@ -250,6 +250,18 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             log.debug(query)
             connection.cursor().execute(query)
 
+    def purge_deleted_records(self, connection):
+        """
+        Rewrite the table on disk to remove any deleted records that are no longer in use.
+        """
+        # TODO: doing a bulk delete + purge is an anti-pattern in Vertica! We should change our strategy.
+        if self.overwrite:
+            query = "SELECT PURGE_TABLE('{schema}.{table}')".format(
+                schema=self.schema, table=self.table
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
     def update_id(self):
         """This update id will be a unique identifier for this insert on this table."""
         # For MySQL tasks, we take the hash of the task id, but since Vertica does not similarly
@@ -419,6 +431,9 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # We commit only if both operations completed successfully.
             connection.commit()
             log.debug("Committed transaction.")
+
+            # If we don't do this, the deleted records will significantly impact query performance.
+            self.purge_deleted_records(connection)
 
             # Once we are done with the regular load, go ahead
             # and make sure that aggregate projections are also added.
