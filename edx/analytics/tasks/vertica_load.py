@@ -64,6 +64,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     required_tasks = None
     output_target = None
 
+    recreate_schema = luigi.BooleanParameter(default=False)
+
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -127,6 +129,10 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         up the schema in order to create the schema and insert data
         using the same transaction.
         """
+        if self.recreate_schema:
+            query = "DROP SCHEMA IF EXISTS {schema} CASCADE".format(schema=self.schema)
+            log.debug(query)
+            connection.cursor().execute(query)
         query = "CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=self.schema)
         log.debug(query)
         connection.cursor().execute(query)

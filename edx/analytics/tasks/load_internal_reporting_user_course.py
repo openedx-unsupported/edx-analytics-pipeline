@@ -17,7 +17,6 @@ class LoadInternalReportingUserCourseToWarehouse(WarehouseMixin, VerticaCopyTask
     """Loads the course_enrollment Hive table into the f_user_course table in Vertica data warehouse."""
 
     date = luigi.DateParameter()
-    n_reduce_tasks = luigi.Parameter()
 
     @property
     def partition(self):
