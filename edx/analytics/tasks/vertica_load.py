@@ -130,7 +130,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         using the same transaction.
         """
         if self.recreate_schema:
-            query = "DROP SCHEMA IF EXISTS {schema} CASCADE".format(schema=self.schema)
+            query = "DROP SCHEMA IF EXISTS {schema}".format(schema=self.schema)
             log.debug(query)
             connection.cursor().execute(query)
         query = "CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=self.schema)
@@ -194,7 +194,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(query)
         connection.cursor().execute(query)
 
-    def _get_aggregate_projections(self):
+    def _get_projections(self):
         """Get projections that are aggregates, and fill in values."""
         return [
             VerticaProjection
@@ -202,54 +202,15 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 template.name.format(schema=self.schema, table=self.table),
                 template.type,
                 template.definition.format(schema=self.schema, table=self.table),
-            ) for template in self.projections if template.type == PROJECTION_TYPE_AGGREGATE
+            ) for template in self.projections
         ]
 
-    def _get_nonaggregate_projections(self):
-        """Get projections that are not aggregates, and fill in values."""
-        return [
-            VerticaProjection
-            (
-                template.name.format(schema=self.schema, table=self.table),
-                template.type,
-                template.definition.format(schema=self.schema, table=self.table),
-            ) for template in self.projections if template.type != PROJECTION_TYPE_AGGREGATE
-        ]
-
-    def drop_aggregate_projections(self, connection):
-        """
-        Drop any projections that are aggregates.
-
-        Aggregate projections must be removed from a table before its contents can be deleted.
-        """
-        for projection in self._get_aggregate_projections():
-            query = "DROP PROJECTION IF EXISTS {name};".format(name=projection.name)
-            log.debug(query)
-            connection.cursor().execute(query)
-
-    def create_aggregate_projections(self, connection):
+    def create_projections(self, connection):
         """
         Define all aggregate projections on table.
         """
-        projections = self._get_aggregate_projections()
+        projections = self._get_projections()
         for projection in projections:
-            query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
-                name=projection.name, definition=projection.definition
-            )
-            log.debug(query)
-            connection.cursor().execute(query)
-
-        # If any projections were created, start a refresh as well.
-        if len(projections) > 0:
-            query = 'SELECT start_refresh();'
-            log.debug(query)
-            connection.cursor().execute(query)
-
-    def create_nonaggregate_projections(self, connection):
-        """
-        Define all projections on table.
-        """
-        for projection in self._get_nonaggregate_projections():
             query = "CREATE PROJECTION IF NOT EXISTS {name} {definition};".format(
                 name=projection.name, definition=projection.definition
             )
@@ -409,7 +370,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # create schema and table only if necessary:
             self.create_schema(connection)
             self.create_table(connection)
-            self.create_nonaggregate_projections(connection)
+            self.create_projections(connection)
 
             # we should do nothing between initialization and copying
             # that would commit the transaction.
@@ -425,12 +386,6 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # We commit only if both operations completed successfully.
             connection.commit()
             log.debug("Committed transaction.")
-
-            # Once we are done with the regular load, go ahead
-            # and make sure that aggregate projections are also added.
-            # This may be slow, but they would cause commits anyway.
-            self.create_aggregate_projections(connection)
-
         except Exception as exc:
             log.exception("Rolled back the transaction; exception raised: %s", str(exc))
             connection.rollback()

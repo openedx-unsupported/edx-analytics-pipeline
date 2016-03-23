@@ -40,7 +40,7 @@ class LoadInternalReports(WarehouseMixin, VerticaCopyTaskMixin, luigi.Task):
             schema=self.loading_schema_name,
             credentials=self.credentials,
             read_timeout=self.read_timeout,
-            overwrite=self.overwrite,
+            overwrite=False,
             recreate_schema=True,
         )
 
@@ -50,9 +50,15 @@ class LoadInternalReports(WarehouseMixin, VerticaCopyTaskMixin, luigi.Task):
     def run(self):
         connection = vertica_python.connect(user=self.user, password=self.password, host=self.host, port=self.port,
                                             database="", autocommit=False, read_timeout=self.read_timeout)
-        connection.cursor().execute(
-            'ALTER SCHEMA {loading} RENAME TO {current}'.format(
-                loading=self.loading_schema_name,
-                current=self.schema,
-            )
+        query = 'DROP SCHEMA {current} CASCADE'.format(
+            current=self.schema,
         )
+        log.debug(query)
+        connection.cursor().execute(query)
+
+        query = 'ALTER SCHEMA {loading} RENAME TO {current}'.format(
+            loading=self.loading_schema_name,
+            current=self.schema,
+        )
+        log.debug(query)
+        connection.cursor().execute(query)
