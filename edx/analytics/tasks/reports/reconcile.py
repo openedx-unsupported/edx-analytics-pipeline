@@ -60,6 +60,7 @@ class OrderItemRecord(BaseOrderItemRecord):
             refunded_amount=Decimal(result.refunded_amount),  # pylint: disable=no-member
             line_item_price=Decimal(result.line_item_price),  # pylint: disable=no-member
             line_item_unit_price=Decimal(result.line_item_unit_price),  # pylint: disable=no-member
+            discount_amount=Decimal(result.discount_amount),  # pylint: disable=no-member
         )
         return result
 
@@ -234,6 +235,13 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             elif orderitem.line_item_unit_price == 0.0:
                 order_audit_code = 'ORDER_BALANCED'
                 orderitem_audit_code = 'NO_COST'
+            elif orderitem.line_item_price == 0.0:
+                # The order would normally have a cost but has been discounted 100% or an enrollment code was used.
+                if orderitem.discount_amount == orderitem.line_item_unit_price:
+                    order_audit_code = 'ORDER_BALANCED'
+                    orderitem_audit_code = 'NO_COST'
+                else:
+                    orderitem_audit_code = 'ERROR_MISMATCHED_DISCOUNT'
             # Note that we don't call "check_orderitem_wrongstatus" here, as the
             # existing status is generally sufficient.  In the case of "NO_COST"
             # honor enrollment orders, they may in fact be refunded when a user unenrolls,
