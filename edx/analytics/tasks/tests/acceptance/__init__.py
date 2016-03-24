@@ -41,7 +41,9 @@ def when_exporter_available(function):
 def when_geolocation_data_available(function):
     config = get_test_config()
     geolocation_data = config.get('geolocation_data')
-    geolocation_data_available = bool(geolocation_data) and os.path.isfile(geolocation_data)
+    geolocation_data_available = bool(geolocation_data)
+    if geolocation_data_available:
+        geolocation_data_available = get_target_from_url(geolocation_data).exists()
     return unittest.skipIf(
         not geolocation_data_available, 'Geolocation data is not available'
     )(function)
