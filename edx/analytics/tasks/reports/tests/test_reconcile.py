@@ -234,11 +234,11 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
     @data(
         ('otto', 'course-v1:MITx+15.071x_3+1T2016', 'EDX', 'EDX'),
         ('otto', 'course-v1:MITx+15.071x_3+1T2016', '', EDX_PARTNER_SHORT_CODE),
-        ('otto', 'course-v1:MITPE+12345+1T2016', 'MITPE', 'MITPE'),
+        ('otto', 'course-v1:OpenCraftX+12345+1T2016', 'OCX', 'OCX'),
         ('shoppingcart', 'course-v1:MITx+15.071x_3+1T2016', '', EDX_PARTNER_SHORT_CODE),
         ('shoppingcart', 'edX/DemoX/Demo_Course', '', EDX_PARTNER_SHORT_CODE),
-        ('shoppingcart', 'course-v1:MITPE+12345+1T2016', '', 'MITPE'),
-        ('shoppingcart', 'MITPE/12345/1T2016', '', 'MITPE'),
+        ('shoppingcart', 'course-v1:OpenCraftX+12345+1T2016', '', 'OCX'),
+        ('shoppingcart', 'OpenCraftX/12345/1T2016', '', 'OCX'),
     )
     @unpack
     def test_partner_short_code(self, order_processor, course_id, partner_short_code, expected_short_code):

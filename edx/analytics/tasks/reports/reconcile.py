@@ -3,6 +3,7 @@
 from collections import namedtuple, defaultdict
 import csv
 from decimal import Decimal
+import json
 import logging
 from operator import attrgetter
 
@@ -105,11 +106,6 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
     '9918',
 )
 
-# Map organization IDs of White Label partners with data in ShoppingCart to Otto partner short codes.
-SHOPPINGCART_PARTNERS = {
-    'MITProfessionalX': 'MITPE',
-}
-
 # Partner short code for edX, used for ShoppingCart orders for organizations that don't appear in the map above.
 EDX_PARTNER_SHORT_CODE = 'EDX'
 
@@ -132,6 +128,18 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     """
 
     output_root = luigi.Parameter()
+    shoppingcart_partners = luigi.Parameter(
+        config_path={'section': 'financial-reports', 'name': 'shoppingcart-partners'},
+        description="JSON string containing a dictionary mapping organization IDs of White Label partners "
+        "with data in ShoppingCart to the corresponding Otto partner short code.",
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(ReconcileOrdersAndTransactionsTask, self).__init__(*args, **kwargs)
+        if self.shoppingcart_partners:
+            self.shoppingcart_partners_dict = json.loads(self.shoppingcart_partners)
+        else:
+            self.shoppingcart_partners_dict = {}
 
     def requires(self):
         yield (
@@ -208,7 +216,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     def _get_partner(self, course_id):
         """Heuristic to determine the partner short code of order items from ShoppingCart."""
         org = get_org_id_for_course(course_id)
-        return SHOPPINGCART_PARTNERS.get(org) or EDX_PARTNER_SHORT_CODE
+        return self.shoppingcart_partners_dict.get(org) or EDX_PARTNER_SHORT_CODE
 
     def _extract_transactions(self, values):
         """
