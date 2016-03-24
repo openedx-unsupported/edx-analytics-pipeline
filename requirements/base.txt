@@ -5,6 +5,6 @@ ecdsa==0.11 		# MIT
 httplib2==0.9 		# MIT
 paramiko==1.14.0 	# LGPL
 pycrypto==2.6.1 	# public domain
-ansible==1.4.5          # GPL v3 License
+ansible==1.9.4          # GPL v3 License
 boto==2.22.1            # MIT
 

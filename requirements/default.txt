@@ -32,7 +32,6 @@ tornado==3.1.1 		# Apache 2.0
 urllib3==1.10.4         # MIT
 vertica-python==0.5.1   # MIT
 wsgiref==0.1.2 		# ZPL
-pip==1.5.6
 git+https://github.com/edx/luigi.git@1b57ce298255de14e09d29351c8e7ee8b7d24a7d#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/opaque-keys.git@9f07da1abf699d10bc3252d3081017e8aa37c302#egg=opaque-keys
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
