@@ -187,17 +187,13 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         document_iterator = self.document_generator(lines)
         first_batch = True
         while True:
-            bulk_action_batch = []
             num_records = 0
-            for raw_data in islice(document_iterator, self.batch_size):
-                action, data = elasticsearch.helpers.expand_action(raw_data)
-                num_records += 1
-                bulk_action_batch.append(action)
-                if data is not None:
-                    bulk_action_batch.append(data)
+            bulk_action_batch = self.next_bulk_action_batch(document_iterator)
 
             if not bulk_action_batch:
                 break
+
+            num_records += len(bulk_action_batch)
 
             if not first_batch and self.throttle:
                 time.sleep(self.throttle)
@@ -243,6 +239,28 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 raise RuntimeError('Batch of records rejected too many times. Aborting.')
 
         yield ('', '')
+
+    def next_bulk_action_batch(self, document_iterator):
+        """
+        Read a batch of documents from the iterator and convert them into bulk index actions.
+
+        Elasticsearch expects each document to actually be transmitted on two lines the first of which details the
+        action to take, and the second contains the actual
+
+        Arguments:
+            document_iterator (iterator of dicts):
+
+        Returns: A list of dicts that can be transmitted to elasticsearch using the "bulk" request.
+        """
+        bulk_action_batch = []
+        # Grab a batch of documents from the iterator
+        for raw_data in islice(document_iterator, self.batch_size):
+            #
+            action, data = elasticsearch.helpers.expand_action(raw_data)
+            bulk_action_batch.append(action)
+            if data is not None:
+                bulk_action_batch.append(data)
+        return bulk_action_batch
 
     def document_generator(self, lines):
         raise NotImplementedError
