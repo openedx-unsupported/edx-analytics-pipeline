@@ -515,7 +515,20 @@ class ImportShoppingCartInvoiceTransactions(ImportMysqlToHiveTableTask):
     Imports invoice transaction data from an external LMS DB shopping cart table to both a
     destination directory and a HIVE metastore.
     """
-    pass
+    @property
+    def table_name(self):
+        return 'shoppingcart_invoicetransaction'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('date_created', 'TIMESTAMP'),
+            ('amount', 'DECIMAL'),
+            ('currency', 'STRING'),
+            ('status', 'STRING'),
+            ('invoice_id', 'INT'),
+        ]
 
 
 class ImportEcommerceUser(ImportMysqlToHiveTableTask):
@@ -825,7 +838,18 @@ class ImportInvoices(ImportMysqlToHiveTableTask):
     Ecommerce: Invoices: Imports invoices from an external ecommerce table to both a
     destination directory and a HIVE metastore.
     """
-    pass
+    @property
+    def table_name(self):
+        return 'invoice_invoice'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('date_created', 'TIMESTAMP'),
+            ('state', 'STRING'),
+            ('basket_id', 'INT'),
+        ]
 
 
 class ImportCourseModeTask(ImportMysqlToHiveTableTask):
