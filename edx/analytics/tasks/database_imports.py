@@ -510,6 +510,14 @@ class ImportShoppingCartCouponRedemption(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportShoppingCartInvoiceTransactions(ImportMysqlToHiveTableTask):
+    """
+    Imports invoice transaction data from an external LMS DB shopping cart table to both a
+    destination directory and a HIVE metastore.
+    """
+    pass
+
+
 class ImportEcommerceUser(ImportMysqlToHiveTableTask):
     """Ecommerce: Users: Imports users from an external ecommerce table to a destination dir."""
 
@@ -810,6 +818,14 @@ class ImportEcommercePartner(ImportMysqlToHiveTableTask):
             ('name', 'STRING'),
             ('short_code', 'STRING'),
         ]
+
+
+class ImportInvoices(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Invoices: Imports invoices from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+    """
+    pass
 
 
 class ImportCourseModeTask(ImportMysqlToHiveTableTask):

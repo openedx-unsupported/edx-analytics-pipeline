@@ -2,6 +2,7 @@
 import luigi
 
 from edx.analytics.tasks.reports.cybersource import IntervalPullFromCybersourceTask
+from edx.analytics.tasks.reports.invoices import InvoiceTransactionsIntervalTask
 from edx.analytics.tasks.reports.paypal import PaypalTransactionsIntervalTask
 
 
@@ -14,14 +15,18 @@ class PaymentTask(luigi.WrapperTask):
     )
 
     def requires(self):
-        yield PaypalTransactionsIntervalTask(
+        # Temporarily disable existing tasks to be able to run PaymentTask
+        # yield PaypalTransactionsIntervalTask(
+        #     interval_end=self.import_date
+        # )
+        # for merchant_id in self.cybersource_merchant_ids:
+        #     yield IntervalPullFromCybersourceTask(
+        #         interval_end=self.import_date,
+        #         merchant_id=merchant_id
+        #     )
+        yield InvoiceTransactionsIntervalTask(
             interval_end=self.import_date
         )
-        for merchant_id in self.cybersource_merchant_ids:
-            yield IntervalPullFromCybersourceTask(
-                interval_end=self.import_date,
-                merchant_id=merchant_id
-            )
 
     def output(self):
         return [task.output() for task in self.requires()]
