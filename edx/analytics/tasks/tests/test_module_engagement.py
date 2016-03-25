@@ -432,31 +432,6 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
             days_active=0,
         )
 
-    def test_output_format(self):
-        self._check_output_complete_tuple(
-            [self.input_record.replace(videos_viewed=1).to_separated_values()],
-            (
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'videos_viewed',
-                    'low',
-                    '0.9',
-                    '1.0',
-                ),
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'videos_viewed',
-                    'high',
-                    '1.0',
-                    '1.1',
-                ),
-            )
-        )
-
     def test_simple_distribution(self):
         # [0, 0, 0, 0] (these values are dropped from the set before analyzing)
         # [4, 13, 13, 13] (3 records are <= 13, this accounts for 15% of the total 20 non-zero values)
@@ -469,13 +444,11 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
 
         self.assert_ranges(
             values,
-            3.9,
             13.0,
-            50.0,
-            154.1
+            50.0
         )
 
-    def assert_ranges(self, values, minimum, low, high, maximum):
+    def assert_ranges(self, values, low, high):
         """Given a list of values, assert that the ranges generated have the min, low, high, and max bounds."""
 
         # Manufacture some records with these values
@@ -490,8 +463,17 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
                     '2014-04-01',
                     'problem_attempts_per_completed',
                     'low',
-                    str(minimum),
+                    '0',
                     str(low),
+                ),
+                (
+                    'foo/bar/baz',
+                    '2014-03-25',
+                    '2014-04-01',
+                    'problem_attempts_per_completed',
+                    'normal',
+                    str(low),
+                    str(high),
                 ),
                 (
                     'foo/bar/baz',
@@ -500,26 +482,23 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
                     'problem_attempts_per_completed',
                     'high',
                     str(high),
-                    str(maximum),
+                    'inf',
                 ),
             )
         )
 
     def test_identical_values(self):
         values = [5] * 6
-        self.assert_ranges(values, 4.9, 5.0, 5.0, 5.1)
+        self.assert_ranges(values, 5.0, 5.0)
 
     def test_single_value(self):
-        self.assert_ranges([1], 0.9, 1.0, 1.0, 1.1)
+        self.assert_ranges([1], 1.0, 1.0)
 
     def test_very_small_values(self):
-        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), -0.09, 0.01, 0.09, 0.19)
+        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), 0.01, 0.09)
 
     def test_infinite_value(self):
-        self.assert_ranges(([1.0] * 19) + [float('inf')], 0.9, 1.0, 1.0, float('inf'))
-
-    def test_negative_infinite_value(self):
-        self.assert_ranges(([1.0] * 19) + [float('-inf')], float('-inf'), 1.0, 1.0, 1.1)
+        self.assert_ranges(([1.0] * 19) + [float('inf')], 1.0, 1.0)
 
 
 @ddt

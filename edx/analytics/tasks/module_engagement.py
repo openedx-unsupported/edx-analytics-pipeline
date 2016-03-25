@@ -238,10 +238,13 @@ class ModuleEngagementPartitionTask(ModuleEngagementDownstreamMixin, HivePartiti
 class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysqlInsertTask):
     """
     This table is appended to every time this workflow is run, so it is expected to grow to be *very* large. For this
-    reason, the records are stored in a clustered index allowing for very fast point queries and date range queries
-    for individual users in particular courses.
+    reason, the records are indexed to allow for very fast point queries and date range queries for individual users in
+    particular courses.
 
     This allows us to rapidly generate activity charts over time for small numbers of users.
+
+    Note that it would have been better to use a clustered index and stored the records in sorted order, however, the
+    Django ORM does not support composite primary key indexes, so we have to use a secondary index.
     """
 
     allow_empty_insert = True
@@ -255,37 +258,13 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
         return "date='{date}'".format(date=self.date.isoformat())  # pylint: disable=no-member
 
     @property
-    def auto_primary_key(self):
-        # Instead of using an auto incrementing primary key, we define a custom compound primary key. See keys() defined
-        # below. This vastly improves the performance of our most common query pattern.
-        return None
-
-    @property
     def columns(self):
         return ModuleEngagementRecord.get_sql_schema()
 
     @property
-    def keys(self):
-        # Use a primary key since we will always be pulling these records by course_id, username ordered by date
-        # This dramatically speeds up access times at the cost of write speed.
-
-        # From: http://dev.mysql.com/doc/refman/5.6/en/innodb-restrictions.html
-
-        # The InnoDB internal maximum key length is 3500 bytes, but MySQL itself restricts this to 3072 bytes. This
-        # limit applies to the length of the combined index key in a multi-column index.
-
-        # The total for this key is:
-        #   course_id(255 characters * 3 bytes per utf8 char)
-        #   username(30 characters * 3 bytes per utf8 char)
-        #   date(3 bytes per DATE)
-        #   entity_type(10 characters * 3 bytes per utf8 char)
-        #   entity_id(255 characters * 3 bytes per utf8 char)
-        #   event(30 characters * 3 bytes per utf8 char)
-        #   count(4 bytes per INTEGER)
-
-        # Total = 1747
+    def indexes(self):
         return [
-            ('PRIMARY KEY', ['course_id', 'username', 'date', 'entity_type', 'entity_id', 'event'])
+            ('course_id', 'username', 'date')
         ]
 
     @property
@@ -546,6 +525,7 @@ class ModuleEngagementSummaryMetricRangeRecord(Record):
 
 
 METRIC_RANGE_HIGH = 'high'
+METRIC_RANGE_NORMAL = 'normal'
 METRIC_RANGE_LOW = 'low'
 
 
@@ -559,8 +539,6 @@ class ModuleEngagementSummaryMetricRangesDataTask(
     interval. The "high" range is defined as the [85th percentile, max()). There is an implied "middle" range that is
     not persisted since it is fully defined by the low and the high. Note that all intervals are left-closed.
     """
-
-    EXPAND_RANGE_BY = 0.1
 
     output_root = luigi.Parameter()
     low_percentile = luigi.FloatParameter(default=15.0)
@@ -603,13 +581,12 @@ class ModuleEngagementSummaryMetricRangesDataTask(
         for metric in sorted(metric_values):
             values = metric_values[metric]
             range_values = numpy.percentile(  # pylint: disable=no-member
-                values, [0.0, self.low_percentile, self.high_percentile, 100.0]
+                values, [self.low_percentile, self.high_percentile]
             )
-            min_value = range_values[0] - self.EXPAND_RANGE_BY
-            max_value = range_values[3] + self.EXPAND_RANGE_BY
             ranges = [
-                (METRIC_RANGE_LOW, min_value, range_values[1]),
-                (METRIC_RANGE_HIGH, range_values[2], max_value),
+                (METRIC_RANGE_LOW, 0, range_values[0]),
+                (METRIC_RANGE_NORMAL, range_values[0], range_values[1]),
+                (METRIC_RANGE_HIGH, range_values[1], float('inf')),
             ]
             for range_type, low_value, high_value in ranges:
                 yield ModuleEngagementSummaryMetricRangeRecord(
@@ -685,18 +662,13 @@ class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMix
         return "module_engagement_metric_ranges"
 
     @property
-    def auto_primary_key(self):
-        return None
-
-    @property
     def columns(self):
         return ModuleEngagementSummaryMetricRangeRecord.get_sql_schema()
 
     @property
-    def keys(self):
-        # Store the records in order by course_id to allow for very fast access for point queries by course.
+    def indexes(self):
         return [
-            ('PRIMARY KEY', ['course_id', 'metric', 'range_type'])
+            ('course_id', 'metric'),
         ]
 
     @property
