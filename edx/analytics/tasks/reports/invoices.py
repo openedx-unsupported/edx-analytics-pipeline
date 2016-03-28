@@ -7,7 +7,7 @@ from luigi import date_interval
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCurrentOrderState, ImportInvoices, ImportShoppingCartInvoiceTransactions
 )
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -30,6 +30,11 @@ class InvoiceTransactionsTaskMixin(OverwriteOutputMixin):
         default=datetime.datetime.utcnow().date(),
         description='The date to generate a report for. Default is today, UTC.',
     )
+
+    def extra_modules(self):
+        """edx.analytics.tasks is required by all tasks that load this file."""
+        import edx.analytics.tasks.mapreduce
+        return [edx.analytics.tasks.mapreduce]
 
 
 class InvoiceTransactionsIntervalTask(InvoiceTransactionsTaskMixin, WarehouseMixin, luigi.WrapperTask):
