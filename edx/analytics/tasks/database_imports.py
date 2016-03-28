@@ -524,10 +524,14 @@ class ImportShoppingCartInvoiceTransactions(ImportMysqlToHiveTableTask):
         return [
             ('id', 'INT'),
             ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
             ('amount', 'DECIMAL'),
             ('currency', 'STRING'),
+            ('comments', 'STRING'),
             ('status', 'STRING'),
+            ('created_by_id', 'INT'),
             ('invoice_id', 'INT'),
+            ('last_modified_by_id', 'INT'),
         ]
 
 
@@ -847,6 +851,7 @@ class ImportInvoices(ImportMysqlToHiveTableTask):
         return [
             ('id', 'INT'),
             ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
             ('state', 'STRING'),
             ('basket_id', 'INT'),
         ]
