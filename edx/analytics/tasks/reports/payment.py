@@ -13,6 +13,11 @@ class PaymentTask(luigi.WrapperTask):
         default_from_config={'section': 'payment', 'name': 'cybersource_merchant_ids'},
         is_list=True
     )
+    n_reduce_tasks = luigi.Parameter(
+        default=1,
+        significant=False,
+        description='Number of reducer tasks to use in upstream tasks.  Scale this to your cluster size.',
+    )
 
     def requires(self):
         # Temporarily disable existing tasks to be able to run PaymentTask
@@ -25,7 +30,8 @@ class PaymentTask(luigi.WrapperTask):
         #         merchant_id=merchant_id
         #     )
         yield InvoiceTransactionsIntervalTask(
-            interval_end=self.import_date
+            interval_end=self.import_date,
+            n_reduce_tasks=self.n_reduce_tasks
         )
 
     def output(self):

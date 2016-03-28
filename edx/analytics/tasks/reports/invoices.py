@@ -57,6 +57,11 @@ class InvoiceTransactionsIntervalTask(InvoiceTransactionsTaskMixin, WarehouseMix
         default=None,
         description='Folder to write invoice transaction data to.',
     )
+    n_reduce_tasks = luigi.Parameter(
+        default=1,
+        significant=False,
+        description='Number of reducer tasks to use in upstream tasks.  Scale this to your cluster size.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(InvoiceTransactionsIntervalTask, self).__init__(*args, **kwargs)
@@ -73,6 +78,7 @@ class InvoiceTransactionsIntervalTask(InvoiceTransactionsTaskMixin, WarehouseMix
                 output_root=self.output_root,
                 date=day,
                 overwrite=self.overwrite,
+                n_reduce_tasks=self.n_reduce_tasks
             )
             # yield OttoInvoiceTransactionsByDayTask(
             #     output_root=self.output_root,
