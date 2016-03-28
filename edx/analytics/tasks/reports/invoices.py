@@ -87,7 +87,7 @@ class ShoppingCartInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, Map
     def requires(self):
         yield (
             ImportShoppingCartInvoiceTransactions(
-                import_date=self.import_date
+                import_date=self.date
             )
         )
 
@@ -125,12 +125,10 @@ class OttoInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJo
     Creates TSV file with information about Otto invoices.
     """
 
-    import_date = luigi.DateParameter()
-
     def requires(self):
         yield (
             OttoInvoiceTransactionsTask(
-                import_date=self.import_date
+                import_date=self.date
             )
         )
 
