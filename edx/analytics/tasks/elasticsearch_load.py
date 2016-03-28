@@ -102,6 +102,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     * If the alias is already pointing at one or more indexes, switch it so that it only points at this newly loaded
       index.
     * Delete any indexes that were previously pointed at by the alias, leaving only the newly loaded index.
+
     """
 
     settings = {}

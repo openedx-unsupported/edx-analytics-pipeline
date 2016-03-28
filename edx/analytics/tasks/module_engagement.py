@@ -17,7 +17,7 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, IgnoredTarget
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
@@ -41,13 +41,17 @@ log = logging.getLogger(__name__)
 class ModuleEngagementRecord(Record):
     """Represents a count of interactions performed by a user on a particular entity (usually a module in a course)."""
 
-    course_id = StringField(length=255, nullable=False)
-    username = StringField(length=30, nullable=False)
-    date = DateField(nullable=False)
-    entity_type = StringField(length=10, nullable=False)
-    entity_id = StringField(length=255, nullable=False)
-    event = StringField(length=30, nullable=False)
-    count = IntegerField(nullable=False)
+    course_id = StringField(length=255, nullable=False, description='Course the learner interacted with.')
+    username = StringField(length=30, nullable=False, description='Learner\'s username.')
+    date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
+    entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
+                                                                     ' with. Example: "video".')
+    entity_id = StringField(length=255, nullable=False, description='A unique identifier for the entity within the'
+                                                                    ' course that the learner interacted with.')
+    event = StringField(length=30, nullable=False, description='The interaction the learner had with the entity.'
+                                                               ' Example: "viewed".')
+    count = IntegerField(nullable=False, description='Number of interactions the learner had with this entity on this'
+                                                     ' date.')
 
 
 class ModuleEngagementDownstreamMixin(
@@ -515,13 +519,13 @@ class ModuleEngagementSummaryMetricRangeRecord(Record):
     below and above the median.
     """
 
-    course_id = StringField(length=255, nullable=False)
-    start_date = DateField()
-    end_date = DateField()
-    metric = StringField(length=50, nullable=False)
-    range_type = StringField(length=50, nullable=False)
-    low_value = FloatField()
-    high_value = FloatField()
+    course_id = StringField(length=255, nullable=False, description='Course the learner interacted with.')
+    start_date = DateField(description='Analysis includes all data from this day on.')
+    end_date = DateField(description='Analysis includes all data up to this day, but not including it.')
+    metric = StringField(length=50, nullable=False, description='Metric that this range applies to.')
+    range_type = StringField(length=50, nullable=False, description='Type of range. For example: "low"')
+    low_value = FloatField(description='Low value for the range. Exact matches are included in the range.')
+    high_value = FloatField(description='High value for the range. Exact matches are excluded from the range.')
 
 
 METRIC_RANGE_HIGH = 'high'
@@ -1033,42 +1037,7 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
         )
 
 
-@workflow_entry_point
 class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ElasticsearchIndexTask):
-    __doc__ = """
-    A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
-
-    Each record written to the elasticsearch index represents a single learner's performance in the course in the last
-    week. Note that the index will contain records for users that have since unenrolled in the course, so there will
-    be one record for every user who has ever been enrolled in that course.
-
-    Given that each week the learner's statistics may have changed, the entire index is re-written every time this task
-    is run. Elasticsearch does not support transactional updates. For this reason, we chose to write to a separate index
-    on each update, using an alias to point to the "live" index while we build the next version. Once the next version
-    is complete, we switch over the index to point to the newly built index and drop the old one. This allows us to
-    continue to expose a consistent view of the roster while we are writing out a new version. Without an atomic toggle
-    like this, it is possible an instructor could run a query and see a mix of data from the old and new versions of
-    the index.
-
-    For more information about this strategy see `Index Aliases and Zero Downtime`_.
-
-    We also chose to organized the data in a single index that contains the data for all courses. We rely on the default
-    elasticsearch sharding strategy instead of manually attempting to shard the data by course (or some other
-    dimension). This choice was made largely because it is more simple to implement and manage.
-
-    The index is optimized for the following access patterns within a single course:
-
-    - Find learners by some part of their name. For example: "John" or "John Doe".
-    - Find learners by their exact username. For example: "johndoe". Note that partial matches are not supported when
-      searching by username. A query of "john" will not match the username "johndoe".
-    - Find learners by their exact email address. For example: "johndoe@gmail.com".
-    - Find learners by the segments they belong to. For example: "disengaging AND struggling". Note that these segments
-      can be combined using arbitrary boolean logic "(disengaging AND struggling) OR highly_engaged".
-
-    Each record contains the following fields: {record_doc}
-
-    .. _Index Aliases and Zero Downtime: https://www.elastic.co/guide/en/elasticsearch/guide/1.x/index-aliases.html
-    """.format(record_doc=ModuleEngagementRosterRecord.get_restructured_text())
 
     alias = luigi.Parameter(
         config_path={'section': 'module-engagement', 'name': 'alias'},
@@ -1152,3 +1121,81 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
 NAMES = ['james', 'john', 'robert', 'william', 'michael', 'david', 'richard', 'charles', 'joseph', 'thomas',
          'mary', 'patricia', 'linda', 'barbara', 'elizabeth', 'jennifer', 'maria', 'susan', 'margaret', 'dorothy']
 SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller', 'wilson', 'moore', 'taylor']
+
+
+@workflow_entry_point
+class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, luigi.WrapperTask):
+    __doc__ = """
+    A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
+
+    Each record written to the elasticsearch index represents a single learner's performance in the course in the last
+    week. Note that the index will contain records for users that have since unenrolled in the course, so there will
+    be one record for every user who has ever been enrolled in that course.
+
+    Given that each week the learner's statistics may have changed, the entire index is re-written every time this task
+    is run. Elasticsearch does not support transactional updates. For this reason, we chose to write to a separate index
+    on each update, using an alias to point to the "live" index while we build the next version. Once the next version
+    is complete, we switch over the index to point to the newly built index and drop the old one. This allows us to
+    continue to expose a consistent view of the roster while we are writing out a new version. Without an atomic toggle
+    like this, it is possible an instructor could run a query and see a mix of data from the old and new versions of
+    the index.
+
+    For more information about this strategy see `Index Aliases and Zero Downtime`_.
+
+    We also chose to organized the data in a single index that contains the data for all courses. We rely on the default
+    elasticsearch sharding strategy instead of manually attempting to shard the data by course (or some other
+    dimension). This choice was made largely because it is more simple to implement and manage.
+
+    The index is optimized for the following access patterns within a single course:
+
+    - Find learners by some part of their name. For example: "John" or "John Doe".
+    - Find learners by their exact username. For example: "johndoe". Note that partial matches are not supported when
+      searching by username. A query of "john" will not match the username "johndoe".
+    - Find learners by their exact email address. For example: "johndoe@gmail.com".
+    - Find learners by the segments they belong to. For example: "disengaging AND struggling". Note that these segments
+      can be combined using arbitrary boolean logic "(disengaging AND struggling) OR highly_engaged".
+
+    Each record contains the following fields: {record_doc}
+
+    This workflow also generates two relational database tables in the result store:
+
+    1. The `module_engagement` table which has one record per type of learner interaction with each module in the course
+       in a given day. For example, if a learner clicked play on a video 4 times in a single day, there would be one
+       record in this table that represented that interaction. It would contain the course, the date, the ID of the
+       video, the learner's username, and the fact that they pressed play 4 times. Each record contains the following
+       fields: {engagement_record_doc}
+
+    2. The `module_engagement_metric_ranges` table which has one record per course metric range. These ranges specify
+       various thresholds for bucketing user activity. Typically "low", "normal" or "high". Each record contains the
+       following fields: {ranges_record_doc}
+
+    .. _Index Aliases and Zero Downtime: https://www.elastic.co/guide/en/elasticsearch/guide/1.x/index-aliases.html
+    """.format(
+        record_doc=ModuleEngagementRosterRecord.get_restructured_text(),
+        engagement_record_doc=ModuleEngagementRecord.get_restructured_text(),
+        ranges_record_doc=ModuleEngagementSummaryMetricRangeRecord.get_restructured_text(),
+    )
+
+    indexing_tasks = luigi.IntParameter(
+        default=None,
+        significant=False,
+        description=ModuleEngagementRosterIndexTask.indexing_tasks.description
+    )
+    obfuscate = luigi.BooleanParameter(
+        default=False,
+        description=ModuleEngagementRosterIndexTask.obfuscate.description
+    )
+
+    def requires(self):
+        yield ModuleEngagementRosterIndexTask(
+            date=self.date,
+            indexing_tasks=self.indexing_tasks,
+            obfuscate=self.obfuscate,
+            n_reduce_tasks=self.n_reduce_tasks,
+        )
+        yield ModuleEngagementSummaryMetricRangesMysqlTask(
+            date=self.date
+        )
+
+    def output(self):
+        return [t.output() for t in self.requires()]
