@@ -79,7 +79,7 @@ class InvoiceTransactionsIntervalTask(InvoiceTransactionsTaskMixin, WarehouseMix
         return [task.output() for task in self.requires()]
 
 
-class ShoppingCartInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJobTaskMixin, MapReduceJobTask):
+class ShoppingCartInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJobTask):
     """
     Creates TSV file with information about ShoppingCart invoices.
     """
@@ -120,7 +120,7 @@ class ShoppingCartInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, Map
         )
 
 
-class OttoInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJobTaskMixin, MapReduceJobTask):
+class OttoInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJobTask):
     """
     Creates TSV file with information about Otto invoices.
     """
