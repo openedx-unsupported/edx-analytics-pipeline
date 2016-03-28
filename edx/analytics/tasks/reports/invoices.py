@@ -69,11 +69,11 @@ class InvoiceTransactionsIntervalTask(InvoiceTransactionsTaskMixin, WarehouseMix
                 date=day,
                 overwrite=self.overwrite,
             )
-            yield OttoInvoiceTransactionsByDayTask(
-                output_root=self.output_root,
-                date=day,
-                overwrite=self.overwrite,
-            )
+            # yield OttoInvoiceTransactionsByDayTask(
+            #     output_root=self.output_root,
+            #     date=day,
+            #     overwrite=self.overwrite,
+            # )
 
     def output(self):
         return [task.output() for task in self.requires()]
@@ -86,7 +86,7 @@ class ShoppingCartInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, Map
 
     def requires(self):
         yield (
-            ImportShoppingCartInvoiceTransactions(
+            ShoppingCartInvoiceTransactionsTask(
                 import_date=self.date
             )
         )
@@ -159,6 +159,55 @@ class OttoInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJo
         return get_target_from_url(
             url_path_join(self.output_root, 'payments', 'dt=' + self.date.isoformat(), 'otto_invoices.tsv')
         )
+
+
+class ShoppingCartInvoiceTransactionsTask(DatabaseImportMixin, HiveTableFromQueryTask):
+    def requires(self):
+        kwargs = {
+            'destination': self.destination,
+            'num_mappers': self.num_mappers,
+            'verbose': self.verbose,
+            'import_date': self.import_date,
+            'credentials': self.credentials,
+            'overwrite': self.overwrite,
+            'database': self.database,
+        }
+        yield (
+            # ShoppingCart Invoice Table
+            ImportShoppingCartInvoiceTransactions(**kwargs),
+        )
+
+    @property
+    def table(self):
+        return 'invoicetransaction'
+
+    @property
+    def columns(self):
+        return [
+            ('transaction_id', 'INT'),
+            ('date_created', 'TIMESTAMP'),
+            ('amount', 'DECIMAL'),
+            ('currency', 'STRING'),
+            ('status', 'STRING'),
+            ('invoice_id', 'INT'),
+        ]
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.import_date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_query(self):
+        return """
+            SELECT
+                id AS transaction_id,
+                created AS date_created,
+                amount,
+                currency,
+                status,
+                invoice_id
+            FROM shoppingcart_invoicetransaction;
+        """
 
 
 class OttoInvoiceTransactionsTask(DatabaseImportMixin, HiveTableFromQueryTask):
