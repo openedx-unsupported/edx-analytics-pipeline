@@ -125,6 +125,8 @@ class OttoInvoiceTransactionsByDayTask(InvoiceTransactionsTaskMixin, MapReduceJo
     Creates TSV file with information about Otto invoices.
     """
 
+    import_date = luigi.DateParameter()
+
     def requires(self):
         yield (
             OttoInvoiceTransactionsTask(
