@@ -523,7 +523,7 @@ class ImportShoppingCartInvoiceTransactions(ImportMysqlToHiveTableTask):
     def columns(self):
         return [
             ('id', 'INT'),
-            ('date_created', 'TIMESTAMP'),
+            ('created', 'TIMESTAMP'),
             ('amount', 'DECIMAL'),
             ('currency', 'STRING'),
             ('status', 'STRING'),
@@ -846,7 +846,7 @@ class ImportInvoices(ImportMysqlToHiveTableTask):
     def columns(self):
         return [
             ('id', 'INT'),
-            ('date_created', 'TIMESTAMP'),
+            ('created', 'TIMESTAMP'),
             ('state', 'STRING'),
             ('basket_id', 'INT'),
         ]
