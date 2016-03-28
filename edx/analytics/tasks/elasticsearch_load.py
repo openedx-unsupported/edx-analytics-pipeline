@@ -187,56 +187,23 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         document_iterator = self.document_generator(lines)
         first_batch = True
         while True:
-            num_records = 0
             bulk_action_batch = self.next_bulk_action_batch(document_iterator)
 
             if not bulk_action_batch:
                 break
 
-            num_records += len(bulk_action_batch)
-
             if not first_batch and self.throttle:
                 time.sleep(self.throttle)
             first_batch = False
 
-            attempts = 0
-            succeeded = False
-            while True:
-                try:
-                    resp = es.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
-                except TransportError as e:
-                    if e.status_code != REJECTED_REQUEST_STATUS:
-                        raise e
-                else:
-                    num_errors = 0
-                    for raw_data in resp['items']:
-                        op_type, item = raw_data.popitem()
-                        ok = 200 <= item.get('status', 500) < 300
-                        if not ok:
-                            log.error('Failed to index: {0}'.format(str(raw_data)))
-                            num_errors += 1
-
-                    if num_errors == 0:
-                        succeeded = True
-                    else:
-                        raise RuntimeError('Failed to index {0} records. Aborting.'.format(num_errors))
-
-                attempts += 1
-                if not succeeded and attempts < self.max_attempts:
-                    sleep_duration = 2**attempts
-                    self.incr_counter('Elasticsearch', 'Rejected Batches', 1)
-                    log.warn(
-                        'Batch of records rejected. Sleeping for {0} seconds before retrying.'.format(sleep_duration)
-                    )
-                    time.sleep(sleep_duration)
-                else:
-                    break
-
-            if succeeded:
+            if self.send_bulk_action_batch(es, bulk_action_batch):
                 self.incr_counter('Elasticsearch', 'Committed Batches', 1)
+
+                # Note that each document produces two entries in the bulk_action_batch list.
+                num_records = len(bulk_action_batch) / 2
                 self.incr_counter('Elasticsearch', 'Records Indexed', num_records)
             else:
-                raise RuntimeError('Batch of records rejected too many times. Aborting.')
+                raise IndexingError('Batch of records rejected too many times. Aborting.')
 
         yield ('', '')
 
@@ -245,7 +212,9 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         Read a batch of documents from the iterator and convert them into bulk index actions.
 
         Elasticsearch expects each document to actually be transmitted on two lines the first of which details the
-        action to take, and the second contains the actual
+        action to take, and the second contains the actual document.
+
+        See the `Cheaper in Bulk <https://www.elastic.co/guide/en/elasticsearch/guide/1.x/bulk.html>`_ guide.
 
         Arguments:
             document_iterator (iterator of dicts):
@@ -253,14 +222,69 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         Returns: A list of dicts that can be transmitted to elasticsearch using the "bulk" request.
         """
         bulk_action_batch = []
-        # Grab a batch of documents from the iterator
         for raw_data in islice(document_iterator, self.batch_size):
-            #
             action, data = elasticsearch.helpers.expand_action(raw_data)
             bulk_action_batch.append(action)
             if data is not None:
                 bulk_action_batch.append(data)
         return bulk_action_batch
+
+    def send_bulk_action_batch(self, es, bulk_action_batch):
+        """
+        Given a batch of actions, transmit them in bulk to the elasticsearch cluster.
+
+        This method handles back-pressure from the elasticsearch cluster which queues up writes. When the queue is full
+        the cluster will start rejecting additional bulk indexing requests. This method implements an exponential
+        back-off, allowing the cluster to catch-up with the client.
+
+        Arguments:
+            es (elasticsearch.Elasticsearch): A reference to an elasticsearch client.
+            bulk_action_batch (list of dicts): A list of bulk actions followed by their respective documents.
+
+        Raises:
+            IndexingError: If a record cannot be indexed by elasticsearch this method assumes that is a fatal error and
+                it immediately raises this exception. If we try to transmit a batch repeatedly and it is continually
+                rejected by the cluster, this method will give up after `max_attempts` and raise this error.
+
+        Returns: True iff the batch of actions was successfully transmitted to and acknowledged by the elasticsearch
+            cluster.
+        """
+        attempts = 0
+        batch_written_successfully = False
+        while True:
+            try:
+                resp = es.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
+            except TransportError as e:
+                if e.status_code != REJECTED_REQUEST_STATUS:
+                    raise e
+            else:
+                num_errors = 0
+                for raw_data in resp['items']:
+                    op_type, item = raw_data.popitem()
+                    ok = 200 <= item.get('status', 500) < 300
+                    if not ok:
+                        log.error('Failed to index: {0}'.format(str(item)))
+                        num_errors += 1
+
+                if num_errors == 0:
+                    batch_written_successfully = True
+                    break
+                else:
+                    raise IndexingError('Failed to index {0} records. Aborting.'.format(num_errors))
+
+            attempts += 1
+            if attempts < self.max_attempts:
+                sleep_duration = 2 ** attempts
+                self.incr_counter('Elasticsearch', 'Rejected Batches', 1)
+                log.warn(
+                    'Batch of records rejected. Sleeping for {0} seconds before retrying.'.format(sleep_duration)
+                )
+                time.sleep(sleep_duration)
+            else:
+                batch_written_successfully = False
+                break
+
+        return batch_written_successfully
 
     def document_generator(self, lines):
         raise NotImplementedError
@@ -308,3 +332,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     def run(self):
         super(ElasticsearchIndexTask, self).run()
         self.commit()
+
+
+class IndexingError(RuntimeError):
+    pass

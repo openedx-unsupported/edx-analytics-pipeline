@@ -50,7 +50,7 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
                 'update_id': self.update_id,
                 'target_index': self.index,
                 'target_doc_type': self.doc_type,
-                'date': datetime.datetime.now()
+                'date': datetime.datetime.utcnow()
             }
         )
         self.es.indices.flush(index=self.marker_index)

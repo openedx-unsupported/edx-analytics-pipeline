@@ -1,6 +1,10 @@
-from mock import patch
+import datetime
+import luigi.hdfs
+from elasticsearch import TransportError
+from mock import patch, call
+from freezegun import freeze_time
 
-from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, BotoHttpConnection
+from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, BotoHttpConnection, IndexingError
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -9,10 +13,14 @@ from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, Reducer
 class BaseIndexTest(object):
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.elasticsearch_load.elasticsearch')
+        patcher = patch('edx.analytics.tasks.elasticsearch_load.elasticsearch.Elasticsearch')
         self.elasticsearch_mock = patcher.start()
         self.addCleanup(patcher.stop)
-        self.mock_es = self.elasticsearch_mock.Elasticsearch.return_value
+        self.mock_es = self.elasticsearch_mock.return_value
+
+        sleep_patcher = patch('edx.analytics.tasks.elasticsearch_load.time.sleep', return_value=None)
+        self.mock_sleep = sleep_patcher.start()
+        self.addCleanup(sleep_patcher.stop)
 
         super(BaseIndexTest, self).setUp()
 
@@ -146,7 +154,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
     def test_boto_connection_type(self):
         self.create_task(connection_type='boto')
         self.task.init_local()
-        args, kwargs = self.elasticsearch_mock.Elasticsearch.call_args
+        args, kwargs = self.elasticsearch_mock.call_args
         self.assertEqual(kwargs['connection_class'], BotoHttpConnection)
 
     def test_mapper(self):
@@ -169,11 +177,229 @@ class RawIndexTask(ElasticsearchIndexTask):
         return 'raw_text'
 
     def document_generator(self, lines):
-        pass
+        for line in lines:
+            yield {'_source': {'all_text': line}}
 
 
 class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
 
-    def test_foo(self):
-        pass
+    reduce_key = 10  # can be any integer
 
+    def test_single_record(self):
+        output = self._get_reducer_output(['a'])
+        self.assertItemsEqual([('', '')], output)
+
+        self.mock_es.bulk.assert_called_once_with(
+            [
+                {'index': {}},
+                {'all_text': 'a'}
+            ],
+            index=self.task.index,
+            doc_type='raw_text'
+        )
+
+    def test_multiple_batches(self):
+        self.create_task(batch_size=2, throttle=10)
+
+        self.mock_es.bulk.return_value = {'items': []}
+        self._get_reducer_output([
+            'first batch 0',
+            'first batch 1',
+            'second batch 0',
+        ])
+
+        self.assertItemsEqual(
+            self.mock_es.bulk.mock_calls,
+            [
+                self.bulk_call(
+                    [
+                        {'index': {}},
+                        {'all_text': 'first batch 0'},
+                        {'index': {}},
+                        {'all_text': 'first batch 1'},
+                    ]
+                ),
+                self.bulk_call(
+                    [
+                        {'index': {}},
+                        {'all_text': 'second batch 0'},
+                    ]
+                )
+            ]
+        )
+        # ensure that we throttled in between batches
+        self.mock_sleep.assert_called_once_with(10)
+
+    def bulk_call(self, actions):
+        """A call to the ES bulk API"""
+        return call(actions, index=self.task.index, doc_type='raw_text')
+
+    def test_transport_error(self):
+        self.mock_es.bulk.side_effect = TransportError(404, 'Not found', 'More detail')
+        with self.assertRaises(TransportError):
+            self._get_reducer_output(['a'])
+
+    def test_non_transport_error(self):
+        self.mock_es.bulk.side_effect = RuntimeError()
+        with self.assertRaises(RuntimeError):
+            self._get_reducer_output(['a'])
+
+    def test_rejected_bulk_requests(self):
+        self.create_task(max_attempts=10)
+        self._rejection_counter = 0
+        self.addCleanup(delattr, self, '_rejection_counter')
+
+        def reject_first_3_batches(*_args, **_kwargs):
+            if self._rejection_counter < 3:
+                self._rejection_counter += 1
+                raise TransportError(429, 'Rejected bulk request', 'Queue is full')
+            else:
+                return self.get_bulk_api_response(1)
+
+        self.mock_es.bulk.side_effect = reject_first_3_batches
+
+        self._get_reducer_output(['a'])
+
+        # The first three attempts will be rejected and the fourth will succeed, so expect 4 calls
+        self.assertItemsEqual(
+            self.mock_es.bulk.mock_calls,
+            [
+                self.bulk_call(
+                    [
+                        {'index': {}},
+                        {'all_text': 'a'},
+                    ]
+                ),
+            ] * 4
+        )
+
+        # check the exponential back-off between bulk API requests
+        self.assertItemsEqual(
+            self.mock_sleep.mock_calls,
+            [
+                call(2),
+                call(4),
+                call(8),
+            ]
+        )
+
+    def get_bulk_api_response(self, num_responses):
+        return {
+            'items': [
+                {
+                    'index': {
+                        '_index': self.task.index,
+                        '_type': 'raw_text',
+                        '_id': str(i),
+                        '_version': i,
+                        'status': 200
+                    }
+                }
+                for i in range(num_responses)
+            ]
+        }
+
+    def test_too_many_rejected_batches(self):
+        self.create_task(max_attempts=3)
+        self.mock_es.bulk.side_effect = TransportError(429, 'Rejected bulk request', 'Queue is full')
+
+        with self.assertRaisesRegexp(IndexingError, 'Batch of records rejected too many times. Aborting.'):
+            self._get_reducer_output(['a'])
+
+        self.assertEqual(len(self.mock_es.bulk.mock_calls), 3)
+
+    def test_indexing_failures(self):
+        responses = self.get_bulk_api_response(3)
+        responses['items'][1]['index']['status'] = 500
+        self.mock_es.bulk.return_value = responses
+
+        with self.assertRaisesRegexp(IndexingError, 'Failed to index 1 records. Aborting.'):
+            self._get_reducer_output([
+                'first batch 0',
+                'first batch 1',
+                'first batch 2',
+            ])
+
+
+@freeze_time('2016-03-25')
+@patch.object(luigi.hdfs.HdfsTarget, '__del__', return_value=None)
+class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
+
+    def test_commit(self, _mock_del):
+        self.mock_es.indices.exists.return_value = False
+        self.task.commit()
+
+        self.assertEqual(
+            self.mock_es.mock_calls,
+            [
+                call.indices.refresh(index=self.task.index),
+                call.indices.update_aliases({'actions': [{'add': {'index': self.task.index, 'alias': 'foo_alias'}}]}),
+                call.indices.exists(index='index_updates'),
+                call.indices.create(index='index_updates'),
+                self.get_expected_index_call(),
+                call.indices.flush(index='index_updates')
+            ]
+        )
+
+    def get_expected_index_call(self):
+        return call.__getattr__('index')(
+            body={
+                'date': datetime.datetime(2016, 3, 25, 0, 0, 0, 0),
+                'target_doc_type': 'raw_text',
+                'update_id': self.task.update_id(),
+                'target_index': 'foo_alias'
+            },
+            doc_type='marker',
+            id='434b4c663ec072d686db1ed6861ca3a12257ef48',
+            index='index_updates'
+        )
+
+    def test_commit_existing_marker_index(self, _mock_del):
+        self.mock_es.indices.exists.return_value = True
+        self.task.commit()
+
+        self.assertEqual(
+            self.mock_es.mock_calls,
+            [
+                call.indices.refresh(index=self.task.index),
+                call.indices.update_aliases({'actions': [{'add': {'index': self.task.index, 'alias': 'foo_alias'}}]}),
+                call.indices.exists(index='index_updates'),
+                self.get_expected_index_call(),
+                call.indices.flush(index='index_updates')
+            ]
+        )
+
+    def test_commit_with_existing_data(self, _mock_del):
+        self.create_task()
+        self.mock_es.indices.get_aliases.return_value = {
+            'foo_alias_old': {
+                'aliases': {
+                    'foo_alias': {}
+                }
+            }
+        }
+        self.mock_es.indices.exists.return_value = False
+        self.task.init_local()
+        self.mock_es.reset_mock()
+
+        self.mock_es.indices.exists.return_value = True
+        self.task.commit()
+
+        self.assertEqual(
+            self.mock_es.mock_calls,
+            [
+                call.indices.refresh(index=self.task.index),
+                call.indices.update_aliases(
+                    {
+                        'actions': [
+                            {'remove': {'index': 'foo_alias_old', 'alias': 'foo_alias'}},
+                            {'add': {'index': self.task.index, 'alias': 'foo_alias'}}
+                        ]
+                    }
+                ),
+                call.indices.exists(index='index_updates'),
+                self.get_expected_index_call(),
+                call.indices.flush(index='index_updates'),
+                call.indices.delete(index='foo_alias_old'),
+            ]
+        )
