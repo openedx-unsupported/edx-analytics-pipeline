@@ -18,12 +18,12 @@ log = logging.getLogger(__name__)
 def when_s3_available(function):
     s3_available = getattr(when_s3_available, 's3_available', None)
     if s3_available is None:
-        connection = boto.connect_s3()  # This will not error out if
-                                        # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
-                                        # so it can't be used to check if we have a valid connection to S3
         try:
+            connection = boto.connect_s3()  # This will not error out if
+                                            # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
+                                            # so it can't be used to check if we have a valid connection to S3
             connection.get_all_buckets()
-        except boto.exception.S3ResponseError:
+        except (boto.exception.S3ResponseError, boto.exception.NoAuthHandlerFound):
             s3_available = False
         else:
             s3_available = True
