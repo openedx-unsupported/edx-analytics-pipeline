@@ -179,9 +179,9 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     r.refunded_quantity AS refunded_quantity,
 
                     -- The EDX-1XXXX identifier is used to find transactions associated with this order
-                    o.number AS payment_ref_id
+                    o.number AS payment_ref_id,
 
-                    partner.short_code AS partner_short_code,
+                    partner.short_code AS partner_short_code
 
                 FROM order_line ol
                 JOIN order_order o ON o.id = ol.order_id
@@ -293,10 +293,10 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- the complete line item quantity and amount
                     IF(oi.status = 'refunded', oi.qty * oi.unit_cost, NULL) AS refunded_amount,
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
-                    oi.order_id AS payment_ref_id
+                    oi.order_id AS payment_ref_id,
 
                     -- The partner short code is extracted from the course ID during order reconcilation.
-                    '' AS partner_short_code,
+                    '' AS partner_short_code
 
                 FROM shoppingcart_orderitem oi
                 JOIN shoppingcart_order o ON o.id = oi.order_id

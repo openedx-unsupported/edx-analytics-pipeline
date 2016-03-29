@@ -29,10 +29,10 @@ class PaymentTask(luigi.WrapperTask):
                 interval_end=self.import_date,
                 merchant_id=merchant_id
             )
-        yield InvoiceTransactionsIntervalTask(
-            interval_end=self.import_date,
-            n_reduce_tasks=self.n_reduce_tasks
-        )
+        # yield InvoiceTransactionsIntervalTask(
+        #    interval_end=self.import_date,
+        #    n_reduce_tasks=self.n_reduce_tasks
+        # )
 
     def output(self):
         return [task.output() for task in self.requires()]
