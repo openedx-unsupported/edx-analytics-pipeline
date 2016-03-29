@@ -251,7 +251,10 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     Django ORM does not support composite primary key indexes, so we have to use a secondary index.
     """
 
-    allow_empty_insert = True
+    allow_empty_insert = luigi.BooleanParameter(
+        default=False,
+        config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
+    )
 
     @property
     def table(self):
