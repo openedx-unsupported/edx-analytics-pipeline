@@ -86,6 +86,7 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
     )
     max_attempts = luigi.IntParameter(
         default=10,
+        significant=False,
         description='If the elasticsearch cluster rejects a batch of records (usually because it is too busy) the'
                     ' indexing process will retry up to this many times before giving up. It uses an exponential back-'
                     'off strategy, so a high value here can result in very significant wait times before retrying.'
@@ -105,6 +106,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
     """
 
+    # These attributes should be overridden, but don't need to be.
     settings = {}
     properties = {}
 
@@ -127,8 +129,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         # Find all indexes that are referred to by this alias (currently). These will be deleted after a successful
         # load of the new index.
         for index_name, aliases in es.indices.get_aliases(name=self.alias).iteritems():
-            if self.alias in aliases.get('aliases', {}):
-                self.indexes_for_alias.add(index_name)
+            self.indexes_for_alias.add(index_name)
 
         if self.index in self.indexes_for_alias:
             if not self.overwrite:

@@ -368,6 +368,58 @@ class ModuleEngagementSummaryRecordBuilder(object):
         self.discussion_contributions = 0
         self.days_active = set()
 
+    def add_record(self, record):
+        self.days_active.add(record.date)
+
+        count = int(record.count)
+        if record.entity_type == 'problem':
+            if record.event == 'attempted':
+                self.problem_attempts += count
+                self.problems_attempted.add(record.entity_id)
+            elif record.event == 'completed':
+                self.problems_completed.add(record.entity_id)
+        elif record.entity_type == 'video':
+            if record.event == 'viewed':
+                self.videos_viewed.add(record.entity_id)
+        elif record.entity_type == 'discussion':
+            self.discussion_contributions += count
+        else:
+            log.warn('Unrecognized entity type: %s', record.entity_type)
+
+    def get_summary_record(self, course_id, username, interval):
+        attempts_per_completion = self.compute_attempts_per_completion(
+            self.problem_attempts,
+            len(self.problems_completed)
+        )
+
+        return ModuleEngagementSummaryRecord(
+            course_id,
+            username,
+            interval.date_a,
+            interval.date_b,
+            self.problem_attempts,
+            len(self.problems_attempted),
+            len(self.problems_completed),
+            attempts_per_completion,
+            len(self.videos_viewed),
+            self.discussion_contributions,
+            len(self.days_active)
+        )
+
+    @staticmethod
+    def compute_attempts_per_completion(num_problem_attempts, num_problems_completed):
+        """
+        The ratio of attempts per correct problem submission is an indicator of how much a student is struggling.
+
+        If a student has not completed any problems a value of float('inf') is returned.
+        """
+        if num_problems_completed > 0:
+            attempts_per_completion = float(num_problem_attempts) / num_problems_completed
+        else:
+            attempts_per_completion = float('inf')
+        return attempts_per_completion
+
+
 
 class ModuleEngagementSummaryDataTask(
     ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask
@@ -411,58 +463,13 @@ class ModuleEngagementSummaryDataTask(
         """Calculate counts for events corresponding to user and course in a given time period."""
         course_id, username = key
 
-        output_record = ModuleEngagementSummaryRecordBuilder()
+        output_record_builder = ModuleEngagementSummaryRecordBuilder()
         for line in lines:
             record = ModuleEngagementRecord.from_tsv(line)
 
-            output_record.days_active.add(record.date)
+            output_record_builder.add_record(record)
 
-            count = int(record.count)
-            if record.entity_type == 'problem':
-                if record.event == 'attempted':
-                    output_record.problem_attempts += count
-                    output_record.problems_attempted.add(record.entity_id)
-                elif record.event == 'completed':
-                    output_record.problems_completed.add(record.entity_id)
-            elif record.entity_type == 'video':
-                if record.event == 'viewed':
-                    output_record.videos_viewed.add(record.entity_id)
-            elif record.entity_type == 'discussion':
-                output_record.discussion_contributions += count
-            else:
-                log.warn('Unrecognized entity type: %s', record.entity_type)
-
-        attempts_per_completion = self.compute_attempts_per_completion(
-            output_record.problem_attempts,
-            len(output_record.problems_completed)
-        )
-
-        yield ModuleEngagementSummaryRecord(
-            course_id,
-            username,
-            self.interval.date_a,
-            self.interval.date_b,
-            output_record.problem_attempts,
-            len(output_record.problems_attempted),
-            len(output_record.problems_completed),
-            attempts_per_completion,
-            len(output_record.videos_viewed),
-            output_record.discussion_contributions,
-            len(output_record.days_active)
-        ).to_string_tuple()
-
-    @staticmethod
-    def compute_attempts_per_completion(num_problem_attempts, num_problems_completed):
-        """
-        The ratio of attempts per correct problem submission is an indicator of how much a student is struggling.
-
-        If a student has not completed any problems a value of float('inf') is returned.
-        """
-        if num_problems_completed > 0:
-            attempts_per_completion = float(num_problem_attempts) / num_problems_completed
-        else:
-            attempts_per_completion = float('inf')
-        return attempts_per_completion
+        yield output_record_builder.get_summary_record(course_id, username, self.interval).to_string_tuple()
 
     def output(self):
         return get_target_from_url(self.output_root)
