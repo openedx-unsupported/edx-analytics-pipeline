@@ -873,10 +873,17 @@ class ModuleEngagementRosterRecord(Record):
                                                       ' engaged with the course recently. This field is analyzed by'
                                                       ' elasticsearch so that searches can be made for learners that'
                                                       ' either have or don\'t have particular classifiers.')
-    attempt_ratio_order = IntegerField(description='Value can be -1, 0, or 1 and allows the learners to be sorted by'
-                                                   ' their problem_attempts_per_completed ratio in a way that'
-                                                   ' highlights highly engaged learners and struggling learners,'
-                                                   ' depending on the sort order.')
+    attempt_ratio_order = IntegerField(
+        description='Used to sort learners by problem_attempts_per_completed in a meaningful way. When using'
+                    ' problem_attempts_per_completed as your primary sort key, you can secondary sort by'
+                    ' attempt_ratio_order to see struggling and high performing users. At one extreme this identifies'
+                    ' users who have gotten many problems correct with the fewest number of attempts, at the other'
+                    ' extreme it highlights users who have gotten very few (if any) problems correct with a very high'
+                    ' number of attempts. The two extremes identify the highest performing and lowest performing'
+                    ' learners according to this metric. To see high performing learners sort by'
+                    ' (problem_attempts_per_completed ASC, attempt_ratio_order DESC). To see struggling learners sort'
+                    ' by (problem_attempts_per_completed DESC, attempt_ratio_order ASC).'
+    )
 
 
 class ModuleEngagementRosterTableTask(BareHiveTableTask):
@@ -921,6 +928,7 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
             '{start}',
             '{end}',
             au.email,
+            -- identify delimiters in the data and strip them out to prevent parsing errors
             regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', ''),
             ce.mode,
             lce.last_enrollment_date,
@@ -938,6 +946,17 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
                 IF(COALESCE(old_eng.days_active, 0) > 0 AND COALESCE(eng.days_active, 0) = 0, "disengaging", NULL),
                 seg.segments
             ),
+            -- attempt_ratio_order
+            -- This field is a secondary sort key for the records in this table. Combined with a primary sort on
+            -- problem_attempts_per_completed it can be used to identify top performers or struggling learners. It
+            -- provides a magnitude for the degree to which a user is performing well or poorly. If, for example, they
+            -- have made 10 attempts and gotten 10 problems correct, we want to sort that learner as higher
+            -- performing than a user who has only made 1 attempt on one problem and was correct. Similarly, if a user
+            -- has made 10 attempts without getting any problems correct, we want to sort that learner as lower
+            -- performing than a user who has only made one attempt without getting the problem correct.
+
+            -- To see high performing learners sort by (problem_attempts_per_completed ASC, attempt_ratio_order DESC)
+            -- To see struggling learners sort by (problem_attempts_per_completed DESC, attempt_ratio_order ASC)
             IF(
                 eng.problem_attempts_per_completed IS NULL,
                 -COALESCE(eng.problem_attempts, 0),
