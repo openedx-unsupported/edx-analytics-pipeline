@@ -20,15 +20,15 @@ class PaymentTask(luigi.WrapperTask):
     )
 
     def requires(self):
-        # Temporarily disable existing tasks to be able to run PaymentTask
-        # yield PaypalTransactionsIntervalTask(
-        #     interval_end=self.import_date
-        # )
-        # for merchant_id in self.cybersource_merchant_ids:
-        #     yield IntervalPullFromCybersourceTask(
-        #         interval_end=self.import_date,
-        #         merchant_id=merchant_id
-        #     )
+        # DON'T Temporarily disable existing tasks to be able to run PaymentTask
+        yield PaypalTransactionsIntervalTask(
+            interval_end=self.import_date
+        )
+        for merchant_id in self.cybersource_merchant_ids:
+            yield IntervalPullFromCybersourceTask(
+                interval_end=self.import_date,
+                merchant_id=merchant_id
+            )
         yield InvoiceTransactionsIntervalTask(
             interval_end=self.import_date,
             n_reduce_tasks=self.n_reduce_tasks
