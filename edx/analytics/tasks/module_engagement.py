@@ -5,6 +5,8 @@ import datetime
 import logging
 import random
 
+log = logging.getLogger(__name__)
+
 import luigi
 import luigi.task
 from luigi import date_interval
@@ -32,8 +34,6 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask,
     hive_database_name)
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
-
-log = logging.getLogger(__name__)
 
 
 class ModuleEngagementRecord(Record):
@@ -282,13 +282,12 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
         return partition_task.data_task
 
 
-class ModuleEngagementIntervalTask(
-    MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin, OverwriteOutputMixin, luigi.WrapperTask
-):
+class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin,
+                                   OverwriteOutputMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
 
     def requires(self):
-        for date_index, date in enumerate(reversed([d for d in self.interval])):
+        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
             yield ModuleEngagementPartitionTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -357,6 +356,12 @@ class ModuleEngagementSummaryRecordBuilder(object):
         self.days_active = set()
 
     def add_record(self, record):
+        """
+        Updates metrics based on the provided record.
+
+        Arguments:
+            record (ModuleEngagementRecord): The record to aggregate.
+        """
         self.days_active.add(record.date)
 
         count = int(record.count)
@@ -375,6 +380,17 @@ class ModuleEngagementSummaryRecordBuilder(object):
             log.warn('Unrecognized entity type: %s', record.entity_type)
 
     def get_summary_record(self, course_id, username, interval):
+        """
+        Given all of the records that have been added, generate a summarizing record.
+
+        Arguments:
+            course_id (string):
+            username (string):
+            interval (luigi.date_interval.DateInterval):
+
+        Returns:
+            ModuleEngagementSummaryRecord: Representing the aggregated summary of all of the learner's activity.
+        """
         attempts_per_completion = self.compute_attempts_per_completion(
             self.problem_attempts,
             len(self.problems_completed)
@@ -409,6 +425,11 @@ class ModuleEngagementSummaryRecordBuilder(object):
 
 
 class WeekIntervalMixin(object):
+    """
+    For tasks that accept a date parameter that represents the end date of a week.
+
+    The date is used to set an `interval` attribute that represents the complete week.
+    """
 
     def __init__(self, *args, **kwargs):
         super(WeekIntervalMixin, self).__init__(*args, **kwargs)
@@ -417,9 +438,8 @@ class WeekIntervalMixin(object):
         self.interval = date_interval.Custom(start_date, self.date)
 
 
-class ModuleEngagementSummaryDataTask(WeekIntervalMixin,
-    ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask
-):
+class ModuleEngagementSummaryDataTask(WeekIntervalMixin, ModuleEngagementDownstreamMixin, OverwriteOutputMixin,
+                                      MapReduceJobTask):
     """
     Store a summary of student engagement with their courses on particular dates aggregated using a sliding window.
 
@@ -485,9 +505,7 @@ class ModuleEngagementSummaryTableTask(BareHiveTableTask):
         return ModuleEngagementSummaryRecord.get_hive_schema()
 
 
-class ModuleEngagementSummaryPartitionTask(
-    ModuleEngagementDownstreamMixin, HivePartitionTask
-):
+class ModuleEngagementSummaryPartitionTask(ModuleEngagementDownstreamMixin, HivePartitionTask):
     """The hive partition for this summary of engagement data."""
 
     @property
@@ -533,15 +551,15 @@ METRIC_RANGE_NORMAL = 'normal'
 METRIC_RANGE_LOW = 'low'
 
 
-class ModuleEngagementSummaryMetricRangesDataTask(
-    ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask
-):
+class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixin, OverwriteOutputMixin,
+                                                  MapReduceJobTask):
     """
     Summarize the metrics of interest and persist the interesting ranges.
 
-    This task currently computes "low" and "high" ranges. The "low" range is defined as the [min(), 15th percentile)
-    interval. The "high" range is defined as the [85th percentile, max()). There is an implied "middle" range that is
-    not persisted since it is fully defined by the low and the high. Note that all intervals are left-closed.
+    This task currently computes "low", "normal" and "high" ranges. The "low" range is defined as the [0, 15th
+    percentile) interval. The "normal" range is defined as [15th percentile, 85th percentile). The "high" range is
+    defined as the [85th percentile, float('inf')). Note that all intervals are left-closed. Also note that it is not
+    strictly necessary to persist all three intervals, however, we do so for clarity.
     """
 
     output_root = luigi.Parameter()
@@ -630,9 +648,7 @@ class ModuleEngagementSummaryMetricRangesTableTask(BareHiveTableTask):
         return ModuleEngagementSummaryMetricRangeRecord.get_hive_schema()
 
 
-class ModuleEngagementSummaryMetricRangesPartitionTask(
-    ModuleEngagementDownstreamMixin, HivePartitionTask
-):
+class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstreamMixin, HivePartitionTask):
     """Hive partition for metric ranges"""
 
     @property
@@ -702,9 +718,7 @@ SEGMENT_HIGHLY_ENGAGED = 'highly_engaged'
 SEGMENT_STRUGGLING = 'struggling'
 
 
-class ModuleEngagementUserSegmentDataTask(
-    ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask
-):
+class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
     """
     Segment the user population in each course using their activity data.
 
@@ -760,6 +774,7 @@ class ModuleEngagementUserSegmentDataTask(
         yield (record.course_id, record.username), line.rstrip('\n')
 
     def reducer(self, key, lines):
+        """Given a particular user in a particular course, look at their summary and assign appropriate segments."""
         course_id, username = key
 
         records = [ModuleEngagementSummaryRecord.from_tsv(line) for line in lines]
@@ -823,9 +838,7 @@ class ModuleEngagementUserSegmentTableTask(BareHiveTableTask):
         return ModuleEngagementUserSegmentRecord.get_hive_schema()
 
 
-class ModuleEngagementUserSegmentPartitionTask(
-    ModuleEngagementDownstreamMixin, HivePartitionTask
-):
+class ModuleEngagementUserSegmentPartitionTask(ModuleEngagementDownstreamMixin, HivePartitionTask):
     """Hive partition for user segment assignments."""
 
     @property
@@ -849,6 +862,7 @@ class ModuleEngagementUserSegmentPartitionTask(
 
 
 class ModuleEngagementRosterRecord(Record):
+    """A summary of statistics related to a single learner in a single course related to their engagement."""
     course_id = StringField(description='Course the learner is enrolled in.')
     username = StringField(description='Learner\'s username.')
     start_date = DateField(description='Analysis includes all data from midnight on this day.')
@@ -890,6 +904,7 @@ class ModuleEngagementRosterRecord(Record):
 
 
 class ModuleEngagementRosterTableTask(BareHiveTableTask):
+    """A hive table for the roster data."""
 
     @property
     def partition_by(self):
@@ -905,6 +920,11 @@ class ModuleEngagementRosterTableTask(BareHiveTableTask):
 
 
 class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDownstreamMixin, HivePartitionTask):
+    """
+    A Hive partition that represents the roster as of a particular day.
+
+    Note that data from the prior 2 weeks is used to generate the summary for a particular date.
+    """
 
     date = luigi.DateParameter()
     interval = None
@@ -1058,6 +1078,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
 
 
 class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ElasticsearchIndexTask):
+    """Load the roster data into elasticsearch for rapid query."""
 
     alias = luigi.Parameter(
         config_path={'section': 'module-engagement', 'name': 'alias'},
@@ -1081,6 +1102,7 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
 
     @property
     def partition_task(self):
+        """The output from this task is indexed in elasticsearch."""
         return ModuleEngagementRosterPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.other_reduce_tasks,
@@ -1096,6 +1118,7 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
 
     @property
     def properties(self):
+        """Generate the elasticsearch mapping from the record schema."""
         return ModuleEngagementRosterRecord.get_elasticsearch_properties()
 
     @property
@@ -1144,7 +1167,8 @@ SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller',
 
 
 @workflow_entry_point
-class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, luigi.WrapperTask):
+class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
+                                   luigi.WrapperTask):  # pylint: disable=missing-docstring
     __doc__ = """
     A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
 

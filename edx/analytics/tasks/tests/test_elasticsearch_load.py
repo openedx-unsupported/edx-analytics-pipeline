@@ -350,7 +350,7 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
                 'target_index': 'foo_alias'
             },
             doc_type='marker',
-            id='8fb228a24e14e173333ed6b9bc11143216f0830d',
+            id=self.task.output().marker_index_document_id(),
             index='index_updates'
         )
 

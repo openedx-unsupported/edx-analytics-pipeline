@@ -62,8 +62,8 @@ coverage-local: test-local
 	pep8 edx > pep8.report || echo "Not pep8 clean"
 
 	# Compute pylint quality
-	pylint -f parseable edx --msg-template "{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > pylint.report || echo "Not pylint clean"
 	diff-quality --violations=pylint --html-report diff_quality_pylint.html pylint.report
+	pylint -f parseable edx --msg-template "{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > pylint.report || echo "Not pylint clean"
 
 coverage: test coverage-local
 
