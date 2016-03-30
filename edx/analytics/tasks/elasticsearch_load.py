@@ -1,14 +1,9 @@
-import random
+"""Load records into elasticsearch clusters."""
 
 from itertools import islice
-
-import luigi
-import time
 import logging
-
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+import random
+import time
 
 try:
     import elasticsearch
@@ -16,11 +11,15 @@ try:
     from elasticsearch.exceptions import TransportError
 except ImportError:
     elasticsearch = None
+import luigi
 
+from edx.analytics.tasks.mapreduce import MapReduceJobTask
 try:
     from edx.analytics.tasks.util.boto_connection import BotoHttpConnection
 except ImportError:
     BotoHttpConnection = None
+from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 
 log = logging.getLogger(__name__)
@@ -32,6 +31,8 @@ HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
 
 
 class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
+    """A task that either loads data into elasticsearch or depends on a task that does."""
+
     host = luigi.Parameter(
         is_list=True,
         config_path={'section': 'elasticsearch', 'name': 'host'},
@@ -124,12 +125,13 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     def init_local(self):
         super(ElasticsearchIndexTask, self).init_local()
 
-        es = self.create_elasticsearch_client()
+        elasticsearch_client = self.create_elasticsearch_client()
 
         # Find all indexes that are referred to by this alias (currently). These will be deleted after a successful
         # load of the new index.
-        for index_name, aliases in es.indices.get_aliases(name=self.alias).iteritems():
-            self.indexes_for_alias.add(index_name)
+        self.indexes_for_alias.update(
+            elasticsearch_client.indices.get_aliases(name=self.alias).keys()
+        )
 
         if self.index in self.indexes_for_alias:
             if not self.overwrite:
@@ -147,8 +149,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 )
             )
 
-        if es.indices.exists(index=self.index):
-            es.indices.delete(index=self.index)
+        if elasticsearch_client.indices.exists(index=self.index):
+            elasticsearch_client.indices.delete(index=self.index)
 
         settings = {
             'refresh_interval': -1,
@@ -159,7 +161,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         if self.settings:
             settings.update(self.settings)
 
-        es.indices.create(index=self.index, body={
+        elasticsearch_client.indices.create(index=self.index, body={
             'settings': settings,
             'mappings': {
                 self.doc_type: {
@@ -169,6 +171,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         })
 
     def create_elasticsearch_client(self):
+        """Build an elasticsearch client using the various parameters passed into this task."""
         kwargs = {}
         if self.connection_type == 'boto':
             kwargs['connection_class'] = BotoHttpConnection
@@ -184,7 +187,13 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         yield (random.randrange(int(self.n_reduce_tasks)), line.rstrip('\r\n'))
 
     def reducer(self, _key, lines):
-        es = self.create_elasticsearch_client()
+        """
+        Given a batch of records, transmit them to the elasticsearch cluster to be indexed.
+
+        There should be one reducer per parallel indexing thread. Controlling the number of reducers is the way to
+        control the level of parallelism in the load process.
+        """
+        elasticsearch_client = self.create_elasticsearch_client()
 
         document_iterator = self.document_generator(lines)
         first_batch = True
@@ -198,7 +207,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 time.sleep(self.throttle)
             first_batch = False
 
-            if self.send_bulk_action_batch(es, bulk_action_batch):
+            if self.send_bulk_action_batch(elasticsearch_client, bulk_action_batch):
                 self.incr_counter('Elasticsearch', 'Committed Batches', 1)
 
                 # Note that each document produces two entries in the bulk_action_batch list.
@@ -231,7 +240,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 bulk_action_batch.append(data)
         return bulk_action_batch
 
-    def send_bulk_action_batch(self, es, bulk_action_batch):
+    def send_bulk_action_batch(self, elasticsearch_client, bulk_action_batch):
         """
         Given a batch of actions, transmit them in bulk to the elasticsearch cluster.
 
@@ -240,7 +249,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         back-off, allowing the cluster to catch-up with the client.
 
         Arguments:
-            es (elasticsearch.Elasticsearch): A reference to an elasticsearch client.
+            elasticsearch_client (elasticsearch.Elasticsearch): A reference to an elasticsearch client.
             bulk_action_batch (list of dicts): A list of bulk actions followed by their respective documents.
 
         Raises:
@@ -255,17 +264,17 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         batch_written_successfully = False
         while True:
             try:
-                resp = es.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
-            except TransportError as e:
-                if e.status_code != REJECTED_REQUEST_STATUS:
-                    raise e
+                resp = elasticsearch_client.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
+            except TransportError as transport_error:
+                if transport_error.status_code != REJECTED_REQUEST_STATUS:
+                    raise transport_error
             else:
                 num_errors = 0
                 for raw_data in resp['items']:
-                    op_type, item = raw_data.popitem()
-                    ok = 200 <= item.get('status', 500) < 300
-                    if not ok:
-                        log.error('Failed to index: {0}'.format(str(item)))
+                    _op_type, item = raw_data.popitem()
+                    successful = 200 <= item.get('status', 500) < 300
+                    if not successful:
+                        log.error('Failed to index: %s', str(item))
                         num_errors += 1
 
                 if num_errors == 0:
@@ -279,7 +288,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 sleep_duration = 2 ** attempts
                 self.incr_counter('Elasticsearch', 'Rejected Batches', 1)
                 log.warn(
-                    'Batch of records rejected. Sleeping for {0} seconds before retrying.'.format(sleep_duration)
+                    'Batch of records rejected. Sleeping for %d seconds before retrying.',
+                    sleep_duration
                 )
                 time.sleep(sleep_duration)
             else:
@@ -289,14 +299,49 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         return batch_written_successfully
 
     def document_generator(self, lines):
+        """
+        Given lines of raw text, generates structured documents that will be indexed by elasticsearch.
+
+        The returned document should have roughly the following structure:
+
+            {
+                "_id": "(optional) your custom identifier for the document",
+                "_source": {
+                    "prop0": "you should have one key-value pair for each property and its value"
+                }
+            }
+
+        Note that you can also specify other "special" fields other than "_id":
+
+        - _index
+        - _parent
+        - _percolate
+        - _routing
+        - _timestamp
+        - _ttl
+        - _type
+        - _version
+        - _version_type
+        - _retry_on_conflict
+
+        The "_source" field is required.
+
+        Arguments:
+            lines (iterable of unicode strings): This is the raw data to be indexed.
+
+        Yields:
+            dict: The document to index in the format expected by the elasticsearch bulk loading process.
+        """
         raise NotImplementedError
 
     @property
     def doc_type(self):
+        """
+        Elasticsearch `document type <https://www.elastic.co/guide/en/elasticsearch/guide/current/mapping.html>`_.
+        """
         raise NotImplementedError
 
     def extra_modules(self):
-        import elasticsearch
         import urllib3
 
         packages = [elasticsearch, urllib3]
@@ -309,6 +354,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         return jcs
 
     def update_id(self):
+        """A unique identifier for this task instance that is used to determine if it should be run again."""
         return self.task_id
 
     def output(self):
@@ -320,21 +366,52 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         )
 
     def commit(self):
-        es = self.create_elasticsearch_client()
-        es.indices.refresh(index=self.index)
+        """
+        If all documents have been loaded successfully, make the changes visible to users.
+        """
+        # The ordering of operations here is sensitive.
+
+        elasticsearch_client = self.create_elasticsearch_client()
+
+        # First "refresh" the newly loaded index. We disable refreshes during the load to keep throughput high. This
+        # step is necessary to ensure all of the documents are properly indexed and user-visible.
+        elasticsearch_client.indices.refresh(index=self.index)
+
+        # Perform an atomic swap of the alias.
         actions = []
         for old_index in self.indexes_for_alias:
             actions.append({"remove": {"index": old_index, "alias": self.alias}})
         actions.append({"add": {"index": self.index, "alias": self.alias}})
-        es.indices.update_aliases({"actions": actions})
+        elasticsearch_client.indices.update_aliases({"actions": actions})
+
+        # Update the luigi metadata to indicate that the task ran successfully.
         self.output().touch()
+
+        # Attempt to remove any old indexes that are now no longer user-visible.
         for old_index in self.indexes_for_alias:
-            es.indices.delete(index=old_index)
+            elasticsearch_client.indices.delete(index=old_index)
+
+    def rollback(self):
+        """
+        If something goes wrong during the load, attempt to clean up the partially loaded index.
+        """
+        elasticsearch_client = self.create_elasticsearch_client()
+        try:
+            if elasticsearch_client.indices.exists(index=self.index):
+                elasticsearch_client.indices.delete(index=self.index)
+        except Exception:  # pylint: disable=broad-except
+            log.exception("Unable to rollback the elasticsearch load.")
 
     def run(self):
-        super(ElasticsearchIndexTask, self).run()
-        self.commit()
+        try:
+            super(ElasticsearchIndexTask, self).run()
+        except Exception:  # pylint: disable=broad-except
+            self.rollback()
+            raise
+        else:
+            self.commit()
 
 
 class IndexingError(RuntimeError):
+    """Something went wrong during the indexing operation."""
     pass
