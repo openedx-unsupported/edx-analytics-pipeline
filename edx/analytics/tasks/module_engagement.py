@@ -943,7 +943,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             -- identify delimiters in the data and strip them out to prevent parsing errors
             regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', ''),
             ce.mode,
-            lce.last_enrollment_date,
+            lce.first_enrollment_date,
             cohort.name,
             COALESCE(eng.problem_attempts, 0),
             COALESCE(eng.problems_attempted, 0),
@@ -999,7 +999,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             SELECT
                 course_id,
                 user_id,
-                MAX(date) AS last_enrollment_date
+                MIN(date) AS first_enrollment_date
             FROM course_enrollment
             WHERE
                 at_end = 1 AND date < '{end}'
