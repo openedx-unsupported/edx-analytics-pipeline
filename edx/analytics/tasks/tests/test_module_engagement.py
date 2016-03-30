@@ -4,13 +4,14 @@ import json
 import datetime
 
 import luigi
+from luigi import date_interval
 from ddt import ddt, data, unpack
 from mock import MagicMock
 
 from edx.analytics.tasks.module_engagement import ModuleEngagementDataTask, ModuleEngagementSummaryDataTask, \
     ModuleEngagementRecord, ModuleEngagementSummaryRecord, ModuleEngagementSummaryMetricRangesDataTask, \
     ModuleEngagementSummaryMetricRangeRecord, ModuleEngagementUserSegmentDataTask, ModuleEngagementUserSegmentRecord, \
-    ModuleEngagementRosterIndexTask, ModuleEngagementRosterRecord
+    ModuleEngagementRosterIndexTask, ModuleEngagementRosterRecord, ModuleEngagementRosterPartitionTask
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -985,3 +986,20 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
         self.assertEqual(len(documents), 2)
         self.assertEqual(documents[0]['_id'], 'foo/bar/baz|test_user')
         self.assertEqual(documents[1]['_id'], 'foo/bar/baz|test_user|1')
+
+
+class ModuleEngagementRosterPartitionTaskTest(ReducerTestMixin, unittest.TestCase):
+    task_class = ModuleEngagementRosterPartitionTask
+
+    DATE = '2013-12-17'
+
+    def setUp(self):
+        self.task = self.task_class(  # pylint: disable=not-callable
+            date=luigi.DateParameter().parse(self.DATE),
+        )
+
+    def test_interval(self):
+        self.assertEquals(self.task.interval, date_interval.Custom.parse('{}-{}'.format('2013-12-10', self.DATE)))
+
+    def test_partition_value(self):
+        self.assertEquals(self.task.partition_value, self.DATE)

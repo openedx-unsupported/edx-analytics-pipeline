@@ -420,8 +420,16 @@ class ModuleEngagementSummaryRecordBuilder(object):
         return attempts_per_completion
 
 
+class WeekIntervalMixin(object):
 
-class ModuleEngagementSummaryDataTask(
+    def __init__(self, *args, **kwargs):
+        super(WeekIntervalMixin, self).__init__(*args, **kwargs)
+
+        start_date = self.date - datetime.timedelta(weeks=1)
+        self.interval = date_interval.Custom(start_date, self.date)
+
+
+class ModuleEngagementSummaryDataTask(WeekIntervalMixin,
     ModuleEngagementDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask
 ):
     """
@@ -437,12 +445,6 @@ class ModuleEngagementSummaryDataTask(
     # particularly given the nuance of how some of the metrics are aggregated (like attempts per completion).
 
     output_root = luigi.Parameter()
-
-    def __init__(self, *args, **kwargs):
-        super(ModuleEngagementSummaryDataTask, self).__init__(*args, **kwargs)
-
-        start_date = self.date - datetime.timedelta(weeks=1)
-        self.interval = date_interval.Custom(start_date, self.date)
 
     def requires_local(self):
         return ModuleEngagementIntervalTask(
@@ -908,7 +910,7 @@ class ModuleEngagementRosterTableTask(BareHiveTableTask):
         return ModuleEngagementRosterRecord.get_hive_schema()
 
 
-class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HivePartitionTask):
+class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDownstreamMixin, HivePartitionTask):
 
     date = luigi.DateParameter()
     interval = None
@@ -917,8 +919,6 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
     def __init__(self, *args, **kwargs):
         super(ModuleEngagementRosterPartitionTask, self).__init__(*args, **kwargs)
 
-        start_date = self.date - datetime.timedelta(weeks=1)
-        self.interval = date_interval.Custom(start_date, self.date)
         self.partition_value = self.date.isoformat()
 
     def query(self):
