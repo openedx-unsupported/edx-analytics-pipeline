@@ -928,9 +928,8 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
         self.partition_value = self.date.isoformat()
 
     def query(self):
-        # Join with calendar data only if calculating weekly engagement.
+        # The end of the interval is not closed, so use the prior day's enrollment data.
         last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-        iso_weekday = last_complete_date.isoweekday()
 
         query = """
         USE {database_name};
@@ -955,7 +954,9 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
             CONCAT_WS(
                 ",",
                 IF(ce.at_end = 0, "unenrolled", NULL),
+                -- The learner has had no activity in the past 2 weeks.
                 IF(COALESCE(old_eng.days_active, 0) = 0 AND COALESCE(eng.days_active, 0) = 0, "inactive", NULL),
+                -- Two weeks ago the learner was active, however, they have had no activity in the most recent week.
                 IF(COALESCE(old_eng.days_active, 0) > 0 AND COALESCE(eng.days_active, 0) = 0, "disengaging", NULL),
                 seg.segments
             ),
@@ -976,7 +977,6 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
                 COALESCE(eng.problem_attempts, 0)
             )
         FROM course_enrollment ce
-        INNER JOIN calendar cal ON (ce.date = cal.date)
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
         INNER JOIN auth_userprofile aup
@@ -1017,13 +1017,11 @@ class ModuleEngagementRosterPartitionTask(ModuleEngagementDownstreamMixin, HiveP
         ) seg
             ON (ce.course_id = seg.course_id AND au.username = seg.username)
         WHERE
-            ce.date >= '{start}'
-            AND ce.date < '{end}'
-            AND cal.iso_weekday = {iso_weekday}
+            ce.date = '{last_complete_date}'
         """.format(
             start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
             end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
-            iso_weekday=iso_weekday,
+            last_complete_date=last_complete_date.isoformat(),
             partition=self.partition,
             if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
             database_name=hive_database_name(),
