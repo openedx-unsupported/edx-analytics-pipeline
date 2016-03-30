@@ -382,6 +382,11 @@ class Field(object):
         self.counter = Field.counter
         Field.counter += 1
 
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        pass
+
     def validate(self, value):
         """
         Determine if this value is an acceptable value for this field.
@@ -438,8 +443,7 @@ class StringField(Field):  # pylint: disable=abstract-method
     hive_type = 'STRING'
     elasticsearch_type = 'string'
 
-    def __init__(self, **kwargs):
-        super(StringField, self).__init__(**kwargs)
+    def validate_parameters(self):
         if not hasattr(self, 'length'):
             self.length = None
         if self.length is not None and self.length == 0:

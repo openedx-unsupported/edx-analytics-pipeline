@@ -733,8 +733,7 @@ class ModuleEngagementUserSegmentDataTask(
     output_root = luigi.Parameter()
 
     def requires_local(self):
-        # NOTE: Most of this table is pickled on the master node and distributed to the slaves via the distributed
-        # cache.
+        # Parts of this table are read into memory in init_local and distributed to slaves via the distributed cache.
         mysql_task = ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -752,6 +751,9 @@ class ModuleEngagementUserSegmentDataTask(
 
     def init_local(self):
         super(ModuleEngagementUserSegmentDataTask, self).init_local()
+
+        # This structure is used in the reducer, so it is stored on the job object which is serialized on the master and
+        # deserialized on the slave nodes. This is default luigi behavior.
         self.high_metric_ranges = defaultdict(dict)
 
         # Grab all of the "high" ranges since those are the only ones we are going to use. This will load
@@ -772,10 +774,14 @@ class ModuleEngagementUserSegmentDataTask(
 
         records = [ModuleEngagementSummaryRecord.from_tsv(line) for line in lines]
 
+        if len(records) > 1:
+            raise RuntimeError('There should be exactly one summary record per user per course.')
+
+        summary = records[0]
+
         # Maps segment names to a set of "reasons" that tell why the user was placed in that segment
         segments = defaultdict(set)
-        most_recent_summary = records[-1]
-        for metric, value in most_recent_summary.get_metrics():
+        for metric, value in summary.get_metrics():
             high_metric_range = self.high_metric_ranges.get(course_id, {}).get(metric)
             if high_metric_range is None or metric == 'problem_attempts':
                 continue

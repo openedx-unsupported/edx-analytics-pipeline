@@ -738,22 +738,6 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
         )
         self.assert_in_segment(output, 'disengaging')
 
-    def test_not_disengaging_both_active(self):
-        self.initialize_task([])
-        output = self._get_reducer_output(
-            [
-                self.input_record.replace(
-                    start_date=self.prev_week_start_date,
-                    end_date=self.start_date,
-                    days_active=1,
-                ).to_separated_values(),
-                self.input_record.replace(
-                    days_active=1
-                ).to_separated_values()
-            ]
-        )
-        self.assert_not_in_segment(output, 'disengaging')
-
     def test_not_disengaging_only_recent(self):
         self.initialize_task([])
         output = self._get_reducer_output(
