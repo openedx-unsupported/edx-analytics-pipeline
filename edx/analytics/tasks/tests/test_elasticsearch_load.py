@@ -37,6 +37,7 @@ class BaseIndexTest(object):
 
 
 class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.TestCase):
+    """Test the mapper and initialization logic for elasticsearch indexing tasks."""
 
     def test_reduce_task_allocation(self):
         self.create_task(n_reduce_tasks=10)
@@ -77,8 +78,8 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
                 }
             }
         }
-        with self.assertRaisesRegexp(RuntimeError, r'Invalid state, multiple existing indexes \(.*?\) found for alias fo'
-                                                   r'o_alias'):
+        with self.assertRaisesRegexp(RuntimeError, r'Invalid state, multiple existing indexes \(.*?\) found for alias'
+                                                   r' foo_alias'):
             self.task.init_local()
 
     def test_remove_if_exists(self):
@@ -257,6 +258,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
         self.addCleanup(delattr, self, '_rejection_counter')
 
         def reject_first_3_batches(*_args, **_kwargs):
+            """Reject the first 3 batches that are indexed, and then accept the rest."""
             if self._rejection_counter < 3:
                 self._rejection_counter += 1
                 raise TransportError(429, 'Rejected bulk request', 'Queue is full')

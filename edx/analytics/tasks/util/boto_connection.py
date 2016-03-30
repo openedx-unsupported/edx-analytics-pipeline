@@ -1,3 +1,5 @@
+"""A connection for the elasticsearch-py library that can be used with AWS elasticsearch-as-a-service clusters."""
+
 import json
 import time
 
@@ -7,8 +9,7 @@ from elasticsearch import Connection
 
 class BotoHttpConnection(Connection):
     """
-    Uses AWS configured connection to sign requests before they're sent to
-    elasticsearch nodes.
+    Uses AWS configured connection to sign requests before they're sent to elasticsearch nodes.
     """
 
     connection = None

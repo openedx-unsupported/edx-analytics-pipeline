@@ -7,6 +7,7 @@ import random
 
 log = logging.getLogger(__name__)
 
+# pylint: disable=wrong-import-position
 import luigi
 import luigi.task
 from luigi import date_interval
@@ -843,6 +844,7 @@ class ModuleEngagementUserSegmentPartitionTask(ModuleEngagementDownstreamMixin, 
 
     @property
     def partition_value(self):
+        """Use the date as the partition value."""
         return self.date.isoformat()
 
     @property
@@ -1166,9 +1168,9 @@ NAMES = ['james', 'john', 'robert', 'william', 'michael', 'david', 'richard', 'c
 SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller', 'wilson', 'moore', 'taylor']
 
 
-@workflow_entry_point
+@workflow_entry_point  # pylint: disable=missing-docstring
 class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
-                                   luigi.WrapperTask):  # pylint: disable=missing-docstring
+                                   luigi.WrapperTask):
     __doc__ = """
     A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
 
