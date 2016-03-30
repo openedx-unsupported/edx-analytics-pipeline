@@ -1,4 +1,5 @@
 """Measure student engagement with individual modules in the course"""
+
 from collections import defaultdict
 import datetime
 import logging
@@ -7,7 +8,12 @@ import random
 import luigi
 import luigi.task
 from luigi import date_interval
-from edx.analytics.tasks.calendar_task import CalendarTableTask
+try:
+    import numpy
+except ImportError:
+    log.warn('Unable to import numpy')
+    numpy = None  # pylint: disable=invalid-name
+
 from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
     ImportAuthUserProfileTask
 from edx.analytics.tasks.database_imports import ImportCourseUserGroupTask
@@ -17,7 +23,7 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, IgnoredTarget
+from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
@@ -26,14 +32,6 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask,
     hive_database_name)
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
-
-log = logging.getLogger(__name__)
-
-try:
-    import numpy
-except ImportError:
-    log.warn('Unable to import numpy')
-    numpy = None  # pylint: disable=invalid-name
 
 log = logging.getLogger(__name__)
 
@@ -285,33 +283,23 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
 
 
 class ModuleEngagementIntervalTask(
-    MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin,
-    OverwriteOutputMixin, luigi.WrapperTask
+    MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin, OverwriteOutputMixin, luigi.WrapperTask
 ):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
 
-    overwrite_last_n_days = luigi.IntParameter(
-        config_path={'section': 'module-engagement', 'name': 'overwrite_last_n_days'},
-        default=2
-    )
-
     def requires(self):
         for date_index, date in enumerate(reversed([d for d in self.interval])):
-            should_overwrite = self.overwrite
-            if date_index < self.overwrite_last_n_days:
-                should_overwrite = True
-
             yield ModuleEngagementPartitionTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=should_overwrite,
+                overwrite=self.overwrite,
             )
             yield ModuleEngagementMysqlTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=should_overwrite,
+                overwrite=self.overwrite,
             )
 
     def output(self):
