@@ -1062,7 +1062,6 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=self.overwrite,
             ),
-            CalendarTableTask(),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
