@@ -1,13 +1,15 @@
+"""Test the AWS-specific elasticsearch connection."""
 import socket
 
-from edx.analytics.tasks.util.boto_connection import ESConnection, BotoHttpConnection
-
-from edx.analytics.tasks.tests import unittest
 from elasticsearch.exceptions import ElasticsearchException
 from mock import patch
 
+from edx.analytics.tasks.util.boto_connection import ESConnection, BotoHttpConnection
+from edx.analytics.tasks.tests import unittest
+
 
 class ESConnectionTests(unittest.TestCase):
+    """Test the generic connection."""
 
     def test_constructor_params(self):
         connection = ESConnection('mockservice.cc-zone-1.amazonaws.com',
@@ -34,6 +36,7 @@ class ESConnectionTests(unittest.TestCase):
 
     def test_timeout(self):
         def fake_connection(_address):
+            """Fail immediately with a socket timeout."""
             raise socket.timeout('fake error')
         socket.create_connection = fake_connection
         connection = ESConnection('mockservice.cc-zone-1.amazonaws.com',
@@ -46,6 +49,7 @@ class ESConnectionTests(unittest.TestCase):
 
 
 class BotoHttpConnectionTests(unittest.TestCase):
+    """Mock out the request making part and test the connection."""
 
     @patch('edx.analytics.tasks.util.boto_connection.ESConnection.make_request')
     def test_perform_request_success(self, mock_response):

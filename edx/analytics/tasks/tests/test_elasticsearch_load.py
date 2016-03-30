@@ -1,3 +1,5 @@
+"""Tests for elasticsearch loading."""
+
 import datetime
 import luigi.hdfs
 from elasticsearch import TransportError
@@ -11,6 +13,7 @@ from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, Reducer
 
 
 class BaseIndexTest(object):
+    """A base class for indexing tests."""
 
     def setUp(self):
         patcher = patch('edx.analytics.tasks.elasticsearch_load.elasticsearch.Elasticsearch')
@@ -25,6 +28,7 @@ class BaseIndexTest(object):
         super(BaseIndexTest, self).setUp()
 
     def create_task(self, **kwargs):
+        """Create a sample indexing task."""
         self.task = RawIndexTask(
             host='http://localhost:3200',
             alias='foo_alias',
@@ -73,7 +77,8 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
                 }
             }
         }
-        with self.assertRaisesRegexp(RuntimeError, r'Invalid state, multiple existing indexes \(.*?\) found for alias foo_alias'):
+        with self.assertRaisesRegexp(RuntimeError, r'Invalid state, multiple existing indexes \(.*?\) found for alias fo'
+                                                   r'o_alias'):
             self.task.init_local()
 
     def test_remove_if_exists(self):
@@ -154,7 +159,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
     def test_boto_connection_type(self):
         self.create_task(connection_type='boto')
         self.task.init_local()
-        args, kwargs = self.elasticsearch_mock.call_args
+        _args, kwargs = self.elasticsearch_mock.call_args
         self.assertEqual(kwargs['connection_class'], BotoHttpConnection)
 
     def test_mapper(self):
@@ -164,6 +169,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
 
 class RawIndexTask(ElasticsearchIndexTask):
+    """A sample elasticsearch indexing class."""
 
     properties = {
         'all_text': {'type': 'string'}
@@ -182,6 +188,7 @@ class RawIndexTask(ElasticsearchIndexTask):
 
 
 class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
+    """Test the reducer for the elasticsearch indexing task."""
 
     reduce_key = 10  # can be any integer
 
@@ -284,6 +291,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
         )
 
     def get_bulk_api_response(self, num_responses):
+        """A common response to a bulk indexing request."""
         return {
             'items': [
                 {
@@ -324,6 +332,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
 @freeze_time('2016-03-25')
 @patch.object(luigi.hdfs.HdfsTarget, '__del__', return_value=None)
 class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
+    """Tests for the commit logic."""
 
     def test_commit(self, _mock_del):
         self.mock_es.indices.exists.return_value = False
@@ -342,6 +351,7 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
         )
 
     def get_expected_index_call(self):
+        """A mock.call object that represents the expected call to index() that touches the marker during commit."""
         return call.__getattr__('index')(
             body={
                 'date': datetime.datetime(2016, 3, 25, 0, 0, 0, 0),

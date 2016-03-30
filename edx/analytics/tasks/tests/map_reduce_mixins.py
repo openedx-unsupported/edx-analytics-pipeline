@@ -160,6 +160,7 @@ class ReducerTestMixin(object):
         self.reduce_key = tuple()
 
     def get_default_task_args(self):
+        """Some reasonable defaults for common task parameters."""
         new_kwargs = {}
         for attr in self.DEFAULT_ARGS:
             if getattr(self.task_class, attr, None) is None:
@@ -172,6 +173,7 @@ class ReducerTestMixin(object):
         return new_kwargs
 
     def create_task(self, **kwargs):
+        """Create a new instance of the class under test and assign it to `self.task`."""
         new_kwargs = self.get_default_task_args()
         new_kwargs.update(kwargs)
         self.task = self.task_class(**new_kwargs)  # pylint: disable=not-callable
@@ -201,8 +203,8 @@ class ReducerTestMixin(object):
 
         args:
             inputs is a valid input to the subclass's reducer.
-            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
-                pairs in the expected reducer output.
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to
+                (column_num, expected_value) pairs in the expected reducer output.
         """
         output = self._get_reducer_output(inputs)
         if not isinstance(column_values, list):
@@ -230,8 +232,8 @@ class ReducerTestMixin(object):
 
         args:
             inputs is a valid input to the subclass's reducer.
-            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to (column_num, expected_value)
-                pairs in the expected reducer output.
+            column_values is a list of dictionaries, where the (key, value) pairs in the dictionary correspond to
+                (column_num, expected_value) pairs in the expected reducer output.
         """
         self.assertTrue(getattr(self, 'output_record_type', None) is not None)
         field_positions = {k: i for i, k in enumerate(self.output_record_type.get_fields())}

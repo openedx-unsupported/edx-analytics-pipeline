@@ -973,6 +973,7 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
 
 
 class ModuleEngagementRosterPartitionTaskTest(ReducerTestMixin, unittest.TestCase):
+    """Test the logic that maps end dates to complete weeks."""
     task_class = ModuleEngagementRosterPartitionTask
 
     DATE = '2013-12-17'
