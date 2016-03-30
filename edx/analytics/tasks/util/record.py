@@ -334,6 +334,17 @@ class Record(object):
 
     @classmethod
     def get_elasticsearch_properties(cls):
+        """
+        An elasticsearch mapping that could store this data.
+
+        This schema type recognizes the "analyzed" kwarg that can be passed into the Field definition. By default
+        Fields are not analyzed, however, if the Field is declared with analyzed=True, then it will be analyzed by
+        elasticsearch.
+
+            foo = StringField(analyzed=True)
+
+        Returns: A dictionary of property definitions.
+        """
         properties = {}
         for field_name, field_obj in cls.get_fields().items():
             properties[field_name] = {
@@ -345,6 +356,18 @@ class Record(object):
 
     @classmethod
     def get_restructured_text(cls, indent='    '):
+        """
+        Generates a string that can be injected into docstrings to document the record schema.
+
+        This schema type recognizes the "description" kwarg that can be passed into the Field definition.
+
+            foo = StringField(description='this will appear in the docs')
+
+        Arguments:
+            indent (str): This string will be prepended in front of each field.
+
+        Returns: A reStructuredText formatted string describing the fields in this record.
+        """
         field_doc = ['\n']
         for field_name, field_obj in cls.get_fields().items():
             field_doc.append(
@@ -385,6 +408,7 @@ class Field(object):
         self.validate_parameters()
 
     def validate_parameters(self):
+        """Once all kwargs have been assigned to attributes, validate them and set any defaults."""
         pass
 
     def validate(self, value):
@@ -434,6 +458,7 @@ class Field(object):
 
     @property
     def elasticsearch_type(self):
+        """Returns the elasticsearch type for this type of field."""
         raise NotImplementedError
 
 
