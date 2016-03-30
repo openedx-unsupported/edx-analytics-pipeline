@@ -15,6 +15,7 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
+from edx.analytics.tasks.reports.invoices import InvoiceTask
 from edx.analytics.tasks.reports.orders_import import OrderTableTask
 from edx.analytics.tasks.reports.payment import PaymentTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
@@ -147,6 +148,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 import_date=self.import_date
             ),
             PaymentTask(
+                import_date=self.import_date
+            ),
+            InvoiceTask(
                 import_date=self.import_date
             )
         )
