@@ -1144,8 +1144,8 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
 
             original_id = document['_id']
             for i in range(self.scale_factor):
-                document = document.copy()
                 if i > 0:
+                    document = document.copy()
                     document['_id'] = original_id + '|' + str(i)
                 yield document
 
