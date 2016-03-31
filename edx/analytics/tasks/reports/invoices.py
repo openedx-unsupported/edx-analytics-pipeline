@@ -13,13 +13,11 @@ class InvoiceTask(luigi.WrapperTask):
     import_date = luigi.DateParameter()
 
     def requires(self):
-        yield (
-            ShoppingCartInvoiceTransactionsTableTask(
-                import_date=self.import_date
-            ),
-            OttoInvoiceTableTask(
-                import_date=self.import_date
-            )
+        yield ShoppingCartInvoiceTransactionsTableTask(
+            import_date=self.import_date
+        )
+        yield OttoInvoiceTableTask(
+            import_date=self.import_date
         )
 
     def output(self):
@@ -55,7 +53,7 @@ class ShoppingCartInvoiceTransactionsTableTask(DatabaseImportMixin, HiveTableFro
             ('date', 'TIMESTAMP'),
             ('payment_gateway_id', 'STRING'),
             ('payment_gateway_account_id', 'STRING'),
-            ('payment_ref_id', 'INT'),
+            ('payment_ref_id', 'STRING'),
             ('iso_currency_code', 'STRING'),
             ('amount', 'DECIMAL'),
             ('transaction_fee', 'DECIMAL'),
@@ -74,10 +72,10 @@ class ShoppingCartInvoiceTransactionsTableTask(DatabaseImportMixin, HiveTableFro
         return """
             SELECT
                 created AS date,
-                "\\N" AS payment_gateway_id,
-                "\\N" AS payment_gateway_account_id,
-                invoice_id AS payment_ref_id,
-                currency AS iso_currency_code,
+                "sc_invoice" AS payment_gateway_id,
+                "\\\\N" AS payment_gateway_account_id,
+                "\\\\N" AS payment_ref_id,
+                UPPER(currency) AS iso_currency_code,
                 amount,
                 "\\N" AS transaction_fee,
                 CASE
@@ -85,7 +83,7 @@ class ShoppingCartInvoiceTransactionsTableTask(DatabaseImportMixin, HiveTableFro
                     ELSE "refund"
                 END AS transaction_type,
                 "invoice" AS payment_method,
-                "\\N" AS payment_method_type,
+                "\\\\N" AS payment_method_type,
                 id AS transaction_id
             FROM shoppingcart_invoicetransaction;
         """
@@ -130,7 +128,7 @@ class OttoInvoiceTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('date', 'TIMESTAMP'),
             ('payment_gateway_id', 'STRING'),
             ('payment_gateway_account_id', 'STRING'),
-            ('payment_ref_id', 'INT'),
+            ('payment_ref_id', 'STRING'),
             ('iso_currency_code', 'STRING'),
             ('amount', 'DECIMAL'),
             ('transaction_fee', 'DECIMAL'),
@@ -149,18 +147,18 @@ class OttoInvoiceTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
         return """
             SELECT
                 i.created AS date,
-                "\\N" AS payment_gateway_id,
-                "\\N" AS payment_gateway_account_id,
-                o.id AS payment_ref_id,
+                "otto_invoice" AS payment_gateway_id,
+                "\\\\N" AS payment_gateway_account_id,
+                o.number AS payment_ref_id,
                 o.currency AS iso_currency_code,
-                o.total_excl_tax AS amount,
+                o.total_incl_tax AS amount,
                 "\\N" AS transaction_fee,
                 CASE
-                    WHEN o.total_excl_tax >= 0 THEN "sale"
+                    WHEN o.total_incl_tax >= 0 THEN "sale"
                     ELSE "refund"
                 END AS transaction_type,
                 "invoice" AS payment_method,
-                "\\N" AS payment_method_type,
+                "\\\\N" AS payment_method_type,
                 i.id AS transaction_id
             FROM invoice_invoice i
             JOIN order_order o ON i.basket_id = o.basket_id;
