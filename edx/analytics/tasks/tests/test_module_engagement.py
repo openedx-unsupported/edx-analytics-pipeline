@@ -445,11 +445,14 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
 
         self.assert_ranges(
             values,
-            13.0,
-            50.0
+            [
+                ('low', 0, 13.0),
+                ('normal', 13.0, 50.0),
+                ('high', 50.0, 'inf'),
+            ]
         )
 
-    def assert_ranges(self, values, low, high):
+    def assert_ranges(self, values, range_values):
         """Given a list of values, assert that the ranges generated have the min, low, high, and max bounds."""
 
         # Manufacture some records with these values
@@ -458,48 +461,34 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
         self._check_output_complete_tuple(
             records,
             (
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'low',
-                    '0',
-                    str(low),
-                ),
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'normal',
-                    str(low),
-                    str(high),
-                ),
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'high',
-                    str(high),
-                    'inf',
-                ),
+                tuple(
+                    (
+                        'foo/bar/baz',
+                        '2014-03-25',
+                        '2014-04-01',
+                        'problem_attempts_per_completed',
+                        range_type,
+                        str(low),
+                        str(high),
+                    ) for range_type, low, high in range_values
+                )
             )
         )
 
     def test_identical_values(self):
         values = [5] * 6
-        self.assert_ranges(values, 5.0, 5.0)
+        self.assert_ranges(values, [('normal', 5.0, 'inf')])
 
     def test_single_value(self):
-        self.assert_ranges([1], 1.0, 1.0)
+        self.assert_ranges([1], [('normal', 1.0, 'inf')])
 
     def test_very_small_values(self):
-        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), 0.01, 0.09)
+        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), [('low', 0, 0.01), ('normal', 0.01, 0.09), ('high', 0.09, 'inf')])
 
     def test_infinite_value(self):
-        self.assert_ranges(([1.0] * 19) + [float('inf')], 1.0, 1.0)
+        self.assert_ranges(([1.0] * 19) + [float('inf')], [('normal', 1.0, 'inf')])
+        self.assert_ranges([float('inf')], [('normal', 'inf', 'inf')])
+        self.assert_ranges([2, 3, 4, float('inf')], [('low', 0, 2.45), ('normal', 2.45, 'inf')])
 
 
 @ddt

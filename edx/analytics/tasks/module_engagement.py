@@ -620,11 +620,23 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
             normal_lower_bound, normal_upper_bound = numpy.percentile(  # pylint: disable=no-member
                 values, [self.low_percentile, self.high_percentile]
             )
-            ranges = [
-                (METRIC_RANGE_LOW, 0, normal_lower_bound),
-                (METRIC_RANGE_NORMAL, normal_lower_bound, normal_upper_bound),
-                (METRIC_RANGE_HIGH, normal_upper_bound, float('inf')),
-            ]
+
+            if normal_lower_bound == normal_upper_bound:
+                ranges = [
+                    (METRIC_RANGE_NORMAL, normal_lower_bound, float('inf')),
+                ]
+            elif normal_upper_bound == float('inf'):
+                ranges = [
+                    (METRIC_RANGE_LOW, 0, normal_lower_bound),
+                    (METRIC_RANGE_NORMAL, normal_lower_bound, float('inf')),
+                ]
+            else:
+                ranges = [
+                    (METRIC_RANGE_LOW, 0, normal_lower_bound),
+                    (METRIC_RANGE_NORMAL, normal_lower_bound, normal_upper_bound),
+                    (METRIC_RANGE_HIGH, normal_upper_bound, float('inf')),
+                ]
+
             for range_type, low_value, high_value in ranges:
                 yield ModuleEngagementSummaryMetricRangeRecord(
                     course_id=course_id,
