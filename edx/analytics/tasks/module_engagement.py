@@ -327,17 +327,25 @@ class ModuleEngagementSummaryRecord(Record):
     Summarizes a user's engagement with a particular course in the past week with simple counts of activity.
     """
 
-    course_id = StringField()
-    username = StringField()
-    start_date = DateField()
-    end_date = DateField()
-    problem_attempts = IntegerField(is_metric=True)
-    problems_attempted = IntegerField(is_metric=True)
-    problems_completed = IntegerField(is_metric=True)
-    problem_attempts_per_completed = FloatField(is_metric=True)
-    videos_viewed = IntegerField(is_metric=True)
-    discussion_contributions = IntegerField(is_metric=True)
-    days_active = IntegerField()
+    course_id = StringField(description='Course the learner interacted with.')
+    username = StringField(description='Learner\'s username.')
+    start_date = DateField(description='Analysis includes all data from 00:00 on this day up to the end date.')
+    end_date = DateField(description='Analysis includes all data up to but not including this date.')
+    problem_attempts = IntegerField(is_metric=True, description='Number of times the learner attempted any problem in'
+                                                                ' the course.')
+    problems_attempted = IntegerField(is_metric=True, description='Number of unique problems the learner has ever'
+                                                                  ' attempted in the course.')
+    problems_completed = IntegerField(is_metric=True, description='Number of unique problems the learner has ever'
+                                                                  ' completed correctly in the course.')
+    problem_attempts_per_completed = FloatField(is_metric=True, description='Ratio of the number of attempts the'
+                                                                            ' learner has made on any problem to the'
+                                                                            ' number of unique problems they have'
+                                                                            ' completed correctly in the course.')
+    videos_viewed = IntegerField(is_metric=True, description='Number of unique videos the learner has watched any part'
+                                                             ' of in the course.')
+    discussion_contributions = IntegerField(is_metric=True, description='Total number of posts, responses and comments'
+                                                                        ' the learner has made in the course.')
+    days_active = IntegerField(description='Number of days the learner performed any activity in.')
 
     def get_metrics(self):
         """
@@ -714,12 +722,14 @@ class ModuleEngagementUserSegmentRecord(Record):
     Maps a user's activity in a course to various segments.
     """
 
-    course_id = StringField()
-    username = StringField()
-    start_date = DateField()
-    end_date = DateField()
-    segment = StringField()
-    reason = StringField()
+    course_id = StringField(description='Course the learner is enrolled in.')
+    username = StringField(description='Learner\'s username.')
+    start_date = DateField(description='Analysis includes all data from 00:00 on this day up to the end date.')
+    end_date = DateField(description='Analysis includes all data up to but not including this date.')
+    segment = StringField(description='A short term that includes only lower case characters and underscores that'
+                                      ' indicates a group that the user belongs to. For example: highly_engaged.')
+    reason = StringField(description='A human readable description of the reason for the student being placed in this'
+                                     ' segment.')
 
 
 SEGMENT_HIGHLY_ENGAGED = 'highly_engaged'
@@ -874,8 +884,8 @@ class ModuleEngagementRosterRecord(Record):
     """A summary of statistics related to a single learner in a single course related to their engagement."""
     course_id = StringField(description='Course the learner is enrolled in.')
     username = StringField(description='Learner\'s username.')
-    start_date = DateField(description='Analysis includes all data from midnight on this day.')
-    end_date = DateField(description='Analysis includes all data up to but not including midnight of this date.')
+    start_date = DateField(description='Analysis includes all data from 00:00 on this day up to the end date.')
+    end_date = DateField(description='Analysis includes all data up to but not including this date.')
     email = StringField(description='Learner\'s email address.')
     name = StringField(analyzed=True, description='Learner\'s full name including first, middle and last names. '
                                                   'This field can be searched by instructors.')
