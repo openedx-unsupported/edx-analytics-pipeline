@@ -1,4 +1,8 @@
-"""Measure student engagement with individual modules in the course"""
+"""
+Measure student engagement with individual modules in the course.
+
+See ModuleEngagementWorkflowTask for more extensive documentation.
+"""
 
 from collections import defaultdict
 import datetime
@@ -60,9 +64,9 @@ class ModuleEngagementDownstreamMixin(
 
     # Required parameter
     date = luigi.DateParameter(
-        description='Upper bound date for the end of the interval to analyze. Data produced before midnight on this'
+        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
                     ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
-                    ' to be set to "today\'s" date.'
+                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
     )
 
     # Override superclass to disable this parameter
@@ -92,6 +96,8 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
     # Override superclass to disable this parameter
     interval = None
 
+    # Write the output directly to the final destination and rely on the _SUCCESS file to indicate whether or not it
+    # is complete. Note that this is a custom extension to luigi.
     enable_direct_output = True
 
     def __init__(self, *args, **kwargs):
@@ -318,7 +324,7 @@ class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDowns
 
 class ModuleEngagementSummaryRecord(Record):
     """
-    Summarizes a user's engagement with a particular course on a particular day with simple counts of activity.
+    Summarizes a user's engagement with a particular course in the past week with simple counts of activity.
     """
 
     course_id = StringField()
@@ -444,7 +450,7 @@ class ModuleEngagementSummaryDataTask(WeekIntervalMixin, ModuleEngagementDownstr
     """
     Store a summary of student engagement with their courses on particular dates aggregated using a sliding window.
 
-    Only emits a record if the user did something in the course on that particular day, this dramatically reduces the
+    Only emits a record if the user did something in the course on that particular day. This dramatically reduces the
     volume of data in this table and keeps it manageable.
 
     Currently this analyzes a sliding one week window of data to generate the summary.
@@ -539,8 +545,8 @@ class ModuleEngagementSummaryMetricRangeRecord(Record):
     """
 
     course_id = StringField(length=255, nullable=False, description='Course the learner interacted with.')
-    start_date = DateField(description='Analysis includes all data from this day on.')
-    end_date = DateField(description='Analysis includes all data up to this day, but not including it.')
+    start_date = DateField(description='Analysis includes all data from 00:00 up to the end date.')
+    end_date = DateField(description='Analysis includes all data up to, but not including this date.')
     metric = StringField(length=50, nullable=False, description='Metric that this range applies to.')
     range_type = StringField(length=50, nullable=False, description='Type of range. For example: "low"')
     low_value = FloatField(description='Low value for the range. Exact matches are included in the range.')
@@ -582,9 +588,9 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
 
     def reducer(self, course_id, lines):
         """
-        Analyze all summary records for particular course.
+        Analyze all summary records for a particular course.
 
-        This will include all students performed any activity of interest in the past week.
+        This will include all students who performed any activity of interest in the past week.
         """
         metric_values = defaultdict(list)
 
@@ -603,13 +609,13 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
 
         for metric in sorted(metric_values):
             values = metric_values[metric]
-            range_values = numpy.percentile(  # pylint: disable=no-member
+            normal_lower_bound, normal_upper_bound = numpy.percentile(  # pylint: disable=no-member
                 values, [self.low_percentile, self.high_percentile]
             )
             ranges = [
-                (METRIC_RANGE_LOW, 0, range_values[0]),
-                (METRIC_RANGE_NORMAL, range_values[0], range_values[1]),
-                (METRIC_RANGE_HIGH, range_values[1], float('inf')),
+                (METRIC_RANGE_LOW, 0, normal_lower_bound),
+                (METRIC_RANGE_NORMAL, normal_lower_bound, normal_upper_bound),
+                (METRIC_RANGE_HIGH, normal_upper_bound, float('inf')),
             ]
             for range_type, low_value, high_value in ranges:
                 yield ModuleEngagementSummaryMetricRangeRecord(
@@ -676,7 +682,8 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
 class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMixin, MysqlInsertTask):
     """Result store storage for the metric ranges."""
 
-    overwrite = luigi.BooleanParameter(default=True)
+    overwrite = luigi.BooleanParameter(default=True, description='Overwrite the table when writing to it by default.'
+                                                                 ' Allow users to override this behavior if they want.')
 
     @property
     def table(self):
@@ -1179,18 +1186,18 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
     be one record for every user who has ever been enrolled in that course.
 
     Given that each week the learner's statistics may have changed, the entire index is re-written every time this task
-    is run. Elasticsearch does not support transactional updates. For this reason, we chose to write to a separate index
+    is run. Elasticsearch does not support transactional updates. For this reason, we write to a separate index
     on each update, using an alias to point to the "live" index while we build the next version. Once the next version
-    is complete, we switch over the index to point to the newly built index and drop the old one. This allows us to
+    is complete, we switch over the alias to point to the newly built index and drop the old one. This allows us to
     continue to expose a consistent view of the roster while we are writing out a new version. Without an atomic toggle
     like this, it is possible an instructor could run a query and see a mix of data from the old and new versions of
     the index.
 
     For more information about this strategy see `Index Aliases and Zero Downtime`_.
 
-    We also chose to organized the data in a single index that contains the data for all courses. We rely on the default
+    We organize the data in a single index that contains the data for all courses. We rely on the default
     elasticsearch sharding strategy instead of manually attempting to shard the data by course (or some other
-    dimension). This choice was made largely because it is more simple to implement and manage.
+    dimension). This choice was made largely because it is simpler to implement and manage.
 
     The index is optimized for the following access patterns within a single course:
 

@@ -55,7 +55,10 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
 
     def touch(self):
         """Mark the task as having completed successfully."""
-        self.create_marker_index()
+        # Ensure the marker index exists
+        if not self.elasticsearch_client.indices.exists(index=self.marker_index):
+            self.elasticsearch_client.indices.create(index=self.marker_index)
+
         self.elasticsearch_client.index(
             index=self.marker_index,
             doc_type=self.marker_doc_type,
@@ -83,8 +86,3 @@ class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
         except elasticsearch.ElasticsearchException as err:
             log.warn(err)
         return False
-
-    def create_marker_index(self):
-        """Create the index which holds the marker records."""
-        if not self.elasticsearch_client.indices.exists(index=self.marker_index):
-            self.elasticsearch_client.indices.create(index=self.marker_index)

@@ -163,7 +163,11 @@ class ReducerTestMixin(object):
         """Some reasonable defaults for common task parameters."""
         new_kwargs = {}
         for attr in self.DEFAULT_ARGS:
-            if getattr(self.task_class, attr, None) is None:
+            if hasattr(self.task_class, 'get_params'):
+                task_param_names = frozenset([param[0] for param in self.task_class.get_params()])
+                if attr not in task_param_names:
+                    continue
+            elif not hasattr(self.task_class, attr):
                 continue
             value = getattr(self, attr, self.DEFAULT_ARGS.get(attr))
             if attr == 'interval':
@@ -182,7 +186,7 @@ class ReducerTestMixin(object):
     def assert_no_output(self, input_value):
         """Asserts that the given input produces no output."""
         output = self._get_reducer_output(input_value)
-        self.assertEquals(len(output), 0, output)
+        self.assertEquals(len(output), 0, 'Expected no output, found {}'.format(output))
 
     def _get_reducer_output(self, inputs):
         """Runs the reducer and return the output."""

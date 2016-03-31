@@ -6,7 +6,7 @@ from elasticsearch import TransportError
 from mock import patch, call
 from freezegun import freeze_time
 
-from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, BotoHttpConnection, IndexingError
+from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, AwsHttpConnection, IndexingError
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -158,10 +158,10 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(kwargs['body']['settings'], {'refresh_interval': -1, 'foo': 'bar'})
 
     def test_boto_connection_type(self):
-        self.create_task(connection_type='boto')
+        self.create_task(connection_type='aws')
         self.task.init_local()
         _args, kwargs = self.elasticsearch_mock.call_args
-        self.assertEqual(kwargs['connection_class'], BotoHttpConnection)
+        self.assertEqual(kwargs['connection_class'], AwsHttpConnection)
 
     def test_mapper(self):
         with patch('edx.analytics.tasks.elasticsearch_load.random') as mock_random:

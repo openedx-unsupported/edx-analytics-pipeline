@@ -15,9 +15,9 @@ import luigi
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 try:
-    from edx.analytics.tasks.util.boto_connection import BotoHttpConnection
+    from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 except ImportError:
-    BotoHttpConnection = None
+    AwsHttpConnection = None
 from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
@@ -25,8 +25,9 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 log = logging.getLogger(__name__)
 
 
-REJECTED_REQUEST_STATUS = 429
+# These are standard HTTP status codes used by elasticsearch to represent various error conditions
 HTTP_CONNECT_TIMEOUT_STATUS_CODE = 408
+REJECTED_REQUEST_STATUS = 429
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
 
 
@@ -53,12 +54,12 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
         significant=False,
         default='urllib',
         description='If not specified, default to using urllib3 to make HTTP requests to elasticsearch. The other valid'
-                    ' value is "boto" which can be used to connect to clusters that are managed by AWS. See'
+                    ' value is "aws" which can be used to connect to clusters that are managed by AWS. See'
                     ' `AWS elasticsearch service <https://aws.amazon.com/elasticsearch-service/>`_'
     )
     alias = luigi.Parameter(
         description='Name of the alias in elasticsearch that will point to the complete index when loaded. This value '
-                    'should match the settings of edx-analytics-data-api.'
+                    ' should match the settings of edx-analytics-data-api.'
     )
     number_of_shards = luigi.Parameter(
         default=None,
@@ -77,7 +78,7 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
         default=1000,
         significant=False,
         description='Number of records to submit to the cluster to be indexed in a single request. A small value here'
-                    'will result in more, smaller, requests and a larger value will result in fewer, bigger requests.'
+                    ' will result in more, smaller, requests and a larger value will result in fewer, bigger requests.'
     )
     indexing_tasks = luigi.IntParameter(
         default=None,
@@ -98,7 +99,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     """
     Index a stream of documents in an elasticsearch index.
 
-    The is intended to do the following:
+    This task is intended to do the following:
     * Create a new index that is unique to this task run (all significant parameters).
     * Load all of the documents into this unique index.
     * If the alias is already pointing at one or more indexes, switch it so that it only points at this newly loaded
@@ -173,8 +174,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
     def create_elasticsearch_client(self):
         """Build an elasticsearch client using the various parameters passed into this task."""
         kwargs = {}
-        if self.connection_type == 'boto':
-            kwargs['connection_class'] = BotoHttpConnection
+        if self.connection_type == 'aws':
+            kwargs['connection_class'] = AwsHttpConnection
         return elasticsearch.Elasticsearch(
             hosts=self.host,
             timeout=self.timeout,
@@ -216,6 +217,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             else:
                 raise IndexingError('Batch of records rejected too many times. Aborting.')
 
+        # Luigi requires the reducer to actually return something, so we just return empty strings that are written
+        # to a temp file in HDFS that is immediately cleaned up after the job finishes.
         yield ('', '')
 
     def next_bulk_action_batch(self, document_iterator):

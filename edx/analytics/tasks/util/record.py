@@ -259,13 +259,18 @@ class Record(object):
 
         return field_values
 
-    def to_separated_values(self, sep='\t', null_value=DEFAULT_NULL_VALUE):
+    def to_separated_values(self, sep=u'\t', null_value=DEFAULT_NULL_VALUE):
         """
         Convert this record to a string with fields delimited by `sep`.
 
+        Arguments:
+            sep (unicode): The unicode string to inject between fields in the record. It will be encoded in UTF-8.
+            null_value (str): The string to use to represent None if a nullable field has a None value.
+
         Returns: a UTF8 string representation of the record.
         """
-        return sep.join(self.to_string_tuple(null_value=null_value))
+        utf8sep = sep.encode('utf-8')
+        return utf8sep.join(self.to_string_tuple(null_value=null_value))
 
     @classmethod
     def from_string_tuple(cls, string_tuple, null_value=DEFAULT_NULL_VALUE):
