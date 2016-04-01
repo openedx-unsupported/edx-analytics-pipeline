@@ -49,6 +49,8 @@ ORDERITEM_FIELDS = [
     'payment_ref_id',  # This is the value to compare with the transactions.
 ]
 
+ORDERITEM_FIELD_INDICES = {field_name: index for index, field_name in enumerate(ORDERITEM_FIELDS)}
+
 BaseOrderItemRecord = namedtuple('OrderItemRecord', ORDERITEM_FIELDS)  # pylint: disable=invalid-name
 
 
@@ -138,15 +140,20 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             # Assume it's an order.
             record_type = OrderItemRecord.__name__
             key = fields[-1]
-            # Convert Hive null values ('\\N') in fields like 'product_detail' to string typed values:
-            typed_defaults = {
-                'discount_amount': '0.0',
-                'refunded_amount': '0.0',
-                'refunded_quantity': '0',
-            }
-            for index, value in enumerate(fields):
-                if value == '\\N':
-                    fields[index] = typed_defaults.get(ORDERITEM_FIELDS[index], '')
+            # Convert Hive null values ('\\N') in fields like 'product_detail':
+            defaults = (
+                ('product_detail', ''),
+                ('refunded_amount', '0.0'),
+                ('refunded_quantity', '0'),
+                ('discount_amount', '0.0'),
+                ('coupon_id', None),
+                ('voucher_id', None),
+                ('voucher_code', ''),
+            )
+            for field_name, default_value in defaults:
+                index = ORDERITEM_FIELD_INDICES[field_name]
+                if fields[index] == '\\N':
+                    fields[index] = default_value
 
         elif len(fields) == len(TRANSACTION_FIELDS):
             # Assume it's a transaction.
