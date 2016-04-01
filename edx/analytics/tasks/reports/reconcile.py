@@ -157,9 +157,11 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             key = fields[-2]  # payment_ref_id
             # Convert Hive null values ('\\N') in fields like 'product_detail' to string typed values:
             typed_defaults = {
+                'coupon_id': None,
                 'discount_amount': '0.0',
                 'refunded_amount': '0.0',
                 'refunded_quantity': '0',
+                'voucher_id': None,
             }
             for index, value in enumerate(fields):
                 if value == '\\N':
