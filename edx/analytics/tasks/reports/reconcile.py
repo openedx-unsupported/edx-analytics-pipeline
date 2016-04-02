@@ -107,7 +107,7 @@ LOW_ORDER_ID_SHOPPINGCART_ORDERS = (
 )
 
 # Partner short code for edX, used for ShoppingCart orders for organizations that don't appear in the map above.
-EDX_PARTNER_SHORT_CODE = 'EDX'
+EDX_PARTNER_SHORT_CODE = 'edx'
 
 
 class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
