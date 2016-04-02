@@ -96,7 +96,7 @@
         - "{{ log_dir }}"
 
     - name: make sure git is available on the Debian server
-      apt: pkg=git state=present
+      command: apt-get install -q -y git
       sudo: True
       when: ansible_distribution in common_debian_variants
 
