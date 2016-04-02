@@ -16,31 +16,22 @@ log = logging.getLogger(__name__)
 # Decorators for tagging tests
 
 def when_s3_available(function):
-    access_keys_defined = getattr(when_s3_available, 'access_keys_defined', None)
-    if access_keys_defined is None:
-        aws_access_key_id = os.getenv('AWS_ACCESS_KEY_ID')
-        aws_secret_access_key = os.getenv('AWS_SECRET_ACCESS_KEY')
-        access_keys_defined = aws_access_key_id is not None and aws_secret_access_key is not None
-        when_s3_available.access_keys_defined = access_keys_defined  # Cache result to avoid having to compute it again
-    if access_keys_defined:
-        s3_available = getattr(when_s3_available, 's3_available', None)
-        if s3_available is None:
+    s3_available = getattr(when_s3_available, 's3_available', None)
+    if s3_available is None:
+        try:
             connection = boto.connect_s3()  # This will not error out if
                                             # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
                                             # so it can't be used to check if we have a valid connection to S3
-            try:
-                connection.get_all_buckets()
-            except boto.exception.S3ResponseError:
-                s3_available = False
-            else:
-                s3_available = True
-            finally:
-                when_s3_available.s3_available = s3_available  # Cache result to avoid having to compute it again
-        return unittest.skipIf(
-            not s3_available, 'S3 is not available'
-        )(function)
-    else:
-        return unittest.skip('AWS access keys not defined')(function)
+            connection.get_all_buckets()
+        except (boto.exception.S3ResponseError, boto.exception.NoAuthHandlerFound):
+            s3_available = False
+        else:
+            s3_available = True
+        finally:
+            when_s3_available.s3_available = s3_available  # Cache result to avoid having to compute it again
+    return unittest.skipIf(
+        not s3_available, 'S3 is not available'
+    )(function)
 
 def when_exporter_available(function):
     return unittest.skipIf(
@@ -50,7 +41,9 @@ def when_exporter_available(function):
 def when_geolocation_data_available(function):
     config = get_test_config()
     geolocation_data = config.get('geolocation_data')
-    geolocation_data_available = bool(geolocation_data) and os.path.isfile(geolocation_data)
+    geolocation_data_available = bool(geolocation_data)
+    if geolocation_data_available:
+        geolocation_data_available = get_target_from_url(get_jenkins_safe_url(geolocation_data)).exists()
     return unittest.skipIf(
         not geolocation_data_available, 'Geolocation data is not available'
     )(function)
@@ -75,6 +68,13 @@ def get_test_config():
         except TypeError:
             config = {}
     return config
+
+
+def get_jenkins_safe_url(url):
+    # The machine running the acceptance test suite may not have hadoop installed on it, so convert S3 paths (which
+    # are normally handled by the hadoop DFS client) to S3+https paths, which are handled by the python native S3
+    # client.
+    return url.replace('s3://', 's3+https://')
 
 
 class AcceptanceTestCase(unittest.TestCase):
@@ -194,10 +194,7 @@ class AcceptanceTestCase(unittest.TestCase):
             self.reset_external_state()
 
     def reset_external_state(self):
-        # The machine running the acceptance test suite may not have hadoop installed on it, so convert S3 paths (which
-        # are normally handled by the hadoop DFS client) to S3+https paths, which are handled by the python native S3
-        # client.
-        root_target = get_target_from_url(self.test_root.replace('s3://', 's3+https://'))
+        root_target = get_target_from_url(get_jenkins_safe_url(self.test_root))
         if root_target.exists():
             root_target.remove()
         self.import_db.reset()

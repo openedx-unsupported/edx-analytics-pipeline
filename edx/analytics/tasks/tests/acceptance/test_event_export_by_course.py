@@ -8,7 +8,7 @@ import tempfile
 import shutil
 import datetime
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.s3_util import get_file_from_key, generate_s3_sources
@@ -22,6 +22,7 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
     INPUT_FILE = 'event_export_tracking.log'
     NUM_REDUCERS = 1
 
+    @when_s3_available
     def test_events_export_by_course(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 15))
 
