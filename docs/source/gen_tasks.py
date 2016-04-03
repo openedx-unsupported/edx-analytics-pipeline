@@ -86,13 +86,11 @@ Back to :doc:`index`
     tasks = Register.get_reg()
     for name in sorted(tasks):
         cls = tasks[name]
-        for out in output:
-            # Show only tasks under entry_point
-            module = cls.__module__
-            if module.startswith(entry_point_dot):
-
-                # Strip off entry_point to avoid redundancy in documentation
-                module = module.replace(entry_point_dot, '')
+        module = cls.__module__
+        # Show only tasks under entry_point
+        if module.startswith(entry_point_dot):
+            for out in output:
+                # Show only tasks in the output category
                 if getattr(cls, 'task_category', '') == out['category']:
                     if module not in out['modules']:
                         out['modules'][module] = {}
@@ -105,7 +103,8 @@ Back to :doc:`index`
             out['fp'].write(incfile_header.format(warning=warning, **out))
 
         for module in modules:
-            module_heading = '{module}'.format(module=module)
+            # Strip off entry_point to avoid redundancy in documentation
+            module_heading = '{module}'.format(module=module.replace(entry_point_dot, ''))
             out['fp'].write("\n\n{module_heading}\n{_}".format(
                 module_heading=module_heading, _='-' * len(module_heading)))
             out['fp'].write("\n\n.. automodule:: {module}".format(module=module))
