@@ -37,4 +37,4 @@ git+https://github.com/edx/luigi.git@1b57ce298255de14e09d29351c8e7ee8b7d24a7d#eg
 git+https://github.com/edx/opaque-keys.git@9f07da1abf699d10bc3252d3081017e8aa37c302#egg=opaque-keys
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
 # custom opaque-key implementations for CCX
-git+https://github.com/edx/ccx-keys.git@0.1.1#egg=ccx-keys==0.1.1
+git+https://github.com/edx/ccx-keys.git@fefc9c18fb362213d03f5554d8ee31b93059d640#egg=ccx-keys==0.1.1
