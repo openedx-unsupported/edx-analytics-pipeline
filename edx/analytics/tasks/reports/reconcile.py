@@ -182,9 +182,13 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             # Assume it's a transaction.
             record_type = TransactionRecord.__name__
             key = fields[3]  # payment_ref_id
-            # Convert nulls in 'transaction_fee'.
-            if fields[6] == '\\N':
+            # Convert nulls
+            if fields[6] == '\\N':  # transaction_fee
                 fields[6] = None
+            if fields[2] == '\\N':  # payment_gateway_account_id (not set for invoices)
+                fields[2] = None
+            if fields[9] == '\\N':  # payment_method_type (not set for invoices)
+                fields[9] = None
 
             # Edx-only: if the transaction was within a time period when
             # Otto was storing basket-id values instead of payment_ref_ids in

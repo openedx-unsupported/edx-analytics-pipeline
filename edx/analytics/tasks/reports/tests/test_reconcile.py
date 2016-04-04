@@ -84,6 +84,24 @@ class ReconciliationTaskMixin(object):
         params.update(**kwargs)
         return TransactionRecord(**params)
 
+    def create_invoice_transaction(self, **kwargs):
+        """Create a TransactionRecord with default values for invoices."""
+        params = {
+            'date': TEST_DATE,
+            'payment_gateway_id': 'otto_invoice',
+            'payment_gateway_account_id': None,
+            'payment_ref_id': DEFAULT_REF_ID,
+            'iso_currency_code': 'USD',
+            'amount': '50.00',
+            'transaction_fee': None,
+            'transaction_type': 'sale',
+            'payment_method': 'invoice',
+            'payment_method_type': None,
+            'transaction_id': FIRST_TRANSACTION,
+        }
+        params.update(**kwargs)
+        return TransactionRecord(**params)
+
     def create_refunding_transaction(self, **kwargs):
         """Add default refund values to a default transaction."""
         params = {
@@ -124,6 +142,13 @@ class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, unitte
 
     def test_default_transaction(self):
         trans = self.create_transaction()
+        line = self._convert_record_to_line(trans)
+        expected_key = DEFAULT_REF_ID
+        expected_value = ('TransactionRecord', self._convert_record_to_expected_output(trans))
+        self.assert_single_map_output(line, expected_key, expected_value)
+
+    def test_invoice_transaction(self):
+        trans = self.create_invoice_transaction()
         line = self._convert_record_to_line(trans)
         expected_key = DEFAULT_REF_ID
         expected_value = ('TransactionRecord', self._convert_record_to_expected_output(trans))
@@ -229,6 +254,22 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, u
             'transaction_fee': None,
             'transaction_amount_per_item': None,
             'transaction_fee_per_item': None,
+        })
+
+    def test_invoice_transaction(self):
+        inputs = [self.create_invoice_transaction(), ]
+        self._check_output(inputs, {
+            'payment_ref_id': DEFAULT_REF_ID,
+            'transaction_date': TEST_DATE,
+            'transaction_id': FIRST_TRANSACTION,
+            'unique_transaction_id': 'N52HI327NFXHM33JMNSXY5DSMFXHGYLDORUW63S7NFSHYMJSGM2DEMZUGUZTINJW',
+            'transaction_payment_gateway_id': 'otto_invoice',
+            'transaction_payment_gateway_account_id': None,
+            'transaction_type': 'sale',
+            'transaction_payment_method': 'invoice',
+            'transaction_amount': '50.00',
+            'transaction_iso_currency_code': 'USD',
+            'transaction_fee': None,
         })
 
     @data(
