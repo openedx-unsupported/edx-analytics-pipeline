@@ -45,4 +45,6 @@ INSERT INTO `order_order` VALUES
   -- test_user2 discounted purchase of professional course
   (16,'OC-100022','USD',800.00,800.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:04:08.048200',22,NULL,NULL,1,40),
   -- test_user discounted purchase of credit course
-  (17,'OC-100023','USD',60.00,60.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:09:45.318743',23,NULL,NULL,1,38);
+  (17,'OC-100023','USD',60.00,60.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:09:45.318743',23,NULL,NULL,1,38),
+  -- test_user purchase of set of enrollment codes (via invoice)
+  (18,'OC-100024','USD',200.00,200.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-23 09:55:06.700119',24,NULL,NULL,1,38);
