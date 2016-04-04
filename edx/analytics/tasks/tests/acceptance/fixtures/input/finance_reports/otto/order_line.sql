@@ -49,4 +49,6 @@ INSERT INTO `order_line` VALUES
   -- test_user2 discounted purchase of professional course
   (16,'OpenCraft','CF9A708','','','Seat in Test Otto Professional Course with professional certificate','',1,800.00,800.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,16,2,15,11),
   -- test_user discounted purchase of credit course
-  (17,'OpenCraft','11A9662','','','Seat in Test Otto Credit Course with credit certificate (and ID verification)','',1,60.00,60.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,17,2,19,14);
+  (17,'OpenCraft','11A9662','','','Seat in Test Otto Credit Course with credit certificate (and ID verification)','',1,60.00,60.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,17,2,19,14),
+  -- test_user purchase of set of enrollment codes (via invoice)
+  (18,'OpenCraft','5D70C7F','','','Set of enrollment codes for Test Otto','',1,200.00,200.00,200.00,200.00,NULL,200.00,200.00,NULL,'Complete',NULL,18,2,24,30);

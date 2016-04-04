@@ -57,7 +57,7 @@ class OttoInvoiceTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     @property
     def columns(self):
         return [
-            ('date', 'TIMESTAMP'),
+            ('date', 'STRING'),
             ('payment_gateway_id', 'STRING'),
             ('payment_gateway_account_id', 'STRING'),
             ('payment_ref_id', 'STRING'),
@@ -78,7 +78,7 @@ class OttoInvoiceTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
     def insert_query(self):
         return """
             SELECT
-                i.created AS date,
+                TO_DATE(i.created) AS date,
                 "otto_invoice" AS payment_gateway_id,
                 "\\\\N" AS payment_gateway_account_id,
                 o.number AS payment_ref_id,
