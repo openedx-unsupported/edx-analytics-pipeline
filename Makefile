@@ -33,7 +33,7 @@ system-requirements:
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/pre.txt
-	$(PIP_INSTALL) -U -r requirements/default.txt
+	$(PIP_INSTALL) -r requirements/default.txt
 
 test-requirements: requirements
 	$(PIP_INSTALL) -U -r requirements/test.txt
