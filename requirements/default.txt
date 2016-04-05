@@ -4,6 +4,7 @@ cffi==1.1.0             # MIT
 ciso8601==1.0.1         # MIT
 cryptography==0.9       # BSD or Apache 2.0
 edx-opaque-keys==0.2.1
+elasticsearch==1.7.0    # Apache
 enum34==1.0.4           # BSD
 filechunkio==1.5	# MIT
 html5lib==1.0b3 	# MIT

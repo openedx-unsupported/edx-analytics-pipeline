@@ -215,6 +215,15 @@ class Record(object):
 
         return field_dict
 
+    def replace(self, **kwargs):
+        """
+        Returns: a new Record with identical values except for those specified in the kwargs, which override any
+            existing values for those fields.
+        """
+        new_attribute_values = self.to_ordered_dict()
+        new_attribute_values.update(kwargs)
+        return self.__class__(**new_attribute_values)
+
     def to_string_tuple(self, null_value=DEFAULT_NULL_VALUE):
         """
         Convert the record into a tuple of UTF-8 encoded byte strings.
@@ -249,6 +258,19 @@ class Record(object):
             field_values[field_name] = val
 
         return field_values
+
+    def to_separated_values(self, sep=u'\t', null_value=DEFAULT_NULL_VALUE):
+        """
+        Convert this record to a string with fields delimited by `sep`.
+
+        Arguments:
+            sep (unicode): The unicode string to inject between fields in the record. It will be encoded in UTF-8.
+            null_value (str): The string to use to represent None if a nullable field has a None value.
+
+        Returns: a UTF8 string representation of the record.
+        """
+        utf8sep = sep.encode('utf-8')
+        return utf8sep.join(self.to_string_tuple(null_value=null_value))
 
     @classmethod
     def from_string_tuple(cls, string_tuple, null_value=DEFAULT_NULL_VALUE):
@@ -315,6 +337,55 @@ class Record(object):
             schema.append((field_name, field_obj.hive_type))
         return schema
 
+    @classmethod
+    def get_elasticsearch_properties(cls):
+        """
+        An elasticsearch mapping that could store this data.
+
+        This schema type recognizes the "analyzed" kwarg that can be passed into the Field definition. By default
+        Fields are not analyzed, however, if the Field is declared with analyzed=True, then it will be analyzed by
+        elasticsearch.
+
+            foo = StringField(analyzed=True)
+
+        Returns: A dictionary of property definitions.
+        """
+        properties = {}
+        for field_name, field_obj in cls.get_fields().items():
+            properties[field_name] = {
+                'type': field_obj.elasticsearch_type
+            }
+            if not getattr(field_obj, 'analyzed', False):
+                properties[field_name]['index'] = 'not_analyzed'
+        return properties
+
+    @classmethod
+    def get_restructured_text(cls, indent='    '):
+        """
+        Generates a string that can be injected into docstrings to document the record schema.
+
+        This schema type recognizes the "description" kwarg that can be passed into the Field definition.
+
+            foo = StringField(description='this will appear in the docs')
+
+        Arguments:
+            indent (str): This string will be prepended in front of each field.
+
+        Returns: A reStructuredText formatted string describing the fields in this record.
+        """
+        field_doc = ['\n']
+        for field_name, field_obj in cls.get_fields().items():
+            field_doc.append(
+                '{indent}{name} : {type}\n  {indent}{desc}'.format(
+                    indent=indent,
+                    name=field_name,
+                    type=field_obj.__class__.__name__,
+                    desc=getattr(field_obj, 'description', 'Unspecified')
+                )
+            )
+        field_doc.append('')
+        return '\n'.join(field_doc)
+
 
 class Field(object):
     """
@@ -330,11 +401,20 @@ class Field(object):
     def __init__(self, **kwargs):
         self.nullable = kwargs.pop('nullable', True)
 
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
         # This counter lets us "see" the order in which the class member variables appear in the class they are declared
         # in. Sorting by this counter will allow us to order them appropriately. Note that this isn't atomic and has
         # all kinds of issues, but is functional and doesn't require parsing the AST or anything *more* hacky.
         self.counter = Field.counter
         Field.counter += 1
+
+        self.validate_parameters()
+
+    def validate_parameters(self):
+        """Once all kwargs have been assigned to attributes, validate them and set any defaults."""
+        pass
 
     def validate(self, value):
         """
@@ -381,15 +461,21 @@ class Field(object):
         """Returns the HiveQL data type for this type of field."""
         raise NotImplementedError
 
+    @property
+    def elasticsearch_type(self):
+        """Returns the elasticsearch type for this type of field."""
+        raise NotImplementedError
+
 
 class StringField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a relatively short string."""
 
     hive_type = 'STRING'
+    elasticsearch_type = 'string'
 
-    def __init__(self, **kwargs):
-        super(StringField, self).__init__(**kwargs)
-        self.length = kwargs.pop('length', None)
+    def validate_parameters(self):
+        if not hasattr(self, 'length'):
+            self.length = None
         if self.length is not None and self.length == 0:
             raise ValueError('Length must be greater than 0')
 
@@ -414,6 +500,7 @@ class IntegerField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains an integer."""
 
     hive_type = sql_base_type = 'INT'
+    elasticsearch_type = 'integer'
 
     def validate(self, value):
         validation_errors = super(IntegerField, self).validate(value)
@@ -430,6 +517,7 @@ class DateField(Field):  # pylint: disable=abstract-method
 
     hive_type = 'STRING'
     sql_base_type = 'DATE'
+    elasticsearch_type = 'date'
 
     def validate(self, value):
         validation_errors = super(DateField, self).validate(value)
@@ -439,3 +527,22 @@ class DateField(Field):  # pylint: disable=abstract-method
 
     def deserialize_from_string(self, string_value):
         return datetime.date(*[int(x) for x in string_value.split('-')])
+
+
+class FloatField(Field):  # pylint: disable=abstract-method
+    """Represents a field that contains a floating point number."""
+
+    hive_type = sql_base_type = 'FLOAT'
+    elasticsearch_type = 'float'
+
+    def validate(self, value):
+        validation_errors = super(FloatField, self).validate(value)
+        if value is not None:
+            try:
+                float(value)
+            except (ValueError, TypeError):
+                validation_errors.append('The value is not a floating point number')
+        return validation_errors
+
+    def deserialize_from_string(self, string_value):
+        return float(string_value)
