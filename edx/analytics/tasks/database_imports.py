@@ -829,6 +829,8 @@ class ImportInvoices(ImportMysqlToHiveTableTask):
             ('modified', 'TIMESTAMP'),
             ('state', 'STRING'),
             ('basket_id', 'INT'),
+            ('business_client_id', 'INT'),
+            ('order_id', 'INT'),
         ]
 
 

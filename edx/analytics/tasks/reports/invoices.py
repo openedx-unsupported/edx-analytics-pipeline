@@ -93,5 +93,5 @@ class OttoInvoiceTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 "\\\\N" AS payment_method_type,
                 i.id AS transaction_id
             FROM invoice_invoice i
-            JOIN order_order o ON i.basket_id = o.basket_id;
+            JOIN order_order o ON i.order_id = o.id;
         """
