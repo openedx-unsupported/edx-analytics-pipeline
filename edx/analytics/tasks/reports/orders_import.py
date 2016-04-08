@@ -14,6 +14,8 @@ from edx.analytics.tasks.database_imports import (
     ImportShoppingCartOrder,
     ImportShoppingCartOrderItem,
     ImportShoppingCartPaidCourseRegistration,
+    ImportShoppingCartCoupon,
+    ImportShoppingCartCouponRedemption,
     ImportEcommerceUser,
     ImportProductCatalog,
     ImportProductCatalogClass,
@@ -21,6 +23,9 @@ from edx.analytics.tasks.database_imports import (
     ImportProductCatalogAttributeValues,
     ImportCurrentOrderState,
     ImportCurrentOrderLineState,
+    ImportCurrentOrderDiscountState,
+    ImportCouponVoucherIndirectionState,
+    ImportCouponVoucherState,
     ImportCurrentRefundRefundLineState,
     ImportAuthUserTask,
 )
@@ -55,9 +60,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportProductCatalogAttributes(**kwargs),
             ImportProductCatalogAttributeValues(**kwargs),
 
-            # Otto Current State and Line Item Tables.
+            # Otto Current State, Line Item, and Coupon Tables.
             ImportCurrentOrderState(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
+            ImportCurrentOrderDiscountState(**kwargs),
+            ImportCouponVoucherIndirectionState(**kwargs),
+            ImportCouponVoucherState(**kwargs),
 
             # Otto Refund Tables.
             ImportCurrentRefundRefundLineState(**kwargs),
@@ -73,6 +81,8 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ImportShoppingCartPaidCourseRegistration(**kwargs),
             ImportShoppingCartDonation(**kwargs),
             ImportShoppingCartCourseRegistrationCodeItem(**kwargs),
+            ImportShoppingCartCoupon(**kwargs),
+            ImportShoppingCartCouponRedemption(**kwargs),
 
             # Other LMS tables.
             ImportAuthUserTask(**kwargs),
@@ -100,6 +110,10 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('user_email', 'STRING'),
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
+            ('coupon_id', 'INT'),
+            ('discount_amount', 'DECIMAL'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('voucher_id', 'INT'),
+            ('voucher_code', 'STRING'),
             ('status', 'STRING'),
             ('refunded_amount', 'DECIMAL'),
             ('refunded_quantity', 'INT'),
@@ -135,7 +149,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
                     -- Price charged to the customer after all surcharges and discounts
                     ol.line_price_incl_tax AS line_item_price,
-
+                    -- List price of each item before discounts
                     ol.unit_price_incl_tax AS line_item_unit_price,
                     ol.quantity AS line_item_quantity,
                     cpc.slug AS product_class,
@@ -145,6 +159,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     u.email AS user_email,
                     o.date_placed AS date_placed,
                     o.currency AS iso_currency_code,
+
+                    -- Discount/coupon/voucher information
+                    vcv.coupon_id AS coupon_id,
+                    (ol.line_price_before_discounts_incl_tax - ol.line_price_incl_tax) AS discount_amount,
+                    od.voucher_id AS voucher_id,
+                    od.voucher_code AS voucher_code,
 
                     -- If a refund was found, mark this order as refunded
                     CASE
@@ -195,6 +215,14 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     GROUP BY order_line_id
                 ) r ON r.order_line_id = ol.id
 
+                -- Get discount information. Each order may have zero or one voucher code applied.
+                -- We are relying on the ecommerce restriction that each order can have no more than one voucher
+                -- applied. If the order contains multiple line items, the AND condition below will join the discount
+                -- information only to the order line item(s) that were actually discounted.
+                LEFT OUTER JOIN order_orderdiscount od ON od.order_id = o.id AND (ol.line_price_incl_tax <> ol.line_price_before_discounts_incl_tax)
+                LEFT OUTER JOIN voucher_couponvouchers_vouchers vcvv ON vcvv.voucher_id = od.voucher_id
+                LEFT OUTER JOIN voucher_couponvouchers vcv ON vcv.id = vcvv.couponvouchers_id
+
                 -- Only process complete orders
                 WHERE ol.status = "Complete"
 
@@ -219,7 +247,13 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- The total cost is not stored, so we compute it
                     -- Note that this is the amount charged to the credit card after all discounts
                     (oi.qty * oi.unit_cost) AS line_item_price,
-                    oi.unit_cost AS line_item_unit_price,
+                    -- line_item_unit_price is supposed to be the list price per item (before discount)
+                    -- as is the case in Otto. So we use 'list_price' but since that may be null in some
+                    -- cases ( see https://git.io/vVXqO ), we fall back to unit_cost.
+                    CASE
+                        WHEN oi.list_price IS NOT NULL THEN oi.list_price
+                        ELSE oi.unit_cost
+                    END AS line_item_unit_price,
                     oi.qty AS line_item_quantity,
                     CASE
                         WHEN ci.orderitem_ptr_id IS NOT NULL THEN 'seat'          -- verified certificate
@@ -243,6 +277,13 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     o.purchase_time AS date_placed,
                     UPPER(o.currency) AS iso_currency_code,
 
+                    -- Coupon information. Shopping cart has no distinction between voucher codes and coupons.
+                    -- The tables also only store the percentage discount, not the discount amount, so calculate it:
+                    NULL AS coupon_id,
+                    ((oi.list_price - oi.unit_cost) * oi.qty) AS discount_amount, -- coupon.percentage_discount would have rounding issues
+                    coupon.id AS voucher_id,
+                    coupon.code AS voucher_code,
+
                     -- Either "purchased" or "refunded"
                     oi.status AS status,
 
@@ -261,6 +302,18 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 LEFT OUTER JOIN shoppingcart_paidcourseregistration pcr ON pcr.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_courseregcodeitem crc ON crc.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_donation d ON d.orderitem_ptr_id = oi.id
+
+                -- Join coupon information. Need to use course_id because one order can contain multiple items,
+                -- but the database tables only link coupons to the whole order and not the specific line item.
+                LEFT OUTER JOIN shoppingcart_couponredemption couponred ON couponred.order_id = o.id
+                LEFT OUTER JOIN shoppingcart_coupon coupon ON (coupon.id = couponred.coupon_id AND coupon.course_id = (
+                    CASE
+                        WHEN ci.orderitem_ptr_id IS NOT NULL THEN ci.course_id
+                        WHEN pcr.orderitem_ptr_id IS NOT NULL THEN pcr.course_id
+                        WHEN crc.orderitem_ptr_id IS NOT NULL THEN crc.course_id
+                        WHEN d.orderitem_ptr_id IS NOT NULL THEN d.course_id
+                    END
+                ))
 
                 -- Ignore "cart", "defunct-cart" and "paying" statuses since they won't have corresponding transactions
                 WHERE oi.status IN ('purchased', 'refunded')

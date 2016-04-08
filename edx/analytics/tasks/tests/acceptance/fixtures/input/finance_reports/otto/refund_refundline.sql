@@ -15,4 +15,10 @@ CREATE TABLE `refund_refundline` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 
-INSERT INTO `refund_refundline` VALUES (1,100.00,1,'Complete',436,10,'2015-09-01 20:29:03','2015-09-01 20:29:03');
+--
+-- Dumping data for table `refund_refundline`
+--
+
+INSERT INTO `refund_refundline` VALUES
+  (1,100.00,1,'Complete',436,10,'2015-09-01 20:29:03','2015-09-01 20:29:03'),
+  (2,256.00,1,'Open',13,1,'2016-03-22 20:58:06.345444','2016-03-22 20:58:06.345998');

@@ -33,5 +33,20 @@ CREATE TABLE `order_line` (
 -- Dumping data for table `order_line`
 --
 
-INSERT INTO `order_line` VALUES (436,'example','000F00C','','','Seat in a demonstration course (and ID verification)','',1,100.00,100.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,435,1,5334,2146);
-
+INSERT INTO `order_line` VALUES
+  (436,'example','000F00C','','','Seat in a demonstration course (and ID verification)','',1,100.00,100.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,435,1,5334,2146),
+  -- 4 "orders" to create the coupons
+  (9,'OpenCraft','25F38CF','','','AccTest 25% off Otto Verified','',1,256.00,256.00,256.00,256.00,NULL,256.00,256.00,NULL,'Complete',NULL,9,1,20,15),
+  (10,'OpenCraft','123D6C8','','','AccTest $200 off Otto Prof','',1,1000.00,1000.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,10,1,21,16),
+  (11,'OpenCraft','E8217BC','','','Otto Pro Enroll Code','',1,1000.00,1000.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,11,1,22,17),
+  (12,'OpenCraft','AF1E512','','','AccTest 40% off Otto Credit','',1,100.00,100.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,12,1,23,18),
+  -- test_user normal purchase of "Test Otto Verified Course", plus refund:
+  (13,'OpenCraft','D354B6A','','','Seat in Test Otto Verified Course with verified certificate (and ID verification)','',1,256.00,256.00,256.00,256.00,NULL,256.00,256.00,NULL,'Complete',NULL,13,1,13,10),
+  -- test_user2 discounted purchase of "Test Otto Verified Course"
+  (14,'OpenCraft','D354B6A','','','Seat in Test Otto Verified Course with verified certificate (and ID verification)','',1,192.00,192.00,256.00,256.00,NULL,256.00,256.00,NULL,'Complete',NULL,14,1,13,10),
+  -- test_user enrollment code into professional course
+  (15,'OpenCraft','CF9A708','','','Seat in Test Otto Professional Course with professional certificate','',1,0.00,0.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,15,1,15,11),
+  -- test_user2 discounted purchase of professional course
+  (16,'OpenCraft','CF9A708','','','Seat in Test Otto Professional Course with professional certificate','',1,800.00,800.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,16,1,15,11),
+  -- test_user discounted purchase of credit course
+  (17,'OpenCraft','11A9662','','','Seat in Test Otto Credit Course with credit certificate (and ID verification)','',1,60.00,60.00,100.00,100.00,NULL,100.00,100.00,NULL,'Complete',NULL,17,1,19,14);

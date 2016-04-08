@@ -15,13 +15,14 @@ log = logging.getLogger(__name__)
 
 # Decorators for tagging tests
 
+
 def when_s3_available(function):
     s3_available = getattr(when_s3_available, 's3_available', None)
     if s3_available is None:
         try:
-            connection = boto.connect_s3()  # This will not error out if
-                                            # AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY are set,
-                                            # so it can't be used to check if we have a valid connection to S3
+            connection = boto.connect_s3()
+            # ^ The above line will not error out if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
+            # are set, so it can't be used to check if we have a valid connection to S3. Instead:
             connection.get_all_buckets()
         except (boto.exception.S3ResponseError, boto.exception.NoAuthHandlerFound):
             s3_available = False
@@ -33,10 +34,12 @@ def when_s3_available(function):
         not s3_available, 'S3 is not available'
     )(function)
 
+
 def when_exporter_available(function):
     return unittest.skipIf(
         os.getenv('EXPORTER') is None, 'Private Exporter code is not available'
     )(function)
+
 
 def when_geolocation_data_available(function):
     config = get_test_config()
@@ -48,6 +51,7 @@ def when_geolocation_data_available(function):
         not geolocation_data_available, 'Geolocation data is not available'
     )(function)
 
+
 def when_vertica_available(function):
     config = get_test_config()
     vertica_available = bool(config.get('vertica_creds_url'))
@@ -55,7 +59,17 @@ def when_vertica_available(function):
         not vertica_available, 'Vertica service is not available'
     )(function)
 
+
+def when_vertica_not_available(function):
+    config = get_test_config()
+    vertica_available = bool(config.get('vertica_creds_url'))
+    return unittest.skipIf(
+        vertica_available, 'Vertica service is available'
+    )(function)
+
+
 # Utility functions
+
 
 def get_test_config():
     config_json = os.getenv('ACCEPTANCE_TEST_CONFIG')
