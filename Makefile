@@ -27,9 +27,14 @@ develop-local: uninstall
 	python setup.py install_data
 
 system-requirements:
+ifeq (,$(wildcard /usr/bin/yum))
 	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
 	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
+else
+	sudo yum update -q -y
+	sudo yum install -y -q postgresql-devel libffi-devel
+endif
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/pre.txt
