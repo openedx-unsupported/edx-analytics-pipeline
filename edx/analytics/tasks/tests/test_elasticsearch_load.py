@@ -401,6 +401,7 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
             self.mock_es.mock_calls,
             [
                 call.indices.refresh(index=self.task.index),
+                call.indices.exists(index='foo_alias_old'),
                 call.indices.update_aliases(
                     {
                         'actions': [

@@ -1113,7 +1113,6 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             CourseEnrollmentTableTask(
                 interval_end=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
-                overwrite=self.overwrite,
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
@@ -1289,6 +1288,9 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
                     ' starting with the most recent date. A value of 0 indicates no days should be overwritten.'
     )
 
+    # Don't use the OverwriteOutputMixin since it changes the behavior of complete() (which we don't want).
+    overwrite = luigi.BooleanParameter(default=False)
+
     def requires(self):
         overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
         yield ModuleEngagementRosterIndexTask(
@@ -1298,6 +1300,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
             obfuscate=self.obfuscate,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite_from_date=overwrite_from_date,
+            overwrite=self.overwrite,
         )
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,

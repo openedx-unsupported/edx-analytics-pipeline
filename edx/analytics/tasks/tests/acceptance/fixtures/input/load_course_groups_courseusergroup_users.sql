@@ -1,0 +1,3 @@
+CREATE TABLE `course_groups_courseusergroup_users` (`id` int(11) NOT NULL AUTO_INCREMENT, `courseusergroup_id` int(11) NOT NULL, `user_id` int(11) NOT NULL, PRIMARY KEY (`id`), UNIQUE KEY `courseusergroup_id` (`courseusergroup_id`,`user_id`), KEY `course_groups_courseusergroup_users_caee1c64` (`courseusergroup_id`), KEY `course_groups_courseusergroup_users_fbfc09f1` (`user_id`), CONSTRAINT `courseusergroup_id_refs_id_d26180aa` FOREIGN KEY (`courseusergroup_id`) REFERENCES `course_groups_courseusergroup` (`id`), CONSTRAINT `user_id_refs_id_bf33b47a` FOREIGN KEY (`user_id`) REFERENCES `auth_user` (`id`)) ENGINE=InnoDB AUTO_INCREMENT=8517 DEFAULT CHARSET=utf8;
+
+INSERT INTO `course_groups_courseusergroup_users` VALUES (1, 1, 1),(2, 2, 1),(3, 2, 4),(4, 3, 1);
