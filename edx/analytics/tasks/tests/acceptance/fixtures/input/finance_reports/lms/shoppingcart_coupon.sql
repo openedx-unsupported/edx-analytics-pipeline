@@ -9,9 +9,9 @@ CREATE TABLE `shoppingcart_coupon` (
   `description` varchar(255) DEFAULT NULL,
   `course_id` varchar(255) NOT NULL,
   `percentage_discount` int(11) NOT NULL,
-  `created_at` datetime(6) NOT NULL,
+  `created_at` datetime NOT NULL,
   `is_active` tinyint(1) NOT NULL,
-  `expiration_date` datetime(6) DEFAULT NULL,
+  `expiration_date` datetime DEFAULT NULL,
   `created_by_id` int(11) NOT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8;
