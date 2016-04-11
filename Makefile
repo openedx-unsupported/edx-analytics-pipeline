@@ -39,6 +39,7 @@ endif
 requirements:
 	$(PIP_INSTALL) -U -r requirements/pre.txt
 	$(PIP_INSTALL) -U -r requirements/default.txt
+	$(PIP_INSTALL) -U -r requirements/extra.txt
 
 test-requirements: requirements
 	$(PIP_INSTALL) -U -r requirements/test.txt
@@ -72,17 +73,15 @@ coverage-local: test-local
 
 coverage: test coverage-local
 
-docs-requirements: requirements
+docs-requirements:
 	$(PIP_INSTALL) -U -r requirements/docs.txt
+	python setup.py install --force
 
 docs-local:
-	python sphinx_source/gen_tasks.py --entry-point=edx.analytics.tasks \
-		--labels "Workflow Entry Points" "Supporting Tasks" \
-		--categories workflow_entry_point ""
-	sphinx-build -b html sphinx_source docs
+	sphinx-build -b html docs/source docs
 
 docs-clean:
-	rm -rf docs
+	rm -rf docs/*.* docs/_*
 
 docs: docs-requirements docs-local
 
