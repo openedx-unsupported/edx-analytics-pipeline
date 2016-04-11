@@ -1187,6 +1187,7 @@ SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller',
 
 @workflow_entry_point  # pylint: disable=missing-docstring
 class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
+                                   OverwriteOutputMixin,
                                    luigi.WrapperTask):
     __doc__ = """
     A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
@@ -1255,9 +1256,10 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
             indexing_tasks=self.indexing_tasks,
             obfuscate=self.obfuscate,
             n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite,
         )
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
-            date=self.date
+            date=self.date,
         )
 
     def output(self):

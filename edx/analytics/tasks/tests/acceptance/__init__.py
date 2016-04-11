@@ -169,7 +169,10 @@ class AcceptanceTestCase(unittest.TestCase):
             'course-structure': {
                 'api_root_url': 'acceptance.test',
                 'access_token': 'acceptance'
-            }
+            },
+            'elasticsearch': {
+                'host': self.config['elasticsearch_host']
+            },
         }
         if 'vertica_creds_url' in self.config:
             task_config_override['vertica-export'] = {

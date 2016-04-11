@@ -5,9 +5,12 @@ End to end test of the per-module engagement workflow.
 
 import logging
 import datetime
+import elasticsearch
+import luigi
 
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 
 log = logging.getLogger(__name__)
 
@@ -19,7 +22,97 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
     INPUT_FILE = 'module_engagement_acceptance_tracking_{date}.log'
     NUM_REDUCERS = 1
 
-    def test_engagement(self):
+    def test_roster_generation(self):
+        for day in range(2, 17):
+            fake_date = datetime.date(2015, 4, day)
+            if day in (13, 16):
+                self.upload_tracking_log(self.INPUT_FILE.format(date=fake_date.strftime('%Y%m%d')), fake_date)
+            else:
+                self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
+
+        self.execute_sql_fixture_file('load_auth_user_for_internal_reporting_user.sql')
+        self.execute_sql_fixture_file('load_auth_userprofile.sql')
+        self.execute_sql_fixture_file('load_course_groups_courseusergroup.sql')
+        self.execute_sql_fixture_file('load_course_groups_courseusergroup_users.sql')
+
+        self.task.launch([
+            'ModuleEngagementWorkflowTask',
+            '--date', '2015-04-17',
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--overwrite',
+        ])
+
+        es_host = self.task.default_config_override['elasticsearch']['host']
+        es_client = elasticsearch.Elasticsearch(hosts=[es_host], connection_class=AwsHttpConnection)
+
+        query = {"query": {"match_all": {}}}
+        response = es_client.search(index="roster", doc_type="roster_entry", body=query)
+
+        self.assertEquals(response['hits']['total'], 1)
+
+        expected_doc = {
+            'attempt_ratio_order': 0,
+            'cohort': 'Group 2',
+            'course_id': 'edX/DemoX/Demo_Course_2',
+            'discussion_contributions': 0,
+            'email': 'staff@example.com',
+            'end_date': '2015-04-17',
+            'enrollment_date': '2015-04-16',
+            'enrollment_mode': 'honor',
+            'name': 'staff',
+            'problem_attempts': 0,
+            'problems_attempted': 0,
+            'problems_completed': 0,
+            'segments': ['highly_engaged', 'struggling'],
+            'start_date': '2015-04-10',
+            'username': 'staff',
+            'videos_viewed': 1
+        }
+        self.assertItemsEqual(response['hits']['hits'][0]['_source'], expected_doc)
+
+        with self.export_db.cursor() as cursor:
+            cursor.execute('SELECT * FROM module_engagement_metric_ranges')
+            results = cursor.fetchall()
+
+        self.assertItemsEqual([
+            row for row in results
+        ], [
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'low', 0, 6.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'normal', 6.0, 6.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'high', 6.0, None),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'low', 0, 6.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'normal', 6.0, 6.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'high', 6.0, None),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'low', 0, 3.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'normal', 3.0, 3.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'high', 3.0, None),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'low', 0, 3.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'normal', 3.0, 3.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'high', 3.0, None),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_completed', 'low', 0, 2.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_completed', 'normal', 2.0, 2.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_completed', 'high', 2.0, None),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'low', 0, 2.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'normal', 2.0, 2.0),
+            ('edX/DemoX/Demo_Course', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'high', 2.0, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'low', 0, 3.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'normal', 3.0, 3.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'discussion_contributions', 'high', 3.0, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'low', 0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'normal', 1.0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts', 'high', 1.0, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'low', 0, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'normal', None, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problem_attempts_per_completed', 'high', None, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'low', 0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'normal', 1.0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'problems_attempted', 'high', 1.0, None),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'low', 0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'normal', 1.0, 1.0),
+            ('edX/DemoX/Demo_Course_2', datetime.datetime(2015, 4, 10, 0, 0), datetime.datetime(2015, 4, 17, 0, 0), 'videos_viewed', 'high', 1.0, None),
+        ])
+
+    def atest_engagement(self):
         for day in range(2, 17):
             fake_date = datetime.date(2015, 4, day)
             if day in (13, 16):
