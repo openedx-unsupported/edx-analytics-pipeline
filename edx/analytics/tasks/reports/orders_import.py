@@ -4,7 +4,6 @@
 import luigi
 import luigi.hdfs
 
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin,
@@ -16,6 +15,7 @@ from edx.analytics.tasks.database_imports import (
     ImportShoppingCartPaidCourseRegistration,
     ImportShoppingCartCoupon,
     ImportShoppingCartCouponRedemption,
+    ImportEcommercePartner,
     ImportEcommerceUser,
     ImportProductCatalog,
     ImportProductCatalogClass,
@@ -69,6 +69,9 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
             # Otto Refund Tables.
             ImportCurrentRefundRefundLineState(**kwargs),
+
+            # Otto Partner Information.
+            ImportEcommercePartner(**kwargs),
         )
 
         kwargs['credentials'] = self.credentials
@@ -118,6 +121,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('refunded_amount', 'DECIMAL'),
             ('refunded_quantity', 'INT'),
             ('payment_ref_id', 'STRING'),
+            ('partner_short_code', 'STRING'),
         ]
 
     @property
@@ -175,7 +179,9 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     r.refunded_quantity AS refunded_quantity,
 
                     -- The EDX-1XXXX identifier is used to find transactions associated with this order
-                    o.number AS payment_ref_id
+                    o.number AS payment_ref_id,
+
+                    partner.short_code AS partner_short_code
 
                 FROM order_line ol
                 JOIN order_order o ON o.id = ol.order_id
@@ -222,6 +228,9 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 LEFT OUTER JOIN order_orderdiscount od ON od.order_id = o.id AND (ol.line_price_incl_tax <> ol.line_price_before_discounts_incl_tax)
                 LEFT OUTER JOIN voucher_couponvouchers_vouchers vcvv ON vcvv.voucher_id = od.voucher_id
                 LEFT OUTER JOIN voucher_couponvouchers vcv ON vcv.id = vcvv.couponvouchers_id
+
+                -- Partner information
+                LEFT OUTER JOIN partner_partner partner ON partner.id = ol.partner_id
 
                 -- Only process complete orders
                 WHERE ol.status = "Complete"
@@ -291,7 +300,11 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- the complete line item quantity and amount
                     IF(oi.status = 'refunded', oi.qty * oi.unit_cost, NULL) AS refunded_amount,
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
-                    oi.order_id AS payment_ref_id
+                    oi.order_id AS payment_ref_id,
+
+                    -- The partner short code is extracted from the course ID during order reconcilation.
+                    '' AS partner_short_code
+
                 FROM shoppingcart_orderitem oi
                 JOIN shoppingcart_order o ON o.id = oi.order_id
                 JOIN auth_user au ON au.id = o.user_id
