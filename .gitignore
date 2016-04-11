@@ -61,5 +61,9 @@ catalog_test.json
 course_structure.json
 
 # Sphinx docs
-docs
+docs/*
+docs/source/all.rst
+docs/source/toctree.rst
+docs/source/workflow_entry_point.rst
 !docs/source/
+!docs/source/_themes/*

@@ -2,18 +2,19 @@
 
 .. edX analytics pipeline documentation master file
 
+###################
+Edx Analytics Tasks
+###################
 
-edx.analytics.tasks
-===================
-
-Documentation for the edX Analytics Pipeline tasks.
+This guide provides information about the tasks in the edX analytics pipeline.
 
 .. include:: toctree.rst
 
+##############
+Indexes
+##############
 
-Indices and tables
-------------------
-
-* :ref:`genindex`
+* :ref:`Class Index<genindex>`
 * :ref:`modindex`
-* :ref:`search`
+
+.. * :ref:`search`
