@@ -3,8 +3,8 @@ argparse==1.2.1 	# Python Software Foundation License
 cffi==1.1.0             # MIT
 ciso8601==1.0.1         # MIT
 cryptography==0.9       # BSD or Apache 2.0
-edx-opaque-keys==0.2.1
-edx-ccx-keys==0.1.2
+edx-opaque-keys==0.2.1  # AGPL
+edx-ccx-keys==0.1.2     # AGPL
 elasticsearch==1.7.0    # Apache
 enum34==1.0.4           # BSD
 filechunkio==1.5	# MIT
@@ -35,5 +35,5 @@ urllib3==1.10.4         # MIT
 vertica-python==0.5.1   # MIT
 wsgiref==0.1.2 		# ZPL
 pip==1.5.6
-git+https://github.com/edx/luigi.git@babffe13335f28ce8de3e3f5de61d2e02cd84277#egg=luigi 		# Apache License 2.0
+git+https://github.com/edx/luigi.git@ce1d96977ae1a75a178352a81245810b92faf1c7#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
