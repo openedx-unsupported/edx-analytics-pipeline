@@ -160,7 +160,7 @@
       file: path={{ working_repo_dir }}/override.cfg state=absent
 
     - name: secure config repository checked out
-      git: repo={{ secure_config_repo }} dest={{ secure_config_repo_dir }} version=release
+      git: repo={{ secure_config_repo }} dest={{ secure_config_repo_dir }} version=master
       when: secure_config is defined
 
     - name: secure config branch fetched
