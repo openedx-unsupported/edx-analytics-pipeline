@@ -247,3 +247,12 @@ class AcceptanceTestCase(unittest.TestCase):
             database = self.import_db
         log.debug('Executing SQL fixture %s on %s', sql_file_name, database.database_name)
         database.execute_sql_file(os.path.join(self.data_dir, 'input', sql_file_name))
+
+    def assertEventLogEqual(self, expected_filepath, actual_filepath):
+        """Compares event log files to confirm they are equal."""
+        # Brute force:  read in entire file, and then compare dicts.
+        with open(expected_filepath) as expected_output_file:
+            with open(actual_filepath) as actual_output_file:
+                expected = sorted([json.loads(eventline) for eventline in expected_output_file])
+                actual = sorted([json.loads(eventline) for eventline in actual_output_file])
+                self.assertListEqual(expected, actual)

@@ -88,7 +88,9 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
     def validate_output(self):
         for output_file in self.output_files:
             local_file_name = self.generate_file_name(output_file)
-            shell.run(['diff', output_file['downloaded_path'], os.path.join(self.data_dir, 'output', local_file_name)])
+            expected_output = os.path.join(self.data_dir, 'output', local_file_name)
+            actual_output = output_file['downloaded_path']
+            self.assertEventLogEqual(expected_output, actual_output)
 
     def generate_file_name(self, output_file):
         """Generates file_name for a given course and date."""
