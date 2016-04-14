@@ -151,6 +151,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                 )
             )
 
+        self.attempted_removal = True
+
         if elasticsearch_client.indices.exists(index=self.index):
             elasticsearch_client.indices.delete(index=self.index)
 
