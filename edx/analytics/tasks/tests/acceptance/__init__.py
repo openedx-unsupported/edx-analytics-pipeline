@@ -105,6 +105,10 @@ class AcceptanceTestCase(unittest.TestCase):
 
         self.config = get_test_config()
 
+        for env_var in ('TASKS_REPO', 'TASKS_BRANCH', 'IDENTIFIER', 'JOB_FLOW_NAME'):
+            if env_var in os.environ:
+                self.config[env_var.lower()] = os.environ[env_var]
+
         # The name of an existing job flow to run the test on
         assert('job_flow_name' in self.config or 'host' in self.config)
         # The git URL of the pipeline repository to check this code out from.
