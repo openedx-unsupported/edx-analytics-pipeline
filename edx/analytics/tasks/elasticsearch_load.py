@@ -385,7 +385,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
         # Perform an atomic swap of the alias.
         actions = []
-        for old_index in self.indexes_for_alias:
+        old_indexes = [ix for ix in self.indexes_for_alias if elasticsearch_client.indices.exists(index=ix)]
+        for old_index in old_indexes:
             actions.append({"remove": {"index": old_index, "alias": self.alias}})
         actions.append({"add": {"index": self.index, "alias": self.alias}})
         elasticsearch_client.indices.update_aliases({"actions": actions})
@@ -394,7 +395,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         self.output().touch()
 
         # Attempt to remove any old indexes that are now no longer user-visible.
-        for old_index in self.indexes_for_alias:
+        for old_index in old_indexes:
             elasticsearch_client.indices.delete(index=old_index)
 
     def rollback(self):
