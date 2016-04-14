@@ -39,7 +39,6 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
             'ModuleEngagementWorkflowTask',
             '--date', '2015-04-17',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--overwrite',
         ])
 
         es_host = self.task.default_config_override['elasticsearch']['host']

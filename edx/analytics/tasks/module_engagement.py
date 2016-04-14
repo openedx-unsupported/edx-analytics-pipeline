@@ -1187,7 +1187,6 @@ SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller',
 
 @workflow_entry_point  # pylint: disable=missing-docstring
 class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
-                                   OverwriteOutputMixin,
                                    luigi.WrapperTask):
     __doc__ = """
     A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
@@ -1249,6 +1248,8 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
         default=False,
         description=ModuleEngagementRosterIndexTask.obfuscate.description
     )
+
+    overwrite = luigi.BooleanParameter(default=False)
 
     def requires(self):
         yield ModuleEngagementRosterIndexTask(
