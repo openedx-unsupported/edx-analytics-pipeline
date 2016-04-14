@@ -48,6 +48,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
         query = {"query": {"match_all": {}}}
         response = es_client.search(index="roster", doc_type="roster_entry", body=query)
 
+        self.maxDiff = None
         self.assertEquals(response['hits']['total'], 1)
 
         expected_doc = {
