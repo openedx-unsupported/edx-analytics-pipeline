@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 #
-# edX analytics pipeline documentation build configuration file, created by
+# EdX Analytics Pipeline Reference Guide build configuration file, created by
 # sphinx-quickstart on Thu Feb 18 11:55:18 2016.
 #
 # This file is execfile()d with the current directory set to its
@@ -60,8 +60,8 @@ source_suffix = '.rst'
 master_doc = 'index'
 
 # General information about the project.
-project = u'edX analytics pipeline'
-copyright = u'2016, edX'
+project = u'EdX Analytics Pipeline Reference Guide'
+copyright = u'2016, edX Inc. and licensed under a Creative Commons Attribution-ShareAlike 4.0 International License unless otherwise specified'
 author = u'edX'
 
 # The version info for the project you're documenting, acts as replacement for
@@ -122,7 +122,7 @@ todo_include_todos = False
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-html_theme = 'alabaster'
+html_theme = 'edx_theme'
 
 # Theme options are theme-specific and customize the look and feel of a theme
 # further.  For a list of options available for each theme, see the
@@ -130,7 +130,7 @@ html_theme = 'alabaster'
 #html_theme_options = {}
 
 # Add any paths that contain custom themes here, relative to this directory.
-#html_theme_path = []
+html_theme_path = ['_themes']
 
 # The name for this set of Sphinx documents.  If None, it defaults to
 # "<project> v<release> documentation".
@@ -146,7 +146,7 @@ html_theme = 'alabaster'
 # The name of an image file (within the static path) to use as favicon of the
 # docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
-#html_favicon = None
+html_favicon = '_themes/edx_theme/static/css/favicon.ico'
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -236,7 +236,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, 'edXanalyticspipeline.tex', u'edX analytics pipeline Documentation',
+    (master_doc, 'edXanalyticspipeline.tex', u'EdX Analytics Pipeline Reference Guide',
      u'edX', 'manual'),
 ]
 
@@ -266,7 +266,7 @@ latex_documents = [
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
 man_pages = [
-    (master_doc, 'edxanalyticspipeline', u'edX analytics pipeline Documentation',
+    (master_doc, 'edxanalyticspipeline', u'EdX Analytics Pipeline Reference Guide',
      [author], 1)
 ]
 
@@ -280,7 +280,7 @@ man_pages = [
 # (source start file, target name, title, author,
 #  dir menu entry, description, category)
 texinfo_documents = [
-    (master_doc, 'edXanalyticspipeline', u'edX analytics pipeline Documentation',
+    (master_doc, 'edXanalyticspipeline', u'EdX Analytics Pipeline Reference Guide',
      author, 'edXanalyticspipeline', 'One line description of project.',
      'Miscellaneous'),
 ]
