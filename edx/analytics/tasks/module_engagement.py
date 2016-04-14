@@ -1087,7 +1087,6 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             CourseEnrollmentTableTask(
                 interval_end=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
-                overwrite=self.overwrite,
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
