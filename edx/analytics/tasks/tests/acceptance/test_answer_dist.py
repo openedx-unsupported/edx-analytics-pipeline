@@ -89,7 +89,7 @@ class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTes
             '--name', 'test',
             '--include', '"*"',
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
-            '--base-input-format', self.INPUT_FORMAT,
+            '--base-input-format', self.input_format,
             '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--credentials', self.export_db.credentials_file_url,
