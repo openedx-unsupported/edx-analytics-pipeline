@@ -40,6 +40,7 @@ def main():
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
     parser.add_argument('--wheel-url', help='url of the wheelhouse', default=None)
+    parser.add_argument('--virtualenv-extra-args', help='additional arguments passed to virtualenv command when creating the virtual environment', default=None)
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
@@ -160,6 +161,8 @@ def convert_args_to_extra_vars(arguments, uid):
         }
     if arguments.vagrant_path or arguments.host:
         extra_vars['write_luigi_config'] = False
+    if arguments.virtualenv_extra_args:
+        extra_vars['virtualenv_extra_args'] = arguments.virtualenv_extra_args
     return json.dumps(extra_vars)
 
 
