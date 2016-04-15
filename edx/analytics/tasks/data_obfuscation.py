@@ -1,4 +1,4 @@
-"""Obfuscate course state files by removing/stubbing user information."""
+"""Obfuscate course state files by removing and stubbing user information."""
 import csv
 import json
 import logging
