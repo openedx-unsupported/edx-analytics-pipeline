@@ -105,6 +105,10 @@ class AcceptanceTestCase(unittest.TestCase):
 
         self.config = get_test_config()
 
+        for env_var in ('TASKS_REPO', 'TASKS_BRANCH', 'IDENTIFIER', 'JOB_FLOW_NAME'):
+            if env_var in os.environ:
+                self.config[env_var.lower()] = os.environ[env_var]
+
         # The name of an existing job flow to run the test on
         assert('job_flow_name' in self.config or 'host' in self.config)
         # The git URL of the pipeline repository to check this code out from.
@@ -243,3 +247,12 @@ class AcceptanceTestCase(unittest.TestCase):
             database = self.import_db
         log.debug('Executing SQL fixture %s on %s', sql_file_name, database.database_name)
         database.execute_sql_file(os.path.join(self.data_dir, 'input', sql_file_name))
+
+    def assertEventLogEqual(self, expected_filepath, actual_filepath):
+        """Compares event log files to confirm they are equal."""
+        # Brute force:  read in entire file, and then compare dicts.
+        with open(expected_filepath) as expected_output_file:
+            with open(actual_filepath) as actual_output_file:
+                expected = [json.loads(eventline) for eventline in expected_output_file]
+                actual = [json.loads(eventline) for eventline in actual_output_file]
+                self.assertListEqual(expected, actual)
