@@ -31,6 +31,7 @@
     - working_repo_dir: "{{ working_dir }}/repo"
     - working_venv_dir: "{{ working_dir }}/venv"
     - virtualenv_python: "/usr/bin/python2.7"
+    - virtualenv_extra_args: ''
     - git_servers:
         # Analytics repositories are currently hosted on github.
       - hostname: github.com
@@ -134,7 +135,7 @@
 
     - name: virtualenv created
       command: >
-        virtualenv --python={{ virtualenv_python }} {{ working_venv_dir }}
+        virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
 
     - name: update pip
       command: >
