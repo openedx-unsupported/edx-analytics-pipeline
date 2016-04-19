@@ -29,7 +29,8 @@ class MapperTestMixin(object):
         'user_country_output': 'test://output/',
         'name': 'test',
         'src': ['test://input/'],
-        'dest': 'test://output/'
+        'dest': 'test://output/',
+        'overwrite_from_date': datetime.date(2014, 4, 1),
     }
 
     task_class = None
@@ -149,6 +150,7 @@ class ReducerTestMixin(object):
         'src': ['test://input/'],
         'dest': 'test://output/',
         'date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
+        'overwrite_from_date': datetime.date(2014, 4, 1),
     }
 
     reduce_key = tuple()
