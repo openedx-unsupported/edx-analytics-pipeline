@@ -57,9 +57,20 @@ class ModuleEngagementRecord(Record):
                                                      ' date.')
 
 
-class ModuleEngagementDownstreamMixin(
-    WarehouseMixin, MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin
-):
+class OverwriteFromDateMixin(object):
+    """Supports overwriting a subset of the data to compensate for late events."""
+
+    overwrite_from_date = luigi.DateParameter(
+        description='This parameter is passed down to the module engagement model which will overwrite data from a date'
+                    ' in the past up to the end of the interval. Events are not always collected at the time that they'
+                    ' are emitted, sometimes much later. By re-processing past days we can gather late events and'
+                    ' include them in the computations.',
+        significant=False
+    )
+
+
+class ModuleEngagementDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin,
+                                      OverwriteFromDateMixin):
     """Common parameters and base classes used to pass parameters through the engagement workflow."""
 
     # Required parameter
@@ -285,27 +296,31 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite,
+            overwrite_from_date=self.overwrite_from_date,
         )
         return partition_task.data_task
 
 
 class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin,
-                                   OverwriteOutputMixin, luigi.WrapperTask):
+                                   OverwriteOutputMixin, OverwriteFromDateMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
 
     def requires(self):
         for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+            should_overwrite = date >= self.overwrite_from_date
             yield ModuleEngagementPartitionTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
+                overwrite=should_overwrite,
+                overwrite_from_date=self.overwrite_from_date,
             )
             yield ModuleEngagementMysqlTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
+                overwrite=should_overwrite,
+                overwrite_from_date=self.overwrite_from_date,
             )
 
     def output(self):
@@ -474,6 +489,7 @@ class ModuleEngagementSummaryDataTask(WeekIntervalMixin, ModuleEngagementDownstr
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
+            overwrite_from_date=self.overwrite_from_date,
         )
 
     def requires_hadoop(self):
@@ -541,6 +557,7 @@ class ModuleEngagementSummaryPartitionTask(ModuleEngagementDownstreamMixin, Hive
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             output_root=self.partition_location,
+            overwrite_from_date=self.overwrite_from_date,
         )
 
 
@@ -587,6 +604,7 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
         partition_task = ModuleEngagementSummaryPartitionTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
+            overwrite_from_date=self.overwrite_from_date,
         )
         return partition_task.data_task
 
@@ -684,6 +702,7 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             output_root=self.partition_location,
+            overwrite_from_date=self.overwrite_from_date,
         )
 
 
@@ -713,6 +732,7 @@ class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMix
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite,
+            overwrite_from_date=self.overwrite_from_date,
         )
         return partition_task.data_task
 
@@ -759,6 +779,7 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
         mysql_task = ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
+            overwrite_from_date=self.overwrite_from_date,
         )
         return {
             'range_data': mysql_task.insert_source_task,
@@ -769,6 +790,7 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
         return ModuleEngagementSummaryPartitionTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
+            overwrite_from_date=self.overwrite_from_date,
         ).data_task
 
     def init_local(self):
@@ -877,6 +899,7 @@ class ModuleEngagementUserSegmentPartitionTask(ModuleEngagementDownstreamMixin, 
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             output_root=self.partition_location,
+            overwrite_from_date=self.overwrite_from_date,
         )
 
 
@@ -1073,16 +1096,19 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=self.overwrite,
+                overwrite_from_date=self.overwrite_from_date,
             ),
             ModuleEngagementSummaryPartitionTask(
                 date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=self.overwrite,
+                overwrite_from_date=self.overwrite_from_date,
             ),
             ModuleEngagementSummaryPartitionTask(
                 date=(self.date - datetime.timedelta(weeks=1)),
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=self.overwrite,
+                overwrite_from_date=self.overwrite_from_date,
             ),
             CourseEnrollmentTableTask(
                 interval_end=self.date,
@@ -1096,17 +1122,9 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         )
 
 
-class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ElasticsearchIndexTask):
-    """Load the roster data into elasticsearch for rapid query."""
+class ModuleEngagementRosterIndexDownstreamMixin(object):
+    """Indexing parameters that can be specified at the workflow level."""
 
-    alias = luigi.Parameter(
-        config_path={'section': 'module-engagement', 'name': 'alias'},
-        description=ElasticsearchIndexTask.alias.description
-    )
-    number_of_shards = luigi.Parameter(
-        config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
-        description=ElasticsearchIndexTask.number_of_shards.description
-    )
     obfuscate = luigi.BooleanParameter(
         default=False,
         description='Generate fake names and email addresses for users. This can be used to generate production-like'
@@ -1118,6 +1136,25 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
         description='For each record, generate N more identical records with different IDs. This will result in a'
                     ' scaled up data set that can be used for performance testing the indexing and querying systems.'
     )
+    indexing_tasks = luigi.IntParameter(
+        default=None,
+        significant=False,
+        description=ElasticsearchIndexTask.indexing_tasks.description
+    )
+
+
+class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ModuleEngagementRosterIndexDownstreamMixin,
+                                      ElasticsearchIndexTask):
+    """Load the roster data into elasticsearch for rapid query."""
+
+    alias = luigi.Parameter(
+        config_path={'section': 'module-engagement', 'name': 'alias'},
+        description=ElasticsearchIndexTask.alias.description
+    )
+    number_of_shards = luigi.Parameter(
+        config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
+        description=ElasticsearchIndexTask.number_of_shards.description
+    )
 
     @property
     def partition_task(self):
@@ -1127,6 +1164,7 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, Elasticse
             n_reduce_tasks=self.other_reduce_tasks,
             overwrite=self.overwrite,
             date=self.date,
+            overwrite_from_date=self.overwrite_from_date,
         )
 
     def requires_local(self):
@@ -1186,7 +1224,7 @@ SURNAMES = ['smith', 'johnson', 'williams', 'jones', 'brown', 'davis', 'miller',
 
 
 @workflow_entry_point  # pylint: disable=missing-docstring
-class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
+class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngagementRosterIndexDownstreamMixin,
                                    luigi.WrapperTask):
     __doc__ = """
     A rapidly searchable learner roster for each course with aggregate statistics about that learner's performance.
@@ -1239,25 +1277,31 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin,
         ranges_record_doc=ModuleEngagementSummaryMetricRangeRecord.get_restructured_text(),
     )
 
-    indexing_tasks = luigi.IntParameter(
-        default=None,
+    overwrite_from_date = None
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'module_engagement', 'name': 'overwrite_n_days'},
         significant=False,
-        description=ModuleEngagementRosterIndexTask.indexing_tasks.description
-    )
-    obfuscate = luigi.BooleanParameter(
-        default=False,
-        description=ModuleEngagementRosterIndexTask.obfuscate.description
+        default=3,
+        description='This parameter is passed down to the module engagement model which will overwrite data from a date'
+                    ' in the past up to the end of the interval. Events are not always collected at the time that they'
+                    ' are emitted, sometimes much later. By re-processing past days we can gather late events and'
+                    ' include them in the computations. This parameter specifies the number of days to overwrite'
+                    ' starting with the most recent date. A value of 0 indicates no days should be overwritten.'
     )
 
     def requires(self):
+        overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
         yield ModuleEngagementRosterIndexTask(
             date=self.date,
             indexing_tasks=self.indexing_tasks,
+            scale_factor=self.scale_factor,
             obfuscate=self.obfuscate,
             n_reduce_tasks=self.n_reduce_tasks,
+            overwrite_from_date=overwrite_from_date,
         )
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
-            date=self.date
+            date=self.date,
+            overwrite_from_date=overwrite_from_date,
         )
 
     def output(self):

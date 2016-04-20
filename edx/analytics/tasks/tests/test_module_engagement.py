@@ -544,7 +544,8 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
 
         self.task = self.task_class(  # pylint: disable=not-callable
             date=self.date,
-            output_root=self.DEFAULT_ARGS['output_root']
+            output_root=self.DEFAULT_ARGS['output_root'],
+            overwrite_from_date=datetime.date(2014, 4, 1),
         )
 
     def initialize_task(self, metric_ranges):
@@ -981,6 +982,7 @@ class ModuleEngagementRosterPartitionTaskTest(ReducerTestMixin, unittest.TestCas
     def setUp(self):
         self.task = self.task_class(  # pylint: disable=not-callable
             date=luigi.DateParameter().parse(self.DATE),
+            overwrite_from_date=datetime.date(2014, 4, 1),
         )
 
     def test_interval(self):
