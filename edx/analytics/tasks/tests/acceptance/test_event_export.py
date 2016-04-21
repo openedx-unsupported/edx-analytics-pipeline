@@ -149,4 +149,5 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         decompressed_file_name = decrypted_file_name[:-len(',gz')]
         fs.decompress_file(decrypted_file_name, decompressed_file_name)
 
-        shell.run(['diff', decompressed_file_name, os.path.join(self.data_dir, 'output', local_file_name)])
+        original_filename = os.path.join(self.data_dir, 'output', local_file_name)
+        self.assertEventLogEqual(decompressed_file_name, original_filename)
