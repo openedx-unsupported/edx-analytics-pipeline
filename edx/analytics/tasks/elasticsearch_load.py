@@ -130,8 +130,9 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
         # Find all indexes that are referred to by this alias (currently). These will be deleted after a successful
         # load of the new index.
+        aliases = elasticsearch_client.indices.get_aliases(name=self.alias)
         self.indexes_for_alias.update(
-            elasticsearch_client.indices.get_aliases(name=self.alias).keys()
+            [index for index, alias_info in aliases.iteritems() if self.alias in alias_info['aliases'].keys()]
         )
 
         if self.index in self.indexes_for_alias:
@@ -149,6 +150,10 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
                     self.alias
                 )
             )
+
+        # In order for the OverwriteOutputMixin to recognize that this task has run we need to let it know. This will
+        # allow it to actually check if the task is complete after it is run.
+        self.attempted_removal = True
 
         if elasticsearch_client.indices.exists(index=self.index):
             elasticsearch_client.indices.delete(index=self.index)
@@ -382,7 +387,8 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
 
         # Perform an atomic swap of the alias.
         actions = []
-        for old_index in self.indexes_for_alias:
+        old_indexes = [ix for ix in self.indexes_for_alias if elasticsearch_client.indices.exists(index=ix)]
+        for old_index in old_indexes:
             actions.append({"remove": {"index": old_index, "alias": self.alias}})
         actions.append({"add": {"index": self.index, "alias": self.alias}})
         elasticsearch_client.indices.update_aliases({"actions": actions})
@@ -391,7 +397,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         self.output().touch()
 
         # Attempt to remove any old indexes that are now no longer user-visible.
-        for old_index in self.indexes_for_alias:
+        for old_index in old_indexes:
             elasticsearch_client.indices.delete(index=old_index)
 
     def rollback(self):
