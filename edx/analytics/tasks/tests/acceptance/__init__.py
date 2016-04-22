@@ -7,7 +7,7 @@ import os
 import shutil
 import unittest
 
-from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch
+from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch_service
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 
 
@@ -222,7 +222,7 @@ class AcceptanceTestCase(unittest.TestCase):
         self.task = task.TaskService(self.config, task_config_override, self.identifier)
         self.hive = hive.HiveService(self.task, self.config, database_name)
         self.vertica = vertica.VerticaService(self.config, schema)
-        self.elasticsearch = elasticsearch.ElasticsearchService(self.config, elasticsearch_alias)
+        self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
         if os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true':
             self.reset_external_state()
