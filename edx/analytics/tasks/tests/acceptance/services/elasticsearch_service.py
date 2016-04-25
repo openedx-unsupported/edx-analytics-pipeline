@@ -14,7 +14,7 @@ class ElasticsearchService(object):
         else:
             connection_class = None
 
-        self._disabled = bool(config.get('elasticsearch_host'))
+        self._disabled = not bool(config.get('elasticsearch_host'))
         self._alias = alias
         if not self._disabled:
             self._elasticsearch_client = elasticsearch.Elasticsearch(hosts=[config['elasticsearch_host']], connection_class=connection_class)
