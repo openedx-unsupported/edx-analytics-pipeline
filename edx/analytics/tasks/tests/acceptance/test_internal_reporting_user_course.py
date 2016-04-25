@@ -23,7 +23,7 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
         super(InternalReportingUserCourseLoadAcceptanceTest, self).setUp()
         self.upload_file(os.path.join(self.data_dir, 'input', 'course_enrollment'), url_path_join(self.warehouse_path, 'course_enrollment', 'dt=2014-07-01', 'course_enrollment'))
 
-    def test_internal_reporting_user_course(self):
+    def atest_internal_reporting_user_course(self):
         """Tests the workflow for the internal reporting user course table, end to end."""
 
         self.task.launch([
