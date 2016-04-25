@@ -14,8 +14,12 @@ class ElasticsearchService(object):
         else:
             connection_class = None
 
-        self._elasticsearch_client = elasticsearch.Elasticsearch(hosts=[config['elasticsearch_host']], connection_class=connection_class)
+        self._disabled = not bool(config.get('elasticsearch_host'))
         self._alias = alias
+        if not self._disabled:
+            self._elasticsearch_client = elasticsearch.Elasticsearch(hosts=[config['elasticsearch_host']], connection_class=connection_class)
+        else:
+            self._elasticsearch_client = None
 
     @property
     def client(self):
@@ -26,6 +30,9 @@ class ElasticsearchService(object):
         return self._alias
 
     def reset(self):
+        if self._disabled:
+            return
+
         response = self._elasticsearch_client.indices.get_aliases(name=self._alias)
         for index, alias_info in response.iteritems():
             for alias in alias_info['aliases'].keys():

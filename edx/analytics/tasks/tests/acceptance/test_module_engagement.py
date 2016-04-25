@@ -34,11 +34,18 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
         self.execute_sql_fixture_file('load_course_groups_courseusergroup.sql')
         self.execute_sql_fixture_file('load_course_groups_courseusergroup_users.sql')
 
-        self.task.launch([
-            'ModuleEngagementWorkflowTask',
-            '--date', '2015-04-17',
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-        ])
+        self.task.launch(
+            [
+                'ModuleEngagementWorkflowTask',
+                '--date', '2015-04-17',
+                '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            ],
+            config_override={
+                'module-engagement': {
+                    'allow_empty_insert': True
+                }
+            }
+        )
 
         query = {"query": {"match_all": {}}}
         response = self.elasticsearch.client.search(index=self.elasticsearch.alias, body=query)
