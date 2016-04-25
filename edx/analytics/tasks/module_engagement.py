@@ -321,6 +321,7 @@ class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDowns
                 warehouse_path=self.warehouse_path,
                 overwrite=should_overwrite,
                 overwrite_from_date=self.overwrite_from_date,
+                allow_empty_insert=should_overwrite,
             )
 
     def output(self):
