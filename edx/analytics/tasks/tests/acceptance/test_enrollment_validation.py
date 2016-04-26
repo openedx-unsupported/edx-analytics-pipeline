@@ -29,7 +29,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     SQL_FIXTURE = 'load_student_courseenrollment_for_enrollment_validation.sql'
 
     @when_s3_available
-    def atest_enrollment_validation(self):
+    def test_enrollment_validation(self):
         # Initial setup.
         self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
         self.execute_sql_fixture_file(self.SQL_FIXTURE)
