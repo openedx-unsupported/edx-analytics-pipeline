@@ -97,6 +97,8 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
         )
         columns = [x[0] for x in final_output_task.columns]
         target = get_target_from_url(output_root)
+        log.error("OUTPUT ROOT: %s", output_root)
+        log.error("TARGET PATH: %", target.path)
         files = target.fs.listdir(target.path)
         raw_output = ""
         for file_name in files:
