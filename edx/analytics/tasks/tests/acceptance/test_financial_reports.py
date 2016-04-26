@@ -79,7 +79,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
                 self.fail("Expected and returned data frames have different shapes or labels.")
 
     @when_vertica_not_available
-    def atest_end_to_end_without_vertica(self):
+    def test_end_to_end_without_vertica(self):
         # Similar to test_end_to_end but it excludes the vertica part and it checks data values,
         # not just data shape.
         table_name = 'reconciled_order_transactions'
