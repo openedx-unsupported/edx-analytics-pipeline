@@ -8,7 +8,7 @@ import datetime
 import pandas
 import luigi
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 
 log = logging.getLogger(__name__)
@@ -23,6 +23,7 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
         super(InternalReportingUserCourseLoadAcceptanceTest, self).setUp()
         self.upload_file(os.path.join(self.data_dir, 'input', 'course_enrollment'), url_path_join(self.warehouse_path, 'course_enrollment', 'dt=2014-07-01', 'course_enrollment'))
 
+    @when_vertica_available
     def test_internal_reporting_user_course(self):
         """Tests the workflow for the internal reporting user course table, end to end."""
 
