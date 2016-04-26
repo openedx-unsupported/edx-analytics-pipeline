@@ -14,6 +14,7 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
+from edx.analytics.tasks.pathutil import PathSetTask
 
 log = logging.getLogger(__name__)
 
@@ -96,16 +97,12 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             import_date=luigi.DateParameter().parse(self.UPPER_BOUND_DATE)
         )
         columns = [x[0] for x in final_output_task.columns]
-        target = get_target_from_url(output_root)
-        log.error("OUTPUT ROOT: %s", output_root)
-        log.error("TARGET PATH: %", target.path)
-        files = target.fs.listdir(target.path)
+        output_targets = PathSetTask([output_root], ['*']).output()
         raw_output = ""
-        for file_name in files:
-            if file_name.startswith(target.path):
-                file_name = file_name[len(target.path) + 1:]
-            if file_name[0] != '_':
-                raw_output += get_target_from_url(url_path_join(output_root, file_name)).open('r').read()
+        for output_target in output_targets:
+            if output_target.path.startswith('s3://'):
+                output_target = get_target_from_url(output_target.path.replace('s3://', 's3+https://'))
+            raw_output += output_target.open('r').read()
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
         expected = pandas.read_csv(expected_output_csv, parse_dates=True)
