@@ -11,9 +11,10 @@ import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available, get_jenkins_safe_url
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
+from edx.analytics.tasks.pathutil import PathSetTask
 
 log = logging.getLogger(__name__)
 
@@ -96,14 +97,11 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             import_date=luigi.DateParameter().parse(self.UPPER_BOUND_DATE)
         )
         columns = [x[0] for x in final_output_task.columns]
-        target = get_target_from_url(output_root)
-        files = target.fs.listdir(target.path)
+        output_targets = PathSetTask([output_root], ['*']).output()
         raw_output = ""
-        for file_name in files:
-            if file_name.startswith(target.path):
-                file_name = file_name[len(target.path) + 1:]
-            if file_name[0] != '_':
-                raw_output += get_target_from_url(url_path_join(output_root, file_name)).open('r').read()
+        for output_target in output_targets:
+            output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
+            raw_output += output_target.open('r').read()
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
         expected = pandas.read_csv(expected_output_csv, parse_dates=True)
