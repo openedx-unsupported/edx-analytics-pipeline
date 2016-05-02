@@ -228,11 +228,11 @@ class EventLineObfuscationTest(EventsObfuscationBaseTest):
         ),
         (
             {'context': {'user_id': 2, 'username': 'audit'}},
-            {'context': {'user_id': 2147483648, 'username': 'username_2147483648'}},
+            {'context': {'user_id': 2147483648}},
         ),
         (
             {'context': {'user_id': 2, 'username': 'unmapped_username'}},
-            {'context': {'user_id': 2147483648, 'username': 'REDACTED_USERNAME'}},
+            {'context': {'user_id': 2147483648}},
         ),
         (
             {'event': {

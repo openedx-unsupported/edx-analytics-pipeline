@@ -248,19 +248,6 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
                     )
             event['context']['user_id'] = self.remap_id(user_id)
 
-        # Clean username from context.
-        if 'context' in event:
-            # Remap value of username in context, if it is present.  (Removed in more recent events.)
-            if 'username' in event['context'] and len(event['context']['username'].strip()) > 0:
-                context_username = event['context']['username'].strip().decode('utf8')
-                remapped_username = self._remap_username(context_username, user_info)
-                if remapped_username is not None:
-                    event['context']['username'] = remapped_username
-                else:
-                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username',
-                              context_username, debug_str)
-                    event['context']['username'] = REDACTED_USERNAME
-
         # Look into the event payload.
         if event_data:
             # Get the user_id from payload and remap.
@@ -301,6 +288,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 
         # Clean or remove values from context.
         if 'context' in event:
+            event['context'].pop('username', None)
             # These aren't present in current events, but are generated historically by some implicit events.
             event['context'].pop('host', None)
             event['context'].pop('ip', None)
