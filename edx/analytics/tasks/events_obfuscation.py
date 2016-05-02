@@ -343,8 +343,10 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
                 country_code = self.geoip.country_code_by_addr(ip_address)
             except Exception:
                 log.exception("Encountered exception getting country code from ip: '%s'.", ip_address)
+
+            if country_code == None or len(country_code.strip()) <= 0:
                 country_code = "UNKNOWN"
-        event.update({'rdx': {'country_code': country_code}})
+        event.update({'augmented': {'country_code': country_code}})
 
         # Delete base properties other than username.
         for key in ['host', 'ip', 'page', 'referer']:
