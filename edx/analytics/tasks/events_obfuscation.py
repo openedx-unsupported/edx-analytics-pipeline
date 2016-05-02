@@ -344,7 +344,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
             except Exception:
                 log.exception("Encountered exception getting country code from ip: '%s'.", ip_address)
 
-            if country_code == None or len(country_code.strip()) <= 0:
+            if country_code is None or len(country_code.strip()) <= 0:
                 country_code = "UNKNOWN"
         event.update({'augmented': {'country_code': country_code}})
 
