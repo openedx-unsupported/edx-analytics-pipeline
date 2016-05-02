@@ -11,7 +11,7 @@ from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, Reducer
 from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
-
+from edx.analytics.tasks.tests.test_user_location import FakeGeoLocation
 
 class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
     """Base class for testing event obfuscation."""
@@ -83,6 +83,7 @@ class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, Redu
         }
         self.task.input_local = MagicMock(return_value=results)
         self.task.init_local()
+        self.task.geoip = FakeGeoLocation()
 
         self.task.user_info_requirements = get_mock_user_info_requirements()
 
@@ -199,7 +200,7 @@ class EventLineObfuscationTest(EventsObfuscationBaseTest):
     )
     def test_simple_obfuscate_event_types(self, kwargs):
         input_line = self.create_event_log_line(**kwargs)
-        expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event'}))
+        expected_line = self.create_event_log_line(**dict(kwargs, **{'template_name': 'expected_event', 'augmented': {'country_code': 'UNKNOWN'}}))
         reducer_output_line = self.task.obfuscate_event_line(input_line)
         self.compare_event_lines(expected_line, reducer_output_line)
 
@@ -371,7 +372,13 @@ class EventLineObfuscationTest(EventsObfuscationBaseTest):
     @unpack
     def test_obfuscated_events(self, input_kwargs, output_kwargs={}):
         input_line = self.create_event_log_line(**input_kwargs)
-        expected_line = self.create_event_log_line(**dict(output_kwargs, **{'template_name': 'expected_event'}))
+        expected_line = self.create_event_log_line(**dict(output_kwargs, **{'template_name': 'expected_event', 'augmented': {'country_code': 'UNKNOWN'}}))
+        reducer_output_line = self.task.obfuscate_event_line(input_line)
+        self.compare_event_lines(expected_line, reducer_output_line)
+
+    def test_augmented_events(self):
+        input_line = self.create_event_log_line(**{'ip': self.task.geoip.ip_address_1})
+        expected_line = self.create_event_log_line(**{'template_name': 'expected_event', 'augmented': {'country_code': self.task.geoip.country_code_1}})
         reducer_output_line = self.task.obfuscate_event_line(input_line)
         self.compare_event_lines(expected_line, reducer_output_line)
 

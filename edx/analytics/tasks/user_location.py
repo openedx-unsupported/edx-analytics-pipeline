@@ -29,6 +29,37 @@ class GeolocationMixin(object):
         description='A URL to the location of country-level geolocation data.',
     )
 
+class GeolocationTask(object):
+
+    geoip = None
+
+    def geolocation_data_target(self):
+        """Defines target from which geolocation data can be read."""
+        raise NotImplementedError
+
+    def init_reducer(self):
+        super(GeolocationTask, self).init_reducer()
+        # Copy the remote version of the geolocation data file to a local file.
+        # This is required by the GeoIP call, which assumes that the data file is located
+        # on a local file system.
+        self.temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
+        with self.geolocation_data_target().open() as geolocation_data_input:
+            while True:
+                transfer_buffer = geolocation_data_input.read(1024)
+                if transfer_buffer:
+                    self.temporary_data_file.write(transfer_buffer)
+                else:
+                    break
+        self.temporary_data_file.seek(0)
+
+        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+
+    def final_reducer(self):
+        """Clean up after the reducer is done."""
+        del self.geoip
+        self.temporary_data_file.close()
+
+        return tuple()
 
 class BaseUserLocationTask(GeolocationMixin):
     """
@@ -63,30 +94,8 @@ class BaseUserLocationTask(GeolocationMixin):
     )
 
 
-class BaseGeolocation(object):
+class BaseGeolocation(GeolocationTask):
     """Base class for performing geolocation map-reduce tasks."""
-
-    geoip = None
-
-    def geolocation_data_target(self):
-        """Defines target from which geolocation data can be read."""
-        raise NotImplementedError
-
-    def init_reducer(self):
-        # Copy the remote version of the geolocation data file to a local file.
-        # This is required by the GeoIP call, which assumes that the data file is located
-        # on a local file system.
-        self.temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
-        with self.geolocation_data_target().open() as geolocation_data_input:
-            while True:
-                transfer_buffer = geolocation_data_input.read(1024)
-                if transfer_buffer:
-                    self.temporary_data_file.write(transfer_buffer)
-                else:
-                    break
-        self.temporary_data_file.seek(0)
-
-        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""
@@ -130,13 +139,6 @@ class BaseGeolocation(object):
 
         # Add the username for debugging purposes.  (Not needed for counts.)
         yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
-
-    def final_reducer(self):
-        """Clean up after the reducer is done."""
-        del self.geoip
-        self.temporary_data_file.close()
-
-        return tuple()
 
     def extra_modules(self):
         """Pygeoip is required by all tasks that load this file."""
