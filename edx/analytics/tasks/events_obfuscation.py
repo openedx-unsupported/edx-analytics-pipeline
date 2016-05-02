@@ -327,11 +327,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 
         ip_address = event.get('ip')
         if ip_address:
-            try:
-                country_code = self.geoip.country_code_by_addr(ip_address)
-            except Exception:
-                log.exception("Encountered exception getting country code from ip: '%s'.", ip_address)
-                country_code = "UNKNOWN"
+            country_code = self.geoip.country_code_by_addr(ip_address)
 
             if country_code is None or len(country_code.strip()) <= 0:
                 country_code = "UNKNOWN"
