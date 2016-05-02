@@ -29,7 +29,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, BaseGeolocation, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMapReduceJobTask, BaseGeolocation):
     """
     Task to obfuscate events for a particular course.
 
