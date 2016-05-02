@@ -13,6 +13,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
@@ -28,7 +29,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, BaseGeolocation, MultiOutputMapReduceJobTask):
     """
     Task to obfuscate events for a particular course.
 
@@ -332,6 +333,15 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
                 event['event'] = cjson.encode(event_data)
             else:
                 event['event'] = event_data
+
+        ip_address = event.get('ip')
+        if ip_address:
+            try:
+                country_code = self.geoip.country_code_by_addr(ip_address)
+            except Exception:
+                log.exception("Encountered exception getting country code from ip: '%s'.", ip_address)
+                country_code = "UNKNOWN"
+        event.update({'rdx': {'country_code': country_code}})
 
         # Delete base properties other than username.
         for key in ['host', 'ip', 'page', 'referer']:
