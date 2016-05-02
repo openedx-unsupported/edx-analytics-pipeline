@@ -51,8 +51,11 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, BaseGeolocati
         results = {}
         if os.path.basename(self.explicit_event_whitelist) != self.explicit_event_whitelist:
             results['explicit_events'] = ExternalURL(url=self.explicit_event_whitelist)
-
+        results['geolocation_data'] = ExternalURL(self.geolocation_data)
         return results
+
+    def geolocation_data_target(self):
+        return self.input_local()['geolocation_data']
 
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
@@ -351,7 +354,8 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, BaseGeolocati
 
     def extra_modules(self):
         import numpy
-        return [numpy]
+        import pygeoip
+        return [numpy, pygeoip]
 
 
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
