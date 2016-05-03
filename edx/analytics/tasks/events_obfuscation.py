@@ -326,6 +326,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
                 event['event'] = event_data
 
         ip_address = event.get('ip')
+        country_code = "UNKNOWN"
         if ip_address:
             country_code = self.geoip.country_code_by_addr(ip_address)
 
