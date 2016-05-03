@@ -73,6 +73,7 @@ class BaseGeolocation(object):
         raise NotImplementedError
 
     def init_reducer(self):
+        log.debug('In BaseGeolocation: init_reducer')
         # Copy the remote version of the geolocation data file to a local file.
         # This is required by the GeoIP call, which assumes that the data file is located
         # on a local file system.
