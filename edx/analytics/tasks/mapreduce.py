@@ -265,7 +265,7 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     )
 
     def init_reducer(self):
-        log.debug('In MultiOutputMapReduceJobTask: init_reducer')
+        log.error('In MultiOutputMapReduceJobTask: init_reducer')
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
