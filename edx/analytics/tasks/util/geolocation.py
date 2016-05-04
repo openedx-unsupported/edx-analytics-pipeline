@@ -15,7 +15,7 @@ class Geolocation(object):
                     break
         self._temporary_data_file.seek(0)
 
-        self._geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+        self._geoip = pygeoip.GeoIP(self._temporary_data_file.name, pygeoip.STANDARD)
 
     @property
     def geoip(self):
