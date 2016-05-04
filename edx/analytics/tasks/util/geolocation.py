@@ -6,7 +6,7 @@ class Geolocation(object):
 
     def __init__(self, geolocation_data_target):
         self._temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
-        with geolocation_data_target().open() as geolocation_data_input:
+        with geolocation_data_target.open() as geolocation_data_input:
             while True:
                 transfer_buffer = geolocation_data_input.read(1024)
                 if transfer_buffer:
