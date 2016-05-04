@@ -11,7 +11,7 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
-from edx.analytics.tasks.util import Geolocation
+from edx.analytics.tasks.util.geolocation import Geolocation
 
 import logging
 log = logging.getLogger(__name__)
