@@ -237,6 +237,11 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
             parsed_datetime = datetime.datetime.strptime(match.group('date'), self.date_pattern)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
+        elif 'timestamp' in match.groupdict():
+            timestamp = int(match.group('timestamp'))
+            parsed_datetime = datetime.datetime.utcfromtimestamp(timestamp)
+            parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
+            should_include = parsed_date in self.interval
 
         return should_include
 
