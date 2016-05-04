@@ -4,7 +4,7 @@ import pygeoip
 
 class Geolocation(object):
 
-    def __init__(self, geolocation_target):
+    def __init__(self, geolocation_data_target):
         self._temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
         with geolocation_data_target().open() as geolocation_data_input:
             while True:
