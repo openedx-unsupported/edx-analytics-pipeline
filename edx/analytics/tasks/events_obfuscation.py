@@ -21,6 +21,7 @@ from edx.analytics.tasks.util.obfuscate_util import (
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.file_util import read_config_file
+from edx.analytics.tasks.util.geolocation import Geolocation
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMapReduceJobTask, BaseGeolocation):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMapReduceJobTask):
     """
     Task to obfuscate events for a particular course.
 
@@ -56,6 +57,11 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 
     def geolocation_data_target(self):
         return self.input_local()['geolocation_data']
+
+    def init_reducer(self):
+        geolocation = Geolocation(self.geolocation_data_target())
+        self.geoip = geolocation.geoip
+        self.temporary_data_file = geolocation.temp_data_file
 
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
@@ -339,6 +345,13 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
             event.pop(key, None)
 
         return event
+
+    def final_reducer(self):
+        """Clean up after the reducer is done."""
+        del self.geoip
+        self.temporary_data_file.close()
+
+        return tuple()
 
     def extra_modules(self):
         import numpy

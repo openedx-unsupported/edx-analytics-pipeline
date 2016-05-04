@@ -264,9 +264,6 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
         description='A URL location to a directory where a marker file will be written on task completion.',
     )
 
-    def init_reducer(self):
-        log.error('In MultiOutputMapReduceJobTask: init_reducer')
-
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
         return get_target_from_url(marker_url)
