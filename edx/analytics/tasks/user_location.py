@@ -11,6 +11,7 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.util.geolocation import Geolocation
 
 import logging
 log = logging.getLogger(__name__)
@@ -73,20 +74,9 @@ class BaseGeolocation(object):
         raise NotImplementedError
 
     def init_reducer(self):
-        # Copy the remote version of the geolocation data file to a local file.
-        # This is required by the GeoIP call, which assumes that the data file is located
-        # on a local file system.
-        self.temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
-        with self.geolocation_data_target().open() as geolocation_data_input:
-            while True:
-                transfer_buffer = geolocation_data_input.read(1024)
-                if transfer_buffer:
-                    self.temporary_data_file.write(transfer_buffer)
-                else:
-                    break
-        self.temporary_data_file.seek(0)
-
-        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+        geolocation = Geolocation(self.geolocation_data_target())
+        self.geoip = geolocation.geoip
+        self.temporary_data_file = geolocation.temp_data_file
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""

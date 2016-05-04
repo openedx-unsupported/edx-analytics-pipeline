@@ -13,6 +13,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
@@ -20,6 +21,7 @@ from edx.analytics.tasks.util.obfuscate_util import (
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.file_util import read_config_file
+from edx.analytics.tasks.util.geolocation import Geolocation
 
 log = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMapReduceJobTask):
     """
     Task to obfuscate events for a particular course.
 
@@ -50,8 +52,16 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
         results = {}
         if os.path.basename(self.explicit_event_whitelist) != self.explicit_event_whitelist:
             results['explicit_events'] = ExternalURL(url=self.explicit_event_whitelist)
-
+        results['geolocation_data'] = ExternalURL(self.geolocation_data)
         return results
+
+    def geolocation_data_target(self):
+        return self.input_local()['geolocation_data']
+
+    def init_reducer(self):
+        geolocation = Geolocation(self.geolocation_data_target())
+        self.geoip = geolocation.geoip
+        self.temporary_data_file = geolocation.temp_data_file
 
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
@@ -244,19 +254,6 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
                     )
             event['context']['user_id'] = self.remap_id(user_id)
 
-        # Clean username from context.
-        if 'context' in event:
-            # Remap value of username in context, if it is present.  (Removed in more recent events.)
-            if 'username' in event['context'] and len(event['context']['username'].strip()) > 0:
-                context_username = event['context']['username'].strip().decode('utf8')
-                remapped_username = self._remap_username(context_username, user_info)
-                if remapped_username is not None:
-                    event['context']['username'] = remapped_username
-                else:
-                    log.error("Redacting unrecognized username for '%s' field: '%s' %s", 'context.username',
-                              context_username, debug_str)
-                    event['context']['username'] = REDACTED_USERNAME
-
         # Look into the event payload.
         if event_data:
             # Get the user_id from payload and remap.
@@ -297,6 +294,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
 
         # Clean or remove values from context.
         if 'context' in event:
+            event['context'].pop('username', None)
             # These aren't present in current events, but are generated historically by some implicit events.
             event['context'].pop('host', None)
             event['context'].pop('ip', None)
@@ -333,15 +331,32 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
             else:
                 event['event'] = event_data
 
+        ip_address = event.get('ip')
+        country_code = "UNKNOWN"
+        if ip_address:
+            country_code = self.geoip.country_code_by_addr(ip_address)
+
+            if country_code is None or len(country_code.strip()) <= 0:
+                country_code = "UNKNOWN"
+        event.update({'augmented': {'country_code': country_code}})
+
         # Delete base properties other than username.
         for key in ['host', 'ip', 'page', 'referer']:
             event.pop(key, None)
 
         return event
 
+    def final_reducer(self):
+        """Clean up after the reducer is done."""
+        del self.geoip
+        self.temporary_data_file.close()
+
+        return tuple()
+
     def extra_modules(self):
         import numpy
-        return [numpy]
+        import pygeoip
+        return [numpy, pygeoip]
 
 
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
