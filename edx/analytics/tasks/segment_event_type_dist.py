@@ -38,7 +38,7 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
         return parsed_events
 
     def mapper(self, line):
-        self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
+        # self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
         value = self.get_event_and_date_string(line)
         if value is None:
             return
@@ -47,36 +47,52 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
 
         segment_type = event.get('type')
         self.incr_counter('Segment_Event_Dist', 'Type {}'.format(segment_type), 1)
+
+        channel = event.get('channel')
+        self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
         
         exported = False
+
         if segment_type == 'track':
-            # event_type = event.get('properties', {}).get('context', {}).get('event_type')
             event_type = event.get('event')
-            event_source = event.get('properties', {}).get('context', {}).get('event_source')
 
-            if event_source is None or event_type is None or event_date is None:
+            if event_type is None or event_date is None:
                 # Ignore if any of the keys is None
+                self.incr_counter('Segment_Event_Dist', 'Tracking with missing type', 1)
                 return
-            if event_type.startswith('/'):
-                # Ignore events that begin with a slash
-                return
-            if (event_source, event_type) in self.known_events:
-                event_category = self.known_events[(event_source, event_type)]
-                exported = True
-            else:
-                event_category = 'unknown'
 
-            self.incr_counter('Segment_Event_Dist', 'Tracking with output', 1)
+            if event_type.startswith('/'):
+                # Ignore events that begin with a slash.  How many?
+                self.incr_counter('Segment_Event_Dist', 'Tracking with implicit type', 1)
+                return
+
+            # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
+            # Their 'properties' lack any 'context', having only label and category.
+
+            if channel == 'server':
+                event_source = event.get('properties', {}).get('context', {}).get('event_source')
+                if (event_source, event_type) in self.known_events:
+                    event_category = self.known_events[(event_source, event_type)]
+                    exported = True
+                else:
+                    event_category = 'unknown'
+                self.incr_counter('Segment_Event_Dist', 'Tracking server', 1)
+            else:
+                event_category = channel
+                event_type = segment_type
+                event_source = channel
+                self.incr_counter('Segment_Event_Dist', 'Tracking non-server', 1)
+
         # elif segment_type = 'page':
         #     pass
         # elif segment_type = 'identify':
         #     pass
         else:
-            event_category = segment_type
+            event_category = channel
             event_type = segment_type
-            event_source = ''
+            event_source = channel
 
-        self.incr_counter('Segment_Event_Dist', 'From Mapper', 1)
+        self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
         yield (event_date, event_category, event_type, event_source, exported), 1
 
     def reducer(self, key, values):
@@ -93,7 +109,9 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
 
         """
         try:
-            return event['timestamp']
+            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
+            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
+            return event['originalTimestamp']
         except KeyError:
             self.incr_counter('Event', 'Missing Time Field', 1)
             return None
