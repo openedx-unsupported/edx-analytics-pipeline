@@ -85,6 +85,19 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'segment_event_type_distribution/'))
 
+    def get_event_time(self, event):
+        """
+        Returns time information from event if present, else returns None.
+
+        Overrides base class implementation to get correct timestamp.
+
+        """
+        try:
+            return event['timestamp']
+        except KeyError:
+            self.incr_counter('Event', 'Missing Time Field', 1)
+            return None
+
 
 class PushToVerticaSegmentEventTypeDistributionTask(EventLogSelectionDownstreamMixin, VerticaCopyTask):
     """Push the event type distribution task data to Vertica."""
