@@ -13,6 +13,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.user_location import GeolocationMixin, GeolocationTask
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
@@ -28,7 +29,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, GeolocationTask, MultiOutputMapReduceJobTask):
     """
     Task to obfuscate events for a particular course.
 
@@ -50,8 +51,11 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
         results = {}
         if os.path.basename(self.explicit_event_whitelist) != self.explicit_event_whitelist:
             results['explicit_events'] = ExternalURL(url=self.explicit_event_whitelist)
-
+        results['geolocation_data'] = ExternalURL(self.geolocation_data)
         return results
+
+    def geolocation_data_target(self):
+        return self.input_local()['geolocation_data']
 
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()
@@ -333,6 +337,15 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
             else:
                 event['event'] = event_data
 
+        ip_address = event.get('ip')
+        country_code = "UNKNOWN"
+        if ip_address:
+            country_code = self.geoip.country_code_by_addr(ip_address)
+
+            if country_code is None or len(country_code.strip()) <= 0:
+                country_code = "UNKNOWN"
+        event.update({'augmented': {'country_code': country_code}})
+
         # Delete base properties other than username.
         for key in ['host', 'ip', 'page', 'referer']:
             event.pop(key, None)
@@ -341,7 +354,8 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, MultiOutputMapReduceJobTask):
 
     def extra_modules(self):
         import numpy
-        return [numpy]
+        import pygeoip
+        return [numpy, pygeoip]
 
 
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
