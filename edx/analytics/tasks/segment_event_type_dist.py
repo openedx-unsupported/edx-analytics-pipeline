@@ -38,12 +38,16 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
         return parsed_events
 
     def mapper(self, line):
+        self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
         value = self.get_event_and_date_string(line)
         if value is None:
             return
         event, event_date = value
+        self.incr_counter('Segment_Event_Dist', 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
+        self.incr_counter('Segment_Event_Dist', 'Type {}'.format(segment_type), 1)
+        
         exported = False
         if segment_type == 'track':
             # event_type = event.get('properties', {}).get('context', {}).get('event_type')
@@ -61,6 +65,8 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
                 exported = True
             else:
                 event_category = 'unknown'
+
+            self.incr_counter('Segment_Event_Dist', 'Tracking with output', 1)
         # elif segment_type = 'page':
         #     pass
         # elif segment_type = 'identify':
@@ -70,6 +76,7 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
             event_type = segment_type
             event_source = ''
 
+        self.incr_counter('Segment_Event_Dist', 'From Mapper', 1)
         yield (event_date, event_category, event_type, event_source, exported), 1
 
     def reducer(self, key, values):
