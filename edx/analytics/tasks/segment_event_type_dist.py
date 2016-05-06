@@ -69,31 +69,31 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
+            event_category = event.get('properties', {}).get('category')
             if channel == 'server':
                 event_source = event.get('properties', {}).get('context', {}).get('event_source')
-                if (event_source, event_type) in self.known_events:
+                if event_source is None:
+                    event_source = 'track-server'
+                elif (event_source, event_type) in self.known_events:
                     event_category = self.known_events[(event_source, event_type)]
                     exported = True
-                else:
-                    event_category = 'unknown'
+
                 self.incr_counter('Segment_Event_Dist', 'Tracking server', 1)
             else:
-                event_category = channel
-                event_type = segment_type
+                # expect that channel is 'client'.
                 event_source = channel
                 self.incr_counter('Segment_Event_Dist', 'Tracking non-server', 1)
 
-        # elif segment_type = 'page':
-        #     pass
-        # elif segment_type = 'identify':
-        #     pass
         else:
-            event_category = channel
+            # 'page' or 'identify'
+            event_category = segment_type
             event_type = segment_type
             event_source = channel
 
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
-        yield (event_date, event_category, event_type, event_source, exported), 1
+        property_keys = ','.join(sorted(event.get('properties', {}).keys()))
+        context_keys = ','.join(sorted(event.get('context', {}).keys()))
+        yield (event_date, event_category, event_type, event_source, exported, property_keys, context_keys), 1
 
     def reducer(self, key, values):
         yield (key), sum(values)
@@ -136,6 +136,8 @@ class PushToVerticaSegmentEventTypeDistributionTask(EventLogSelectionDownstreamM
             ('event_type', 'VARCHAR(255)'),
             ('event_source', 'VARCHAR(255)'),
             ('exported', 'BOOLEAN'),
+            ('property_keys', 'VARCHAR(255)'),
+            ('context_keys', 'VARCHAR(255)'),
             ('event_count', 'INT'),
         ]
 
