@@ -242,7 +242,6 @@ class ModuleEngagementPartitionTask(ModuleEngagementDownstreamMixin, HivePartiti
     def hive_table_task(self):
         return ModuleEngagementTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -548,7 +547,6 @@ class ModuleEngagementSummaryPartitionTask(ModuleEngagementDownstreamMixin, Hive
     def hive_table_task(self):
         return ModuleEngagementSummaryTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -693,7 +691,6 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
     def hive_table_task(self):
         return ModuleEngagementSummaryMetricRangesTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -890,7 +887,6 @@ class ModuleEngagementUserSegmentPartitionTask(ModuleEngagementDownstreamMixin, 
     def hive_table_task(self):
         return ModuleEngagementUserSegmentTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
