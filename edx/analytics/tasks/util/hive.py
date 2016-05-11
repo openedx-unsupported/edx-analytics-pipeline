@@ -21,6 +21,42 @@ def hive_database_name():
     return get_config().get('hive', 'database', 'default')
 
 
+def hive_version():
+    """
+    Returns the version of Hive that is declared in the configuration file. Defaults to 0.11 if it's not specified.
+
+    Returns: A tuple with each index representing a part of the version. For example: version="0.11.0.1" would return
+    (0, 11, 0, 1). The 0 indexed integer is the most significant part of the version number.
+    """
+    version_str = luigi.configuration.get_config().get('hive', 'version', '0.11')
+    return tuple([int(x) for x in version_str.split('.')])
+
+
+def hive_decimal_type(precision, scale):
+    """
+    Return the appropriate DECIMAL type declaration depending on the Hive version.
+
+    In versions >0.12, the syntax for declaring DECIMAL field types was changed. In Hive >0.12 using the DECIMAL type
+    without a precision or scale value defaults to the equivalent of DECIMAL(10, 0). This declaration only supports
+    round integers, so any fractional parts of the number are rounded off. In prior versions of Hive they are preserved.
+    If we are using an older version of Hive, which does not support the precision and scale arguments, then we should
+    use the bare "DECIMAL" declaration. Otherwise, we should include the precision and scale values.
+
+    Args:
+        precision: See the Java BigDecimal definition.
+        scale: See the Java BigDecimal definition.
+
+    Returns: The string that is used to declare the decimal type. It will either simply be "DECIMAL" or "DECIMAL(p, s)"
+    depending on the version of Hive.
+
+    """
+    version = hive_version()
+    if version[0] == 0 and version[1] < 13:
+        return 'DECIMAL'
+    else:
+        return 'DECIMAL({0},{1})'.format(precision, scale)
+
+
 class WarehouseMixin(object):
     """Task that is aware of the data warehouse."""
 

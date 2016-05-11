@@ -211,6 +211,8 @@ class AcceptanceTestCase(unittest.TestCase):
             }
         if 'manifest_input_format' in self.config:
             task_config_override['manifest']['input_format'] = self.config['manifest_input_format']
+        if 'hive_version' in self.config:
+            task_config_override['hive']['version'] = self.config['hive_version']
 
         log.info('Running test: %s', self.id())
         log.info('Using executor: %s', self.config['identifier'])

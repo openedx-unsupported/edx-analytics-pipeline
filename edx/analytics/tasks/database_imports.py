@@ -11,7 +11,7 @@ from luigi.hive import HiveQueryTask, HivePartitionTarget
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import hive_database_name
+from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type
 
 log = logging.getLogger(__name__)
 
@@ -374,14 +374,14 @@ class ImportShoppingCartOrderItem(ImportMysqlToHiveTableTask):
             ('user_id', 'INT'),
             ('status', 'STRING'),
             ('qty', 'int'),
-            ('unit_cost', 'DECIMAL'),
+            ('unit_cost', hive_decimal_type(12, 2)),
             ('line_desc', 'STRING'),
             ('currency', 'STRING'),
             ('fulfilled_time', 'TIMESTAMP'),
             ('report_comments', 'STRING'),
             ('refund_requested_time', 'TIMESTAMP'),
-            ('service_fee', 'DECIMAL'),
-            ('list_price', 'DECIMAL'),
+            ('service_fee', hive_decimal_type(12, 2)),
+            ('list_price', hive_decimal_type(12, 2)),
             ('created', 'TIMESTAMP'),
             ('modified', 'TIMESTAMP'),
         ]
@@ -641,7 +641,7 @@ class ImportCurrentRefundRefundLineState(ImportMysqlToHiveTableTask):
     def columns(self):
         return [
             ('id', 'INT'),
-            ('line_credit_excl_tax', 'DECIMAL'),
+            ('line_credit_excl_tax', hive_decimal_type(12, 2)),
             ('quantity', 'INT'),
             ('status', 'STRING'),
             ('order_line_id', 'INT'),
@@ -667,10 +667,10 @@ class ImportCurrentOrderState(ImportMysqlToHiveTableTask):
             ('id', 'INT'),
             ('number', 'STRING'),
             ('currency', 'STRING'),
-            ('total_incl_tax', 'DECIMAL'),
-            ('total_excl_tax', 'DECIMAL'),
-            ('shipping_incl_tax', 'DECIMAL'),
-            ('shipping_excl_tax', 'DECIMAL'),
+            ('total_incl_tax', hive_decimal_type(12, 2)),
+            ('total_excl_tax', hive_decimal_type(12, 2)),
+            ('shipping_incl_tax', hive_decimal_type(12, 2)),
+            ('shipping_excl_tax', hive_decimal_type(12, 2)),
             ('shipping_method', 'STRING'),
             ('shipping_code', 'STRING'),
             ('status', 'STRING'),
@@ -705,14 +705,14 @@ class ImportCurrentOrderLineState(ImportMysqlToHiveTableTask):
             ('title', 'STRING'),
             ('upc', 'STRING'),
             ('quantity', 'INT'),
-            ('line_price_incl_tax', 'DECIMAL'),
-            ('line_price_excl_tax', 'DECIMAL'),
-            ('line_price_before_discounts_incl_tax', 'DECIMAL'),
-            ('line_price_before_discounts_excl_tax', 'DECIMAL'),
-            ('unit_cost_price', 'DECIMAL'),
-            ('unit_price_incl_tax', 'DECIMAL'),
-            ('unit_price_excl_tax', 'DECIMAL'),
-            ('unit_retail_price', 'DECIMAL'),
+            ('line_price_incl_tax', hive_decimal_type(12, 2)),
+            ('line_price_excl_tax', hive_decimal_type(12, 2)),
+            ('line_price_before_discounts_incl_tax', hive_decimal_type(12, 2)),
+            ('line_price_before_discounts_excl_tax', hive_decimal_type(12, 2)),
+            ('unit_cost_price', hive_decimal_type(12, 2)),
+            ('unit_price_incl_tax', hive_decimal_type(12, 2)),
+            ('unit_price_excl_tax', hive_decimal_type(12, 2)),
+            ('unit_retail_price', hive_decimal_type(12, 2)),
             ('status', 'STRING'),
             ('est_dispatch_date', 'TIMESTAMP'),
             ('order_id', 'INT'),
@@ -742,7 +742,7 @@ class ImportCurrentOrderDiscountState(ImportMysqlToHiveTableTask):
             ('voucher_id', 'INT'),
             ('voucher_code', 'STRING'),
             ('frequency', 'INT'),
-            ('amount', 'DECIMAL'),
+            ('amount', hive_decimal_type(12, 2)),
             ('message', 'STRING'),
             ('order_id', 'INT'),
         ]

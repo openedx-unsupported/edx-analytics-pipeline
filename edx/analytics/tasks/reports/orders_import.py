@@ -1,10 +1,9 @@
-
 """Import Orders: Shopping Cart Tables from the LMS, Orders from Otto."""
 
 import luigi
 import luigi.hdfs
 
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, hive_decimal_type
 from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin,
     ImportShoppingCartCertificateItem,
@@ -103,8 +102,8 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('order_id', 'INT'),
             ('line_item_id', 'INT'),
             ('line_item_product_id', 'INT'),
-            ('line_item_price', 'DECIMAL'),
-            ('line_item_unit_price', 'DECIMAL'),
+            ('line_item_price', hive_decimal_type(12, 2)),
+            ('line_item_unit_price', hive_decimal_type(12, 2)),
             ('line_item_quantity', 'INT'),
             ('product_class', 'STRING'),
             ('course_key', 'STRING'),
@@ -114,11 +113,11 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
             ('coupon_id', 'INT'),
-            ('discount_amount', 'DECIMAL'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('discount_amount', hive_decimal_type(12, 2)),  # Total discount in currency amount, i.e. unit_discount * qty
             ('voucher_id', 'INT'),
             ('voucher_code', 'STRING'),
             ('status', 'STRING'),
-            ('refunded_amount', 'DECIMAL'),
+            ('refunded_amount', hive_decimal_type(12, 2)),
             ('refunded_quantity', 'INT'),
             ('payment_ref_id', 'STRING'),
             ('partner_short_code', 'STRING'),

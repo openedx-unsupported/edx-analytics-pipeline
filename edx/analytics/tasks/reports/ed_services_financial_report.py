@@ -6,7 +6,7 @@ from edx.analytics.tasks.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
 
 
@@ -48,11 +48,11 @@ class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, Hive
             ('professional_currently_enrolled', 'INT'),
             ('no_id_professional_currently_enrolled', 'INT'),
             ('refunded_seat_count', 'INT'),
-            ('refunded_amount', 'DECIMAL'),
-            ('net_seat_revenue', 'DECIMAL'),
+            ('refunded_amount', hive_decimal_type(12, 2)),
+            ('net_seat_revenue', hive_decimal_type(12, 2)),
             ('net_seat_count', 'INT'),
             ('donation_count', 'INT'),
-            ('net_donation_revenue', 'DECIMAL'),
+            ('net_donation_revenue', hive_decimal_type(12, 2)),
         ]
 
     @property

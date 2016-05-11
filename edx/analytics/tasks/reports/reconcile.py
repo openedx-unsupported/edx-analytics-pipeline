@@ -12,7 +12,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin
+from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.reports.orders_import import OrderTableTask
@@ -770,22 +770,22 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('transaction_payment_gateway_account_id', 'STRING'),
             ('transaction_type', 'STRING'),
             ('transaction_payment_method', 'STRING'),
-            ('transaction_amount', 'DECIMAL'),
+            ('transaction_amount', hive_decimal_type(12, 2)),
             ('transaction_iso_currency_code', 'STRING'),
-            ('transaction_fee', 'DECIMAL'),
-            ('transaction_amount_per_item', 'DECIMAL'),
-            ('transaction_fee_per_item', 'DECIMAL'),
+            ('transaction_fee', hive_decimal_type(12, 2)),
+            ('transaction_amount_per_item', hive_decimal_type(12, 2)),
+            ('transaction_fee_per_item', hive_decimal_type(12, 2)),
             ('order_line_item_id', 'INT'),
             ('unique_order_line_item_id', 'STRING'),
             ('order_line_item_product_id', 'INT'),
-            ('order_line_item_price', 'DECIMAL'),
-            ('order_line_item_unit_price', 'DECIMAL'),
+            ('order_line_item_price', hive_decimal_type(12, 2)),
+            ('order_line_item_unit_price', hive_decimal_type(12, 2)),
             ('order_line_item_quantity', 'INT'),
             ('order_coupon_id', 'INT'),
-            ('order_discount_amount', 'DECIMAL'),
+            ('order_discount_amount', hive_decimal_type(12, 2)),
             ('order_voucher_id', 'INT'),
             ('order_voucher_code', 'STRING'),
-            ('order_refunded_amount', 'DECIMAL'),
+            ('order_refunded_amount', hive_decimal_type(12, 2)),
             ('order_refunded_quantity', 'INT'),
             ('order_user_id', 'INT'),
             ('order_username', 'STRING'),
