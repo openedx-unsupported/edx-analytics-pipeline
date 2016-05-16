@@ -838,6 +838,23 @@ class ImportCourseModeTask(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportGeneratedCertificatesTask(ImportMysqlToHiveTableTask):
+
+    @property
+    def table_name(self):
+        return 'certificates_generatedcertificate'
+
+    @property
+    def columns(self):
+        return [
+            ('user_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('grade', 'STRING'),
+            ('status', 'STRING'),
+            ('mode', 'STRING'),
+        ]
+
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
 
