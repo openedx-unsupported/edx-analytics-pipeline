@@ -330,10 +330,15 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             self.insert_rows(cursor)
 
             # mark as complete in same transaction
+            log.error("==============================")
+            log.error("IN RUN METHOD OF MYSQLINSERTTASK")
+            log.error('output exists before touch: %s', self.output().exists())
+            log.error('CALLING TOUCH()')
             self.output().touch(connection)
-
+            log.error("output exists after touch: %s", self.output().exists())
             # commit only if both operations completed successfully.
             connection.commit()
+            log.error("COMMITED")
         except:
             connection.rollback()
             raise

@@ -737,11 +737,9 @@ class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMix
         return partition_task.data_task
 
     def complete(self):
-        if self.output().exists():
-            return True
-        else:
-            log.error('Missing output: %s', self.output())
-            return False
+        import pdb; pdb.set_trace()
+        result = super(ModuleEngagementSummaryMetricRangesMysqlTask, self).complete()
+        return result
 
 
 class ModuleEngagementUserSegmentRecord(Record):

@@ -40,10 +40,15 @@ class OverwriteOutputMixin(object):
         # at task construction time, since side effects at task
         # definition are less intuitive than having all side effects
         # occur only during execution.
+        log.error("================================")
+        log.error('IN OverwriteOutputMixin complete method')
         if self.overwrite and not self.attempted_removal:
+            log.error('overwrite: %s and attempted_removal: %s', self.overwrite, self.attempted_removal)
             return False
         else:
-            return super(OverwriteOutputMixin, self).complete()
+            result = super(OverwriteOutputMixin, self).complete()
+            log.error("super complete result: %s", result)
+            return result
 
     def remove_output_on_overwrite(self):
         """
