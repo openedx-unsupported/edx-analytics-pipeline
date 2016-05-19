@@ -335,10 +335,10 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             log.error('output exists before touch: %s', self.output().exists())
             log.error('CALLING TOUCH()')
             self.output().touch(connection)
-            log.error("output exists after touch: %s", self.output().exists())
             # commit only if both operations completed successfully.
             connection.commit()
             log.error("COMMITED")
+            log.error("output exists after touch: %s", self.output().exists())
         except:
             connection.rollback()
             raise
