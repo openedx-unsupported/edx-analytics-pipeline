@@ -339,6 +339,9 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             connection.commit()
             log.error("COMMITED")
             log.error("output exists after touch: %s", self.output().exists())
+            log.error("attempted removal: %s", self.attempted_removal)
+            log.error("complete: %s", self.complete())
+            
         except:
             connection.rollback()
             raise
