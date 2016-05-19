@@ -268,7 +268,7 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     """
 
     allow_empty_insert = luigi.BooleanParameter(
-        default=False,
+        default=True,
         config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
     )
 
