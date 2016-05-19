@@ -737,7 +737,6 @@ class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMix
         return partition_task.data_task
 
     def complete(self):
-        import pdb; pdb.set_trace()
         result = super(ModuleEngagementSummaryMetricRangesMysqlTask, self).complete()
         return result
 
