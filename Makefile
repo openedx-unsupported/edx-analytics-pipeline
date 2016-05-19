@@ -1,6 +1,6 @@
 
 # If a wheel repository is defined, then have pip use that.  But don't require the use of wheel.
-ifdef WHEEL_PYVER
+ifneq ($(strip $(WHEEL_URL)),)
 	PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
 else
 	PIP_INSTALL = pip install --allow-external mysql-connector-python
