@@ -1301,6 +1301,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
             overwrite_from_date=overwrite_from_date,
+            n_reduce_tasks=self.n_reduce_tasks,
         )
 
     def output(self):
