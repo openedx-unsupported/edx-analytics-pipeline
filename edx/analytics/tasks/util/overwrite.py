@@ -45,6 +45,7 @@ class OverwriteOutputMixin(object):
         if self.overwrite and not self.attempted_removal:
             log.error('overwrite: %s and attempted_removal: %s', self.overwrite, self.attempted_removal)
             log.error('id: %s',id(self))
+            log.error('parameters: %s', self.to_str_params())
             return False
         else:
             result = super(OverwriteOutputMixin, self).complete()
