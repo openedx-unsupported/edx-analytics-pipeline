@@ -30,7 +30,6 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserMixin, HiveTableFro
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
         )
 
     @property
@@ -71,7 +70,6 @@ class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserMix
                 pattern=self.pattern,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output,
             ),
             InsertToMysqlCourseEnrollByCountryWorkflow(
                 mapreduce_engine=self.mapreduce_engine,
@@ -81,7 +79,6 @@ class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserMix
                 pattern=self.pattern,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output,
                 course_country_output=self.course_country_output,
             ),
         )
