@@ -4,7 +4,7 @@ Loads the user table into the warehouse through the pipeline via Hive.
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.location_per_course import ImportLastCountryOfUserToHiveTask
+from edx.analytics.tasks.location_per_course import ExternalLastCountryOfUserToHiveTask
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
 import luigi
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
@@ -13,9 +13,6 @@ from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin
 class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
     """Aggregate the internal reporting user table in Hive."""
     interval = luigi.DateIntervalParameter()
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'}
-    )
     n_reduce_tasks = luigi.Parameter()
 
     def requires(self):
@@ -25,10 +22,7 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
         """
         return [ImportAuthUserTask(overwrite=self.overwrite, destination=self.warehouse_path),
                 ImportAuthUserProfileTask(overwrite=self.overwrite, destination=self.warehouse_path),
-                ImportLastCountryOfUserToHiveTask(overwrite=self.overwrite,
-                                                  interval=self.interval,
-                                                  user_country_output=self.user_country_output,
-                                                  n_reduce_tasks=self.n_reduce_tasks)]
+                ExternalLastCountryOfUserToHiveTask(interval=self.interval)]
 
     @property
     def table(self):
@@ -80,10 +74,6 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
         'Should usually be from the beginning of the Open edX installation to the present day '
         '(i.e. through the previous day).',
     )
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'},
-        description='Location for intermediate output of location_per_course task.',
-    )
     n_reduce_tasks = luigi.Parameter(
         description='Number of reduce tasks',
     )
@@ -102,7 +92,6 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
                 interval=self.interval,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output
             )
         )
 

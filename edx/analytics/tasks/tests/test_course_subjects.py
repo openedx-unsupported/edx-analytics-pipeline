@@ -53,7 +53,7 @@ class TestCourseSubjects(unittest.TestCase):
         fake_warehouse_path = self.input_dir
 
         task = DailyProcessFromCatalogSubjectTask(warehouse_path=fake_warehouse_path,
-                                                  run_date=datetime.date(2015, 06, 25), catalog_path='')
+                                                  date=datetime.date(2015, 06, 25), catalog_path='')
 
         output_target = FakeTarget()
         task.output = MagicMock(return_value=output_target)

@@ -53,7 +53,7 @@ class DCourseLoadAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'LoadInternalReportingCourseToWarehouse',
-            '--run-date', self.DATE.strftime('%Y-%m-%d'),
+            '--date', self.DATE.strftime('%Y-%m-%d'),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--overwrite'
         ])

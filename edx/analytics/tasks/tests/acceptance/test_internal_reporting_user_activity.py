@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
     """End-to-end test of the workflow to load the internal reporting warehouse's user activity table."""
 
-    DATE_INTERVAL = luigi.DateIntervalParameter().parse('2014-05-01-2014-07-01')
+    DATE = '2014-07-01'
 
     def setUp(self):
         super(InternalReportingUserActivityLoadAcceptanceTest, self).setUp()
@@ -46,7 +46,7 @@ class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'InternalReportingUserActivityWorkflow',
-            '--interval', self.DATE_INTERVAL.to_string(),
+            '--date', self.DATE,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--history-schema', self.history_schema,
             '--overwrite'
