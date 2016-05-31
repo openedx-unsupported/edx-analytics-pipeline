@@ -10,6 +10,9 @@ import luigi
 import requests
 import ciso8601
 
+from opaque_keys.edx.keys import CourseKey
+
+from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -45,7 +48,7 @@ class PullCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task):
     def run(self):
         self.remove_output_on_overwrite()
         headers = {'authorization': ('Bearer ' + self.api_access_token), 'accept': 'application/json'}
-        api_url = url_path_join(self.api_root_url, 'api', 'course_structure', 'v0', 'courses',
+        api_url = url_path_join(self.api_root_url, 'api', 'courses', 'v1', 'courses',
                                 '?page_size={size}'.format(size=PAGE_SIZE))
         response = requests.get(url=api_url, headers=headers)
         if response.status_code != requests.codes.ok:  # pylint: disable=no-member
@@ -95,11 +98,19 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
                             cleaned_end_string = '\N'
                         else:
                             cleaned_end_string = ciso8601.parse_datetime(end_string)
+
+                        course_id = course.get('id', '\N')
+                        if is_valid_course_id(course_id):
+                            course_key = CourseKey.from_string(course_id)
+                            course_run = course_key.run
+                        else:
+                            course_run = '\N'
+
                         line = [
-                            course.get('id', '\N'),
+                            course_id,
                             course.get('org', '\N'),
-                            course.get('course', '\N'),
-                            course.get('run', '\N'),
+                            course.get('number', '\N'),
+                            course_run,
                             coerce_timestamp_for_hive(cleaned_start_string),
                             coerce_timestamp_for_hive(cleaned_end_string),
                             course.get('name', '\N')
