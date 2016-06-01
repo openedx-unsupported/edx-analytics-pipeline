@@ -11,7 +11,28 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask
 log = logging.getLogger(__name__)
 
 
-class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask):
+class SegmentEventLogSelectionDownstreamMixin(EventLogSelectionDownstreamMixin):
+    """Defines parameters for passing upstream to tasks that use EventLogSelectionMixin."""
+
+    source = luigi.Parameter(
+        is_list=True,
+        config_path={'section': 'segment-logs', 'name': 'source'},
+        description='A URL to a path that contains log files that contain the events. (e.g., s3://my_bucket/foo/).   Segment-logs',
+    )
+    pattern = luigi.Parameter(
+        is_list=True,
+        config_path={'section': 'segment-logs', 'name': 'pattern'},
+        description='A regex with a named capture group for the date that approximates the date that the events '
+        'within were emitted. Note that the search interval is expanded, so events don\'t have to be in exactly '
+        'the right file in order for them to be processed.  Segment-logs',
+    )
+
+
+class SegmentEventLogSelectionMixin(SegmentEventLogSelectionDownstreamMixin, EventLogSelectionMixin):
+    pass
+
+
+class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJobTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
@@ -117,7 +138,7 @@ class SegmentEventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask)
             return None
 
 
-class PushToVerticaSegmentEventTypeDistributionTask(EventLogSelectionDownstreamMixin, VerticaCopyTask):
+class PushToVerticaSegmentEventTypeDistributionTask(SegmentEventLogSelectionDownstreamMixin, VerticaCopyTask):
     """Push the event type distribution task data to Vertica."""
     output_root = luigi.Parameter()
     interval = luigi.DateIntervalParameter()
