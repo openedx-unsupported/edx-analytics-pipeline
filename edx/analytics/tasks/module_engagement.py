@@ -588,8 +588,11 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
 
     This task currently computes "low", "normal" and "high" ranges. The "low" range is defined as the [0, 15th
     percentile) interval. The "normal" range is defined as [15th percentile, 85th percentile). The "high" range is
-    defined as the [85th percentile, float('inf')). Note that all intervals are left-closed. Also note that it is not
-    strictly necessary to persist all three intervals, however, we do so for clarity.
+    defined as the [85th percentile, float('inf')). Note that all intervals are left-closed. Some edge cases result in
+    different ranges being emitted. For example, if only one discrete value is found for a particular metric (everyone
+    watched exactly one video or no videos ), it will emit a low range of [0, num_video_views) and a normal range of
+    [num_video_views, float('inf')). This will result in any user who watched no videos being categorized as "low" and
+    any user who watched one video will be characterized as "normal".
     """
 
     output_root = luigi.Parameter()
@@ -618,6 +621,7 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
         """
         metric_values = defaultdict(list)
 
+        unprocessed_metrics = set()
         first_record = None
         for line in lines:
             record = ModuleEngagementSummaryRecord.from_tsv(line)
@@ -625,22 +629,35 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
                 # There is some information we need to copy out of the summary records, so just grab one of them. There
                 # will be at least one, or else the reduce function would have never been called.
                 first_record = record
+
+            # don't include inactive learners in metric range computations
+            if record.days_active == 0:
+                continue
+
             for metric, value in record.get_metrics():
-                if value != 0:
-                    # NOTE: a lot of people don't participate, so don't include them in the analysis. Otherwise it would
-                    # look like doing *anything* in the course meant you were doing really well.
-                    metric_values[metric].append(value)
+                unprocessed_metrics.add(metric)
+                if metric == 'problem_attempts_per_completed' and record.problem_attempts == 0:
+                    # The learner needs to have at least attempted one problem in order for their float('inf') to be
+                    # included in the metric ranges. If the ratio is 0/0 we ignore the record.
+                    continue
+                metric_values[metric].append(value)
 
         for metric in sorted(metric_values):
+            unprocessed_metrics.remove(metric)
             values = metric_values[metric]
             normal_lower_bound, normal_upper_bound = numpy.percentile(  # pylint: disable=no-member
                 values, [self.low_percentile, self.high_percentile]
             )
-            ranges = [
-                (METRIC_RANGE_LOW, 0, normal_lower_bound),
-                (METRIC_RANGE_NORMAL, normal_lower_bound, normal_upper_bound),
-                (METRIC_RANGE_HIGH, normal_upper_bound, float('inf')),
-            ]
+            ranges = []
+            if normal_lower_bound > 0:
+                ranges.append((METRIC_RANGE_LOW, 0, normal_lower_bound))
+
+            if normal_lower_bound == normal_upper_bound:
+                ranges.append((METRIC_RANGE_NORMAL, normal_lower_bound, float('inf')))
+            else:
+                ranges.append((METRIC_RANGE_NORMAL, normal_lower_bound, normal_upper_bound))
+                ranges.append((METRIC_RANGE_HIGH, normal_upper_bound, float('inf')))
+
             for range_type, low_value, high_value in ranges:
                 yield ModuleEngagementSummaryMetricRangeRecord(
                     course_id=course_id,
@@ -651,6 +668,17 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
                     low_value=low_value,
                     high_value=high_value
                 ).to_string_tuple()
+
+        for metric in unprocessed_metrics:
+            yield ModuleEngagementSummaryMetricRangeRecord(
+                course_id=course_id,
+                start_date=first_record.start_date,
+                end_date=first_record.end_date,
+                metric=metric,
+                range_type='normal',
+                low_value=0,
+                high_value=float('inf')
+            ).to_string_tuple()
 
     def output(self):
         return get_target_from_url(self.output_root)

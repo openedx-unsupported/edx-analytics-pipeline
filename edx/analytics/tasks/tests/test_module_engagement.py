@@ -445,61 +445,74 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
 
         self.assert_ranges(
             values,
-            13.0,
-            50.0
+            [
+                ('low', 0, 13.0),
+                ('normal', 13.0, 50.0),
+                ('high', 50.0, 'inf'),
+            ]
         )
 
-    def assert_ranges(self, values, low, high):
+    def assert_ranges(self, values, range_values):
         """Given a list of values, assert that the ranges generated have the min, low, high, and max bounds."""
 
         # Manufacture some records with these values
         records = [self.input_record.replace(problem_attempts_per_completed=v).to_separated_values() for v in values]
 
-        self._check_output_complete_tuple(
-            records,
-            (
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'low',
-                    '0',
-                    str(low),
-                ),
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'normal',
-                    str(low),
-                    str(high),
-                ),
-                (
-                    'foo/bar/baz',
-                    '2014-03-25',
-                    '2014-04-01',
-                    'problem_attempts_per_completed',
-                    'high',
-                    str(high),
-                    'inf',
-                ),
-            )
-        )
+        output = self._get_reducer_output(records)
+        range_value_map = {rv[0]: rv for rv in range_values}
+        for record in output:
+            if record[3] == 'problem_attempts_per_completed':
+                range_type, low, high = range_value_map[record[4]]
+                self.assertEqual(
+                    record,
+                    (
+                        'foo/bar/baz',
+                        '2014-03-25',
+                        '2014-04-01',
+                        'problem_attempts_per_completed',
+                        range_type,
+                        str(low),
+                        str(high),
+                    )
+                )
 
     def test_identical_values(self):
         values = [5] * 6
-        self.assert_ranges(values, 5.0, 5.0)
+        self.assert_ranges(values, [('low', 0, 5.0), ('normal', 5.0, 'inf')])
 
     def test_single_value(self):
-        self.assert_ranges([1], 1.0, 1.0)
+        self.assert_ranges([1], [('low', 0, 1.0), ('normal', 1.0, 'inf')])
 
-    def test_very_small_values(self):
-        self.assert_ranges(([0.01] * 10) + ([0.09] * 10), 0.01, 0.09)
+    def test_single_infinite_value(self):
+        values = [float('inf')] * 3
+        self.assert_ranges(values, [('low', 0, 'inf'), ('normal', 'inf', 'inf')])
 
-    def test_infinite_value(self):
-        self.assert_ranges(([1.0] * 19) + [float('inf')], 1.0, 1.0)
+    def test_infinite_threshold_low_normal(self):
+        values = [1, float('inf'), float('inf'), float('inf')]
+        self.assert_ranges(values, [('low', 0, 'inf'), ('normal', 'inf', 'inf')])
+
+    def test_infinite_threshold_normal_high(self):
+        values = [1, 2, 3, float('inf'), float('inf')]
+        self.assert_ranges(values, [('low', 0, 1.6), ('normal', 1.6, 'inf'), ('high', 'inf', 'inf')])
+
+    def test_infinite_value_in_high(self):
+        values = [1, 2, 3, 4, 5, 6, 7, float('inf')]
+        self.assert_ranges(values, [('low', 0, 2.05), ('normal', 2.05, 6.95), ('high', 6.95, 'inf')])
+
+    def test_no_values(self):
+        self.assert_ranges([], [('normal', 0, 'inf')])
+
+    def test_single_zero_value(self):
+        values = [0] * 3
+        self.assert_ranges(values, [('normal', 0, 'inf')])
+
+    def test_zeroes_are_normal(self):
+        values = [1, 0, 0, 0]
+        self.assert_ranges(values, [('normal', 0, 0.55), ('high', 0.55, 'inf')])
+
+    def test_zeroes_are_low(self):
+        values = [0, 0, 0] + ([1] * 10) + ([2]*4)
+        self.assert_ranges(values, [('low', 0, 0.4), ('normal', 0.4, 2.0), ('high', 2.0, 'inf')])
 
 
 @ddt

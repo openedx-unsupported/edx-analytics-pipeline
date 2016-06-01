@@ -195,7 +195,11 @@ class AcceptanceTestCase(unittest.TestCase):
             'course-structure': {
                 'api_root_url': 'acceptance.test',
                 'access_token': 'acceptance'
-            }
+            },
+            'module-engagement': {
+                'alias': elasticsearch_alias
+            },
+            'elasticsearch': {}
         }
         if 'vertica_creds_url' in self.config:
             task_config_override['vertica-export'] = {
@@ -203,12 +207,9 @@ class AcceptanceTestCase(unittest.TestCase):
                 'schema': schema
             }
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch'] = {
-                'host': self.config['elasticsearch_host']
-            }
-            task_config_override['module-engagement'] = {
-                'alias': elasticsearch_alias
-            }
+            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
+        if 'elasticsearch_connection_class' in self.config:
+            task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:
             task_config_override['manifest']['input_format'] = self.config['manifest_input_format']
         if 'hive_version' in self.config:
@@ -228,6 +229,13 @@ class AcceptanceTestCase(unittest.TestCase):
 
         if os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true':
             self.reset_external_state()
+
+        max_diff = os.getenv('MAX_DIFF', None)
+        if max_diff is not None:
+            if max_diff.lower() == "infinite":
+                self.maxDiff = None
+            else:
+                self.maxDiff = int(max_diff)
 
     def reset_external_state(self):
         root_target = get_target_from_url(get_jenkins_safe_url(self.test_root))

@@ -1,5 +1,6 @@
 try:
     import elasticsearch
+    from elasticsearch.connection import Urllib3HttpConnection
 except ImportError:
     elasticsearch = None
 
@@ -12,7 +13,7 @@ class ElasticsearchService(object):
         if config.get('elasticsearch_connection_class') == 'aws':
             connection_class = AwsHttpConnection
         else:
-            connection_class = None
+            connection_class = Urllib3HttpConnection
 
         self._disabled = not bool(config.get('elasticsearch_host'))
         self._alias = alias

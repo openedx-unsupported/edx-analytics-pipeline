@@ -116,11 +116,10 @@ class TestCourseInformation(unittest.TestCase):
         input_data = {
             "results": [
                 {
-                    "id": "foo",
+                    "id": "bar/foo/2T2015",
                     "name": "Foo",
                     "org": "bar",
-                    "course": "Baz",
-                    "run": "2T2015",
+                    "number": "Baz",
                     "start": "2015-08-24T00:00:00Z",
                     "end": "2016-08-25T00:00:00Z"
                 }
@@ -131,7 +130,7 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see this course with the mock structure information.
         self.assertEquals(data.shape[0], 1)
         expected = {
-            'course_id': 'foo',
+            'course_id': 'bar/foo/2T2015',
             'course_name': 'Foo',
             'course_org_id': 'bar',
             'course_number': 'Baz',
@@ -146,20 +145,18 @@ class TestCourseInformation(unittest.TestCase):
         input_data = {
             "results": [
                 {
-                    "id": "foo",
+                    "id": "bar/foo/2T2015",
                     "name": "Foo",
                     "org": "bar",
-                    "course": "Baz",
-                    "run": "2T2015",
+                    "number": "Baz",
                     "start": "2015-08-24T00:00:00Z",
                     "end": "2016-08-25T00:00:00Z"
                 },
                 {
-                    "id": "foo2",
+                    "id": "bar2/foo2/2T2015",
                     "name": "Foo2",
                     "org": "bar2",
-                    "course": "Baz",
-                    "run": "2T2015",
+                    "number": "Baz",
                     "start": "2015-08-24T00:00:00Z"
                 }
             ]
@@ -169,7 +166,7 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
         course1 = {
-            'course_id': 'foo',
+            'course_id': 'bar/foo/2T2015',
             'course_name': 'Foo',
             'course_org_id': 'bar',
             'course_number': 'Baz',
@@ -178,7 +175,7 @@ class TestCourseInformation(unittest.TestCase):
             'course_end': '2016-08-25T00:00:00+00:00'
         }
         course2 = {
-            'course_id': 'foo2',
+            'course_id': 'bar2/foo2/2T2015',
             'course_name': 'Foo2',
             'course_org_id': 'bar2',
             'course_number': 'Baz',
@@ -199,10 +196,10 @@ class TestCourseInformation(unittest.TestCase):
             "results": [
                 [],
                 {
-                    "id": "foo2",
+                    "id": "bar2/foo2/2T2015",
                     "name": "Foo2",
                     "org": "bar2",
-                    "course": "Baz",
+                    "number": "Baz",
                     "run": "2T2015",
                     "start": "2015-08-24T00:00:00Z"
                 }
@@ -212,7 +209,7 @@ class TestCourseInformation(unittest.TestCase):
         # We expect to see the second course, which is well-formed, but nothing from the first.
         self.assertEquals(data.shape[0], 1)
         expected = {
-            'course_id': 'foo2',
+            'course_id': 'bar2/foo2/2T2015',
             'course_name': 'Foo2',
             'course_org_id': 'bar2',
             'course_number': 'Baz',
@@ -227,11 +224,10 @@ class TestCourseInformation(unittest.TestCase):
         input_data = {
             "results": [
                 {
-                    "id": "foo",
+                    "id": "bar/foo/2T2015",
                     "name": u"Fo\u263a",
                     "org": "bar",
-                    "course": "Baz",
-                    "run": "2T2015",
+                    "number": "Baz",
                     "start": "2015-08-24T00:00:00Z",
                     "end": "2016-08-25T00:00:00Z"
                 }
@@ -244,7 +240,7 @@ class TestCourseInformation(unittest.TestCase):
         # but can't handle the unicode strings.  This "error" really indicates a test failure.
         self.assertEquals(data.shape[0], 1)
         expected = {
-            'course_id': 'foo',
+            'course_id': 'bar/foo/2T2015',
             'course_name': 'Fo\xe2\x98\xba',
             'course_org_id': 'bar',
             'course_number': 'Baz',
