@@ -53,27 +53,27 @@ class LoadWarehouse(luigi.WrapperTask):
                 n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
-            LoadInternalReportingUserCourseToWarehouse(
-                date=self.date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                **kwargs
-            ),
-            InternalReportingUserActivityWorkflow(
-                interval=self.interval,
-                n_reduce_tasks=self.n_reduce_tasks,
-                history_schema=self.history_schema,
-                **kwargs
-            ),
+            # LoadInternalReportingUserCourseToWarehouse(
+            #     date=self.date,
+            #     n_reduce_tasks=self.n_reduce_tasks,
+            #     **kwargs
+            # ),
+            # InternalReportingUserActivityWorkflow(
+            #     interval=self.interval,
+            #     n_reduce_tasks=self.n_reduce_tasks,
+            #     history_schema=self.history_schema,
+            #     **kwargs
+            # ),
             LoadInternalReportingUserToWarehouse(
                 interval=self.interval,
                 user_country_output=self.user_country_output,
                 n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
-            CourseCatalogWorkflow( # Should we use DailyLoadSubjectsToVerticaTask here ?
-                run_date=self.date,
-                **kwargs
-            )
+            # CourseCatalogWorkflow( # Should we use DailyLoadSubjectsToVerticaTask here ?
+            #     run_date=self.date,
+            #     **kwargs
+            # )
         )
 
     def output(self):
