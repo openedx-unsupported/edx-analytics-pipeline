@@ -30,7 +30,7 @@ from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
@@ -1134,9 +1134,8 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 overwrite=self.overwrite,
                 overwrite_from_date=self.overwrite_from_date,
             ),
-            CourseEnrollmentTableTask(
-                interval_end=self.date,
-                n_reduce_tasks=self.n_reduce_tasks,
+            ExternalURL(
+                url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
