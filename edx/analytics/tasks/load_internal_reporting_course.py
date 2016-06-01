@@ -310,8 +310,8 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseMixin, V
             ('course_org_id', 'VARCHAR(45)'),
             ('course_number', 'VARCHAR(45)'),
             ('course_run', 'VARCHAR(100)'),
-            ('course_start', 'TIMESTAMP'),
-            ('course_end', 'TIMESTAMP'),
+            ('course_start', 'TIMESTAMPTZ'),
+            ('course_end', 'TIMESTAMPTZ'),
             ('course_name', 'VARCHAR(200)')
         ]
 
