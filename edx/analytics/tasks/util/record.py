@@ -68,6 +68,13 @@ class Record(object):
         class G(A):
             zipcode = StringField()
     """
+    # For the base record class, we want the values of all fields to
+    # be explicitly set.  An error is returned if any field is not
+    # set.  However, we provide a flag here so that subclasses can
+    # change this behavior.  In particular, we want to support a
+    # record with sparse entries. In this case, fields not explicitly
+    # set are given a value of None.
+    set_missing_fields_to_none = False
 
     def __init__(self, *args, **kwargs):
         fields = self.get_fields()
@@ -110,7 +117,10 @@ class Record(object):
                 val = kwargs.pop(field_name)
                 self.initialize_field(field_name, val)
             except KeyError:
-                missing_fields.append(field_name)
+                if self.set_missing_fields_to_none:
+                    self.initialize_field(field_name, None)
+                else:
+                    missing_fields.append(field_name)
 
         if len(missing_fields) > 0:
             raise TypeError('Required fields not specified: {0}'.format(', '.join(missing_fields)))
@@ -385,6 +395,21 @@ class Record(object):
             )
         field_doc.append('')
         return '\n'.join(field_doc)
+
+
+
+class SparseRecord(Record):
+    """
+    Represents a Record that can be initialized with a subset of values being defined.
+
+    Fields in the record that are not explicitly specified will default to None.
+    """
+    # For the base record class, we wanted the values of all fields to
+    # be explicitly set, and an error to be returned if any field is
+    # not set.  We set this flag here to support records with sparse
+    # entries.  In this case, fields not explicitly set are given a
+    # value of None.
+    set_missing_fields_to_none = True
 
 
 class Field(object):
