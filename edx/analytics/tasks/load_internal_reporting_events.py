@@ -15,27 +15,34 @@ log = logging.getLogger(__name__)
 import luigi
 import luigi.task
 
+from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin, SegmentEventLogSelectionDownstreamMixin
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
+from edx.analytics.tasks.util.record import SparseRecord, StringField, IntegerField, DateField, FloatField
 
 
-class EventRecord(Record):
+class EventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
 
+    # Globals:
+    timestamp = StringField(length=255, nullable=False, description='Timestamp of course.')
     course_id = StringField(length=255, nullable=False, description='Id of course.')
     username = StringField(length=30, nullable=False, description='Learner\'s username.')
+    event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
+    event_source = StringField(length=255, nullable=False, description='blah.')
+    project = StringField(length=255, nullable=False, description='blah.')
     date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
+
+    # Per-event values:
     entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
                                                                      ' with. Example: "video".')
     entity_id = StringField(length=255, nullable=False, description='A unique identifier for the entity within the'
                                                                     ' course that the learner interacted with.')
-    event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
-    event_source = StringField(length=255, nullable=False, description='blah.')
-    
 
-class TrackingEventRecordTask(EventLogSelectionMixin, MapReduceJobTask):
-    """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+
+class BaseEventRecordTask(MultiOutputMapReduceJobTask):
+    
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
 
@@ -46,7 +53,7 @@ class TrackingEventRecordTask(EventLogSelectionMixin, MapReduceJobTask):
         return ExternalURL(url=self.events_list_file_path)
 
     def init_local(self):
-        super(SegmentEventTypeDistributionTask, self).init_local()
+        super(BaseEventRecordTask, self).init_local()
         if self.events_list_file_path is None:
             self.known_events = {}
         else:
@@ -63,21 +70,6 @@ class TrackingEventRecordTask(EventLogSelectionMixin, MapReduceJobTask):
                     parsed_events[(parts[1], parts[2])] = parts[0]
         return parsed_events
 
-    def get_event_time(self, event):
-        # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
-        # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
-        # events locally and then when connectivity is restored transmit them to the server. We log the time that they
-        # were received by the server and use that to batch them into exports since it is much simpler than trying to
-        # inject them into past exports.
-
-        # TODO: decide if we want to use this approach, and whether it
-        # makes sense to also apply it to segment events as well.
-        
-        try:
-            return event['context']['received_at']
-        except KeyError:
-            return super(EventExportTask, self).get_event_time(event)
-
     def get_map_input_file(self):
         # TODO: decide if this is useful information.  (Share across all logs.  Add to a common base class?)
         try:
@@ -87,51 +79,6 @@ class TrackingEventRecordTask(EventLogSelectionMixin, MapReduceJobTask):
         except KeyError:
             log.warn('map_input_file not defined in os.environ, unable to determine input file path')
             return None
-
-    def mapper(self, line):
-        event, date_string = self.get_event_and_date_string(line) or (None, None)
-        if event is None:
-            return
-        
-        if value is None:
-            return
-        event, date_string = value
-
-        username = event.get('username', '').strip()
-        if not username:
-            return
-
-        event_type = event.get('event_type')
-        if event_type is None:
-            return
-
-        course_id = eventlog.get_course_id(event)
-        if not course_id:
-            return
-
-        event_data = eventlog.get_event_data(event)
-        if event_data is None:
-            return
-
-        event_source = event.get('event_source')
-
-        event_dict = {
-            'event_type': event_type,
-            'event_source': event_source,
-            'course_id': course_id,
-            'username': username,
-            'date': date_string,
-            'timestamp': self.get_event_time(event),
-            # etc.
-        }
-
-        record = EventRecord(event_dict)
-
-        project = 'tracking_prod'
-        
-        key = (date_string, project)
-
-        yield key, record.to_string_tuple()
 
     def multi_output_reducer(self, _key, values, output_file):
         """
@@ -174,34 +121,88 @@ class TrackingEventRecordTask(EventLogSelectionMixin, MapReduceJobTask):
         )
 
 
-class SegmentEventRecordTask(SegmentEventLogSelectionMixin, MapReduceJobTask):
+class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
-    output_root = luigi.Parameter()
-    events_list_file_path = luigi.Parameter(default=None)
 
-    # TODO: maintain support for info about events.  We may need something similar to identify events
-    # that should -- or should not -- be included in the event dump.
-    
-    def requires_local(self):
-        return ExternalURL(url=self.events_list_file_path)
+    def get_event_time(self, event):
+        # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
+        # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
+        # events locally and then when connectivity is restored transmit them to the server. We log the time that they
+        # were received by the server and use that to batch them into exports since it is much simpler than trying to
+        # inject them into past exports.
 
-    def init_local(self):
-        super(SegmentEventTypeDistributionTask, self).init_local()
-        if self.events_list_file_path is None:
-            self.known_events = {}
-        else:
-            self.known_events = self.parse_events_list_file()
+        # TODO: decide if we want to use this approach, and whether it
+        # makes sense to also apply it to segment events as well.
+        
+        try:
+            return event['context']['received_at']
+        except KeyError:
+            return super(TrackingEventRecordTask, self).get_event_time(event)
 
-    def parse_events_list_file(self):
-        """ Read and parse the known events list file and populate it in a dictionary."""
-        parsed_events = {}
-        with self.input_local().open() as f_in:
-            lines = f_in.readlines()
-            for line in lines:
-                if (not line.startswith('#') and len(line.split("\t")) is 3):
-                    parts = line.rstrip('\n').split("\t")
-                    parsed_events[(parts[1], parts[2])] = parts[0]
-        return parsed_events
+    def mapper(self, line):
+        event, date_string = self.get_event_and_date_string(line) or (None, None)
+        if event is None:
+            return
+        
+        if value is None:
+            return
+        event, date_string = value
+
+        username = event.get('username', '').strip()
+        if not username:
+            return
+
+        event_type = event.get('event_type')
+        if event_type is None:
+            return
+
+        course_id = eventlog.get_course_id(event)
+        if not course_id:
+            return
+
+        event_data = eventlog.get_event_data(event)
+        if event_data is None:
+            return
+
+        event_source = event.get('event_source')
+
+        project = 'tracking_prod'
+        
+        event_dict = {
+            'timestamp': self.get_event_time(event),
+            'course_id': course_id,
+            'username': username,
+            'event_type': event_type,
+            'event_source': event_source,
+            'date': date_string,
+            'project': project,
+            # etc.
+        }
+
+        record = EventRecord(event_dict)
+
+        key = (date_string, project)
+
+        yield key, record.to_string_tuple()
+
+
+class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask):
+    """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+
+    def get_event_time(self, event):
+        """
+        Returns time information from event if present, else returns None.
+
+        Overrides base class implementation to get correct timestamp.
+
+        """
+        try:
+            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
+            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
+            return event['originalTimestamp']
+        except KeyError:
+            self.incr_counter('Event', 'Missing Time Field', 1)
+            return None
 
     def mapper(self, line):
         # self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
@@ -259,27 +260,25 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, MapReduceJobTask):
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
         property_keys = ','.join(sorted(event.get('properties', {}).keys()))
         context_keys = ','.join(sorted(event.get('context', {}).keys()))
-        yield (event_date, event_category, event_type, event_source, exported, property_keys, context_keys), 1
 
-    def reducer(self, key, values):
-        yield (key), sum(values)
+        project = event.get('projectId')
+        
+        event_dict = {
+            'timestamp': self.get_event_time(event),
+            # 'course_id': course_id,
+            # 'username': username,
+            'event_type': event_type,
+            'event_source': event_source,
+            'date': date_string,
+            'project': project,
+            # etc.
+        }
 
-    def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'segment_event_type_distribution/'))
+        record = EventRecord(event_dict)
 
-    def get_event_time(self, event):
-        """
-        Returns time information from event if present, else returns None.
+        project = 'tracking_prod'
+        
+        key = (date_string, project)
 
-        Overrides base class implementation to get correct timestamp.
-
-        """
-        try:
-            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
-            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
-            return event['originalTimestamp']
-        except KeyError:
-            self.incr_counter('Event', 'Missing Time Field', 1)
-            return None
-
-    
+        # yield key, record.to_separated_values()        
+        yield key, record.to_string_tuple()
