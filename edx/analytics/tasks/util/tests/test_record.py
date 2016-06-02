@@ -9,8 +9,9 @@ from ddt import data, ddt, unpack
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.util.record import (
     Record, StringField, IntegerField, DateField, DateTimeField, FloatField, DelimitedStringField, BooleanField,
-    HiveTsvEncoder
+    HiveTsvEncoder, SparseRecord
 )
+
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
@@ -93,6 +94,24 @@ class RecordTestCase(unittest.TestCase):
     def test_mixed_with_missing(self):
         with self.assertRaisesRegexp(TypeError, "Required fields not specified: third"):
             ThreeFieldRecord('a', second='b')
+
+    def test_sparse_with_missing_at_end(self):
+        test_record = ThreeFieldSparseRecord('a', second='b')
+        self.assertEqual(test_record.first, 'a')
+        self.assertEqual(test_record.second, 'b')
+        self.assertEqual(test_record.third, None)
+
+    def test_sparse_with_missing_in_middle(self):
+        test_record = ThreeFieldSparseRecord('a', third='c')
+        self.assertEqual(test_record.first, 'a')
+        self.assertEqual(test_record.second, None)
+        self.assertEqual(test_record.third, 'c')
+
+    def test_sparse_with_missing_in_dict(self):
+        test_record = ThreeFieldSparseRecord(**{'first': 'a', 'third': 'c'})
+        self.assertEqual(test_record.first, 'a')
+        self.assertEqual(test_record.second, None)
+        self.assertEqual(test_record.third, 'c')
 
     def test_extra_kwargs(self):
         with self.assertRaisesRegexp(TypeError, "Unknown fields specified: second"):
@@ -412,6 +431,13 @@ class TwoFieldRecord(Record):
 
 
 class ThreeFieldRecord(Record):
+    """A record with several fields"""
+    first = StringField()
+    second = StringField()
+    third = StringField()
+
+
+class ThreeFieldSparseRecord(SparseRecord):
     """A record with several fields"""
     first = StringField()
     second = StringField()
