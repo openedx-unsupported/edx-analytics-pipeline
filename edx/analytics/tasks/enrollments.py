@@ -9,7 +9,7 @@ import luigi.task
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 from edx.analytics.tasks.decorators import workflow_entry_point
@@ -331,6 +331,14 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,
+        )
+
+
+class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
+
+    def requires(self):
+        yield ExternalURL(
+            url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
         )
 
 

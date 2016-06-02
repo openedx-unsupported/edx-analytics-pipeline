@@ -26,7 +26,7 @@ from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCours
 from edx.analytics.tasks.database_imports import ImportCourseUserGroupTask
 from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask
-from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
+from edx.analytics.tasks.enrollments import ExternalCourseEnrollmentTableTask
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
@@ -1134,8 +1134,8 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 overwrite=self.overwrite,
                 overwrite_from_date=self.overwrite_from_date,
             ),
-            ExternalURL(
-                url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
+            ExternalCourseEnrollmentTableTask(
+                interval_end=self.date
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
