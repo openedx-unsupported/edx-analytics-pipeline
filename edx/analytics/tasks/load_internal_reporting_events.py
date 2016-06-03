@@ -26,6 +26,7 @@ class EventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
 
     # Globals:
+    # TODO: decide what type 'timestamp' should be.
     timestamp = StringField(length=255, nullable=False, description='Timestamp of course.')
     course_id = StringField(length=255, nullable=False, description='Id of course.')
     username = StringField(length=30, nullable=False, description='Learner\'s username.')
@@ -45,6 +46,7 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
     
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
+    date_field_for_converting = DateField()
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
@@ -120,6 +122,13 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             '{project}.tsv'.format(project=project),
         )
 
+    def convert_date(self, date_string):
+        """Converts date from string format to date object, for use by DateField."""
+        if date_string:
+            return self.date_field_for_converting.deserialize_from_string(date_string)
+        else:
+            return date_string
+
 
 class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
@@ -170,12 +179,12 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
             'username': username,
             'event_type': event_type,
             'event_source': event_source,
-            'date': event_date,
+            'date': self.convert_date(event_date),
             'project': project,
             # etc.
         }
 
-        record = EventRecord(event_dict)
+        record = EventRecord(**event_dict)
 
         key = (event_date, project)
 
@@ -265,12 +274,12 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             # 'username': username,
             'event_type': event_type,
             'event_source': event_source,
-            'date': event_date,
+            'date': self.convert_date(event_date),
             'project': project,
             # etc.
         }
 
-        record = EventRecord(event_dict)
+        record = EventRecord(**event_dict)
         key = (event_date, project)
 
         # yield key, record.to_separated_values()        
