@@ -91,25 +91,21 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
     def multi_output_reducer(self, _key, values, output_file):
         """
         Write values to the appropriate file as determined by the key.
-        Write to the encrypted file by streaming through gzip, which compresses before encrypting
         """
-        with gzip.GzipFile(mode='wb', fileobj=output_file) as outfile:
-            try:
-                for value in values:
-                    # Assume that the value is a dict containing the relevant sparse data,
-                    # either raw or encoded in a json string.
-                    # Either that, or we could ship the original event as a json string,
-                    # or ship the resulting sparse record as a tuple.
-                    # It should be a pretty arbitrary decision, since it all needs
-                    # to be done, and it's just a question where to do it.
-                    # For now, keep this simple, and assume it's tupled already.
-                    outfile.write(value.strip())
-                    outfile.write('\n')
-                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
-                    # Do not remove it.
-                    self.incr_counter('Event Record Exports', 'Raw Bytes Written', len(value) + 1)
-            finally:
-                outfile.close()
+        for value in values:
+            # Assume that the value is a dict containing the relevant sparse data,
+            # either raw or encoded in a json string.
+            # Either that, or we could ship the original event as a json string,
+            # or ship the resulting sparse record as a tuple.
+            # It should be a pretty arbitrary decision, since it all needs
+            # to be done, and it's just a question where to do it.
+            # For now, keep this simple, and assume it's tupled already.
+            output_file.write(value.strip())
+            output_file.write('\n')
+            # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+            # Do not remove it.
+            self.incr_counter('Event Record Exports', 'Raw Bytes Written', len(value) + 1)
+
 
     def output_path_for_key(self, key):
         """
