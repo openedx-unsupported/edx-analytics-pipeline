@@ -111,12 +111,12 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
 
         Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv
         """
-        date_string, project = key
+        event_date, project = key
 
         return url_path_join(
             self.output_root,
             'event_records',
-            'dt={date}'.format(date=date_string),
+            'dt={date}'.format(date=event_date),
             '{project}.tsv'.format(project=project),
         )
 
@@ -140,14 +140,10 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
             return super(TrackingEventRecordTask, self).get_event_time(event)
 
     def mapper(self, line):
-        event, date_string = self.get_event_and_date_string(line) or (None, None)
+        event, event_date = self.get_event_and_date_string(line) or (None, None)
         if event is None:
             return
         
-        if value is None:
-            return
-        event, date_string = value
-
         username = event.get('username', '').strip()
         if not username:
             return
@@ -174,14 +170,14 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
             'username': username,
             'event_type': event_type,
             'event_source': event_source,
-            'date': date_string,
+            'date': event_date,
             'project': project,
             # etc.
         }
 
         record = EventRecord(event_dict)
 
-        key = (date_string, project)
+        key = (event_date, project)
 
         yield key, record.to_string_tuple()
 
@@ -258,8 +254,8 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             event_source = channel
 
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
-        property_keys = ','.join(sorted(event.get('properties', {}).keys()))
-        context_keys = ','.join(sorted(event.get('context', {}).keys()))
+        # property_keys = ','.join(sorted(event.get('properties', {}).keys()))
+        # context_keys = ','.join(sorted(event.get('context', {}).keys()))
 
         project = event.get('projectId')
         
@@ -269,16 +265,13 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             # 'username': username,
             'event_type': event_type,
             'event_source': event_source,
-            'date': date_string,
+            'date': event_date,
             'project': project,
             # etc.
         }
 
         record = EventRecord(event_dict)
-
-        project = 'tracking_prod'
-        
-        key = (date_string, project)
+        key = (event_date, project)
 
         # yield key, record.to_separated_values()        
         yield key, record.to_string_tuple()
