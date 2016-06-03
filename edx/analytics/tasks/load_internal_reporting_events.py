@@ -10,16 +10,17 @@ import datetime
 import logging
 import random
 
-log = logging.getLogger(__name__)
-
 import luigi
 import luigi.task
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin, SegmentEventLogSelectionDownstreamMixin
+from edx.analytics.tasks.url import ExternalURL, url_path_join
+from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.record import SparseRecord, StringField, IntegerField, DateField, FloatField
+
+log = logging.getLogger(__name__)
 
 
 class EventRecord(SparseRecord):
@@ -39,13 +40,13 @@ class EventRecord(SparseRecord):
 
     # Per-event values:
     entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
-                                                                     ' with. Example: "video".')
+                              ' with. Example: "video".')
     entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
-                                                                    ' course that the learner interacted with.')
+                            ' course that the learner interacted with.')
 
 
 class BaseEventRecordTask(MultiOutputMapReduceJobTask):
-    
+
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
 
@@ -55,7 +56,7 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
-    
+
     def requires_local(self):
         return ExternalURL(url=self.events_list_file_path)
 
@@ -96,7 +97,7 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             try:
                 for value in values:
                     # Assume that the value is a dict containing the relevant sparse data,
-                    # either raw or encoded in a json string. 
+                    # either raw or encoded in a json string.
                     # Either that, or we could ship the original event as a json string,
                     # or ship the resulting sparse record as a tuple.
                     # It should be a pretty arbitrary decision, since it all needs
@@ -109,10 +110,10 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
                     self.incr_counter('Event Record Exports', 'Raw Bytes Written', len(value) + 1)
             finally:
                 outfile.close()
-        
+
     def output_path_for_key(self, key):
         """
-        Output based on date and something else.  What else?  Type?  
+        Output based on date and something else.  What else?  Type?
 
         Mix them together by date, but identify with different files for each project/environment.
 
@@ -147,7 +148,7 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
 
         # TODO: decide if we want to use this approach, and whether it
         # makes sense to also apply it to segment events as well.
-        
+
         try:
             return event['context']['received_at']
         except KeyError:
@@ -157,7 +158,7 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         event, event_date = self.get_event_and_date_string(line) or (None, None)
         if event is None:
             return
-        
+
         username = event.get('username', '').strip()
         if not username:
             return
@@ -177,7 +178,7 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         event_source = event.get('event_source')
 
         project = 'tracking_prod'
-        
+
         event_dict = {
             'timestamp': self.get_event_time(event),
             'course_id': course_id,
@@ -227,7 +228,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
 
         channel = event.get('channel')
         self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
-        
+
         exported = False
 
         if segment_type == 'track':
@@ -272,7 +273,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         # context_keys = ','.join(sorted(event.get('context', {}).keys()))
 
         project = event.get('projectId')
-        
+
         event_dict = {
             'timestamp': self.get_event_time(event),
             # 'course_id': course_id,
@@ -287,11 +288,11 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         record = EventRecord(**event_dict)
         key = (event_date, project)
 
-        # yield key, record.to_separated_values()        
+        # yield key, record.to_separated_values()
         yield key, record.to_string_tuple()
 
 
-class LoadEventsWorkflow(MapReduceJobTaskMixin, luigi.WrapperTask):
+class GeneralEventRecordTask(MapReduceJobTaskMixin, luigi.WrapperTask):
 
     # TODO: pull these out into a mixin.
     output_root = luigi.Parameter()
@@ -312,3 +313,7 @@ class LoadEventsWorkflow(MapReduceJobTaskMixin, luigi.WrapperTask):
             TrackingEventRecordTask(**kwargs),
             SegmentEventRecordTask(**kwargs),
         )
+
+
+# TODO:  Add loading of events into Hive, and into Vertica.
+# class LoadInternalReportingEventsToWarehouse(WarehouseMixin, VerticaCopyTask):
