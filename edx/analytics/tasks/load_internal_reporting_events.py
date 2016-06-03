@@ -100,7 +100,7 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             # It should be a pretty arbitrary decision, since it all needs
             # to be done, and it's just a question where to do it.
             # For now, keep this simple, and assume it's tupled already.
-            output_file.write(value.strip())
+            output_file.write(value)
             output_file.write('\n')
             # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
             # Do not remove it.
@@ -190,7 +190,10 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
 
         key = (event_date, project)
 
-        yield key, record.to_string_tuple()
+        # Convert to form for output by reducer here,
+        # so that reducer doesn't do any conversion.
+        # yield key, record.to_string_tuple()
+        yield key, record.to_separated_values()
 
 
 class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask):
@@ -284,8 +287,10 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         record = EventRecord(**event_dict)
         key = (event_date, project)
 
-        # yield key, record.to_separated_values()
-        yield key, record.to_string_tuple()
+        # Convert to form for output by reducer here,
+        # so that reducer doesn't do any conversion.
+        # yield key, record.to_string_tuple()
+        yield key, record.to_separated_values()
 
 
 class GeneralEventRecordTask(MapReduceJobTaskMixin, luigi.WrapperTask):
