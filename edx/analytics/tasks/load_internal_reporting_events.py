@@ -27,18 +27,20 @@ class EventRecord(SparseRecord):
 
     # Globals:
     # TODO: decide what type 'timestamp' should be.
-    timestamp = StringField(length=255, nullable=False, description='Timestamp of course.')
-    course_id = StringField(length=255, nullable=False, description='Id of course.')
-    username = StringField(length=30, nullable=False, description='Learner\'s username.')
+    timestamp = StringField(length=255, nullable=False, description='Timestamp of event.')
     event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
     event_source = StringField(length=255, nullable=False, description='blah.')
     project = StringField(length=255, nullable=False, description='blah.')
     date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
 
+    # Common values:
+    course_id = StringField(length=255, nullable=True, description='Id of course.')
+    username = StringField(length=30, nullable=True, description='Learner\'s username.')
+
     # Per-event values:
-    entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
+    entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
                                                                      ' with. Example: "video".')
-    entity_id = StringField(length=255, nullable=False, description='A unique identifier for the entity within the'
+    entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
                                                                     ' course that the learner interacted with.')
 
 
@@ -46,6 +48,9 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
     
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
+
+    # Create a DateField object to help with converting date_string
+    # values for assignment to DateField objects.
     date_field_for_converting = DateField()
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
@@ -284,3 +289,26 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
 
         # yield key, record.to_separated_values()        
         yield key, record.to_string_tuple()
+
+
+class LoadEventsWorkflow(MapReduceJobTaskMixin, luigi.WrapperTask):
+
+    # TODO: pull these out into a mixin.
+    output_root = luigi.Parameter()
+    events_list_file_path = luigi.Parameter(default=None)
+    interval = luigi.DateIntervalParameter(
+        description='The range of dates for which to load logs.',
+    )
+
+    def requires(self):
+        kwargs = {
+            'output_root': self.output_root,
+            'events_list_file_path': self.events_list_file_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'interval': self.interval,
+            # 'warehouse_path': self.warehouse_path,
+        }
+        yield (
+            TrackingEventRecordTask(**kwargs),
+            SegmentEventRecordTask(**kwargs),
+        )
