@@ -112,6 +112,9 @@
     - name: branch fetched
       command: git fetch --all chdir={{ working_repo_dir }}
 
+    - name: update origin/HEAD
+      command: git remote set-head origin --auto chdir={{ working_repo_dir }}
+
     - name: branch checked out
       command: git checkout {{ branch }} chdir={{ working_repo_dir }}
 
