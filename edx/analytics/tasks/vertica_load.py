@@ -421,6 +421,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             # that would commit the transaction.
             self.init_copy(connection)
 
+            connection.cursor().execute("SET TIMEZONE TO 'GMT';")
+
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
 
