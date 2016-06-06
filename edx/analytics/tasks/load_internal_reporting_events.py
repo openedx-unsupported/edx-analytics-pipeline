@@ -108,7 +108,6 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             # Do not remove it.
             self.incr_counter('Event Record Exports', 'Raw Bytes Written', len(value) + 1)
 
-
     def output_path_for_key(self, key):
         """
         Output based on date and something else.  What else?  Type?
@@ -134,8 +133,10 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
                 # When actually supporting DateField, then switch back to date.
                 return self.date_field_for_converting.deserialize_from_string(date_string).isoformat()
             except ValueError as value_error:
-                self.incr_counter('Event Record Exports', 'Cannot convert to date', 1)                
-                return "BAD: {}".format(date_string)
+                self.incr_counter('Event Record Exports', 'Cannot convert to date', 1)
+                # Make sure we return a good value within the interval, so we can find the output for debugging.
+                # return "BAD: {}".format(date_string)
+                return self.lower_bound_date_string
         else:
             self.incr_counter('Event Record Exports', 'Missing date', 1)
             return date_string
@@ -229,10 +230,17 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         try:
             # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
             # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
-            return event['originalTimestamp']
+            # return event['originalTimestamp']
+
+            event_time = event['originalTimestamp']
         except KeyError:
             self.incr_counter('Event', 'Missing Time Field', 1)
             return None
+
+        # Make sure here that the date is good.  If not, replace it with a different value
+        # that is good (and in the interval as well).
+        date_string = event_time.split("T")[0]
+        return self.convert_date(date_string)
 
     def mapper(self, line):
         # self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
@@ -298,7 +306,9 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             'event_type': event_type,
             'event_source': event_source,
             'event_category': event_category,
-            'date': self.convert_date(event_date),
+            # 'date': self.convert_date(event_date),
+            # For debugging, we will write out the original value
+            'date': event['originalTimestamp'],
             'project': project,
             # etc.
         }
