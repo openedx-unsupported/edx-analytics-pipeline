@@ -31,10 +31,12 @@ class EventRecord(SparseRecord):
     timestamp = StringField(length=255, nullable=False, description='Timestamp of event.')
     event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
     event_source = StringField(length=255, nullable=False, description='blah.')
+    event_category = StringField(length=255, nullable=False, description='blah.')
     project = StringField(length=255, nullable=False, description='blah.')
-    date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
+    # TODO: figure out why these have errors, and then make DateField.
+    date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
 
-    # Common values:
+    # Common (but optional) values:
     course_id = StringField(length=255, nullable=True, description='Id of course.')
     username = StringField(length=30, nullable=True, description='Learner\'s username.')
 
@@ -127,8 +129,15 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
     def convert_date(self, date_string):
         """Converts date from string format to date object, for use by DateField."""
         if date_string:
-            return self.date_field_for_converting.deserialize_from_string(date_string)
+            try:
+                # TODO: for now, return as a string.
+                # When actually supporting DateField, then switch back to date.
+                return self.date_field_for_converting.deserialize_from_string(date_string).isoformat()
+            except ValueError as value_error:
+                self.incr_counter('Event Record Exports', 'Cannot convert to date', 1)                
+                return "BAD: {}".format(date_string)
         else:
+            self.incr_counter('Event Record Exports', 'Missing date', 1)
             return date_string
 
 
@@ -155,23 +164,33 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         if event is None:
             return
 
-        username = event.get('username', '').strip()
-        if not username:
-            return
-
         event_type = event.get('event_type')
         if event_type is None:
             return
+        if event_type.startswith('/'):
+            # Ignore events that begin with a slash
+            return
+
+        username = event.get('username', '').strip()
+        # if not username:
+        #   return
 
         course_id = eventlog.get_course_id(event)
-        if not course_id:
-            return
+        # if not course_id:
+        #   return
 
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             return
 
         event_source = event.get('event_source')
+        if event_source is None:
+            return
+
+        if (event_source, event_type) in self.known_events:
+            event_category = self.known_events[(event_source, event_type)]
+        else:
+            event_category = 'unknown'
 
         project = 'tracking_prod'
 
@@ -181,6 +200,7 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
             'username': username,
             'event_type': event_type,
             'event_source': event_source,
+            'event_category': event_category,
             'date': self.convert_date(event_date),
             'project': project,
             # etc.
@@ -279,6 +299,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             # 'username': username,
             'event_type': event_type,
             'event_source': event_source,
+            'event_category': event_category,
             'date': self.convert_date(event_date),
             'project': project,
             # etc.
