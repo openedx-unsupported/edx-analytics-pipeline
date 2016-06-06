@@ -31,7 +31,7 @@ class EventRecord(SparseRecord):
     timestamp = StringField(length=255, nullable=False, description='Timestamp of event.')
     event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
     event_source = StringField(length=255, nullable=False, description='blah.')
-    event_category = StringField(length=255, nullable=False, description='blah.')
+    event_category = StringField(length=255, nullable=True, description='blah.')
     project = StringField(length=255, nullable=False, description='blah.')
     # TODO: figure out why these have errors, and then make DateField.
     date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
@@ -273,8 +273,6 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
                     event_source = 'track-server'
                 elif (event_source, event_type) in self.known_events:
                     event_category = self.known_events[(event_source, event_type)]
-                    exported = True
-
                 self.incr_counter('Segment_Event_Dist', 'Tracking server', 1)
             else:
                 # expect that channel is 'client'.
