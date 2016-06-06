@@ -5,20 +5,18 @@ Define common (wide) representation for all events to share, sparsely.
 Need to define a Record, that will also provide mapping of types.
 """
 
-from collections import defaultdict
-import datetime
 import logging
-import random
+import os
 
 import luigi
 import luigi.task
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin, SegmentEventLogSelectionDownstreamMixin
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.record import SparseRecord, StringField, IntegerField, DateField, FloatField
+from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField  # , IntegerField, FloatField
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +46,7 @@ class EventRecord(SparseRecord):
 
 
 class BaseEventRecordTask(MultiOutputMapReduceJobTask):
+    """Base class for loading EventRecords from different sources."""
 
     output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
@@ -70,17 +69,18 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             self.known_events = self.parse_events_list_file()
 
     def parse_events_list_file(self):
-        """ Read and parse the known events list file and populate it in a dictionary."""
+        """Read and parse the known events list file and populate it in a dictionary."""
         parsed_events = {}
         with self.input_local().open() as f_in:
             lines = f_in.readlines()
             for line in lines:
-                if (not line.startswith('#') and len(line.split("\t")) is 3):
+                if not line.startswith('#') and len(line.split("\t")) is 3:
                     parts = line.rstrip('\n').split("\t")
                     parsed_events[(parts[1], parts[2])] = parts[0]
         return parsed_events
 
     def get_map_input_file(self):
+        """Returns path to input file from which event is being read, if available."""
         # TODO: decide if this is useful information.  (Share across all logs.  Add to a common base class?)
         try:
             # Hadoop sets an environment variable with the full URL of the input file. This url will be something like:
@@ -132,7 +132,7 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
                 # TODO: for now, return as a string.
                 # When actually supporting DateField, then switch back to date.
                 return self.date_field_for_converting.deserialize_from_string(date_string).isoformat()
-            except ValueError as value_error:
+            except ValueError:
                 self.incr_counter('Event Record Exports', 'Cannot convert to date', 1)
                 # Make sure we return a good value within the interval, so we can find the output for debugging.
                 # return "BAD: {}".format(date_string)
@@ -239,8 +239,13 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
 
         # Make sure here that the date is good.  If not, replace it with a different value
         # that is good (and in the interval as well).
-        date_string = event_time.split("T")[0]
-        return self.convert_date(date_string)
+        try:
+            date_string = event_time.split("T")[0]
+            return self.convert_date(date_string)
+        except Exception as exception:
+            # ARGH.  Just recover again!
+            log.exception("Problem parsing event_time {}".format(event_time))
+            return self.lower_bound_date_string
 
     def mapper(self, line):
         # self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
@@ -255,8 +260,6 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
 
         channel = event.get('channel')
         self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
-
-        exported = False
 
         if segment_type == 'track':
             event_type = event.get('event')
@@ -308,7 +311,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             'event_category': event_category,
             # 'date': self.convert_date(event_date),
             # For debugging, we will write out the original value
-            'date': event['originalTimestamp'],
+            'date': unicode(event['originalTimestamp']),
             'project': project,
             # etc.
         }
@@ -323,6 +326,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
 
 
 class GeneralEventRecordTask(MapReduceJobTaskMixin, luigi.WrapperTask):
+    """Runs all Event Record tasks for a given time interval."""
 
     # TODO: pull these out into a mixin.
     output_root = luigi.Parameter()
