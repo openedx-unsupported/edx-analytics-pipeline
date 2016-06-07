@@ -433,7 +433,7 @@ class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
     def hive_table_task(self):
         return EventRecordTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
+            # overwrite=self.overwrite,
         )
 
     @property
@@ -442,7 +442,7 @@ class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             output_root=self.partition_location,
-            overwrite=self.overwrite,
+            # overwrite=self.overwrite,
             events_list_file_path=self.events_list_file_path,
         )
 
