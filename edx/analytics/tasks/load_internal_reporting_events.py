@@ -301,6 +301,14 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             log.error("Bad type for %s time in event: %r", key, event)
             self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
             return None
+        except ValueError:
+            log.error("Bad value for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad value for {} Time Field'.format(key), 1)
+            return None
+        except UnicodeEncodeError:
+            log.error("Bad encoding for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad encoding for {} Time Field'.format(key), 1)
+            return None
 
     def get_event_arrival_time(self, event):
         return self._get_time_from_segment_event(event, 'receivedAt')
