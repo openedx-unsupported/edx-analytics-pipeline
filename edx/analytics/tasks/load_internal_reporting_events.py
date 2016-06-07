@@ -83,10 +83,6 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
     # values for assignment to DateField objects.
     date_field_for_converting = DateField()
 
-    # Override superclass to disable this parameter
-    # TODO: check if this is redundant, if it's already in the mixin.
-    interval = None
-
     def __init__(self, *args, **kwargs):
         super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
 
@@ -204,7 +200,6 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    # TODO: check if this is redundant, if it's already in the mixin.
     interval = None
 
     def get_event_emission_time(self, event):
@@ -288,7 +283,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    # TODO: check if this is redundant, if it's already in the mixin.
     interval = None
 
     def _get_time_from_segment_event(self, event, key):
@@ -302,6 +296,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         except KeyError:
             log.error("Missing %s time from event: %r", key, event)
             self.incr_counter('Event', 'Missing {} Time Field'.format(key), 1)
+            return None
+        except TypeError:
+            log.error("Bad type for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
             return None
 
     def get_event_arrival_time(self, event):
