@@ -168,6 +168,9 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             '{project}.tsv'.format(project=project),
         )
 
+    def extra_modules(self):
+        return [pytz]
+
     def normalize_time(self, event_time):
         """
         Convert time string to ISO-8601 format in UTC timezone.
