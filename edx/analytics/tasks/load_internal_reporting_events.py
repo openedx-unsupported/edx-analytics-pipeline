@@ -297,7 +297,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             event_time = self.normalize_time(event_time)
             if event_time is None:
                 log.error("Unparseable %s time from event: %r", key, event)
-            self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+                self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+            return event_time
         except KeyError:
             log.error("Missing %s time from event: %r", key, event)
             self.incr_counter('Event', 'Missing {} Time Field'.format(key), 1)
