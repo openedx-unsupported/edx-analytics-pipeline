@@ -196,6 +196,10 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
+    # Override superclass to disable this parameter
+    # TODO: check if this is redundant, if it's already in the mixin.
+    interval = None
+
     def get_event_emission_time(self, event):
         return super(TrackingEventRecordDataTask, self).get_event_time(event)
 
@@ -275,6 +279,10 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
 class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+
+    # Override superclass to disable this parameter
+    # TODO: check if this is redundant, if it's already in the mixin.
+    interval = None
 
     def _get_time_from_segment_event(self, event, key):
         try:
@@ -386,6 +394,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
 class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTask):
     """Runs all Event Record tasks for a given time interval."""
+    # Override superclass to disable this parameter
+    # TODO: check if this is redundant, if it's already in the mixin.
+    interval = None
 
     def requires(self):
         kwargs = {
