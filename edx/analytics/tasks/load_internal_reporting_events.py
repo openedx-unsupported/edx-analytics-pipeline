@@ -14,7 +14,7 @@ import luigi
 import luigi.task
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.module_engagement import OverwriteFromDateMixin
+# from edx.analytics.tasks.module_engagement import OverwriteFromDateMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
@@ -55,7 +55,13 @@ class EventRecord(SparseRecord):
     # ' course that the learner interacted with.')
 
 
-class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin, OverwriteFromDateMixin):
+class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
+
+    events_list_file_path = luigi.Parameter(default=None)
+
+
+class EventRecordDataDownstreamMixin(EventRecordDownstreamMixin):
+
     """Common parameters and base classes used to pass parameters through the event record workflow."""
 
     # Required parameter
@@ -67,12 +73,10 @@ class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin, Overwrit
 
     # Override superclass to disable this parameter
     interval = None
-
     output_root = luigi.Parameter()
-    events_list_file_path = luigi.Parameter(default=None)
 
 
-class BaseEventRecordDataTask(EventRecordDownstreamMixin, MultiOutputMapReduceJobTask):
+class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapReduceJobTask):
     """Base class for loading EventRecords from different sources."""
 
     # Create a DateField object to help with converting date_string
@@ -380,7 +384,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         yield key, record.to_separated_values()
 
 
-class GeneralEventRecordDataTask(EventRecordDownstreamMixin, luigi.WrapperTask):
+class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTask):
     """Runs all Event Record tasks for a given time interval."""
 
     def requires(self):
@@ -388,7 +392,7 @@ class GeneralEventRecordDataTask(EventRecordDownstreamMixin, luigi.WrapperTask):
             'output_root': self.output_root,
             'events_list_file_path': self.events_list_file_path,
             'n_reduce_tasks': self.n_reduce_tasks,
-            'interval': self.interval,
+            'date': self.date,
             # 'warehouse_path': self.warehouse_path,
         }
         yield (
@@ -415,6 +419,10 @@ class EventRecordTableTask(BareHiveTableTask):
 
 class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
     """The hive table partition for this engagement data."""
+
+    # Required parameter
+    date = luigi.DateParameter()
+    interval = None
 
     @property
     def partition_value(self):
@@ -443,15 +451,19 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin,
                               OverwriteOutputMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and Vertica and whatever else."""
 
+    interval = luigi.DateIntervalParameter(
+        description='The range of received dates for which to create event records.',
+    )
+
     def requires(self):
         for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
-            should_overwrite = date >= self.overwrite_from_date
+            # should_overwrite = date >= self.overwrite_from_date
             yield EventRecordPartitionTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=should_overwrite,
-                overwrite_from_date=self.overwrite_from_date,
+                # overwrite=should_overwrite,
+                # overwrite_from_date=self.overwrite_from_date,
                 events_list_file_path=self.events_list_file_path,
             )
             # yield LoadEventRecordToVerticaTask(
