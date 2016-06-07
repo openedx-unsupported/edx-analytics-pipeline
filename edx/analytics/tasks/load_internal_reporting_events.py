@@ -7,15 +7,22 @@ Need to define a Record, that will also provide mapping of types.
 
 import logging
 import os
+import pytz
 
+import ciso8601
 import luigi
 import luigi.task
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+# from edx.analytics.tasks.module_engagement import OverwriteFromDateMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelectionMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.hive import (
+    WarehouseMixin, BareHiveTableTask, HivePartitionTask,
+)
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField  # , IntegerField, FloatField
 
 log = logging.getLogger(__name__)
@@ -25,12 +32,15 @@ class EventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
 
     # Globals:
-    # TODO: decide what type 'timestamp' should be.
-    timestamp = StringField(length=255, nullable=False, description='Timestamp of event.')
+    project = StringField(length=255, nullable=False, description='blah.')
     event_type = StringField(length=255, nullable=False, description='The type of event.  Example: video_play.')
     event_source = StringField(length=255, nullable=False, description='blah.')
     event_category = StringField(length=255, nullable=True, description='blah.')
-    project = StringField(length=255, nullable=False, description='blah.')
+
+    # TODO: decide what type 'timestamp' should be.
+    # Also make entries required (not nullable), once we have confidence.
+    timestamp = StringField(length=255, nullable=True, description='Timestamp when event was emitted.')
+    received_at = StringField(length=255, nullable=True, description='Timestamp when event was received.')
     # TODO: figure out why these have errors, and then make DateField.
     date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
 
@@ -39,21 +49,43 @@ class EventRecord(SparseRecord):
     username = StringField(length=30, nullable=True, description='Learner\'s username.')
 
     # Per-event values:
-    entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
-                              ' with. Example: "video".')
-    entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
-                            ' course that the learner interacted with.')
+    # entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
+    # ' with. Example: "video".')
+    # entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
+    # ' course that the learner interacted with.')
 
 
-class BaseEventRecordTask(MultiOutputMapReduceJobTask):
-    """Base class for loading EventRecords from different sources."""
+class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
 
-    output_root = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
+
+
+class EventRecordDataDownstreamMixin(EventRecordDownstreamMixin):
+
+    """Common parameters and base classes used to pass parameters through the event record workflow."""
+
+    # Required parameter
+    date = luigi.DateParameter(
+        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
+                    ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
+                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
+    )
+
+    # Override superclass to disable this parameter
+    interval = None
+    output_root = luigi.Parameter()
+
+
+class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapReduceJobTask):
+    """Base class for loading EventRecords from different sources."""
 
     # Create a DateField object to help with converting date_string
     # values for assignment to DateField objects.
     date_field_for_converting = DateField()
+
+    # Override superclass to disable this parameter
+    # TODO: check if this is redundant, if it's already in the mixin.
+    interval = None
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
@@ -62,11 +94,12 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
         return ExternalURL(url=self.events_list_file_path)
 
     def init_local(self):
-        super(BaseEventRecordTask, self).init_local()
+        super(BaseEventRecordDataTask, self).init_local()
         if self.events_list_file_path is None:
             self.known_events = {}
         else:
             self.known_events = self.parse_events_list_file()
+        self.interval = luigi.date_interval.Date.from_date(self.date)
 
     def parse_events_list_file(self):
         """Read and parse the known events list file and populate it in a dictionary."""
@@ -116,14 +149,28 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
 
         Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv
         """
-        event_date, project = key
+        # If we're only running now with a specific date, then there
+        # is no reason to sort by date_received.
+        _date_received, project = key
 
+        # return url_path_join(
+        #     self.output_root,
+        #     'event_records',
+        #     'dt={date}'.format(date=date_received),
+        #     '{project}.tsv'.format(project=project),
+        # )
         return url_path_join(
             self.output_root,
-            'event_records',
-            'dt={date}'.format(date=event_date),
             '{project}.tsv'.format(project=project),
         )
+
+    def normalize_time(self, event_time):
+        """
+        Convert time string to ISO-8601 format in UTC timezone.
+
+        Returns None if string representation cannot be parsed.
+        """
+        return ciso8601.parse_datetime(event_time).astimezone(pytz.utc).isoformat()
 
     def convert_date(self, date_string):
         """Converts date from string format to date object, for use by DateField."""
@@ -131,19 +178,32 @@ class BaseEventRecordTask(MultiOutputMapReduceJobTask):
             try:
                 # TODO: for now, return as a string.
                 # When actually supporting DateField, then switch back to date.
+                # ciso8601.parse_datetime(ts).astimezone(pytz.utc).date().isoformat()
                 return self.date_field_for_converting.deserialize_from_string(date_string).isoformat()
             except ValueError:
                 self.incr_counter('Event Record Exports', 'Cannot convert to date', 1)
-                # Make sure we return a good value within the interval, so we can find the output for debugging.
-                # return "BAD: {}".format(date_string)
-                return self.lower_bound_date_string
+                # Don't bother to make sure we return a good value
+                # within the interval, so we can find the output for
+                # debugging.  Should not be necessary, as this is only
+                # used for the column value, not the partitioning.
+                return "BAD: {}".format(date_string)
+                # return self.lower_bound_date_string
         else:
             self.incr_counter('Event Record Exports', 'Missing date', 1)
             return date_string
 
 
-class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
+class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+
+    def get_event_emission_time(self, event):
+        return super(TrackingEventRecordDataTask, self).get_event_time(event)
+
+    def get_event_arrival_time(self, event):
+        try:
+            return event['context']['received_at']
+        except KeyError:
+            return self.get_event_emission_time(event)
 
     def get_event_time(self, event):
         # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
@@ -151,17 +211,10 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         # events locally and then when connectivity is restored transmit them to the server. We log the time that they
         # were received by the server and use that to batch them into exports since it is much simpler than trying to
         # inject them into past exports.
-
-        # TODO: decide if we want to use this approach, and whether it
-        # makes sense to also apply it to segment events as well.
-
-        try:
-            return event['context']['received_at']
-        except KeyError:
-            return super(TrackingEventRecordTask, self).get_event_time(event)
+        return self.get_event_arrival_time(event)
 
     def mapper(self, line):
-        event, event_date = self.get_event_and_date_string(line) or (None, None)
+        event, date_received = self.get_event_and_date_string(line) or (None, None)
         if event is None:
             return
 
@@ -196,20 +249,23 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         project = 'tracking_prod'
 
         event_dict = {
-            'timestamp': self.get_event_time(event),
-            'course_id': course_id,
-            'username': username,
+            'project': project,
             'event_type': event_type,
             'event_source': event_source,
             'event_category': event_category,
-            'date': self.convert_date(event_date),
-            'project': project,
+
+            'timestamp': self.get_event_emission_time(event),
+            'received_at': self.get_event_arrival_time(event),
+            'date': self.convert_date(date_received),
+
+            'course_id': course_id,
+            'username': username,
             # etc.
         }
 
         record = EventRecord(**event_dict)
 
-        key = (event_date, project)
+        key = (date_received, project)
 
         # Convert to form for output by reducer here,
         # so that reducer doesn't do any conversion.
@@ -217,42 +273,46 @@ class TrackingEventRecordTask(EventLogSelectionMixin, BaseEventRecordTask):
         yield key, record.to_separated_values()
 
 
-class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask):
+class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+
+    def _get_time_from_segment_event(self, event, key):
+        try:
+            event_time = event[key]
+            event_time = self.normalize_time(event_time)
+            if event_time is None:
+                log.error("Unparseable %s time from event: %r", key, event)
+            self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+        except KeyError:
+            log.error("Missing %s time from event: %r", key, event)
+            self.incr_counter('Event', 'Missing {} Time Field'.format(key), 1)
+            return None
+
+    def get_event_arrival_time(self, event):
+        return self._get_time_from_segment_event(event, 'receivedAt')
+
+    def get_event_emission_time(self, event):
+        return self._get_time_from_segment_event(event, 'sentAt')
 
     def get_event_time(self, event):
         """
         Returns time information from event if present, else returns None.
 
-        Overrides base class implementation to get correct timestamp.
+        Overrides base class implementation to get correct timestamp
+        used by get_event_and_date_string(line).
 
         """
-        try:
-            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
-            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
-            # return event['originalTimestamp']
-
-            event_time = event['originalTimestamp']
-        except KeyError:
-            self.incr_counter('Event', 'Missing Time Field', 1)
-            return None
-
-        # Make sure here that the date is good.  If not, replace it with a different value
-        # that is good (and in the interval as well).
-        try:
-            date_string = event_time.split("T")[0]
-            return self.convert_date(date_string)
-        except Exception as exception:
-            # ARGH.  Just recover again!
-            log.exception("Problem parsing event_time {}".format(event_time))
-            return self.lower_bound_date_string
+        # TODO: clarify which value should be used.
+        # "originalTimestamp" is almost "sentAt".  "timestamp" is
+        # almost "receivedAt".  Order is (probably)
+        # "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
+        return self.get_event_arrival_time(event)
 
     def mapper(self, line):
-        # self.incr_counter('Segment_Event_Dist', 'Input Lines', 1)
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, event_date = value
+        event, date_received = value
         self.incr_counter('Segment_Event_Dist', 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
@@ -264,7 +324,7 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         if segment_type == 'track':
             event_type = event.get('event')
 
-            if event_type is None or event_date is None:
+            if event_type is None or date_received is None:
                 # Ignore if any of the keys is None
                 self.incr_counter('Segment_Event_Dist', 'Tracking with missing type', 1)
                 return
@@ -297,27 +357,26 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
             event_source = channel
 
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
-        # property_keys = ','.join(sorted(event.get('properties', {}).keys()))
-        # context_keys = ','.join(sorted(event.get('context', {}).keys()))
 
         project = event.get('projectId')
 
         event_dict = {
-            'timestamp': self.get_event_time(event),
-            # 'course_id': course_id,
-            # 'username': username,
+            'project': project,
             'event_type': event_type,
             'event_source': event_source,
             'event_category': event_category,
-            # 'date': self.convert_date(event_date),
-            # For debugging, we will write out the original value
-            'date': unicode(event['originalTimestamp']),
-            'project': project,
+
+            'timestamp': self.get_event_emission_time(event),
+            'received_at': self.get_event_arrival_time(event),
+            'date': self.convert_date(date_received),
+
+            # 'course_id': course_id,
+            # 'username': username,
             # etc.
         }
 
         record = EventRecord(**event_dict)
-        key = (event_date, project)
+        key = (date_received, project)
 
         # Convert to form for output by reducer here,
         # so that reducer doesn't do any conversion.
@@ -325,29 +384,105 @@ class SegmentEventRecordTask(SegmentEventLogSelectionMixin, BaseEventRecordTask)
         yield key, record.to_separated_values()
 
 
-class GeneralEventRecordTask(MapReduceJobTaskMixin, luigi.WrapperTask):
+class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTask):
     """Runs all Event Record tasks for a given time interval."""
-
-    # TODO: pull these out into a mixin.
-    output_root = luigi.Parameter()
-    events_list_file_path = luigi.Parameter(default=None)
-    interval = luigi.DateIntervalParameter(
-        description='The range of dates for which to load logs.',
-    )
 
     def requires(self):
         kwargs = {
             'output_root': self.output_root,
             'events_list_file_path': self.events_list_file_path,
             'n_reduce_tasks': self.n_reduce_tasks,
-            'interval': self.interval,
+            'date': self.date,
             # 'warehouse_path': self.warehouse_path,
         }
         yield (
-            TrackingEventRecordTask(**kwargs),
-            SegmentEventRecordTask(**kwargs),
+            TrackingEventRecordDataTask(**kwargs),
+            SegmentEventRecordDataTask(**kwargs),
         )
 
 
-# TODO:  Add loading of events into Hive, and into Vertica.
-# class LoadInternalReportingEventsToWarehouse(WarehouseMixin, VerticaCopyTask):
+class EventRecordTableTask(BareHiveTableTask):
+    """The hive table for event_record data."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'event_records'
+
+    @property
+    def columns(self):
+        return EventRecord.get_hive_schema()
+
+
+class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
+    """The hive table partition for this engagement data."""
+
+    # Required parameter
+    date = luigi.DateParameter()
+    interval = None
+
+    @property
+    def partition_value(self):
+        """Use a dynamic partition value based on the date parameter."""
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return EventRecordTableTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def data_task(self):
+        return GeneralEventRecordDataTask(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            output_root=self.partition_location,
+            overwrite=self.overwrite,
+            events_list_file_path=self.events_list_file_path,
+        )
+
+
+class EventRecordIntervalTask(EventRecordDownstreamMixin,
+                              OverwriteOutputMixin, luigi.WrapperTask):
+    """Compute engagement information over a range of dates and insert the results into Hive and Vertica and whatever else."""
+
+    interval = luigi.DateIntervalParameter(
+        description='The range of received dates for which to create event records.',
+    )
+
+    def requires(self):
+        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+            # should_overwrite = date >= self.overwrite_from_date
+            yield EventRecordPartitionTask(
+                date=date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
+                # overwrite=should_overwrite,
+                # overwrite_from_date=self.overwrite_from_date,
+                events_list_file_path=self.events_list_file_path,
+            )
+            # yield LoadEventRecordToVerticaTask(
+            #     date=date,
+            #     n_reduce_tasks=self.n_reduce_tasks,
+            #     warehouse_path=self.warehouse_path,
+            #     overwrite=should_overwrite,
+            #     overwrite_from_date=self.overwrite_from_date,
+            # )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+    def get_raw_data_tasks(self):
+        """
+        A generator that iterates through all tasks used to generate the data in each partition in the interval.
+
+        This can be used by downstream map reduce jobs to read all of the raw data.
+        """
+        for task in self.requires():
+            if isinstance(task, EventRecordPartitionTask):
+                yield task.data_task
