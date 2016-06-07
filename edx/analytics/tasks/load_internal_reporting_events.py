@@ -87,6 +87,11 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
     # TODO: check if this is redundant, if it's already in the mixin.
     interval = None
 
+    def __init__(self, *args, **kwargs):
+        super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
+
+        self.interval = luigi.date_interval.Date.from_date(self.date)
+
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
 
@@ -99,7 +104,6 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             self.known_events = {}
         else:
             self.known_events = self.parse_events_list_file()
-        self.interval = luigi.date_interval.Date.from_date(self.date)
 
     def parse_events_list_file(self):
         """Read and parse the known events list file and populate it in a dictionary."""
