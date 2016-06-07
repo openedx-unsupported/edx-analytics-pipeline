@@ -275,6 +275,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
             ),
+            call("SET TIMEZONE TO 'GMT';"),
         ]
         self.assertEquals(expected, mock_cursor.execute.mock_calls)
 
@@ -294,6 +295,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
             ),
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_1 DEFINITION_1 on foobar.dummy_table;'),
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 DEFINITION_3 on foobar.dummy_table;'),
+            call("SET TIMEZONE TO 'GMT';"),
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
             call('SELECT start_refresh();'),
         ]
@@ -317,6 +319,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_3 DEFINITION_3 on foobar.dummy_table;'),
             call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;'),
             call('DELETE FROM foobar.dummy_table'),
+            call("SET TIMEZONE TO 'GMT';"),
             call("DELETE FROM foobar.name_of_marker_table where target_table='foobar.dummy_table';"),
             call("SELECT PURGE_TABLE('foobar.dummy_table')"),
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
