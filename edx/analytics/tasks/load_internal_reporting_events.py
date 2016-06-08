@@ -11,6 +11,7 @@ import pytz
 
 import ciso8601
 import luigi
+from luigi.configuration import get_config
 import luigi.task
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
@@ -173,7 +174,11 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
         Returns None if string representation cannot be parsed.
         """
-        return ciso8601.parse_datetime(event_time).astimezone(pytz.utc).isoformat()
+        datetime = ciso8601.parse_datetime(event_time)
+        if datetime:
+            return datetime.astimezone(pytz.utc).isoformat()
+        else:
+            return None
 
     def convert_date(self, date_string):
         """Converts date from string format to date object, for use by DateField."""
@@ -252,10 +257,10 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         else:
             event_category = 'unknown'
 
-        project = 'tracking_prod'
+        project_name = 'tracking_prod'
 
         event_dict = {
-            'project': project,
+            'project': project_name,
             'event_type': event_type,
             'event_source': event_source,
             'event_category': event_category,
@@ -271,7 +276,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
         record = EventRecord(**event_dict)
 
-        key = (date_received, project)
+        key = (date_received, project_name)
 
         # Convert to form for output by reducer here,
         # so that reducer doesn't do any conversion.
@@ -284,6 +289,19 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
     # Override superclass to disable this parameter
     interval = None
+
+    # Project information, pulled from config file.
+    project_names = {}
+    config = None
+
+    def _get_project_name(self, project_id):
+        if project_id not in self.project_names:
+            if self.config is None:
+                self.config = get_config()
+            section_name = 'segment:' + project_id
+            project_name = self.config.get(section_name, 'project_name', None)
+            self.project_names[project_id] = project_name
+        return self.project_names[project_id]
 
     def _get_time_from_segment_event(self, event, key):
         try:
@@ -380,10 +398,11 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
 
-        project = event.get('projectId')
+        project_id = event.get('projectId')
+        project_name = self._get_project_name(project_id) or project_id
 
         event_dict = {
-            'project': project,
+            'project': project_name,
             'event_type': event_type,
             'event_source': event_source,
             'event_category': event_category,
@@ -398,7 +417,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         }
 
         record = EventRecord(**event_dict)
-        key = (date_received, project)
+        key = (date_received, project_name)
 
         # Convert to form for output by reducer here,
         # so that reducer doesn't do any conversion.
