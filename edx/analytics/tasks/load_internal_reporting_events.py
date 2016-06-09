@@ -27,6 +27,8 @@ from edx.analytics.tasks.util.hive import (
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField
+from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+
 
 log = logging.getLogger(__name__)
 
@@ -757,8 +759,7 @@ class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
         )
 
 
-class EventRecordIntervalTask(EventRecordDownstreamMixin,
-                              OverwriteOutputMixin, luigi.WrapperTask):
+class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and Vertica and whatever else."""
 
     interval = luigi.DateIntervalParameter(
@@ -796,3 +797,77 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin,
         for task in self.requires():
             if isinstance(task, EventRecordPartitionTask):
                 yield task.data_task
+
+
+class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask):
+
+    # Required parameter
+    date = luigi.DateParameter()
+
+#    @property
+#    def partition(self):
+#        """The table is partitioned by date."""
+#        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        # For now, let's just get by with ExternalURL.
+#        hive_table = "event_records"
+#        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
+#        return ExternalURL(url=partition_location)
+
+        # But this should actually work as well, without the partition property being needed.
+        return EventRecordPartitionTask(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            events_list_file_path=self.events_list_file_path,
+        )
+
+    @property
+    def table(self):
+        return 'event_records'
+
+# Just use the default default:  "created"
+#    @property
+#    def default_columns(self):
+#        """List of tuples defining name and definition of automatically-filled columns."""
+#        return None
+
+    @property
+    def auto_primary_key(self):
+        # The default is to use 'id', which would cause a conflict with field already having that name.
+        # But I don't see that there's any value to having such a column.
+        # return ('row_number', 'AUTO_INCREMENT')
+        return None
+
+    @property
+    def columns(self):
+        return EventRecord.get_sql_schema()
+
+
+class LoadEventRecordIntervalToVertica(EventRecordDownstreamMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+    """
+    Loads the event records table from Hive into the Vertica data warehouse.
+
+    """
+
+    interval = luigi.DateIntervalParameter(
+        description='The range of received dates for which to create event records.',
+    )
+
+    def requires(self):
+        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+            # should_overwrite = date >= self.overwrite_from_date
+            yield  LoadDailyEventRecordToVertica(
+                date=date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
+                events_list_file_path=self.events_list_file_path,
+                schema=self.schema,
+                credentials=self.credentials,
+            )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
