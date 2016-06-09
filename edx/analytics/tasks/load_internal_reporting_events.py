@@ -13,6 +13,8 @@ import ciso8601
 import luigi
 from luigi.configuration import get_config
 import luigi.task
+import ua_parser
+import user_agents
 
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 # from edx.analytics.tasks.module_engagement import OverwriteFromDateMixin
@@ -24,13 +26,20 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask,
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField  # , IntegerField, FloatField
+from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField
 
 log = logging.getLogger(__name__)
+
+VERSION = '0.1.0'
 
 
 class EventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
+
+    # Metadata:
+    version = StringField(length=20, nullable=False, description='blah.')
+    input_file = StringField(length=255, nullable=True, description='blah.')
+    # hash_id = StringField(length=255, nullable=False, description='blah.')
 
     # Globals:
     project = StringField(length=255, nullable=False, description='blah.')
@@ -46,14 +55,113 @@ class EventRecord(SparseRecord):
     date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
 
     # Common (but optional) values:
-    course_id = StringField(length=255, nullable=True, description='Id of course.')
+    # accept_language: how to parse?
+    # 'agent' gets parsed into the following:
+    agent_type = StringField(length=20, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_os = StringField(length=100, nullable=True, description='')
+    agent_browser = StringField(length=100, nullable=True, description='')
+    agent_touch_capable = IntegerField(nullable=True, description='')  # Should be Boolean
+
+    host = StringField(length=80, nullable=True, description='')
+    # TODO: geolocate ip to find country or more specific information?
+    ip = StringField(length=20, nullable=True, description='')
+    # name: not really used yet?
+    page = StringField(length=1024, nullable=True, description='')
+    referer = StringField(length=255, nullable=True, description='')
+    session = StringField(length=255, nullable=True, description='')
     username = StringField(length=30, nullable=True, description='Learner\'s username.')
+
+    # Common (but optional) context values:
+    # We exclude course_user_tags, as it's a set of key-value pairs that affords no stable naming scheme.
+    # TODO:  decide how to deal with redundant data.  Shouldn't be specifying "context_" here,
+    # since that doesn't generalize to segment data at all.
+    context_course_id = StringField(length=255, nullable=True, description='Id of course.')
+    context_org_id = StringField(length=255, nullable=True, description='Id of organization, as used in course_id.')
+    context_path = StringField(length=1024, nullable=True, description='')
+    context_user_id = StringField(length=255, nullable=True, description='')
+    context_module_display_name = StringField(length=255, nullable=True, description='')
+    context_module_usage_key = StringField(length=255, nullable=True, description='')
+    context_module_original_usage_key = StringField(length=255, nullable=True, description='')
+    context_module_original_usage_version = StringField(length=255, nullable=True, description='')
 
     # Per-event values:
     # entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
     # ' with. Example: "video".')
     # entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
     # ' course that the learner interacted with.')
+
+    attempts = StringField(length=255, nullable=True, description='')  # use int
+    # case_sensitive = Bool (textbook)
+    category_id = StringField(length=255, nullable=True, description='')
+    category_name = StringField(length=255, nullable=True, description='')
+    certificate_id = StringField(length=255, nullable=True, description='')
+    chapter = StringField(length=255, nullable=True, description='')  # pdf
+    chapter_title = StringField(length=255, nullable=True, description='')
+    child_id = StringField(length=255, nullable=True, description='')
+    choice = StringField(length=255, nullable=True, description='')  # poll
+    code = StringField(length=255, nullable=True, description='')  # video
+    cohort_id = StringField(length=255, nullable=True, description='')  # int:  cohort
+    cohort_name = StringField(length=255, nullable=True, description='')
+    commentable_id = StringField(length=255, nullable=True, description='')  # forums
+    corrected_text = StringField(length=255, nullable=True, description='')  # forum search
+    course_id = StringField(length=255, nullable=True, description='')  # enrollment, certs
+    current_time = StringField(length=255, nullable=True, description='')  # float/int/str:  video
+    currenttime = StringField(length=255, nullable=True, description='')  # float/int/str:  video
+    direction = StringField(length=255, nullable=True, description='')  # pdf
+    discussion_id = StringField(length=255, nullable=True, description='')  # discussion.id forum
+    displayed_in = StringField(length=255, nullable=True, description='')  # googlecomponent
+    duration = StringField(length=255, nullable=True, description='')  # int: videobumper
+    enrollment_mode = StringField(length=255, nullable=True, description='')  # certs
+    field = StringField(length=255, nullable=True, description='')  # team
+    generation_mode = StringField(length=255, nullable=True, description='')  # cert
+    grade = StringField(length=255, nullable=True, description='')  # float/int:  problem_check
+    group_id = StringField(length=255, nullable=True, description='')  # int:  forum
+    group_name = StringField(length=255, nullable=True, description='')  # user_to_partition
+    id = StringField(length=255, nullable=True, description='')  # video, forum
+    instructor = StringField(length=255, nullable=True, description='')
+    location = StringField(length=255, nullable=True, description='')  # library
+    max_count = StringField(length=255, nullable=True, description='')  # int:  library
+    max_grade = StringField(length=255, nullable=True, description='')  # int:  problem_check
+    mode = StringField(length=255, nullable=True, description='')  # enrollment
+    module_id = StringField(length=255, nullable=True, description='')  # hint
+    name = StringField(length=255, nullable=True, description='')  # pdf
+    old = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    new = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    old_speed = StringField(length=255, nullable=True, description='')  # video
+    new_speed = StringField(length=255, nullable=True, description='')  # video
+    new_time = StringField(length=255, nullable=True, description='')  # float/int:  video
+    num_attempts = StringField(length=255, nullable=True, description='')  # int:  problem_builder
+    page = StringField(length=255, nullable=True, description='')  # int/str:  forum, pdf
+    previous_cohort_id = StringField(length=255, nullable=True, description='')  # int:  cohort
+    previous_cohort_name = StringField(length=255, nullable=True, description='')  # cohort
+    previous_count = StringField(length=255, nullable=True, description='')  # int:  lib
+    problem_id = StringField(length=255, nullable=True, description='')  # capa
+    problem_part_id = StringField(length=255, nullable=True, description='')  # hint
+    problem = StringField(length=255, nullable=True, description='')  # show/reset/rescore
+    query = StringField(length=255, nullable=True, description='')  # forum, pdf
+    question_type = StringField(length=255, nullable=True, description='')  # hint
+    response_id = StringField(length=255, nullable=True, description='')  # response.id:  forum
+    search_text = StringField(length=255, nullable=True, description='')  # team
+    seek_type = StringField(length=255, nullable=True, description='')  # video
+    social_network = StringField(length=255, nullable=True, description='')  # certificate
+    status = StringField(length=255, nullable=True, description='')  # status
+    student = StringField(length=255, nullable=True, description='')  # reset/delete/rescore
+    success = StringField(length=255, nullable=True, description='')  # problem_check
+    team_id = StringField(length=255, nullable=True, description='')  # team, forum
+    thread_type = StringField(length=255, nullable=True, description='')  # forum
+    title = StringField(length=255, nullable=True, description='')  # forum
+    topic_id = StringField(length=255, nullable=True, description='')  # team
+    total_results = StringField(length=255, nullable=True, description='')  # int: forum
+    truncated = StringField(length=255, nullable=True, description='')  # bool:  forum
+    type = StringField(length=255, nullable=True, description='')  # video, book
+    url_name = StringField(length=255, nullable=True, description='')  # poll/survey
+    url = StringField(length=255, nullable=True, description='')  # forum, googlecomponent
+    user_id = StringField(length=255, nullable=True, description='')  # int: enrollment, cohort, etc.
+    event_username = StringField(length=255, nullable=True, description='')  # add/remove forum
+    # Stuff from segment:
+    channel = StringField(length=255, nullable=True, description='')
+    anonymous_id = StringField(length=255, nullable=True, description='')
 
 
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
@@ -166,7 +274,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         )
 
     def extra_modules(self):
-        return [pytz]
+        return [pytz, ua_parser, user_agents]
 
     def normalize_time(self, event_time):
         """
@@ -200,12 +308,89 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             self.incr_counter('Event Record Exports', 'Missing date', 1)
             return date_string
 
+    def _canonicalize_user_agent(self, agent):
+        """
+        There is a lot of variety in the user agent field that is hard for humans to parse, so we canonicalize
+        the user agent to extract the information we're looking for.
+        Args:
+            agent: an agent string.
+        Returns:
+            a dictionary of information about the user agent.
+        """
+        agent_dict = {}
+
+        try:
+            user_agent = user_agents.parse(agent)
+        except:  # If the user agent can't be parsed, just drop the agent data on the floor since it's of no use to us.
+            return agent_dict
+
+        device_type = ''  # It is possible that the user agent isn't any of the below
+        if user_agent.is_mobile:
+            device_type = "mobile"
+        elif user_agent.is_tablet:
+            device_type = "tablet"
+        elif user_agent.is_pc:
+            device_type = "desktop"
+        elif user_agent.is_bot:
+            device_type = "bot"
+
+        if device_type:
+            agent_dict['type'] = device_type
+            agent_dict['device_name'] = user_agent.device.family
+            agent_dict['os'] = user_agent.os.family
+            agent_dict['browser'] = user_agent.browser.family
+            agent_dict['touch_capable'] = user_agent.is_touch_capable
+
+        return agent_dict
+
+    def add_agent_info(self, event_dict, agent):
+        if agent:
+            agent_dict = self._canonicalize_user_agent(agent)
+            for key in agent_dict.keys():
+                new_key = "agent_{}".format(key)
+                event_dict[new_key] = agent_dict[key]
+
+    def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
+        if obj is None:
+            pass
+        elif isinstance(obj, dict):
+            for key in obj.keys():
+                new_value = obj.get(key)
+                new_label = u"{}.{}".format(label, key)
+                self._add_event_info_recurse(event_dict, event_mapping, new_value, new_label)
+        elif isinstance(obj, list):
+            # We will not output any values that are stored in lists.
+            pass
+        else:
+            # We assume it's a single object, and look it up now.
+            if label in event_mapping:
+                event_record_key, event_record_field = event_mapping[label]
+                if isinstance(event_record_field, StringField):
+                    event_dict[event_record_key] = unicode(obj)
+                elif isinstance(event_record_field, IntegerField):
+                    try:
+                        event_dict[event_record_key] = int(obj)
+                    except ValueError:
+                        log.error('Unable to cast value to int for %s: %r', label, obj)
+                elif isinstance(event_record_field, FloatField):
+                    try:
+                        event_dict[event_record_key] = float(obj)
+                    except ValueError:
+                        log.error('Unable to cast value to float for %s: %r', label, obj)
+                else:
+                    event_dict[event_record_key] = obj
+
+    def add_event_info(self, event_dict, event_mapping, event):
+        self._add_event_info_recurse(event_dict, event_mapping, event, 'root')
+
 
 class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
     interval = None
+    event_mapping = None
+    PROJECT_NAME = 'tracking_prod'
 
     def get_event_emission_time(self, event):
         return super(TrackingEventRecordDataTask, self).get_event_time(event)
@@ -224,6 +409,34 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         # inject them into past exports.
         return self.get_event_arrival_time(event)
 
+    def get_event_mapping(self):
+        """Return dictionary of event attributes to the output keys they map to."""
+        if self.event_mapping is None:
+            self.event_mapping = {}
+            fields = EventRecord.get_fields()
+            field_keys = fields.keys()
+            for field_key in field_keys:
+                # Most common is to map first-level entries in event data directly.
+                # Skip values that are explicitly set:
+                if field_key in ['version', 'input_file', 'project', 'event_type', 'event_source', 'context_course_id', 'username']:
+                    source_key = None
+                # Skip values that are explicitly calculated rather than copied:
+                if field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
+                    source_key = None
+                # Map values that are top-level:
+                elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
+                    source_key = "root.{}".format(field_key)
+                elif field_key.startswith('context_module_'):
+                    source_key = "root.context.module.{}".format(field_key[15:])
+                elif field_key.startswith('context_'):
+                    source_key = "root.context.{}".format(field_key[8:])
+                else:
+                    source_key = "root.event.{}".format(field_key)
+                if source_key is not None:
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+
+        return self.event_mapping
+
     def mapper(self, line):
         event, date_received = self.get_event_and_date_string(line) or (None, None)
         if event is None:
@@ -232,8 +445,9 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         event_type = event.get('event_type')
         if event_type is None:
             return
+
+        # Ignore events that begin with a slash (i.e. implicit events).
         if event_type.startswith('/'):
-            # Ignore events that begin with a slash
             return
 
         username = event.get('username', '').strip()
@@ -257,9 +471,11 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         else:
             event_category = 'unknown'
 
-        project_name = 'tracking_prod'
+        project_name = self.PROJECT_NAME
 
         event_dict = {
+            'version': VERSION,
+            'input_file': self.get_map_input_file(),
             'project': project_name,
             'event_type': event_type,
             'event_source': event_source,
@@ -269,10 +485,13 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             'received_at': self.get_event_arrival_time(event),
             'date': self.convert_date(date_received),
 
-            'course_id': course_id,
+            'context_course_id': course_id,
             'username': username,
             # etc.
         }
+        self.add_agent_info(event_dict, event.get('agent'))
+        event_mapping = self.get_event_mapping()
+        self.add_event_info(event_dict, event_mapping, event)
 
         record = EventRecord(**event_dict)
 
@@ -293,6 +512,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
     # Project information, pulled from config file.
     project_names = {}
     config = None
+
+    event_mapping = None
 
     def _get_project_name(self, project_id):
         if project_id not in self.project_names:
@@ -348,6 +569,40 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         # "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
         return self.get_event_arrival_time(event)
 
+    def get_event_mapping(self):
+        """Return dictionary of event attributes to the output keys they map to."""
+        if self.event_mapping is None:
+            self.event_mapping = {}
+            fields = EventRecord.get_fields()
+            field_keys = fields.keys()
+            for field_key in field_keys:
+                # Most common is to map first-level entries in event data directly.
+                # Skip values that are explicitly set:
+                if field_key in ['version', 'input_file', 'project', 'event_type', 'event_source']:
+                    pass
+                # Skip values that are explicitly calculated rather than copied:
+                elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
+                    pass
+                # Map values that are top-level:
+                elif field_key in ['channel']:
+                    source_key = "root.{}".format(field_key)
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                elif field_key in ['anonymous_id']:
+                    source_key = "root.context.anonymousId"
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    source_key = "root.anonymousId"
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                elif field_key in ['locale', 'ip']:
+                    source_key = "root.context.{}".format(field_key)
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                elif field_key in ['path', 'referrer']:
+                    source_key = "root.properties.{}".format(field_key)
+                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                else:
+                    pass
+
+        return self.event_mapping
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
@@ -402,6 +657,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         project_name = self._get_project_name(project_id) or project_id
 
         event_dict = {
+            'version': VERSION,
             'project': project_name,
             'event_type': event_type,
             'event_source': event_source,
@@ -415,6 +671,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # 'username': username,
             # etc.
         }
+        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
+        event_mapping = self.get_event_mapping()
+        self.add_event_info(event_dict, event_mapping, event)
 
         record = EventRecord(**event_dict)
         key = (date_received, project_name)
