@@ -68,7 +68,7 @@ class EventRecord(SparseRecord):
     ip = StringField(length=20, nullable=True, description='')
     # name: not really used yet?
     page = StringField(length=1024, nullable=True, description='')
-    referer = StringField(length=255, nullable=True, description='')
+    referer = StringField(length=1024, nullable=True, description='')
     session = StringField(length=255, nullable=True, description='')
     username = StringField(length=30, nullable=True, description='Learner\'s username.')
 
@@ -162,6 +162,7 @@ class EventRecord(SparseRecord):
     # Stuff from segment:
     channel = StringField(length=255, nullable=True, description='')
     anonymous_id = StringField(length=255, nullable=True, description='')
+    referrer = StringField(length=1024, nullable=True, description='')
 
 
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
