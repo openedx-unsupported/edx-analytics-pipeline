@@ -303,7 +303,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 # within the interval, so we can find the output for
                 # debugging.  Should not be necessary, as this is only
                 # used for the column value, not the partitioning.
-                return "BAD: {}".format(date_string)
+                return u"BAD: {}".format(date_string)
                 # return self.lower_bound_date_string
         else:
             self.incr_counter('Event Record Exports', 'Missing date', 1)
@@ -348,7 +348,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         if agent:
             agent_dict = self._canonicalize_user_agent(agent)
             for key in agent_dict.keys():
-                new_key = "agent_{}".format(key)
+                new_key = u"agent_{}".format(key)
                 event_dict[new_key] = agent_dict[key]
 
     def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
@@ -367,7 +367,13 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             if label in event_mapping:
                 event_record_key, event_record_field = event_mapping[label]
                 if isinstance(event_record_field, StringField):
-                    event_dict[event_record_key] = unicode(obj)
+                    value = unicode(obj)
+                    # Avoid validation errors later due to length by truncating here.
+                    field_length = event_record_field.length
+                    if len(value) > field_length:
+                        log.error("Record value exceeds max length %d for field %s: %r", field_length, event_record_key, value)
+                        value = u"{}...".format(value[:field_length-4])
+                    event_dict[event_record_key] = value
                 elif isinstance(event_record_field, IntegerField):
                     try:
                         event_dict[event_record_key] = int(obj)
@@ -426,13 +432,13 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                     source_key = None
                 # Map values that are top-level:
                 elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
-                    source_key = "root.{}".format(field_key)
+                    source_key = u"root.{}".format(field_key)
                 elif field_key.startswith('context_module_'):
-                    source_key = "root.context.module.{}".format(field_key[15:])
+                    source_key = u"root.context.module.{}".format(field_key[15:])
                 elif field_key.startswith('context_'):
-                    source_key = "root.context.{}".format(field_key[8:])
+                    source_key = u"root.context.{}".format(field_key[8:])
                 else:
-                    source_key = "root.event.{}".format(field_key)
+                    source_key = u"root.event.{}".format(field_key)
                 if source_key is not None:
                     self.event_mapping[source_key] = (field_key, fields[field_key])
 
@@ -586,18 +592,18 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     pass
                 # Map values that are top-level:
                 elif field_key in ['channel']:
-                    source_key = "root.{}".format(field_key)
+                    source_key = u"root.{}".format(field_key)
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 elif field_key in ['anonymous_id']:
-                    source_key = "root.context.anonymousId"
+                    source_key = u"root.context.anonymousId"
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                     source_key = "root.anonymousId"
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 elif field_key in ['locale', 'ip']:
-                    source_key = "root.context.{}".format(field_key)
+                    source_key = u"root.context.{}".format(field_key)
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 elif field_key in ['path', 'referrer']:
-                    source_key = "root.properties.{}".format(field_key)
+                    source_key = u"root.properties.{}".format(field_key)
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 else:
                     pass
@@ -612,10 +618,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.incr_counter('Segment_Event_Dist', 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
-        self.incr_counter('Segment_Event_Dist', 'Type {}'.format(segment_type), 1)
+        self.incr_counter('Segment_Event_Dist', u'Type {}'.format(segment_type), 1)
 
         channel = event.get('channel')
-        self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
+        self.incr_counter('Segment_Event_Dist', u'Channel {}'.format(channel), 1)
 
         if segment_type == 'track':
             event_type = event.get('event')
