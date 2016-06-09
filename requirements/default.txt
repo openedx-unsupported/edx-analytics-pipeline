@@ -32,7 +32,9 @@ setuptools==23.1.0
 six==1.6.1		# MIT
 stevedore==0.14.1 	# Apache 2.0
 tornado==3.1.1 		# Apache 2.0
+ua-parser==0.3.6 	# Apache
 urllib3==1.10.4         # MIT
+user-agents==0.3.2	# MIT
 vertica-python==0.5.1   # MIT
 wsgiref==0.1.2 		# ZPL
 pip==1.5.6

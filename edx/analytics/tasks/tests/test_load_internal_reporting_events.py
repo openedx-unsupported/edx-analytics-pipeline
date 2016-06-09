@@ -1,23 +1,24 @@
 """Test processing of events for loading into Hive, etc."""
 
-import json
-import datetime
+# import json
+# import datetime
 
 import luigi
-from luigi import date_interval
-from ddt import ddt, data, unpack
-from mock import MagicMock
+# from luigi import date_interval
+from ddt import ddt, data  # , unpack
+# from mock import MagicMock
 
 from edx.analytics.tasks.load_internal_reporting_events import (
     EventRecord,
-    BaseEventRecordDataTask,
+#    BaseEventRecordDataTask,
     TrackingEventRecordDataTask,
     SegmentEventRecordDataTask,
+    VERSION,
 )
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin  # , InitializeLegacyKeysMixin
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin  # , ReducerTestMixin
+# from edx.analytics.tasks.tests.target import FakeTarget
 
 
 @ddt
@@ -76,6 +77,34 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
 
+    def test_problem_check(self):
+        template = self.event_templates['problem_check']
+        event = self.create_event_log_line(template=template)
+        expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
+        expected_dict = {
+            'version': VERSION,
+            'project': self.task.PROJECT_NAME,
+            'event_type': 'problem_check',
+            'event_source': 'server',
+            'event_category': 'unknown',
+            'timestamp': '2013-12-17T15:38:32.805444+00:00',
+            'received_at': '2013-12-17T15:38:32.805444+00:00',
+            'date': self.DEFAULT_DATE,
+            'host': 'test_host',
+            'ip': '127.0.0.1',
+            'username': 'test_user',
+            'context_course_id': 'course-v1:FooX+1.23x+2013_Spring',
+            'context_org_id': 'FooX',
+            'context_user_id': '10',
+            'problem_id': 'block-v1:FooX+1.23x+2013_Spring+type@problem+block@9cee77a606ea4c1aa5440e0ea5d0f618',
+            'success': 'incorrect',
+        }
+        expected_value = EventRecord(**expected_dict).to_separated_values()
+        self.assert_single_map_output(
+            event,
+            expected_key,
+            expected_value
+        )
 
 @ddt
 class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
@@ -113,13 +142,13 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
                         "name": "Android",
                         "version": "5.1.1",
                     },
-                    "timezone": "America\/New_York",
+                    "timezone": "America/New_York",
                     "screen": {
                         "density": 3.5,
                         "width": 1440,
                         "height": 2560,
                     },
-                    "userAgent": "Dalvik\/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build\/LMY47X)",
+                    "userAgent": "Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)",
                     "locale": "en-US",
                     "device": {
                         "id": "fake_device_id",
@@ -158,7 +187,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
                 },
                 "writeKey": "dummy_write_key",
                 "projectId": self.DEFAULT_PROJECT,
-                "timestamp": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),                
+                "timestamp": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),
                 "sentAt": "{0}.000Z".format(self.DEFAULT_TIMESTAMP),
                 "receivedAt": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),
                 "originalTimestamp": "{0}-0400".format(self.DEFAULT_TIMESTAMP),
@@ -191,6 +220,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         event = self.create_event_log_line(template=template)
         expected_key = (self.DEFAULT_DATE, self.DEFAULT_PROJECT)
         expected_dict = {
+            'version': VERSION,
             'project': self.DEFAULT_PROJECT,
             'event_type': 'screen',
             'event_source': 'server',
@@ -198,6 +228,14 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             'timestamp': '2013-12-17T15:38:32+00:00',
             'received_at': '2013-12-17T15:38:32.796000+00:00',
             'date': self.DEFAULT_DATE,
+            'agent_type': 'tablet',
+            'agent_device_name': 'Samsung SM-N920A',
+            'agent_os': 'Android',
+            'agent_browser': 'Android',
+            'agent_touch_capable': True,
+            'ip': '98.236.220.148',
+            'channel': 'server',
+            'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(
