@@ -65,7 +65,7 @@ class EventRecord(SparseRecord):
 
     host = StringField(length=80, nullable=True, description='')
     # TODO: geolocate ip to find country or more specific information?
-    ip = StringField(length=20, nullable=True, description='')
+    ip = StringField(length=64, nullable=True, description='')
     # name: not really used yet?
     page = StringField(length=1024, nullable=True, description='')
     referer = StringField(length=1024, nullable=True, description='')
