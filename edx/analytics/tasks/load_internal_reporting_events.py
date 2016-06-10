@@ -63,7 +63,8 @@ class EventRecord(SparseRecord):
     agent_device_name = StringField(length=100, nullable=True, description='')
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
-    agent_touch_capable = BooleanField(nullable=True, description='')
+    # agent_touch_capable = BooleanField(nullable=True, description='')
+    agent_touch_capable = StringField(length=10, nullable=True, description='')
 
     host = StringField(length=80, nullable=True, description='')
     # TODO: geolocate ip to find country or more specific information?
@@ -345,7 +346,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             agent_dict['device_name'] = user_agent.device.family
             agent_dict['os'] = user_agent.os.family
             agent_dict['browser'] = user_agent.browser.family
-            agent_dict['touch_capable'] = user_agent.is_touch_capable
+            agent_dict['touch_capable'] = unicode(user_agent.is_touch_capable)
 
         return agent_dict
 
