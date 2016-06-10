@@ -130,8 +130,9 @@ class EventRecord(SparseRecord):
     mode = StringField(length=255, nullable=True, description='')  # enrollment
     module_id = StringField(length=255, nullable=True, description='')  # hint
     name = StringField(length=255, nullable=True, description='')  # pdf
-    old = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
-    new = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    # OLD and NEW are keywords in SQL on Vertica, so use different names here.
+    old_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    new_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
     old_speed = StringField(length=255, nullable=True, description='')  # video
     new_speed = StringField(length=255, nullable=True, description='')  # video
     new_time = StringField(length=255, nullable=True, description='')  # float/int:  video
@@ -444,25 +445,25 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                 elif field_key == "currenttime":
                     # Collapse values from either form into a single column.  No event should have both,
                     # though there are event_types that have used both at different times.
-                    self.event_mapping['root.event.currenttime'] = field_tuple
-                    self.event_mapping['root.event.current_time'] = field_tuple
+                    add_event_mapping_entry('root.event.currenttime')
+                    add_event_mapping_entry('root.event.current_time')
                 elif field_key == "discussion_id":
-                    self.event_mapping['root.event.discussion.id'] = field_tuple
+                    add_event_mapping_entry('root.event.discussion.id')
                 elif field_key == "response_id":
-                    self.event_mapping['root.event.response.id'] = field_tuple
+                    add_event_mapping_entry('root.event.response.id')
+                elif field_key == "old_value":
+                    add_event_mapping_entry('root.event.old')
+                elif field_key == "new_value":
+                    add_event_mapping_entry('root.event.new')
                 # Map values that are top-level:
                 elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
-                    source_key = u"root.{}".format(field_key)
-                    self.event_mapping[source_key] = field_tuple
+                    add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key.startswith('context_module_'):
-                    source_key = u"root.context.module.{}".format(field_key[15:])
-                    self.event_mapping[source_key] = field_tuple
+                    add_event_mapping_entry(u"root.context.module.{}".format(field_key[15:]))
                 elif field_key.startswith('context_'):
-                    source_key = u"root.context.{}".format(field_key[8:])
-                    self.event_mapping[source_key] = field_tuple
+                    add_event_mapping_entry(u"root.context.{}".format(field_key[8:]))
                 else:
-                    source_key = u"root.event.{}".format(field_key)
-                    self.event_mapping[source_key] = field_tuple
+                    add_event_mapping_entry(u"root.event.{}".format(field_key))
 
         return self.event_mapping
 
