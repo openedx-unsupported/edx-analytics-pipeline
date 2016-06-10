@@ -32,7 +32,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMix
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.1.1'
+VERSION = '0.1.2'
 
 
 class EventRecord(SparseRecord):
@@ -181,6 +181,16 @@ class EventRecord(SparseRecord):
     client_id = StringField(length=255, nullable=True, description='')
     locale = StringField(length=255, nullable=True, description='')
     timezone = StringField(length=255, nullable=True, description='')
+    app_name = StringField(length=255, nullable=True, description='')
+    app_version = StringField(length=255, nullable=True, description='')
+    os_name = StringField(length=255, nullable=True, description='')
+    os_version = StringField(length=255, nullable=True, description='')
+    device_manufacturer = StringField(length=255, nullable=True, description='')
+    device_model = StringField(length=255, nullable=True, description='')
+    network_carrier = StringField(length=255, nullable=True, description='')
+    action = StringField(length=255, nullable=True, description='')
+    screen_width = StringField(length=255, nullable=True, description='')
+    screen_height = StringField(length=255, nullable=True, description='')
 
 
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
@@ -535,7 +545,6 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
             'context_course_id': course_id,
             'username': username,
-            # etc.
         }
         self.add_agent_info(event_dict, event.get('agent'))
         event_mapping = self.get_event_mapping()
@@ -647,22 +656,25 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     # This is sometimes a course, but not always.
                     # add_event_mapping_entry(u"root.properties.label")
                     add_event_mapping_entry(u"root.properties.courseid")
+                    add_event_mapping_entry(u"root.properties.course_id")
                     add_event_mapping_entry(u"root.properties.course")
                 elif field_key in ['username']:
                     add_event_mapping_entry(u"root.traits.username")
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
+                elif field_key in ['client_id', 'host', 'session', 'referer']:
+                    add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
+                elif field_key in ['user_id']:
+                    add_event_mapping_entry(u"root.context.user_id")
                     # I think this is more often a username than an id.
                     # TODO: figure it out later...  Exception is type=page,
                     # for which it's an id?  No, that's not consistent,
                     # even for the same projectId.  We may need more complicated
                     # logic to help sort that out (more) consistently.
                     add_event_mapping_entry(u"root.userid")
-                elif field_key in ['client_id', 'host', 'session', 'referer']:
-                    add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
-                elif field_key in ['user_id']:
-                    # Ugh.  This may sometimes be an id, and sometimes a username.
-                    # add_event_mapping_entry(u"root.userid")
-                    add_event_mapping_entry(u"root.context.user_id")
+                elif field_key in ['os_name', 'os_version', 'app_name', 'app_version', 'device_manufacturer', 'device_model', 'network_carrier', 'screen_width', 'screen_height']:
+                    add_event_mapping_entry(u"root.context.{}".format(field_key.replace('_', '.')))
+                elif field_key in ['action']:
+                    add_event_mapping_entry(u"root.properties.{}".format(field_key))
                 elif field_key in ['locale', 'ip', 'timezone']:
                     add_event_mapping_entry(u"root.context.{}".format(field_key))
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
@@ -730,6 +742,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         event_dict = {
             'version': VERSION,
+            'input_file': self.get_map_input_file(),
             'project': project_name,
             'event_type': event_type,
             'event_source': event_source,
@@ -738,10 +751,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             'timestamp': self.get_event_emission_time(event),
             'received_at': self.get_event_arrival_time(event),
             'date': self.convert_date(date_received),
-
-            # 'course_id': course_id,
-            # 'username': username,
-            # etc.
         }
         self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
         self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))

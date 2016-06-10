@@ -233,6 +233,15 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             'label': 'Launch',
             'locale': 'en-US',
             'timezone': 'America/New_York',
+            'app_name': 'edX',
+            'app_version': '2.3.0',
+            'os_name': 'Android',
+            'os_version': '5.1.1',
+            'device_manufacturer': 'samsung',
+            'device_model': 'SAMSUNG-SM-N920A',
+            'network_carrier': "AT&T",
+            'screen_width': '1440',
+            'screen_height': '2560',
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(
