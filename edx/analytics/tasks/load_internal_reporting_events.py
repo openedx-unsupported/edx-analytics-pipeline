@@ -25,14 +25,14 @@ from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
+# from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 
-
 log = logging.getLogger(__name__)
 
-VERSION = '0.1.0'
+VERSION = '0.1.1'
 
 
 class EventRecord(SparseRecord):
@@ -111,7 +111,6 @@ class EventRecord(SparseRecord):
     course_id = StringField(length=255, nullable=True, description='')  # enrollment, certs
     # "current_time" is a SQL function name/alias, so we need to use something different here.
     # We will instead map it to "currenttime", which will receive values from "current_time" and "currentTime".
-    current_time_placeholder_use_currenttime_instead = StringField(length=255, nullable=True, description='')  # float/int/str:  video
     currenttime = StringField(length=255, nullable=True, description='')  # float/int/str:  video
     direction = StringField(length=255, nullable=True, description='')  # pdf
     discussion_id = StringField(length=255, nullable=True, description='')  # discussion.id forum
@@ -162,13 +161,26 @@ class EventRecord(SparseRecord):
     truncated = StringField(length=255, nullable=True, description='')  # bool:  forum
     type = StringField(length=255, nullable=True, description='')  # video, book
     url_name = StringField(length=255, nullable=True, description='')  # poll/survey
-    url = StringField(length=255, nullable=True, description='')  # forum, googlecomponent
+    url = StringField(length=1024, nullable=True, description='')  # forum, googlecomponent
     user_id = StringField(length=255, nullable=True, description='')  # int: enrollment, cohort, etc.
     event_username = StringField(length=255, nullable=True, description='')  # add/remove forum
     # Stuff from segment:
     channel = StringField(length=255, nullable=True, description='')
     anonymous_id = StringField(length=255, nullable=True, description='')
+    path = StringField(length=1024, nullable=True, description='')
     referrer = StringField(length=1024, nullable=True, description='')
+    search = StringField(length=255, nullable=True, description='')
+    # title and url already exist
+    variationname = StringField(length=255, nullable=True, description='')
+    variationid = StringField(length=255, nullable=True, description='')
+    experimentid = StringField(length=255, nullable=True, description='')
+    experimentname = StringField(length=255, nullable=True, description='')
+    category = StringField(length=255, nullable=True, description='')
+    label = StringField(length=255, nullable=True, description='')
+    display_name = StringField(length=255, nullable=True, description='')
+    client_id = StringField(length=255, nullable=True, description='')
+    locale = StringField(length=255, nullable=True, description='')
+    timezone = StringField(length=255, nullable=True, description='')
 
 
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
@@ -328,7 +340,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
         try:
             user_agent = user_agents.parse(agent)
-        except:  # If the user agent can't be parsed, just drop the agent data on the floor since it's of no use to us.
+        except Exception:  # If the user agent can't be parsed, just drop the agent data on the floor since it's of no use to us.
             return agent_dict
 
         device_type = ''  # It is possible that the user agent isn't any of the below.
@@ -374,13 +386,13 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             if label in event_mapping:
                 event_record_key, event_record_field = event_mapping[label]
                 if isinstance(event_record_field, StringField):
-                    value = unicode(obj)
+                    value = backslash_encode_value(unicode(obj))
                     # Avoid validation errors later due to length by truncating here.
                     field_length = event_record_field.length
                     value_length = len(value)
                     if value_length > field_length:
                         log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, event_record_key, value)
-                        value = u"{}...".format(value[:field_length-4])
+                        value = u"{}...".format(value[:field_length - 4])
                     event_dict[event_record_key] = value
                 elif isinstance(event_record_field, IntegerField):
                     try:
@@ -437,6 +449,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             field_keys = fields.keys()
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
+
                 def add_event_mapping_entry(source_key):
                     self.event_mapping[source_key] = field_tuple
                 # Most common is to map first-level entries in event data directly.
@@ -575,13 +588,14 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             log.error("Bad type for %s time in event: %r", key, event)
             self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
             return None
+        except UnicodeEncodeError:
+            # This is more specific than ValueError, so it is processed first.
+            log.error("Bad encoding for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad encoding for {} Time Field'.format(key), 1)
+            return None
         except ValueError:
             log.error("Bad value for %s time in event: %r", key, event)
             self.incr_counter('Event', 'Bad value for {} Time Field'.format(key), 1)
-            return None
-        except UnicodeEncodeError:
-            log.error("Bad encoding for %s time in event: %r", key, event)
-            self.incr_counter('Event', 'Bad encoding for {} Time Field'.format(key), 1)
             return None
 
     def get_event_arrival_time(self, event):
@@ -612,6 +626,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             field_keys = fields.keys()
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
+
                 def add_event_mapping_entry(source_key):
                     self.event_mapping[source_key] = field_tuple
 
@@ -628,10 +643,33 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 elif field_key in ['anonymous_id']:
                     add_event_mapping_entry(u"root.context.anonymousid")
                     add_event_mapping_entry("root.anonymousid")
-                elif field_key in ['locale', 'ip']:
+                elif field_key in ['course_id']:
+                    # This is sometimes a course, but not always.
+                    # add_event_mapping_entry(u"root.properties.label")
+                    add_event_mapping_entry(u"root.properties.courseid")
+                    add_event_mapping_entry(u"root.properties.course")
+                elif field_key in ['username']:
+                    add_event_mapping_entry(u"root.traits.username")
+                    add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
+                    # I think this is more often a username than an id.
+                    # TODO: figure it out later...  Exception is type=page,
+                    # for which it's an id?  No, that's not consistent,
+                    # even for the same projectId.  We may need more complicated
+                    # logic to help sort that out (more) consistently.
+                    add_event_mapping_entry(u"root.userid")
+                elif field_key in ['client_id', 'host', 'session', 'referer']:
+                    add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
+                elif field_key in ['user_id']:
+                    # Ugh.  This may sometimes be an id, and sometimes a username.
+                    # add_event_mapping_entry(u"root.userid")
+                    add_event_mapping_entry(u"root.context.user_id")
+                elif field_key in ['locale', 'ip', 'timezone']:
                     add_event_mapping_entry(u"root.context.{}".format(field_key))
-                elif field_key in ['path', 'referrer']:
+                    add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
+                elif field_key in ['path', 'referrer', 'search', 'title', 'url', 'variationname', 'variationid', 'experimentid', 'experimentname', 'category', 'label', 'display_name']:
                     add_event_mapping_entry(u"root.properties.{}".format(field_key))
+                    add_event_mapping_entry(u"root.context.page.{}".format(field_key))
+                    add_event_mapping_entry(u"root.properties.context.page.{}".format(field_key))
                 else:
                     pass
 
@@ -706,6 +744,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # etc.
         }
         self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
+        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
 

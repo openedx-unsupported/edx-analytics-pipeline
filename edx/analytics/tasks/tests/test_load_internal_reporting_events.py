@@ -1,24 +1,17 @@
 """Test processing of events for loading into Hive, etc."""
 
-# import json
-# import datetime
-
 import luigi
-# from luigi import date_interval
-from ddt import ddt, data  # , unpack
-# from mock import MagicMock
+from ddt import ddt, data
 
 from edx.analytics.tasks.load_internal_reporting_events import (
     EventRecord,
-#    BaseEventRecordDataTask,
     TrackingEventRecordDataTask,
     SegmentEventRecordDataTask,
     VERSION,
 )
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin  # , InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin  # , ReducerTestMixin
-# from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin
 
 
 @ddt
@@ -232,10 +225,14 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             'agent_device_name': 'Samsung SM-N920A',
             'agent_os': 'Android',
             'agent_browser': 'Android',
-            'agent_touch_capable': True,
+            'agent_touch_capable': 'True',
             'ip': '98.236.220.148',
             'channel': 'server',
             'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
+            'category': 'screen',
+            'label': 'Launch',
+            'locale': 'en-US',
+            'timezone': 'America/New_York',
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(
