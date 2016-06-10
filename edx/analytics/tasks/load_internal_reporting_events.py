@@ -23,7 +23,7 @@ from edx.analytics.tasks.segment_event_type_dist import SegmentEventLogSelection
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask,
+    WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField
@@ -606,6 +606,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             fields = EventRecord.get_fields()
             field_keys = fields.keys()
             for field_key in field_keys:
+                field_tuple = (field_key, fields[field_key])
+                def add_event_mapping_entry(source_key):
+                    self.event_mapping[source_key] = field_tuple
+
                 # Most common is to map first-level entries in event data directly.
                 # Skip values that are explicitly set:
                 if field_key in ['version', 'input_file', 'project', 'event_type', 'event_source']:
@@ -615,19 +619,14 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     pass
                 # Map values that are top-level:
                 elif field_key in ['channel']:
-                    source_key = u"root.{}".format(field_key)
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key in ['anonymous_id']:
-                    source_key = u"root.context.anonymousid"
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
-                    source_key = "root.anonymousid"
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    add_event_mapping_entry(u"root.context.anonymousid")
+                    add_event_mapping_entry("root.anonymousid")
                 elif field_key in ['locale', 'ip']:
-                    source_key = u"root.context.{}".format(field_key)
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    add_event_mapping_entry(u"root.context.{}".format(field_key))
                 elif field_key in ['path', 'referrer']:
-                    source_key = u"root.properties.{}".format(field_key)
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    add_event_mapping_entry(u"root.properties.{}".format(field_key))
                 else:
                     pass
 
@@ -825,25 +824,27 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
     # Required parameter
     date = luigi.DateParameter()
 
-#    @property
-#    def partition(self):
-#        """The table is partitioned by date."""
-#        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
         # For now, let's just get by with ExternalURL.
-#        hive_table = "event_records"
-#        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
-#        return ExternalURL(url=partition_location)
+        hive_table = "event_records"
+        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
+        return ExternalURL(url=partition_location)
 
         # But this should actually work as well, without the partition property being needed.
-        return EventRecordPartitionTask(
-            date=self.date,
-            n_reduce_tasks=self.n_reduce_tasks,
-            warehouse_path=self.warehouse_path,
-            events_list_file_path=self.events_list_file_path,
-        )
+        # WRONG. It really needs the underlying data-generating task.  The partition task's output
+        # itself cannot be opened as a file for reading.
+        # return EventRecordPartitionTask(
+        #     date=self.date,
+        #     n_reduce_tasks=self.n_reduce_tasks,
+        #     warehouse_path=self.warehouse_path,
+        #     events_list_file_path=self.events_list_file_path,
+        # )
 
     @property
     def table(self):
@@ -891,4 +892,3 @@ class LoadEventRecordIntervalToVertica(EventRecordDownstreamMixin, VerticaCopyTa
 
     def output(self):
         return [task.output() for task in self.requires()]
-
