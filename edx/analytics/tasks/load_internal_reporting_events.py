@@ -108,7 +108,9 @@ class EventRecord(SparseRecord):
     commentable_id = StringField(length=255, nullable=True, description='')  # forums
     corrected_text = StringField(length=255, nullable=True, description='')  # forum search
     course_id = StringField(length=255, nullable=True, description='')  # enrollment, certs
-    current_time = StringField(length=255, nullable=True, description='')  # float/int/str:  video
+    # "current_time" is a SQL function name/alias, so we need to use something different here.
+    # We will instead map it to "currenttime", which will receive values from "current_time" and "currentTime".
+    current_time_placeholder_use_currenttime_instead = StringField(length=255, nullable=True, description='')  # float/int/str:  video
     currenttime = StringField(length=255, nullable=True, description='')  # float/int/str:  video
     direction = StringField(length=255, nullable=True, description='')  # pdf
     discussion_id = StringField(length=255, nullable=True, description='')  # discussion.id forum
@@ -327,7 +329,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         except:  # If the user agent can't be parsed, just drop the agent data on the floor since it's of no use to us.
             return agent_dict
 
-        device_type = ''  # It is possible that the user agent isn't any of the below
+        device_type = ''  # It is possible that the user agent isn't any of the below.
         if user_agent.is_mobile:
             device_type = "mobile"
         elif user_agent.is_tablet:
@@ -342,7 +344,9 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             agent_dict['device_name'] = user_agent.device.family
             agent_dict['os'] = user_agent.os.family
             agent_dict['browser'] = user_agent.browser.family
-            agent_dict['touch_capable'] = user_agent.is_touch_capable
+            # This boolean is currently implemented as an IntegerField, because we
+            # don't yet have a BooleanField.  So we need to cast it.
+            agent_dict['touch_capable'] = int(user_agent.is_touch_capable)
 
         return agent_dict
 
@@ -359,7 +363,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         elif isinstance(obj, dict):
             for key in obj.keys():
                 new_value = obj.get(key)
-                new_label = u"{}.{}".format(label, key)
+                # Normalize labels to be all lower-case, since all field (column) names are lowercased.
+                new_label = u"{}.{}".format(label, key.lower())
                 self._add_event_info_recurse(event_dict, event_mapping, new_value, new_label)
         elif isinstance(obj, list):
             # We will not output any values that are stored in lists.
@@ -425,24 +430,39 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             fields = EventRecord.get_fields()
             field_keys = fields.keys()
             for field_key in field_keys:
+                field_tuple = (field_key, fields[field_key])
+                def add_event_mapping_entry(source_key):
+                    self.event_mapping[source_key] = field_tuple
                 # Most common is to map first-level entries in event data directly.
                 # Skip values that are explicitly set:
                 if field_key in ['version', 'input_file', 'project', 'event_type', 'event_source', 'context_course_id', 'username']:
-                    source_key = None
+                    pass
                 # Skip values that are explicitly calculated rather than copied:
-                if field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
-                    source_key = None
+                elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
+                    pass
+                # Handle special-cases:
+                elif field_key == "currenttime":
+                    # Collapse values from either form into a single column.  No event should have both,
+                    # though there are event_types that have used both at different times.
+                    self.event_mapping['root.event.currenttime'] = field_tuple
+                    self.event_mapping['root.event.current_time'] = field_tuple
+                elif field_key == "discussion_id":
+                    self.event_mapping['root.event.discussion.id'] = field_tuple
+                elif field_key == "response_id":
+                    self.event_mapping['root.event.response.id'] = field_tuple
                 # Map values that are top-level:
                 elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
                     source_key = u"root.{}".format(field_key)
+                    self.event_mapping[source_key] = field_tuple
                 elif field_key.startswith('context_module_'):
                     source_key = u"root.context.module.{}".format(field_key[15:])
+                    self.event_mapping[source_key] = field_tuple
                 elif field_key.startswith('context_'):
                     source_key = u"root.context.{}".format(field_key[8:])
+                    self.event_mapping[source_key] = field_tuple
                 else:
                     source_key = u"root.event.{}".format(field_key)
-                if source_key is not None:
-                    self.event_mapping[source_key] = (field_key, fields[field_key])
+                    self.event_mapping[source_key] = field_tuple
 
         return self.event_mapping
 
@@ -597,9 +617,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     source_key = u"root.{}".format(field_key)
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 elif field_key in ['anonymous_id']:
-                    source_key = u"root.context.anonymousId"
+                    source_key = u"root.context.anonymousid"
                     self.event_mapping[source_key] = (field_key, fields[field_key])
-                    source_key = "root.anonymousId"
+                    source_key = "root.anonymousid"
                     self.event_mapping[source_key] = (field_key, fields[field_key])
                 elif field_key in ['locale', 'ip']:
                     source_key = u"root.context.{}".format(field_key)
