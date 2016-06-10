@@ -537,6 +537,22 @@ class IntegerField(Field):  # pylint: disable=abstract-method
         return int(string_value)
 
 
+class BooleanField(Field):  # pylint: disable=abstract-method
+    """Represents a field that contains a Boolean."""
+
+    hive_type = sql_base_type = 'BOOLEAN'
+    elasticsearch_type = 'boolean'
+
+    def validate(self, value):
+        validation_errors = super(BooleanField, self).validate(value)
+        if value is not None and not isinstance(value, bool):
+            validation_errors.append('The value is not a Boolean')
+        return validation_errors
+
+    def deserialize_from_string(self, string_value):
+        return bool(string_value)
+
+
 class DateField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a date."""
 

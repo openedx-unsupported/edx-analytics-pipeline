@@ -26,7 +26,7 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField
+from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 
 
@@ -63,7 +63,7 @@ class EventRecord(SparseRecord):
     agent_device_name = StringField(length=100, nullable=True, description='')
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
-    agent_touch_capable = IntegerField(nullable=True, description='')  # Should be Boolean
+    agent_touch_capable = BooleanField(nullable=True, description='')
 
     host = StringField(length=80, nullable=True, description='')
     # TODO: geolocate ip to find country or more specific information?
@@ -345,9 +345,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             agent_dict['device_name'] = user_agent.device.family
             agent_dict['os'] = user_agent.os.family
             agent_dict['browser'] = user_agent.browser.family
-            # This boolean is currently implemented as an IntegerField, because we
-            # don't yet have a BooleanField.  So we need to cast it.
-            agent_dict['touch_capable'] = int(user_agent.is_touch_capable)
+            agent_dict['touch_capable'] = user_agent.is_touch_capable
 
         return agent_dict
 
@@ -378,8 +376,9 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                     value = unicode(obj)
                     # Avoid validation errors later due to length by truncating here.
                     field_length = event_record_field.length
-                    if len(value) > field_length:
-                        log.error("Record value exceeds max length %d for field %s: %r", field_length, event_record_key, value)
+                    value_length = len(value)
+                    if value_length > field_length:
+                        log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, event_record_key, value)
                         value = u"{}...".format(value[:field_length-4])
                     event_dict[event_record_key] = value
                 elif isinstance(event_record_field, IntegerField):
@@ -387,6 +386,11 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                         event_dict[event_record_key] = int(obj)
                     except ValueError:
                         log.error('Unable to cast value to int for %s: %r', label, obj)
+                elif isinstance(event_record_field, BooleanField):
+                    try:
+                        event_dict[event_record_key] = bool(obj)
+                    except ValueError:
+                        log.error('Unable to cast value to bool for %s: %r', label, obj)
                 elif isinstance(event_record_field, FloatField):
                     try:
                         event_dict[event_record_key] = float(obj)

@@ -6,7 +6,7 @@ import pickle
 from ddt import data, ddt
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.util.record import Record, SparseRecord, StringField, IntegerField, DateField, FloatField
+from edx.analytics.tasks.util.record import Record, SparseRecord, StringField, IntegerField, DateField, FloatField, BooleanField
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
@@ -503,6 +503,36 @@ class IntegerFieldTest(unittest.TestCase):
 
     def test_hive_type(self):
         self.assertEqual(IntegerField().hive_type, 'INT')
+
+
+@ddt
+class BooleanFieldTest(unittest.TestCase):
+    """Tests for BooleanField"""
+
+    @data(
+        False,
+        True,
+        None,
+    )
+    def test_validate_success(self, value):
+        test_record = BooleanField()
+        self.assertEqual(len(test_record.validate(value)), 0)
+
+    @data(
+        1,
+        1.0,
+        'foo',
+        object()
+    )
+    def test_validate_error(self, value):
+        test_record = BooleanField()
+        self.assertEqual(len(test_record.validate(value)), 1)
+
+    def test_sql_type(self):
+        self.assertEqual(BooleanField().sql_type, 'BOOLEAN')
+
+    def test_hive_type(self):
+        self.assertEqual(BooleanField().hive_type, 'BOOLEAN')
 
 
 @ddt
