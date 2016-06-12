@@ -4,6 +4,15 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util import eventlog
 import luigi
 import re
+from edx.analytics.tasks.util.record import Record, StringField, IntegerField
+
+
+class ViewRecord(Record):
+    course_id = StringField(length=255, nullable=False)
+    section = StringField(length=255, nullable=False)
+    subsection = StringField(length=255, nullable=False)
+    unique_user_views = IntegerField()
+    total_views = IntegerField
 
 
 class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
@@ -49,7 +58,13 @@ class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
             unique_usernames.add(username)
             total_views += 1
 
-        yield (course_id, section, subsection), (len(unique_usernames), total_views)
+        yield (ViewRecord(
+            course_id=course_id,
+            section=section,
+            subsection=subsection,
+            unique_user_views=len(unique_usernames),
+            total_views=total_views
+        ).to_string_tuple(),)
 
     def output(self):
         return get_target_from_url(self.output_root)
