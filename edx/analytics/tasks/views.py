@@ -12,7 +12,7 @@ class ViewRecord(Record):
     section = StringField(length=255, nullable=False)
     subsection = StringField(length=255, nullable=False)
     unique_user_views = IntegerField()
-    total_views = IntegerField
+    total_views = IntegerField()
 
 
 class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
