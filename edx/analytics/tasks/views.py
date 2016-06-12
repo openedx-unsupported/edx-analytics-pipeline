@@ -1,7 +1,7 @@
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 
 from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.util import eventlog
 import luigi
@@ -72,7 +72,7 @@ class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(self.output_root)
 
 
-class ViewDistributionMysqlTask(MapReduceJobTaskMixin, MysqlInsertTask):
+class ViewDistributionMysqlTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, MysqlInsertTask):
 
     output_root = luigi.Parameter()
 
@@ -93,6 +93,7 @@ class ViewDistributionMysqlTask(MapReduceJobTaskMixin, MysqlInsertTask):
     @property
     def insert_source_task(self):
         return ViewDistribution(
+            interval=self.interval,
             output_root=self.output_root,
             n_reduce_tasks=self.n_reduce_tasks
         )
