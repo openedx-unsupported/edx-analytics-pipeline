@@ -1,0 +1,55 @@
+from analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.util import eventlog
+import luigi
+import re
+
+
+class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
+
+    SUBSECTION_ACCESSED_PATTERN = r'/courses/.*?courseware/([^/]+)/([^/]+)/.*$'
+
+    output_root = luigi.Parameter()
+
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, date_string = value
+
+        event_type = event.get('event_type')
+        if event_type is None:
+            return
+
+        if event_type[:9] != '/courses/':
+            return
+
+        m = re.match(self.SUBSECTION_ACCESSED_PATTERN, event_type)
+        if not m:
+            return
+        section, subsection = m.group(1, 2)
+
+        username = event.get('username', '').strip()
+        if not username:
+            return
+
+        course_id = eventlog.get_course_id(event)
+        if not course_id:
+            return
+
+        yield (course_id, section, subsection), (username)
+
+    def reducer(self, key, values):
+        course_id, section, subsection = key
+
+        unique_usernames = set()
+        total_views = 0
+        for username in values:
+            unique_usernames.add(username)
+            total_views += 1
+
+        yield (course_id, section, subsection), (len(unique_usernames), total_views)
+
+    def output(self):
+        return get_target_from_url(self.output_root)
