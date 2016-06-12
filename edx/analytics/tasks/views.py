@@ -1,4 +1,4 @@
-from analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util import eventlog
