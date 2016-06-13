@@ -60,13 +60,13 @@ class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
             unique_usernames.add(username)
             total_views += 1
 
-        yield (ViewRecord(
+        yield ViewRecord(
             course_id=course_id,
             section=section,
             subsection=subsection,
             unique_user_views=len(unique_usernames),
             total_views=total_views
-        ).to_string_tuple(),)
+        ).to_string_tuple()
 
     def output(self):
         return get_target_from_url(self.output_root)
