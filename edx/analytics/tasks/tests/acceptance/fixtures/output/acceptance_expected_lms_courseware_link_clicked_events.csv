@@ -1,0 +1,5 @@
+record_number,course_id,event_date,external_link_clicked_events,link_clicked_events
+1,course-v1:edX+DemoX+Demo_Course,2016-06-05,1,2
+3,course-v1:edX+DemoX+Demo_Course,2016-06-06,2,4
+4,course-v1:edX+DemoX+Demo_Course,2016-06-08,3,8
+2,course-v1:edX+DemoX+Demo_Course,2016-06-12,2,6

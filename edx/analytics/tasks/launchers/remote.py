@@ -155,10 +155,7 @@ def convert_args_to_extra_vars(arguments, uid):
     if arguments.secure_config:
         extra_vars['secure_config'] = arguments.secure_config
     if arguments.wheel_url:
-        extra_vars['install_env'] = {
-            'WHEEL_URL': arguments.wheel_url,
-            'WHEEL_PYVER': '2.7'
-        }
+        extra_vars['wheel_url'] = arguments.wheel_url
     if arguments.vagrant_path or arguments.host:
         extra_vars['write_luigi_config'] = False
     if arguments.virtualenv_extra_args:
