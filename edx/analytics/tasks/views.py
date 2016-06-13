@@ -69,7 +69,7 @@ class ViewDistribution(EventLogSelectionMixin, MapReduceJobTask):
         ).to_string_tuple()
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, self.interval.to_string))
+        return get_target_from_url(url_path_join(self.output_root, self.interval.to_string()))
 
 
 class ViewDistributionMysqlTask(MysqlInsertTask):
