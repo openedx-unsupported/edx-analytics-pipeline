@@ -32,7 +32,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMix
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.1.2'
+VERSION = '0.2.0'
 
 
 class EventRecord(SparseRecord):
@@ -87,6 +87,14 @@ class EventRecord(SparseRecord):
     context_module_usage_key = StringField(length=255, nullable=True, description='')
     context_module_original_usage_key = StringField(length=255, nullable=True, description='')
     context_module_original_usage_version = StringField(length=255, nullable=True, description='')
+    # course_user_tags	object
+    # application	object:  explicitly extracted to 'app_name', 'app_version'.
+    # client	object
+    context_component = StringField(length=255, nullable=True, description='')  # string
+    context_mode = StringField(length=255, nullable=True, description='')  # string
+
+    # This is handled for tracking logs by writing to received_at explicitly.
+    # context_received_at = StringField(length=255, nullable=True, description='')  # number
 
     # Per-event values:
     # entity_type = StringField(length=10, nullable=True, description='Category of entity that the learner interacted'
@@ -94,76 +102,228 @@ class EventRecord(SparseRecord):
     # entity_id = StringField(length=255, nullable=True, description='A unique identifier for the entity within the'
     # ' course that the learner interacted with.')
 
+    add_method = StringField(length=255, nullable=True, description='')  # string
+    # added	list
+    allowance_key = StringField(length=255, nullable=True, description='')  # string
+    allowance_user_id = StringField(length=255, nullable=True, description='')  # number
+    allowance_value = StringField(length=255, nullable=True, description='')  # string
+    amount = StringField(length=255, nullable=True, description='')  # string
+    anonymous = StringField(length=255, nullable=True, description='')  # Boolean
+    anonymous_to_peers = StringField(length=255, nullable=True, description='')  # Boolean
+    answer = StringField(length=255, nullable=True, description='')  # integer
+    # answer	object
+    answers = StringField(length=255, nullable=True, description='')  # string
+    # answers	object
+    attempt_allowed_time_limit_mins = StringField(length=255, nullable=True, description='')  # number
+    attempt_code = StringField(length=255, nullable=True, description='')  # string
+    attempt_completed_at = StringField(length=255, nullable=True, description='')  # datetime
+    attempt_event_elapsed_time_secs = StringField(length=255, nullable=True, description='')  # number
+    attempt_id = StringField(length=255, nullable=True, description='')  # number
+    attempt_number = StringField(length=255, nullable=True, description='')  # number
+    attempt_started_at = StringField(length=255, nullable=True, description='')  # datetime
+    attempt_status = StringField(length=255, nullable=True, description='')  # string
+    attempt_user_id = StringField(length=255, nullable=True, description='')  # number
     attempts = StringField(length=255, nullable=True, description='')  # use int
-    # case_sensitive = Bool (textbook)
-    category_id = StringField(length=255, nullable=True, description='')
-    category_name = StringField(length=255, nullable=True, description='')
-    certificate_id = StringField(length=255, nullable=True, description='')
-    chapter = StringField(length=255, nullable=True, description='')  # pdf
-    chapter_title = StringField(length=255, nullable=True, description='')
-    child_id = StringField(length=255, nullable=True, description='')
-    choice = StringField(length=255, nullable=True, description='')  # poll
-    code = StringField(length=255, nullable=True, description='')  # video
-    cohort_id = StringField(length=255, nullable=True, description='')  # int:  cohort
-    cohort_name = StringField(length=255, nullable=True, description='')
-    commentable_id = StringField(length=255, nullable=True, description='')  # forums
+    body = StringField(length=255, nullable=True, description='')  # string
+    bookmark_id = StringField(length=255, nullable=True, description='')  # string
+    bookmarks_count = StringField(length=255, nullable=True, description='')  # integer
+    bumper_id = StringField(length=255, nullable=True, description='')  # string
+    caseSensitive = StringField(length=255, nullable=True, description='')  # Boolean
+    category = StringField(length=255, nullable=True, description='')  # number
+    category_id = StringField(length=255, nullable=True, description='')  # string
+    category_name = StringField(length=255, nullable=True, description='')  # string
+    certificate_id = StringField(length=255, nullable=True, description='')  # string
+    certificate_url = StringField(length=255, nullable=True, description='')  # string
+    chapter = StringField(length=255, nullable=True, description='')  # string: pdf
+    chapter_title = StringField(length=255, nullable=True, description='')  # string
+    child_id = StringField(length=255, nullable=True, description='')  # string
+    choice = StringField(length=255, nullable=True, description='')  # string: poll
+    # choice_all	array
+    # choices	object
+    code = StringField(length=255, nullable=True, description='')  # string: video
+    cohort_id = StringField(length=255, nullable=True, description='')  # number:  cohort
+    cohort_name = StringField(length=255, nullable=True, description='')  # string
+    commentable_id = StringField(length=255, nullable=True, description='')  # string: forums
+    component_type = StringField(length=255, nullable=True, description='')  # string
+    component_usage_id = StringField(length=255, nullable=True, description='')  # string
+    content = StringField(length=255, nullable=True, description='')  # string
+    # correct_map	object
     corrected_text = StringField(length=255, nullable=True, description='')  # forum search
+    # corrections	object
+    correctness = StringField(length=255, nullable=True, description='')  # Boolean
+    course = StringField(length=255, nullable=True, description='')  # string
     course_id = StringField(length=255, nullable=True, description='')  # enrollment, certs
+    created_at = StringField(length=255, nullable=True, description='')  # datetime
     # "current_time" is a SQL function name/alias, so we need to use something different here.
     # We will instead map it to "currenttime", which will receive values from "current_time" and "currentTime".
     currenttime = StringField(length=255, nullable=True, description='')  # float/int/str:  video
+    current_slide = StringField(length=255, nullable=True, description='')  # number
+    current_tab = StringField(length=255, nullable=True, description='')  # integer
+    current_url = StringField(length=255, nullable=True, description='')  # string
     direction = StringField(length=255, nullable=True, description='')  # pdf
     discussion_id = StringField(length=255, nullable=True, description='')  # discussion.id forum
     displayed_in = StringField(length=255, nullable=True, description='')  # googlecomponent
+    done = StringField(length=255, nullable=True, description='')  # Boolean
     duration = StringField(length=255, nullable=True, description='')  # int: videobumper
     enrollment_mode = StringField(length=255, nullable=True, description='')  # certs
+    event = StringField(length=255, nullable=True, description='')  # string
+    event_name = StringField(length=255, nullable=True, description='')  # string
+    exam_content_id = StringField(length=255, nullable=True, description='')  # string
+    exam_default_time_limit_mins = StringField(length=255, nullable=True, description='')  # number
+    exam_id = StringField(length=255, nullable=True, description='')  # number
+    exam_is_active = StringField(length=255, nullable=True, description='')  # Boolean
+    exam_is_practice_exam = StringField(length=255, nullable=True, description='')  # Boolean
+    exam_is_proctored = StringField(length=255, nullable=True, description='')  # Boolean
+    exam_name = StringField(length=255, nullable=True, description='')  # string
+    exploration_id = StringField(length=255, nullable=True, description='')  # string
+    exploration_version = StringField(length=255, nullable=True, description='')  # string
+    failure = StringField(length=255, nullable=True, description='')  # string
+    feedback = StringField(length=255, nullable=True, description='')  # string
+    feedback_text = StringField(length=255, nullable=True, description='')  # string
     field = StringField(length=255, nullable=True, description='')  # team
+    fileName = StringField(length=255, nullable=True, description='')  # string
+    fileSize = StringField(length=255, nullable=True, description='')  # number
+    fileType = StringField(length=255, nullable=True, description='')  # string
+    findprevious = StringField(length=255, nullable=True, description='')  # Boolean
     generation_mode = StringField(length=255, nullable=True, description='')  # cert
     grade = StringField(length=255, nullable=True, description='')  # float/int:  problem_check
     group_id = StringField(length=255, nullable=True, description='')  # int:  forum
     group_name = StringField(length=255, nullable=True, description='')  # user_to_partition
-    id = StringField(length=255, nullable=True, description='')  # video, forum
+    highlightall = StringField(length=255, nullable=True, description='')  # highlightAll: Boolean
+    highlighted_content = StringField(length=255, nullable=True, description='')  # string
+    hint_index = StringField(length=255, nullable=True, description='')  # number
+    hint_label = StringField(length=255, nullable=True, description='')  # string
+    hint_len = StringField(length=255, nullable=True, description='')  # number
+    hint_text = StringField(length=255, nullable=True, description='')  # string
+    # hints	array
+    host_component_id = StringField(length=255, nullable=True, description='')  # string
+    id = StringField(length=255, nullable=True, description='')  # string: video, forum
+    input = StringField(length=255, nullable=True, description='')  # integer
     instructor = StringField(length=255, nullable=True, description='')
+    is_correct = StringField(length=255, nullable=True, description='')  # Boolean
+    is_correct_location = StringField(length=255, nullable=True, description='')  # Boolean
+    item_id = StringField(length=255, nullable=True, description='')  # integer, string
+    list_type = StringField(length=255, nullable=True, description='')  # string
     location = StringField(length=255, nullable=True, description='')  # library
+    manually = StringField(length=255, nullable=True, description='')  # Boolean
     max_count = StringField(length=255, nullable=True, description='')  # int:  library
     max_grade = StringField(length=255, nullable=True, description='')  # int:  problem_check
     mode = StringField(length=255, nullable=True, description='')  # enrollment
     module_id = StringField(length=255, nullable=True, description='')  # hint
     name = StringField(length=255, nullable=True, description='')  # pdf
-    # OLD and NEW are keywords in SQL on Vertica, so use different names here.
-    old_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    # NEW is a keyword in SQL on Vertica, so use different name here.
     new_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
-    old_speed = StringField(length=255, nullable=True, description='')  # video
+    new_score = StringField(length=255, nullable=True, description='')  # number
     new_speed = StringField(length=255, nullable=True, description='')  # video
+    # new_state	object
+    new_state_name = StringField(length=255, nullable=True, description='')  # string
     new_time = StringField(length=255, nullable=True, description='')  # float/int:  video
+    new_total = StringField(length=255, nullable=True, description='')  # number
+    note_id = StringField(length=255, nullable=True, description='')  # string
+    note_text = StringField(length=255, nullable=True, description='')  # string
+    # notes	array
+    number_of_results = StringField(length=255, nullable=True, description='')  # integer, number
+
+    # Not documented, but used by problembuilder:
     num_attempts = StringField(length=255, nullable=True, description='')  # int:  problem_builder
+
+    # OLD is a keyword in SQL on Vertica, so use different name here.
+    old_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    old_attempts = StringField(length=255, nullable=True, description='')  # string
+    old_note_text = StringField(length=255, nullable=True, description='')  # string
+    old_speed = StringField(length=255, nullable=True, description='')  # video
+    # old_state	object
+    old_state_name = StringField(length=255, nullable=True, description='')  # string
+    # old_tags	array of strings
+    old_time = StringField(length=255, nullable=True, description='')  # number
+    # options	array
+    # options	object
+    options_followed = StringField(length=255, nullable=True, description='')  # options.followed:  boolean
+    # options_selected	object
+    orig_score = StringField(length=255, nullable=True, description='')  # number
+    orig_total = StringField(length=255, nullable=True, description='')  # number
     page = StringField(length=255, nullable=True, description='')  # int/str:  forum, pdf
+    page_name = StringField(length=255, nullable=True, description='')  # string
+    page_number = StringField(length=255, nullable=True, description='')  # integer
+    page_size = StringField(length=255, nullable=True, description='')  # integer
+    partition_id = StringField(length=255, nullable=True, description='')  # number
+    partition_name = StringField(length=255, nullable=True, description='')  # string
+    # parts: [criterion, option, feedback]	array
     previous_cohort_id = StringField(length=255, nullable=True, description='')  # int:  cohort
     previous_cohort_name = StringField(length=255, nullable=True, description='')  # cohort
     previous_count = StringField(length=255, nullable=True, description='')  # int:  lib
+    problem = StringField(length=255, nullable=True, description='')  # show/reset/rescore
     problem_id = StringField(length=255, nullable=True, description='')  # capa
     problem_part_id = StringField(length=255, nullable=True, description='')  # hint
-    problem = StringField(length=255, nullable=True, description='')  # show/reset/rescore
     query = StringField(length=255, nullable=True, description='')  # forum, pdf
     question_type = StringField(length=255, nullable=True, description='')  # hint
+    rationale = StringField(length=255, nullable=True, description='')  # string
+    reason = StringField(length=255, nullable=True, description='')  # string
+    remove_method = StringField(length=255, nullable=True, description='')  # string
+    # removed	list
+    report_type = StringField(length=255, nullable=True, description='')  # string
+    report_url = StringField(length=255, nullable=True, description='')  # string
+    requested_skip_interval = StringField(length=255, nullable=True, description='')  # number
+    requesting_staff_id = StringField(length=255, nullable=True, description='')  # string
+    requesting_student_id = StringField(length=255, nullable=True, description='')  # string
     response_id = StringField(length=255, nullable=True, description='')  # response.id:  forum
+    # result	list
+    review_attempt_code = StringField(length=255, nullable=True, description='')  # string
+    review_status = StringField(length=255, nullable=True, description='')  # string
+    review_video_url = StringField(length=255, nullable=True, description='')  # string
+    # rubric	object
+    # saved_response	object
+    score_type = StringField(length=255, nullable=True, description='')  # string
+    scored_at = StringField(length=255, nullable=True, description='')  # datetime
+    scorer_id = StringField(length=255, nullable=True, description='')  # string
+    search_string = StringField(length=255, nullable=True, description='')  # string
     search_text = StringField(length=255, nullable=True, description='')  # team
-    seek_type = StringField(length=255, nullable=True, description='')  # video
+    selection = StringField(length=255, nullable=True, description='')  # number
+    slide = StringField(length=255, nullable=True, description='')  # number
+    # Not listed or attested:     seek_type = StringField(length=255, nullable=True, description='')  # video
     social_network = StringField(length=255, nullable=True, description='')  # certificate
+    source_url = StringField(length=255, nullable=True, description='')  # string
+    # state	object
     status = StringField(length=255, nullable=True, description='')  # status
     student = StringField(length=255, nullable=True, description='')  # reset/delete/rescore
+    # student_answer	array
+    # submission	object
+    submission_returned_uuid = StringField(length=255, nullable=True, description='')  # string
+    submission_uuid = StringField(length=255, nullable=True, description='')  # string
+    submitted_at = StringField(length=255, nullable=True, description='')  # datetime
     success = StringField(length=255, nullable=True, description='')  # problem_check
+    tab_count = StringField(length=255, nullable=True, description='')  # integer
+    # tags	array of strings
+    target_name = StringField(length=255, nullable=True, description='')  # string
+    target_tab = StringField(length=255, nullable=True, description='')  # integer
+    target_url = StringField(length=255, nullable=True, description='')  # string
+    target_username = StringField(length=255, nullable=True, description='')  # string
     team_id = StringField(length=255, nullable=True, description='')  # team, forum
     thread_type = StringField(length=255, nullable=True, description='')  # forum
     title = StringField(length=255, nullable=True, description='')  # forum
+    thumbnail_title = StringField(length=255, nullable=True, description='')  # string
     topic_id = StringField(length=255, nullable=True, description='')  # team
     total_results = StringField(length=255, nullable=True, description='')  # int: forum
+    total_slides = StringField(length=255, nullable=True, description='')  # number
+    trigger_type = StringField(length=255, nullable=True, description='')  # string
     truncated = StringField(length=255, nullable=True, description='')  # bool:  forum
+    # truncated	array
+    # truncated	array of strings
     type = StringField(length=255, nullable=True, description='')  # video, book
+    undo_vote = StringField(length=255, nullable=True, description='')  # Boolean
     url_name = StringField(length=255, nullable=True, description='')  # poll/survey
     url = StringField(length=1024, nullable=True, description='')  # forum, googlecomponent
+    user = StringField(length=255, nullable=True, description='')  # string
+    # user_course_roles	array
+    # user_forums_roles	array
     user_id = StringField(length=255, nullable=True, description='')  # int: enrollment, cohort, etc.
+    # event_username is mapped from root.event.username, to keep separate from root.username.
     event_username = StringField(length=255, nullable=True, description='')  # add/remove forum
+    value = StringField(length=255, nullable=True, description='')  # number
+    view = StringField(length=255, nullable=True, description='')  # string
+    vote_value = StringField(length=255, nullable=True, description='')  # string
+    widget_placement = StringField(length=255, nullable=True, description='')  # string
+
     # Stuff from segment:
     channel = StringField(length=255, nullable=True, description='')
     anonymous_id = StringField(length=255, nullable=True, description='')
@@ -191,6 +351,10 @@ class EventRecord(SparseRecord):
     action = StringField(length=255, nullable=True, description='')
     screen_width = StringField(length=255, nullable=True, description='')
     screen_height = StringField(length=255, nullable=True, description='')
+    campaign_source = StringField(length=255, nullable=True, description='')
+    campaign_medium = StringField(length=255, nullable=True, description='')
+    campaign_content = StringField(length=255, nullable=True, description='')
+    campaign_name = StringField(length=255, nullable=True, description='')
 
 
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):  # , OverwriteFromDateMixin):
@@ -475,10 +639,10 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                     # though there are event_types that have used both at different times.
                     add_event_mapping_entry('root.event.currenttime')
                     add_event_mapping_entry('root.event.current_time')
-                elif field_key == "discussion_id":
-                    add_event_mapping_entry('root.event.discussion.id')
-                elif field_key == "response_id":
-                    add_event_mapping_entry('root.event.response.id')
+                elif field_key in ['discussion_id', 'response_id', 'options_followed']:
+                    add_event_mapping_entry(u"root.event.{}".format(field_key.replace('_', '.')))
+                elif field_key in ['app_name', 'app_version']:
+                    add_event_mapping_entry(u"root.context.application.{}".format(field_key[len('app_'):]))
                 elif field_key == "old_value":
                     add_event_mapping_entry('root.event.old')
                 elif field_key == "new_value":
@@ -671,7 +835,11 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     # even for the same projectId.  We may need more complicated
                     # logic to help sort that out (more) consistently.
                     add_event_mapping_entry(u"root.userid")
-                elif field_key in ['os_name', 'os_version', 'app_name', 'app_version', 'device_manufacturer', 'device_model', 'network_carrier', 'screen_width', 'screen_height']:
+                elif field_key in [
+                        'os_name', 'os_version', 'app_name', 'app_version', 'device_manufacturer',
+                        'device_model', 'network_carrier', 'screen_width', 'screen_height',
+                        'campaign_source', 'campaign_medium', 'campaign_content', 'campaign_name'
+                ]:
                     add_event_mapping_entry(u"root.context.{}".format(field_key.replace('_', '.')))
                 elif field_key in ['action']:
                     add_event_mapping_entry(u"root.properties.{}".format(field_key))
