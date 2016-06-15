@@ -2,6 +2,9 @@
 Workflow to load the warehouse, this serves as a replacement for pentaho loading.
 """
 import luigi
+import logging
+
+log = logging.getLogger(__name__)
 
 from edx.analytics.tasks.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
 from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
@@ -13,8 +16,6 @@ from edx.analytics.tasks.course_catalog import DailyLoadSubjectsToVerticaTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin
 
 from edx.analytics.tasks.util.hive import WarehouseMixin
-import logging
-log = logging.getLogger(__name__)
 
 
 class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
