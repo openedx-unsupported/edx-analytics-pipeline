@@ -25,6 +25,7 @@ class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
 
     n_reduce_tasks = luigi.Parameter()
 
+    # We are not using VerticaCopyTaskMixin as OverwriteOutputMixin changes the complete() method behavior.
     schema = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'schema'},
         description='The schema to which to write.',
@@ -79,7 +80,7 @@ class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
                 **kwargs
             ),
             DailyLoadSubjectsToVerticaTask(
-                run_date=self.date,
+                date=self.date,
                 **kwargs
             )
         )

@@ -44,7 +44,7 @@ class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
 
         self.task.launch([
             'CourseCatalogWorkflow',
-            '--run-date', '2015-06-29'
+            '--date', '2015-06-29'
         ])
 
         self.validate_output()
