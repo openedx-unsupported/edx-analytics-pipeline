@@ -142,6 +142,13 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
 
 class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
 
+    interval = None
+    date = luigi.DateParameter()
+
+    @property
+    def partition_date(self):
+        return self.date.isoformat()  # pylint: disable=no-member
+
     def requires(self):
         yield ExternalURL(
             url=url_path_join(self.warehouse_path, 'last_country_of_user', self.partition.path_spec) + '/'

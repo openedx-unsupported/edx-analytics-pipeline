@@ -22,10 +22,6 @@ class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
 
     date = luigi.DateParameter()
 
-    interval_start = luigi.DateParameter(
-        config_path={'section': 'warehouse_load', 'name': 'interval_start'},
-    )
-
     n_reduce_tasks = luigi.Parameter()
 
     schema = luigi.Parameter(
@@ -77,7 +73,7 @@ class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
                 **kwargs
             ),
             LoadInternalReportingUserToWarehouse(
-                interval=self.interval,
+                date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
