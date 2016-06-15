@@ -128,7 +128,7 @@ class EventRecord(SparseRecord):
     bookmark_id = StringField(length=255, nullable=True, description='')  # string
     bookmarks_count = StringField(length=255, nullable=True, description='')  # integer
     bumper_id = StringField(length=255, nullable=True, description='')  # string
-    caseSensitive = StringField(length=255, nullable=True, description='')  # Boolean
+    casesensitive = StringField(length=255, nullable=True, description='')  # Boolean
     category = StringField(length=255, nullable=True, description='')  # number
     category_id = StringField(length=255, nullable=True, description='')  # string
     category_name = StringField(length=255, nullable=True, description='')  # string
