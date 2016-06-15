@@ -196,7 +196,7 @@ class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
     def test_requires(self):
         task = ImportLastCountryOfUserToHiveTask(**self._get_kwargs())
         required_task = task.requires()
-        self.assertEquals(required_task.output().path, 's3://fake/warehouse/last_country_of_userdt=2014-01-01')
+        self.assertEquals(required_task.output().path, 's3://fake/warehouse/last_country_of_user/dt=2014-01-01')
 
 
 class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):

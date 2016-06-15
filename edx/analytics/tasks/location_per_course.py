@@ -54,7 +54,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
         return get_target_from_url(
             url_path_join(
                 self.warehouse_path,
-                'last_country_of_user'
+                'last_country_of_user',
                 'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
             )
         )
