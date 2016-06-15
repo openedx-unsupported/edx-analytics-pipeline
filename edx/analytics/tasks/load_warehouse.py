@@ -11,7 +11,6 @@ from edx.analytics.tasks.load_internal_reporting_user_activity import LoadIntern
 from edx.analytics.tasks.load_internal_reporting_user_course import LoadInternalReportingUserCourseToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
 from edx.analytics.tasks.course_catalog import DailyLoadSubjectsToVerticaTask
-from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin
 
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
