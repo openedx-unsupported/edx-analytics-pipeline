@@ -313,7 +313,8 @@ class EventRecord(SparseRecord):
     undo_vote = StringField(length=255, nullable=True, description='')  # Boolean
     url_name = StringField(length=255, nullable=True, description='')  # poll/survey
     url = StringField(length=1024, nullable=True, description='')  # forum, googlecomponent
-    user = StringField(length=255, nullable=True, description='')  # string
+    # USER is a keyword in SQL on Vertica, so use different name here.
+    event_user = StringField(length=255, nullable=True, description='')  # string
     # user_course_roles	array
     # user_forums_roles	array
     user_id = StringField(length=255, nullable=True, description='')  # int: enrollment, cohort, etc.
