@@ -1,6 +1,7 @@
 """
 Workflow to load the warehouse, this serves as a replacement for pentaho loading.
 """
+
 import luigi
 import logging
 
