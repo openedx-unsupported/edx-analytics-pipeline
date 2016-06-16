@@ -32,7 +32,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMix
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.2.0'
+VERSION = '0.2.1'
 
 
 class EventRecord(SparseRecord):
@@ -72,7 +72,7 @@ class EventRecord(SparseRecord):
     ip = StringField(length=64, nullable=True, description='')
     # name: not really used yet?
     page = StringField(length=1024, nullable=True, description='')
-    referer = StringField(length=1024, nullable=True, description='')
+    referer = StringField(length=2047, nullable=True, description='')
     session = StringField(length=255, nullable=True, description='')
     username = StringField(length=30, nullable=True, description='Learner\'s username.')
 
@@ -125,7 +125,7 @@ class EventRecord(SparseRecord):
     attempt_status = StringField(length=255, nullable=True, description='')  # string
     attempt_user_id = StringField(length=255, nullable=True, description='')  # number
     attempts = StringField(length=255, nullable=True, description='')  # use int
-    body = StringField(length=255, nullable=True, description='')  # string
+    body = StringField(length=2047, nullable=True, description='')  # string
     bookmark_id = StringField(length=255, nullable=True, description='')  # string
     bookmarks_count = StringField(length=255, nullable=True, description='')  # integer
     bumper_id = StringField(length=255, nullable=True, description='')  # string
@@ -179,8 +179,8 @@ class EventRecord(SparseRecord):
     exploration_id = StringField(length=255, nullable=True, description='')  # string
     exploration_version = StringField(length=255, nullable=True, description='')  # string
     failure = StringField(length=255, nullable=True, description='')  # string
-    feedback = StringField(length=255, nullable=True, description='')  # string
-    feedback_text = StringField(length=255, nullable=True, description='')  # string
+    feedback = StringField(length=2047, nullable=True, description='')  # string
+    feedback_text = StringField(length=2047, nullable=True, description='')  # string
     field = StringField(length=255, nullable=True, description='')  # team
     fileName = StringField(length=255, nullable=True, description='')  # string
     fileSize = StringField(length=255, nullable=True, description='')  # number
@@ -195,7 +195,7 @@ class EventRecord(SparseRecord):
     hint_index = StringField(length=255, nullable=True, description='')  # number
     hint_label = StringField(length=255, nullable=True, description='')  # string
     hint_len = StringField(length=255, nullable=True, description='')  # number
-    hint_text = StringField(length=255, nullable=True, description='')  # string
+    hint_text = StringField(length=2047, nullable=True, description='')  # string
     # hints	array
     host_component_id = StringField(length=255, nullable=True, description='')  # string
     id = StringField(length=255, nullable=True, description='')  # string: video, forum
@@ -213,7 +213,7 @@ class EventRecord(SparseRecord):
     module_id = StringField(length=255, nullable=True, description='')  # hint
     name = StringField(length=255, nullable=True, description='')  # pdf
     # NEW is a keyword in SQL on Vertica, so use different name here.
-    new_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    new_value = StringField(length=2047, nullable=True, description='')  # int: seq, str: book, team, settings
     new_score = StringField(length=255, nullable=True, description='')  # number
     new_speed = StringField(length=255, nullable=True, description='')  # video
     # new_state	object
@@ -229,7 +229,7 @@ class EventRecord(SparseRecord):
     num_attempts = StringField(length=255, nullable=True, description='')  # int:  problem_builder
 
     # OLD is a keyword in SQL on Vertica, so use different name here.
-    old_value = StringField(length=255, nullable=True, description='')  # int: seq, str: book, team, settings
+    old_value = StringField(length=2047, nullable=True, description='')  # int: seq, str: book, team, settings
     old_attempts = StringField(length=255, nullable=True, description='')  # string
     old_note_text = StringField(length=255, nullable=True, description='')  # string
     old_speed = StringField(length=255, nullable=True, description='')  # video
@@ -243,7 +243,7 @@ class EventRecord(SparseRecord):
     # options_selected	object
     orig_score = StringField(length=255, nullable=True, description='')  # number
     orig_total = StringField(length=255, nullable=True, description='')  # number
-    page = StringField(length=255, nullable=True, description='')  # int/str:  forum, pdf
+    page = StringField(length=1023, nullable=True, description='')  # int/str:  forum, pdf
     page_name = StringField(length=255, nullable=True, description='')  # string
     page_number = StringField(length=255, nullable=True, description='')  # integer
     page_size = StringField(length=255, nullable=True, description='')  # integer
@@ -258,7 +258,7 @@ class EventRecord(SparseRecord):
     problem_part_id = StringField(length=255, nullable=True, description='')  # hint
     query = StringField(length=255, nullable=True, description='')  # forum, pdf
     question_type = StringField(length=255, nullable=True, description='')  # hint
-    rationale = StringField(length=255, nullable=True, description='')  # string
+    rationale = StringField(length=1023, nullable=True, description='')  # string
     reason = StringField(length=255, nullable=True, description='')  # string
     remove_method = StringField(length=255, nullable=True, description='')  # string
     # removed	list
@@ -301,7 +301,7 @@ class EventRecord(SparseRecord):
     target_username = StringField(length=255, nullable=True, description='')  # string
     team_id = StringField(length=255, nullable=True, description='')  # team, forum
     thread_type = StringField(length=255, nullable=True, description='')  # forum
-    title = StringField(length=255, nullable=True, description='')  # forum
+    title = StringField(length=1023, nullable=True, description='')  # forum
     thumbnail_title = StringField(length=255, nullable=True, description='')  # string
     topic_id = StringField(length=255, nullable=True, description='')  # team
     total_results = StringField(length=255, nullable=True, description='')  # int: forum
