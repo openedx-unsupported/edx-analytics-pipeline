@@ -48,6 +48,30 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
                 "agent": "blah, blah, blah",
                 "page": None
             },
+            'play_video': {
+                "username": "test_user",
+                "host": "test_host",
+                "event_source": "browser",
+                "name": "play_video",
+                "event_type": "play_video",
+                "context": {
+                    "course_id": self.course_id,
+                    "org_id": self.org_id,
+                    "user_id": self.DEFAULT_USER_ID,
+                    "path": "/event",
+                },
+                "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
+                "ip": "127.0.0.1",
+
+                "accept_language": "en-us",
+                "event": "{\"code\": \"6FrbD6Ro5z8\", \"id\": \"01955efc9ba54c73a9aa7453a440cb06\", \"currentTime\": 630.437320479}",
+                "agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/600.8.9 (KHTML, like Gecko) Version/8.0.8 Safari/600.8.9",
+                "label": "course-v1:edX+DemoX+Demo_Course",
+                "session": "83ce3bd69f7fc3b72b3b9f2142a8cd09",
+                "referer": "long meaningful url",
+                "page": "long meaningful url",
+                "nonInteraction": 1,
+            },                
         }
         self.default_event_template = 'problem_check'
         self.create_task()
@@ -91,6 +115,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             'context_user_id': '10',
             'problem_id': 'block-v1:FooX+1.23x+2013_Spring+type@problem+block@9cee77a606ea4c1aa5440e0ea5d0f618',
             'success': 'incorrect',
+            'agent_string': 'blah, blah, blah',
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(
@@ -99,6 +124,46 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             expected_value
         )
 
+    def test_play_video(self):
+        template = self.event_templates['play_video']
+        event = self.create_event_log_line(template=template)
+        expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
+        expected_dict = {
+            'version': VERSION,
+            'project': self.task.PROJECT_NAME,
+            'event_type': 'play_video',
+            'event_source': 'browser',
+            'event_category': 'unknown',
+            'timestamp': '2013-12-17T15:38:32.805444+00:00',
+            'received_at': '2013-12-17T15:38:32.805444+00:00',
+            'date': self.DEFAULT_DATE,
+            'host': 'test_host',
+            'ip': '127.0.0.1',
+            'username': 'test_user',
+            'context_course_id': 'course-v1:FooX+1.23x+2013_Spring',
+            'context_org_id': 'FooX',
+            'context_user_id': '10',
+            'context_path': '/event',
+            'page': 'long meaningful url',
+            'referer': 'long meaningful url',
+            'agent_string': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/600.8.9 (KHTML, like Gecko) Version/8.0.8 Safari/600.8.9",
+            'agent_type': 'desktop',
+            'agent_device_name': 'Other',
+            'agent_os': 'Mac OS X',
+            'agent_browser': 'Safari',
+            'agent_touch_capable': 'False',
+            'session': '83ce3bd69f7fc3b72b3b9f2142a8cd09',
+            'code': '6FrbD6Ro5z8',
+            'id': '01955efc9ba54c73a9aa7453a440cb06',
+            'currenttime': '630.437320479',
+        }
+        expected_value = EventRecord(**expected_dict).to_separated_values()
+        self.assert_single_map_output(
+            event,
+            expected_key,
+            expected_value
+        )
+        
 @ddt
 class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Base class for test analysis of detailed student engagement"""
@@ -221,6 +286,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             'timestamp': '2013-12-17T15:38:32+00:00',
             'received_at': '2013-12-17T15:38:32.796000+00:00',
             'date': self.DEFAULT_DATE,
+            'agent_string': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)',
             'agent_type': 'tablet',
             'agent_device_name': 'Samsung SM-N920A',
             'agent_os': 'Android',

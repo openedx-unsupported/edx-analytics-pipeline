@@ -59,6 +59,7 @@ class EventRecord(SparseRecord):
     # Common (but optional) values:
     # accept_language: how to parse?
     # 'agent' gets parsed into the following:
+    agent_string = StringField(length=255, nullable=True, description='')
     agent_type = StringField(length=20, nullable=True, description='')
     agent_device_name = StringField(length=100, nullable=True, description='')
     agent_os = StringField(length=100, nullable=True, description='')
@@ -543,6 +544,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             for key in agent_dict.keys():
                 new_key = u"agent_{}".format(key)
                 event_dict[new_key] = agent_dict[key]
+            event_dict['agent_string'] = agent
 
     def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
         if obj is None:
@@ -655,6 +657,8 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                     add_event_mapping_entry(u"root.context.module.{}".format(field_key[15:]))
                 elif field_key.startswith('context_'):
                     add_event_mapping_entry(u"root.context.{}".format(field_key[8:]))
+                elif field_key in ['event_user', 'event_username']:
+                    add_event_mapping_entry(u"root.event.{}".format(field_key[6:]))
                 else:
                     add_event_mapping_entry(u"root.event.{}".format(field_key))
 
@@ -684,6 +688,8 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             return
+        # Put the fixed value back, so it can be properly mapped.
+        event['event'] = event_data
 
         event_source = event.get('event_source')
         if event_source is None:
