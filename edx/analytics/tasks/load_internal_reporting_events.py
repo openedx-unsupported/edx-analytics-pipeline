@@ -10,6 +10,7 @@ import os
 import pytz
 
 import ciso8601
+import dateutil
 import luigi
 from luigi.configuration import get_config
 import luigi.task
@@ -32,7 +33,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMix
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.2.1'
+VERSION = '0.2.2'
 
 
 class EventRecord(SparseRecord):
@@ -57,9 +58,9 @@ class EventRecord(SparseRecord):
     date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
 
     # Common (but optional) values:
-    # accept_language: how to parse?
-    # 'agent' gets parsed into the following:
-    agent_string = StringField(length=255, nullable=True, description='')
+    accept_language = StringField(length=255, nullable=True, description='')
+    agent = StringField(length=1023, nullable=True, description='')
+    # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
     agent_device_name = StringField(length=100, nullable=True, description='')
     agent_os = StringField(length=100, nullable=True, description='')
@@ -74,7 +75,7 @@ class EventRecord(SparseRecord):
     page = StringField(length=1024, nullable=True, description='')
     referer = StringField(length=2047, nullable=True, description='')
     session = StringField(length=255, nullable=True, description='')
-    username = StringField(length=30, nullable=True, description='Learner\'s username.')
+    username = StringField(length=50, nullable=True, description='Learner\'s username.')
 
     # Common (but optional) context values:
     # We exclude course_user_tags, as it's a set of key-value pairs that affords no stable naming scheme.
@@ -301,7 +302,7 @@ class EventRecord(SparseRecord):
     target_username = StringField(length=255, nullable=True, description='')  # string
     team_id = StringField(length=255, nullable=True, description='')  # team, forum
     thread_type = StringField(length=255, nullable=True, description='')  # forum
-    title = StringField(length=1023, nullable=True, description='')  # forum
+    title = StringField(length=1023, nullable=True, description='')  # forum, segment
     thumbnail_title = StringField(length=255, nullable=True, description='')  # string
     topic_id = StringField(length=255, nullable=True, description='')  # team
     total_results = StringField(length=255, nullable=True, description='')  # int: forum
@@ -313,7 +314,7 @@ class EventRecord(SparseRecord):
     type = StringField(length=255, nullable=True, description='')  # video, book
     undo_vote = StringField(length=255, nullable=True, description='')  # Boolean
     url_name = StringField(length=255, nullable=True, description='')  # poll/survey
-    url = StringField(length=1024, nullable=True, description='')  # forum, googlecomponent
+    url = StringField(length=2047, nullable=True, description='')  # forum, googlecomponent, segment
     # USER is a keyword in SQL on Vertica, so use different name here.
     event_user = StringField(length=255, nullable=True, description='')  # string
     # user_course_roles	array
@@ -329,16 +330,16 @@ class EventRecord(SparseRecord):
     # Stuff from segment:
     channel = StringField(length=255, nullable=True, description='')
     anonymous_id = StringField(length=255, nullable=True, description='')
-    path = StringField(length=1024, nullable=True, description='')
-    referrer = StringField(length=1024, nullable=True, description='')
-    search = StringField(length=255, nullable=True, description='')
+    path = StringField(length=2047, nullable=True, description='')
+    referrer = StringField(length=8191, nullable=True, description='')
+    search = StringField(length=2047, nullable=True, description='')
     # title and url already exist
     variationname = StringField(length=255, nullable=True, description='')
     variationid = StringField(length=255, nullable=True, description='')
     experimentid = StringField(length=255, nullable=True, description='')
     experimentname = StringField(length=255, nullable=True, description='')
     category = StringField(length=255, nullable=True, description='')
-    label = StringField(length=255, nullable=True, description='')
+    label = StringField(length=511, nullable=True, description='')
     display_name = StringField(length=255, nullable=True, description='')
     client_id = StringField(length=255, nullable=True, description='')
     locale = StringField(length=255, nullable=True, description='')
@@ -469,7 +470,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         )
 
     def extra_modules(self):
-        return [pytz, ua_parser, user_agents]
+        return [pytz, ua_parser, user_agents, dateutil]
 
     def normalize_time(self, event_time):
         """
@@ -483,6 +484,18 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         else:
             return None
 
+    def extended_normalize_time(self, event_time):
+        """
+        Convert time string to ISO-8601 format in UTC timezone.
+
+        Returns None if string representation cannot be parsed.
+        """
+        datetime = dateutil.parser.parse(event_time)
+        if datetime:
+            return datetime.astimezone(pytz.utc).isoformat()
+        else:
+            return None
+        
     def convert_date(self, date_string):
         """Converts date from string format to date object, for use by DateField."""
         if date_string:
@@ -544,7 +557,39 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             for key in agent_dict.keys():
                 new_key = u"agent_{}".format(key)
                 event_dict[new_key] = agent_dict[key]
-            event_dict['agent_string'] = agent
+
+    def _add_event_entry(self, event_dict, event_record_key, event_record_field, label, obj):
+        if isinstance(event_record_field, StringField):
+            if obj is None:
+                # TODO: this should really check to see if the record_field is nullable.
+                value = None
+            else:
+                value = backslash_encode_value(unicode(obj))
+                # Avoid validation errors later due to length by truncating here.
+                field_length = event_record_field.length
+                value_length = len(value)
+                # TODO: This implies that field_length is at least 4. 
+                if value_length > field_length:
+                    log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, event_record_key, value)
+                    value = u"{}...".format(value[:field_length - 4])
+            event_dict[event_record_key] = value
+        elif isinstance(event_record_field, IntegerField):
+            try:
+                event_dict[event_record_key] = int(obj)
+            except ValueError:
+                log.error('Unable to cast value to int for %s: %r', label, obj)
+        elif isinstance(event_record_field, BooleanField):
+            try:
+                event_dict[event_record_key] = bool(obj)
+            except ValueError:
+                log.error('Unable to cast value to bool for %s: %r', label, obj)
+        elif isinstance(event_record_field, FloatField):
+            try:
+                event_dict[event_record_key] = float(obj)
+            except ValueError:
+                log.error('Unable to cast value to float for %s: %r', label, obj)
+        else:
+            event_dict[event_record_key] = obj
 
     def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
         if obj is None:
@@ -562,35 +607,16 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             # We assume it's a single object, and look it up now.
             if label in event_mapping:
                 event_record_key, event_record_field = event_mapping[label]
-                if isinstance(event_record_field, StringField):
-                    value = backslash_encode_value(unicode(obj))
-                    # Avoid validation errors later due to length by truncating here.
-                    field_length = event_record_field.length
-                    value_length = len(value)
-                    if value_length > field_length:
-                        log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, event_record_key, value)
-                        value = u"{}...".format(value[:field_length - 4])
-                    event_dict[event_record_key] = value
-                elif isinstance(event_record_field, IntegerField):
-                    try:
-                        event_dict[event_record_key] = int(obj)
-                    except ValueError:
-                        log.error('Unable to cast value to int for %s: %r', label, obj)
-                elif isinstance(event_record_field, BooleanField):
-                    try:
-                        event_dict[event_record_key] = bool(obj)
-                    except ValueError:
-                        log.error('Unable to cast value to bool for %s: %r', label, obj)
-                elif isinstance(event_record_field, FloatField):
-                    try:
-                        event_dict[event_record_key] = float(obj)
-                    except ValueError:
-                        log.error('Unable to cast value to float for %s: %r', label, obj)
-                else:
-                    event_dict[event_record_key] = obj
+                self._add_event_entry(event_dict, event_record_key, event_record_field, label, obj)
 
     def add_event_info(self, event_dict, event_mapping, event):
         self._add_event_info_recurse(event_dict, event_mapping, event, 'root')
+
+    def add_calculated_event_entry(self, event_dict, event_record_key, obj):
+        """Use this to explicitly add calculated entry values."""
+        event_record_field = EventRecord.get_fields()[event_record_key]
+        label = event_record_key
+        self._add_event_entry(event_dict, event_record_key, event_record_field, label, obj)
 
 
 class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTask):
@@ -651,7 +677,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                 elif field_key == "new_value":
                     add_event_mapping_entry('root.event.new')
                 # Map values that are top-level:
-                elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
+                elif field_key in ['host', 'ip', 'page', 'referer', 'session', 'agent', 'accept_language']:
                     add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key.startswith('context_module_'):
                     add_event_mapping_entry(u"root.context.module.{}".format(field_key[15:]))
@@ -702,21 +728,20 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
         project_name = self.PROJECT_NAME
 
-        event_dict = {
-            'version': VERSION,
-            'input_file': self.get_map_input_file(),
-            'project': project_name,
-            'event_type': event_type,
-            'event_source': event_source,
-            'event_category': event_category,
+        event_dict = {'version': VERSION}
 
-            'timestamp': self.get_event_emission_time(event),
-            'received_at': self.get_event_arrival_time(event),
-            'date': self.convert_date(date_received),
+        self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
+        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        self.add_calculated_event_entry(event_dict, 'event_type', event_type)
+        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
+        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
+        self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
+        self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
-            'context_course_id': course_id,
-            'username': username,
-        }
+        self.add_calculated_event_entry(event_dict, 'context_course_id', course_id)
+        self.add_calculated_event_entry(event_dict, 'username', username)
+
         self.add_agent_info(event_dict, event.get('agent'))
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
@@ -757,16 +782,39 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             event_time = event[key]
             event_time = self.normalize_time(event_time)
             if event_time is None:
-                log.error("Unparseable %s time from event: %r", key, event)
-                self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+                # Try again, with a more powerful (and more flexible) parser.
+                try:
+                    event_time = self.extended_normalize_time(event[key])
+                    if event_time is None:
+                        log.error("Really unparseable %s time from event: %r", key, event)
+                        self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+                    else:
+                        # Log this for now, until we have confidence this is reasonable.
+                        log.warning("Parsable unparseable type for %s time in event: %r", key, event)
+                        self.incr_counter('Event', 'Parsable unparseable for {} Time Field'.format(key), 1)                    
+                except:
+                    log.error("Unparseable %s time from event: %r", key, event)
+                    self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
             return event_time
         except KeyError:
             log.error("Missing %s time from event: %r", key, event)
             self.incr_counter('Event', 'Missing {} Time Field'.format(key), 1)
             return None
         except TypeError:
-            log.error("Bad type for %s time in event: %r", key, event)
-            self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
+            # Try again, with a more powerful (and more flexible) parser.
+            try:
+                event_time = self.extended_normalize_time(event[key])
+                if event_time is None:
+                    log.error("Unparseable %s time from event: %r", key, event)
+                    self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
+                else:
+                    # Log this for now, until we have confidence this is reasonable.
+                    log.warning("Parsable bad type for %s time in event: %r", key, event)
+                    self.incr_counter('Event', 'Parsable bad type for {} Time Field'.format(key), 1)                    
+                return event_time
+            except:
+                log.error("Bad type for %s time in event: %r", key, event)
+                self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
             return None
         except UnicodeEncodeError:
             # This is more specific than ValueError, so it is processed first.
@@ -823,6 +871,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 elif field_key in ['anonymous_id']:
                     add_event_mapping_entry(u"root.context.anonymousid")
                     add_event_mapping_entry("root.anonymousid")
+                elif field_key in ['agent']:
+                    add_event_mapping_entry(u"root.context.useragent")
+                    add_event_mapping_entry(u"root.properties.context.agent")
                 elif field_key in ['course_id']:
                     # This is sometimes a course, but not always.
                     # add_event_mapping_entry(u"root.properties.label")
@@ -915,18 +966,16 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         project_id = event.get('projectId')
         project_name = self._get_project_name(project_id) or project_id
 
-        event_dict = {
-            'version': VERSION,
-            'input_file': self.get_map_input_file(),
-            'project': project_name,
-            'event_type': event_type,
-            'event_source': event_source,
-            'event_category': event_category,
-
-            'timestamp': self.get_event_emission_time(event),
-            'received_at': self.get_event_arrival_time(event),
-            'date': self.convert_date(date_received),
-        }
+        event_dict = {'version': VERSION}
+        self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
+        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        self.add_calculated_event_entry(event_dict, 'event_type', event_type)
+        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
+        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
+        self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
+        self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
+        
         self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
         self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
