@@ -57,9 +57,9 @@ class EventRecord(SparseRecord):
     date = StringField(length=255, nullable=False, description='The learner interacted with the entity on this date.')
 
     # Common (but optional) values:
-    # accept_language: how to parse?
-    # 'agent' gets parsed into the following:
-    agent_string = StringField(length=255, nullable=True, description='')
+    accept_language = StringField(length=255, nullable=True, description='')
+    agent = StringField(length=1023, nullable=True, description='')
+    # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
     agent_device_name = StringField(length=100, nullable=True, description='')
     agent_os = StringField(length=100, nullable=True, description='')
@@ -544,24 +544,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             for key in agent_dict.keys():
                 new_key = u"agent_{}".format(key)
                 event_dict[new_key] = agent_dict[key]
-            event_dict['agent_string'] = agent
 
-    def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
-        if obj is None:
-            pass
-        elif isinstance(obj, dict):
-            for key in obj.keys():
-                new_value = obj.get(key)
-                # Normalize labels to be all lower-case, since all field (column) names are lowercased.
-                new_label = u"{}.{}".format(label, key.lower())
-                self._add_event_info_recurse(event_dict, event_mapping, new_value, new_label)
-        elif isinstance(obj, list):
-            # We will not output any values that are stored in lists.
-            pass
-        else:
-            # We assume it's a single object, and look it up now.
-            if label in event_mapping:
-                event_record_key, event_record_field = event_mapping[label]
+    def add_event_entry(self, event_dict, event_record_key, event_record_field, label, obj):
                 if isinstance(event_record_field, StringField):
                     value = backslash_encode_value(unicode(obj))
                     # Avoid validation errors later due to length by truncating here.
@@ -588,6 +572,24 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                         log.error('Unable to cast value to float for %s: %r', label, obj)
                 else:
                     event_dict[event_record_key] = obj
+
+    def _add_event_info_recurse(self, event_dict, event_mapping, obj, label):
+        if obj is None:
+            pass
+        elif isinstance(obj, dict):
+            for key in obj.keys():
+                new_value = obj.get(key)
+                # Normalize labels to be all lower-case, since all field (column) names are lowercased.
+                new_label = u"{}.{}".format(label, key.lower())
+                self._add_event_info_recurse(event_dict, event_mapping, new_value, new_label)
+        elif isinstance(obj, list):
+            # We will not output any values that are stored in lists.
+            pass
+        else:
+            # We assume it's a single object, and look it up now.
+            if label in event_mapping:
+                event_record_key, event_record_field = event_mapping[label]
+                self.add_event_entry(event_dict, event_record_key, event_record_field, label, obj)
 
     def add_event_info(self, event_dict, event_mapping, event):
         self._add_event_info_recurse(event_dict, event_mapping, event, 'root')
@@ -651,7 +653,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                 elif field_key == "new_value":
                     add_event_mapping_entry('root.event.new')
                 # Map values that are top-level:
-                elif field_key in ['host', 'ip', 'page', 'referer', 'session']:
+                elif field_key in ['host', 'ip', 'page', 'referer', 'session', 'agent', 'accept_language']:
                     add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key.startswith('context_module_'):
                     add_event_mapping_entry(u"root.context.module.{}".format(field_key[15:]))
@@ -823,6 +825,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 elif field_key in ['anonymous_id']:
                     add_event_mapping_entry(u"root.context.anonymousid")
                     add_event_mapping_entry("root.anonymousid")
+                elif field_key in ['agent']:
+                    add_event_mapping_entry(u"root.context.useragent")
+                    add_event_mapping_entry(u"root.properties.context.agent")
                 elif field_key in ['course_id']:
                     # This is sometimes a course, but not always.
                     # add_event_mapping_entry(u"root.properties.label")
