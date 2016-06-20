@@ -3,7 +3,6 @@ Workflow to load the warehouse, this serves as a replacement for pentaho loading
 """
 import logging
 import luigi
-import vertica_python
 
 from edx.analytics.tasks.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
 from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
@@ -16,10 +15,8 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin, CredentialFil
 
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.url import ExternalURL
-from luigi.task import flatten
 
 log = logging.getLogger(__name__)
-
 
 
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
@@ -54,7 +51,6 @@ class PreLoadWarehouseTask(SchemaManagementTask):
         warehouse_schema_loading = self.schema + '_loading'
 
         try:
-            self.output().touch(connection)
             connection.cursor().execute("DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=warehouse_schema_last))
             connection.cursor().execute("DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=warehouse_schema_loading))
             connection.cursor().execute("CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=warehouse_schema_loading))
