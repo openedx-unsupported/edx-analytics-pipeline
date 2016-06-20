@@ -36,10 +36,6 @@ class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
 
     overwrite = luigi.BooleanParameter(default=False)
 
-    def __init__(self, *args, **kwargs):
-        super(LoadWarehouse, self).__init__(*args, **kwargs)
-        self.interval = luigi.date_interval.Custom(self.interval_start, self.date)
-
     def requires(self):
         kwargs = {
             'schema': self.schema,
