@@ -21,6 +21,8 @@ log = logging.getLogger(__name__)
 
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
+    completed = False
+
     def __init__(self, *args, **kwargs):
         super(SchemaManagementTask, self).__init__(*args, **kwargs)
         self.schema_last = self.schema + '_last'
@@ -48,6 +50,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
             raise
         finally:
             connection.close()
+            self.completed = True
 
     def output(self):
         return CredentialFileVerticaTarget(
@@ -61,7 +64,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
         return str(self)
 
     def complete(self):
-        return True
+        return self.completed
 
 
 class PreLoadWarehouseTask(SchemaManagementTask):
