@@ -21,10 +21,33 @@ log = logging.getLogger(__name__)
 
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
+    def __init__(self, *args, **kwargs):
+        super(SchemaManagementTask, self).__init__(*args, **kwargs)
+        self.schema_last = self.schema + '_last'
+        self.schema_loading = self.schema + '_loading'
+
+    @property
+    def queries(self):
+        raise NotImplementedError
+
     def requires(self):
         return {
             'credentials': ExternalURL(self.credentials)
         }
+
+    def run(self):
+        connection = self.output().connect()
+
+        try:
+            for query in self.queries:
+                log.debug(query)
+                connection.cursor().execute(query)
+        except Exception as exc:
+            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
 
     def output(self):
         return CredentialFileVerticaTarget(
@@ -40,51 +63,36 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
     def complete(self):
         return True
 
+
 class PreLoadWarehouseTask(SchemaManagementTask):
 
     priority = 100
 
-    def run(self):
-        connection = self.output().connect()
-
-        warehouse_schema_last = self.schema + '_last'
-        warehouse_schema_loading = self.schema + '_loading'
-
-        try:
-            connection.cursor().execute("DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=warehouse_schema_last))
-            connection.cursor().execute("DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=warehouse_schema_loading))
-            connection.cursor().execute("CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=warehouse_schema_loading))
-        except Exception as exc:
-            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
+    @property
+    def queries(self):
+        return [
+            "DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=self.schema_last),
+            "DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=self.schema_loading),
+            "CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=self.schema_loading),
+        ]
 
 
 class PostLoadWarehouseTask(SchemaManagementTask):
 
     priority = -100
 
+    @property
+    def queries(self):
+        return [
+            "ALTER SCHEMA {schema} RENAME TO {schema_last};".format(schema=self.schema, schema_last=self.schema_last),
+            "ALTER SCHEMA {schema_loading} RENAME TO {schema};".format(schema_loading=self.schema_loading, schema=self.schema),
+            "GRANT USAGE ON SCHEMA {schema} TO analyst;".format(schema=self.schema),
+            "GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO analyst;".format(schema=self.schema),
+        ]
+
     def run(self):
-        connection = self.output().connect()
-
-        warehouse_schema_last = self.schema + '_last'
-        warehouse_schema_loading = self.schema + '_loading'
-
-        try:
-            # TODO: validation.
-            self.output().touch(connection)
-            connection.cursor().execute("ALTER SCHEMA {schema} RENAME TO {schema_last};".format(schema=self.schema, schema_last=warehouse_schema_last))
-            connection.cursor().execute("ALTER SCHEMA {schema_loading} RENAME TO {schema};".format(schema_loading=warehouse_schema_loading, schema=self.schema))
-            connection.cursor().execute("GRANT USAGE ON SCHEMA {schema} TO analyst;".format(schema=self.schema))
-            connection.cursor().execute("GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO analyst;".format(schema=self.schema))
-        except Exception as exc:
-            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
+        # TODO: validation
+        super(PostLoadWarehouseTask, self).run()
 
 
 class LoadWarehouse(WarehouseMixin, luigi.WrapperTask):
