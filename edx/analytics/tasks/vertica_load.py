@@ -46,6 +46,11 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
     read_timeout = luigi.IntParameter(
         config_path={'section': 'vertica-export', 'name': 'read_timeout'}
     )
+    marker_schema = luigi.Parameter(
+        default=None,
+        description='The marker schema to which to write the marker table. marker_schema would '
+        'default to the schema value if the value here is None.'
+    )
 
 
 class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
@@ -281,6 +286,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 schema=self.schema,
                 update_id=self.update_id(),
                 read_timeout=self.read_timeout,
+                marker_schema=self.marker_schema,
             )
 
         return self.output_target
@@ -470,7 +476,7 @@ class CredentialFileVerticaTarget(VerticaTarget):
             values will not be executed.
     """
 
-    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None):
+    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None, marker_schema=None):
         with credentials_target.open('r') as credentials_file:
             cred = json.load(credentials_file)
             super(CredentialFileVerticaTarget, self).__init__(
@@ -482,6 +488,7 @@ class CredentialFileVerticaTarget(VerticaTarget):
                 table=table,
                 update_id=update_id,
                 read_timeout=read_timeout,
+                marker_schema=marker_schema,
             )
 
     def exists(self, connection=None):
