@@ -153,7 +153,6 @@ class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
         """Provides minimum args for instantiating ImportLastCountryOfUserToHiveTask."""
         return {
             'interval': Year.parse('2013'),
-            'user_country_output': 's3://output/path',
         }
 
     def test_query_with_date_interval(self):
@@ -168,7 +167,7 @@ class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
             )
             PARTITIONED BY (dt STRING)
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-            LOCATION 's3://output/path';
+            LOCATION 's3://fake/warehouse/last_country_of_user';
             ALTER TABLE last_country_of_user ADD PARTITION (dt = '2014-01-01');
             """
         )
@@ -197,7 +196,7 @@ class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
     def test_requires(self):
         task = ImportLastCountryOfUserToHiveTask(**self._get_kwargs())
         required_task = task.requires()
-        self.assertEquals(required_task.output().path, 's3://output/path/dt=2014-01-01')
+        self.assertEquals(required_task.output().path, 's3://fake/warehouse/last_country_of_user/dt=2014-01-01')
 
 
 class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
@@ -259,7 +258,6 @@ class QueryLastCountryPerCourseWorkflowTestCase(unittest.TestCase):
         """Provides minimum args for instantiating QueryLastCountryPerCourseWorkflow."""
         return {
             'interval': Year.parse('2013'),
-            'user_country_output': 's3://output/user_country/path',
             'course_country_output': 's3://output/course_country/path',
         }
 
@@ -281,7 +279,6 @@ class InsertToMysqlCourseEnrollByCountryWorkflowTestCase(unittest.TestCase):
         """Provides minimum args for instantiating InsertToMysqlCourseEnrollByCountryWorkflow."""
         return {
             'interval': Year.parse('2013'),
-            'user_country_output': 's3://output/user_country/path',
             'course_country_output': 's3://output/course_country/path',
             'credentials': 's3://config/credentials/output-database.json',
         }

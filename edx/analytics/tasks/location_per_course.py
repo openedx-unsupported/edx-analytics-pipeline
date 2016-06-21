@@ -16,13 +16,14 @@ from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_j
 from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import hive_database_name
+from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name
 from edx.analytics.tasks.decorators import workflow_entry_point
 
 log = logging.getLogger(__name__)
 
 
 class LastCountryOfUserMixin(
+        WarehouseMixin,
         MapReduceJobTaskMixin,
         EventLogSelectionDownstreamMixin,
         GeolocationMixin,
@@ -31,10 +32,7 @@ class LastCountryOfUserMixin(
     Defines parameters for LastCountryOfUser task and downstream tasks that require it.
 
     """
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'},
-        description='Location of the resulting Hadoop output.',
-    )
+    pass
 
 
 class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeolocation, MapReduceJobTask):
@@ -55,7 +53,8 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
     def output(self):
         return get_target_from_url(
             url_path_join(
-                self.user_country_output,
+                self.warehouse_path,
+                'last_country_of_user',
                 'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
             )
         )
@@ -115,7 +114,7 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
 
     @property
     def table_location(self):
-        return self.user_country_output
+        return url_path_join(self.warehouse_path, 'last_country_of_user')
 
     @property
     def table_format(self):
@@ -138,9 +137,22 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
         )
 
+
+class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
+
+    interval = None
+    date = luigi.DateParameter()
+
+    @property
+    def partition_date(self):
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    def requires(self):
+        yield ExternalURL(
+            url=url_path_join(self.warehouse_path, 'last_country_of_user', self.partition.path_spec) + '/'
+        )
 
 class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
     """
@@ -168,7 +180,6 @@ class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
         )
 
 
@@ -259,7 +270,6 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 pattern=self.pattern,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output,
             ),
             InsertToMysqlLastCountryOfUserTask(
                 mapreduce_engine=self.mapreduce_engine,
@@ -269,7 +279,6 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 pattern=self.pattern,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output,
             ),
             # We can't make explicit dependencies on this yet, until we
             # solve the multiple-credentials problem, as well as the split-kwargs
@@ -337,6 +346,5 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             pattern=self.pattern,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-            user_country_output=self.user_country_output,
             course_country_output=self.course_country_output,
         )

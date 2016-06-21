@@ -30,7 +30,7 @@ class LoadInternalReportingCourseMixin(WarehouseMixin, OverwriteOutputMixin):
     Mixin to handle parameters common to the tasks involved in loading the internal reporting course table,
     including calling the course structure API.
     """
-    run_date = luigi.DateParameter(
+    date = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
         description='Default is today, UTC.',
     )
@@ -52,14 +52,14 @@ class PullCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task):
                                 '?page_size={size}'.format(size=PAGE_SIZE))
         response = requests.get(url=api_url, headers=headers)
         if response.status_code != requests.codes.ok:  # pylint: disable=no-member
-            msg = "Encountered status {} on request to API for {}".format(response.status_code, self.run_date)
+            msg = "Encountered status {} on request to API for {}".format(response.status_code, self.date)
             raise Exception(msg)
         with self.output().open('w') as output_file:
             output_file.write(response.content)
 
     def output(self):
         """Output is in the form {warehouse_path}/courses_raw/dt={CCYY-MM-DD}/course_structure.json"""
-        date_string = self.run_date.strftime('dt=%Y-%m-%d')  # pylint: disable=no-member
+        date_string = self.date.strftime('dt=%Y-%m-%d')  # pylint: disable=no-member
         url_with_filename = url_path_join(self.warehouse_path, 'courses_raw', date_string,
                                           "course_structure.json")
         return get_target_from_url(url_with_filename)
@@ -70,7 +70,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
 
     def requires(self):
         kwargs = {
-            'run_date': self.run_date,
+            'date': self.date,
             'warehouse_path': self.warehouse_path,
             'api_root_url': self.api_root_url,
             'api_access_token': self.api_access_token
@@ -126,7 +126,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
 
         The form is {warehouse_path}/course_structure/dt={CCYY-mm-dd}/courses.tsv.
         """
-        date_string = self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        date_string = self.date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         partition_path_spec = HivePartition('dt', date_string).path_spec
         url_with_filename = url_path_join(self.warehouse_path, "course_structure",
                                           partition_path_spec, "courses.tsv")
@@ -138,7 +138,7 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, Impor
 
     def requires(self):
         kwargs = {
-            'run_date': self.run_date,
+            'date': self.date,
             'warehouse_path': self.warehouse_path,
             'api_root_url': self.api_root_url,
             'api_access_token': self.api_access_token,
@@ -160,7 +160,7 @@ class LoadCourseStructureAPIDataIntoHive(LoadInternalReportingCourseMixin, Impor
 
     @property
     def partition_date(self):
-        return self.run_date.isoformat()  # pylint: disable=no-member
+        return self.date.isoformat()  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -184,7 +184,7 @@ class GetCoursesFromStudentCourseEnrollmentTask(LoadInternalReportingCourseMixin
     n_reduce_tasks = luigi.Parameter()
 
     def requires(self):
-        return ImportStudentCourseEnrollmentTask(import_date=self.run_date, destination=self.warehouse_path)
+        return ImportStudentCourseEnrollmentTask(import_date=self.date, destination=self.warehouse_path)
 
     @property
     def table(self):
@@ -198,7 +198,7 @@ class GetCoursesFromStudentCourseEnrollmentTask(LoadInternalReportingCourseMixin
 
     @property
     def partition(self):
-        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_query(self):
@@ -219,9 +219,9 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
         """
         return [GetCoursesFromStudentCourseEnrollmentTask(n_reduce_tasks=self.n_reduce_tasks,
                                                           warehouse_path=self.warehouse_path,
-                                                          run_date=self.run_date,
+                                                          date=self.date,
                                                           overwrite=self.overwrite),
-                LoadCourseStructureAPIDataIntoHive(run_date=self.run_date,
+                LoadCourseStructureAPIDataIntoHive(date=self.date,
                                                    warehouse_path=self.warehouse_path,
                                                    api_root_url=self.api_root_url,
                                                    api_access_token=self.api_access_token,
@@ -245,7 +245,7 @@ class AggregateInternalReportingCourseTableHive(LoadInternalReportingCourseMixin
 
     @property
     def partition(self):
-        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_query(self):
@@ -273,7 +273,7 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseMixin, V
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.run_date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
@@ -282,7 +282,7 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseMixin, V
             AggregateInternalReportingCourseTableHive(
                 warehouse_path=self.warehouse_path,
                 n_reduce_tasks=self.n_reduce_tasks,
-                run_date=self.run_date,
+                date=self.date,
                 api_root_url=self.api_root_url,
                 api_access_token=self.api_access_token,
                 overwrite=self.overwrite

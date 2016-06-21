@@ -41,7 +41,6 @@ class InternalReportingUserLoadAcceptanceTest(AcceptanceTestCase):
         self.task.launch([
             'LoadInternalReportingUserToWarehouse',
             '--interval', self.DATE_INTERVAL.to_string(),
-            '--user-country-output', url_path_join(self.test_out, 'user'),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
