@@ -149,9 +149,15 @@ class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
     def partition_date(self):
         return self.date.isoformat()  # pylint: disable=no-member
 
+    def partition_spec(self):
+        return "{key}={value}".format(
+            key=self.partition.keys()[0],
+            value=self.partition.values()[0],
+        )
+
     def requires(self):
         yield ExternalURL(
-            url=url_path_join(self.warehouse_path, 'last_country_of_user', self.partition.path_spec) + '/'
+            url=url_path_join(self.warehouse_path, 'last_country_of_user', self.partition_spec()) + '/'
         )
 
 class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
