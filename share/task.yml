@@ -37,8 +37,11 @@
       - hostname: github.com
         public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=='
     - local_log_dir: build/logs
-    - wheel_url: !!null
-    - wheel_pyver: 2.7
+    - install_env_debian:
+        # EMR runs a modified version of Debian 6 (squeeze) on early AMIs, before switching their own RHEL variant.
+        WHEEL_URL: http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze
+        # Match the version of Python define in virtualenv_python above.
+        WHEEL_PYVER: 2.7
     - common_debian_variants:
       - Ubuntu
       - Debian
@@ -109,6 +112,9 @@
     - name: branch fetched
       command: git fetch --all chdir={{ working_repo_dir }}
 
+    - name: update origin/HEAD
+      command: git remote set-head origin --auto chdir={{ working_repo_dir }}
+
     - name: branch checked out
       command: git checkout {{ branch }} chdir={{ working_repo_dir }}
 
@@ -142,18 +148,13 @@
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ wheel_url | default('http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze') }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
+      environment: install_env_debian
       when: ansible_distribution in common_debian_variants
 
     - name: virtualenv initialized on RHEL
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ wheel_url | default('') }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_redhat_variants
 
     - name: logging configured
