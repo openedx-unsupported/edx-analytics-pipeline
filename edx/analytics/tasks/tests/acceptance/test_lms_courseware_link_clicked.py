@@ -3,11 +3,12 @@ End-to-end test of the workflow to load the warehouse's lms_courseware_link_clic
 
 """
 
+from datetime import date
+
 import os
 import logging
 import pandas
 
-from datetime import date
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 

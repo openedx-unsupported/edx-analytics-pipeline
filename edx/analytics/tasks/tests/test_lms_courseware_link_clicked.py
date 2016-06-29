@@ -1,7 +1,5 @@
 """Test enrollment computations"""
 
-import datetime
-
 import luigi
 
 from edx.analytics.tasks.lms_courseware_link_clicked import (
@@ -57,6 +55,36 @@ class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysM
         line = 'this is garbage but contains {}'.format(LINK_CLICKED)
         self.assert_no_map_output_for(line)
 
+    def test_incomplete_events(self):
+        line = self.create_event_log_line(event_type="")
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(event="")
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(context="")
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(context={"course_id": ""})
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(context={"course_id": "garbage course key"})
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(event={
+            "current_url": "",
+            "target_url": "https://courses.example.com/blargh"
+            }
+        )
+        self.assert_no_map_output_for(line)
+
+        line = self.create_event_log_line(event={
+            "current_url": "http://courses.example.com/blah",
+            "target_url": ""
+            }
+        )
+        self.assert_no_map_output_for(line)
+
     def test_link_clicked_event_count_per_course(self):
         line = self.create_event_log_line()
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 1)
@@ -70,9 +98,10 @@ class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysM
             * Links with no explicit protocol
         """
         line = self.create_event_log_line(event={
-                                          "current_url": "http://courses.example.com/blah",
-                                          "target_url": "https://courses.example.com/blargh"
-                                          })
+            "current_url": "http://courses.example.com/blah",
+            "target_url": "https://courses.example.com/blargh"
+            }
+        )
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 0)
 
         line = self.create_event_log_line(event={

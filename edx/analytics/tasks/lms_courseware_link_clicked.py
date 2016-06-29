@@ -1,10 +1,12 @@
+"""
+Tasks for collecting link click data per course, per day, and uploading that data to Vertica.
+"""
 import logging
+from urlparse import urlparse
 
 import luigi
 import luigi.task
 
-from collections import defaultdict
-from urlparse import urlparse
 
 from edx.analytics.tasks.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
@@ -39,7 +41,7 @@ class LMSCoursewareLinkClickedTask(EventLogSelectionMixin, MapReduceJobTask):
         event, date_string = value
 
         event_type = event.get('event_type')
-        if event_type is None:
+        if not event_type:
             log.error("encountered event with no event_type: %s", event)
             return
 
@@ -51,18 +53,23 @@ class LMSCoursewareLinkClickedTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered explicit link_clicked event with no event data: %s", event)
             return
 
-        course_id = event.get('context').get('course_id')
+        context = event.get('context')
+        if not context:
+            log.error("encountered explicit link_clicked event with no context: %s", event)
+            return
+
+        course_id = context.get('course_id')
         if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered explicit link_clicked event with invalid course_id: %s", event)
             return
 
         target_url = event_data.get('target_url')
-        if target_url is None:
+        if not target_url:
             log.error("encountered explicit link_clicked event with no target_url: %s", event)
             return
 
         current_url = event_data.get('current_url')
-        if current_url is None:
+        if not current_url:
             log.error("encountered explicit link_clicked event with no current_url: %s", event)
             return
 
@@ -106,6 +113,7 @@ class LMSCoursewareLinkClickedTask(EventLogSelectionMixin, MapReduceJobTask):
             output_target.remove()
 
         super(LMSCoursewareLinkClickedTask, self).run()
+
 
 class PushToVerticaLMSCoursewareLinkClickedTask(VerticaCopyTask):
     """Push the LMS courseware link clicked task data to Vertica."""
