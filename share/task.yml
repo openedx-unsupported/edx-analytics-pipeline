@@ -105,7 +105,7 @@
       yum: pkg=git state=present
       sudo: True
       when: ansible_distribution in common_redhat_variants
-      
+
     - name: analytics tasks repository checked out
       git: repo={{ repo }} dest={{ working_repo_dir }} version=master
 
