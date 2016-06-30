@@ -129,6 +129,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         generic_args.append('--verbose')
 
         log.error("OPENING password_target object")
+        log.error("password_target path: %s", password_target.path)
         # write password to temp file object, and pass name of file to Sqoop:
         with password_target.open('w') as password_file:
             log.error("WRITING TO FILE")
