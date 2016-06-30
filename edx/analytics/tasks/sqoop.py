@@ -119,19 +119,25 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
 
     def generic_args(self, password_target):
         """Returns list of arguments used by all Sqoop commands, using credentials read from file."""
+        log.error("===========================")
+        log.error("in generic_args")
         cred = self._get_credentials()
         url = self.connection_url(cred)
         generic_args = ['--connect', url, '--username', cred['username']]
 
-        if self.verbose:
-            generic_args.append('--verbose')
+        #if self.verbose:
+        generic_args.append('--verbose')
 
+        log.error("OPENING password_target object")
         # write password to temp file object, and pass name of file to Sqoop:
         with password_target.open('w') as password_file:
+            log.error("WRITING TO FILE")
             password_file.write(cred['password'])
+            log.error("WRITTEN TO FILE")
             password_file.flush()
+            log.error("FLUSHING FILE")
         generic_args.extend(['--password-file', password_target.path])
-
+        log.error("returning: %s", generic_args)
         return generic_args
 
     def import_args(self):
