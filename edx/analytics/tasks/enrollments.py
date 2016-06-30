@@ -369,7 +369,7 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
             ),
-            ImportAuthUserProfileTask()
+            ImportAuthUserProfileTask(overwrite=True)
         )
 
 
