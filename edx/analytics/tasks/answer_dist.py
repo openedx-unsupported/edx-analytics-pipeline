@@ -633,13 +633,25 @@ class ProblemCheckEvent(
         BaseAnswerDistributionTask):
     """Identifies first and last problem_check events for a user on a problem in a course, given raw event log input."""
 
+    enable_direct_output = True
+
     def requires(self):
         return PathSetTask(self.src, self.include, self.manifest)
+
+    def complete(self):
+        output_name = u'problem_check_events_{name}/'.format(name=self.name)
+        return get_target_from_url(url_path_join(self.dest, output_name, '_SUCCESS')).exists()
 
     def output(self):
         output_name = u'problem_check_events_{name}/'.format(name=self.name)
         return get_target_from_url(url_path_join(self.dest, output_name))
 
+    def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
+        super(ProblemCheckEvent, self).run()
 
 class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
     """
@@ -663,6 +675,8 @@ class AnswerDistributionPerCourse(
         AnswerDistributionPerCourseMixin,
         BaseAnswerDistributionTask):
     """Calculates answer distribution on a problem in a course, given per-user answers by date."""
+
+    enable_direct_output = True
 
     def requires(self):
         results = {
@@ -688,11 +702,19 @@ class AnswerDistributionPerCourse(
         # Only pass the input files on to hadoop, not any metadata file.
         return self.requires()['events']
 
+    def complete(self):
+        output_name = u'answer_distribution_per_course_{name}/'.format(name=self.name)
+        return get_target_from_url(url_path_join(self.dest, output_name, '_SUCCESS')).exists()
+
     def output(self):
         output_name = u'answer_distribution_per_course_{name}/'.format(name=self.name)
         return get_target_from_url(url_path_join(self.dest, output_name))
 
     def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
         # Define answer_metadata on the object if specified.
         if 'answer_metadata' in self.input():
             with self.input()['answer_metadata'].open('r') as answer_metadata_file:
