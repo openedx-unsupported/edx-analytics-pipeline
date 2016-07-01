@@ -9,7 +9,7 @@ import luigi.date_interval
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.url import get_target_from_url, url_path_join
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
@@ -36,6 +36,8 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
     category on each day.
 
     """
+
+    enable_direct_output = True
 
     output_root = luigi.Parameter(
         description='String path to store the output in.',
@@ -121,6 +123,16 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def output(self):
         return get_target_from_url(self.output_root)
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
+
+    def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
+        super(UserActivityTask, self).run()
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
