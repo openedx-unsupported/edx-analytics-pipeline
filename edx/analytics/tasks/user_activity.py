@@ -117,7 +117,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
         if num_events > 0:
             yield key, num_events
 
-    combiner = reducer
+    #combiner = reducer
 
     def output(self):
         return get_target_from_url(self.output_root)
