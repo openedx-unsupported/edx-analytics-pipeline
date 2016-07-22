@@ -43,7 +43,7 @@ class WarehouseWorkflowMixin(WarehouseMixin):
         description='Path to the external access credentials file.',
     )
 
-    overwrite = luigi.BooleanParameter(default=False)
+    overwrite = luigi.BooleanParameter(default=False, significant=False)
 
     # We rename the schema after warehouse loading step. This causes
     # Luigi to think that tasks are not complete as it cannot find the

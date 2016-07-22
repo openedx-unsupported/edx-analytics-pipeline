@@ -220,6 +220,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                     marker_table=marker_table,
                     target_table=self.table,
                 )
+                log.debug(query)
                 connection.cursor().execute(query)
             except mysql.connector.Error as excp:  # handle the case where the marker_table has yet to be created
                 if excp.errno == errorcode.ER_NO_SUCH_TABLE:
@@ -230,6 +231,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
             # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
             # commit the currently open transaction before continuing with the copy.
             query = "DELETE FROM {table}".format(table=self.table)
+            log.debug(query)
             connection.cursor().execute(query)
 
     def _execute_insert_query(self, cursor, value_list, column_names):
@@ -452,6 +454,7 @@ class IncrementalMysqlInsertTask(MysqlInsertTask):
                     marker_table=marker_table,
                     update_id=self.update_id(),
                 )
+                log.debug(query)
                 connection.cursor().execute(query)
             except mysql.connector.Error as excp:  # handle the case where the marker_table has yet to be created
                 if excp.errno == errorcode.ER_NO_SUCH_TABLE:
@@ -465,6 +468,7 @@ class IncrementalMysqlInsertTask(MysqlInsertTask):
                 table=self.table,
                 record_filter=self.record_filter
             )
+            log.debug(query)
             connection.cursor().execute(query)
 
     @property

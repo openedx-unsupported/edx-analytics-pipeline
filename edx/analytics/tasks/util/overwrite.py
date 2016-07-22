@@ -27,6 +27,7 @@ class OverwriteOutputMixin(object):
     overwrite = luigi.BooleanParameter(
         default=False,
         description='Whether or not to overwrite existing outputs; set to False by default for now.',
+        significant=False
     )
     attempted_removal = False
 
