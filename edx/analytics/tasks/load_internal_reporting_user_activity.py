@@ -67,10 +67,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     Loads the user activity table from Hive into the Vertica data warehouse.
 
     """
-    interval = luigi.DateIntervalParameter(
-        description='A date_interval object containing the interval over which to pull data for user location. '
-        'Should usually be from the beginning of edX to the present day (i.e. through the previous day).',
-    )
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter(
         description='Number of reduce tasks',
     )
@@ -78,7 +75,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
@@ -118,14 +115,14 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
 class BuildInternalReportingUserActivityCombinedView(VerticaCopyTaskMixin, WarehouseMixin, luigi.Task):
     """luigi task to build the combined view on top of the history and production tables for user activity."""
-    interval = luigi.DateIntervalParameter()
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
     history_schema = luigi.Parameter(default='history')
 
     def requires(self):
         return {'insert_source': LoadInternalReportingUserActivityToWarehouse(
             n_reduce_tasks=self.n_reduce_tasks,
-            interval=self.interval,
+            date=self.date,
             warehouse_path=self.warehouse_path,
             overwrite=self.overwrite,
             schema=self.schema,
@@ -190,7 +187,7 @@ class BuildInternalReportingUserActivityCombinedView(VerticaCopyTaskMixin, Wareh
 
 class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Wrapper to provide a single entry point for the user activity table construction and view construction."""
-    interval = luigi.DateIntervalParameter()
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
     history_schema = luigi.Parameter(default='history')
 
@@ -206,7 +203,7 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
         return [
             LoadInternalReportingUserActivityToWarehouse(
                 n_reduce_tasks=self.n_reduce_tasks,
-                interval=self.interval,
+                date=self.date,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite,
                 schema=self.schema,
@@ -214,7 +211,7 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
             ),
             BuildInternalReportingUserActivityCombinedView(
                 n_reduce_tasks=self.n_reduce_tasks,
-                interval=self.interval,
+                date=self.date,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite,
                 schema=self.schema,

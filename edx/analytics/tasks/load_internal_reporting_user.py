@@ -4,7 +4,7 @@ Loads the user table into the warehouse through the pipeline via Hive.
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.location_per_course import ImportLastCountryOfUserToHiveTask
+from edx.analytics.tasks.location_per_course import ExternalLastCountryOfUserToHiveTask
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
 import luigi
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
@@ -12,10 +12,7 @@ from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin
 
 class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
     """Aggregate the internal reporting user table in Hive."""
-    interval = luigi.DateIntervalParameter()
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'}
-    )
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
 
     def requires(self):
@@ -25,10 +22,7 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
         """
         return [ImportAuthUserTask(overwrite=self.overwrite, destination=self.warehouse_path),
                 ImportAuthUserProfileTask(overwrite=self.overwrite, destination=self.warehouse_path),
-                ImportLastCountryOfUserToHiveTask(overwrite=self.overwrite,
-                                                  interval=self.interval,
-                                                  user_country_output=self.user_country_output,
-                                                  n_reduce_tasks=self.n_reduce_tasks)]
+                ExternalLastCountryOfUserToHiveTask(date=self.date)]
 
     @property
     def table(self):
@@ -49,7 +43,7 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
 
     @property
     def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_query(self):
@@ -75,15 +69,7 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
     Loads the user table from Hive into the Vertica data warehouse.
 
     """
-    interval = luigi.DateIntervalParameter(
-        description='A date_interval object containing the interval over which to pull data for user location. '
-        'Should usually be from the beginning of the Open edX installation to the present day '
-        '(i.e. through the previous day).',
-    )
-    user_country_output = luigi.Parameter(
-        config_path={'section': 'last-country-of-user', 'name': 'user_country_output'},
-        description='Location for intermediate output of location_per_course task.',
-    )
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter(
         description='Number of reduce tasks',
     )
@@ -91,7 +77,7 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
@@ -99,10 +85,9 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
             # Get the location of the Hive table, so it can be opened and read.
             AggregateInternalReportingUserTableHive(
                 n_reduce_tasks=self.n_reduce_tasks,
-                interval=self.interval,
+                date=self.date,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite,
-                user_country_output=self.user_country_output
             )
         )
 

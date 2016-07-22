@@ -22,7 +22,7 @@ urllib3.contrib.pyopenssl.inject_into_urllib3()
 class PullCatalogMixin(OverwriteOutputMixin, WarehouseMixin):
     """Define common parameters for the course catalog API pull and downstream tasks."""
 
-    run_date = luigi.DateParameter(
+    date = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
         description='Default is today, UTC.',
     )
@@ -46,14 +46,14 @@ class DailyPullCatalogTask(PullCatalogMixin, luigi.Task):
         self.remove_output_on_overwrite()
         response = requests.get(self.catalog_path)
         if response.status_code != requests.codes.ok:  # pylint: disable=no-member
-            msg = "Encountered status {} on request to API for {}".format(response.status_code, self.run_date)
+            msg = "Encountered status {} on request to API for {}".format(response.status_code, self.date)
             raise Exception(msg)
         with self.output().open('w') as output_file:
             output_file.write(response.content)
 
     def output(self):
         """Output is in the form {warehouse_path}/course_catalog_api/catalog/dt={CCYY-MM-DD}/catalog.json"""
-        date_string = "dt=" + self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        date_string = "dt=" + self.date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         url_with_filename = url_path_join(self.warehouse_path, "course_catalog", "catalog", date_string,
                                           "catalog.json")
         return get_target_from_url(url_with_filename)
@@ -68,7 +68,7 @@ class DailyProcessFromCatalogSubjectTask(PullCatalogMixin, luigi.Task):
 
     def requires(self):
         kwargs = {
-            'run_date': self.run_date,
+            'date': self.date,
             'catalog_path': self.catalog_path,
             'warehouse_path': self.warehouse_path,
             'overwrite': self.overwrite,
@@ -99,7 +99,7 @@ class DailyProcessFromCatalogSubjectTask(PullCatalogMixin, luigi.Task):
                     if subjects is None or len(subjects) == 0:
                         line = [
                             course_id,
-                            self.run_date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
+                            self.date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
                             '\N',
                             '\N',
                             '\N'
@@ -110,7 +110,7 @@ class DailyProcessFromCatalogSubjectTask(PullCatalogMixin, luigi.Task):
                         for subject in subjects:
                             line = [
                                 course_id,
-                                self.run_date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
+                                self.date.strftime('%Y-%m-%d'),  # pylint: disable=no-member,
                                 subject.get('uri', '\N'),
                                 subject.get('title', '\N'),
                                 subject.get('language', '\N')
@@ -124,7 +124,7 @@ class DailyProcessFromCatalogSubjectTask(PullCatalogMixin, luigi.Task):
 
         The form is {warehouse_path}/course_catalog_api/subjects/dt={CCYY-mm-dd}/subjects.tsv.
         """
-        date_string = self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        date_string = self.date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         partition_path_spec = HivePartition('dt', date_string).path_spec
         url_with_filename = url_path_join(self.warehouse_path, "course_catalog", "subjects",
                                           partition_path_spec, "subjects.tsv")
@@ -137,7 +137,7 @@ class DailyLoadSubjectsToVerticaTask(PullCatalogMixin, VerticaCopyTask):
     @property
     def insert_source_task(self):
         # Note: don't pass overwrite down from here.  Use it only for overwriting when copying to Vertica.
-        return DailyProcessFromCatalogSubjectTask(run_date=self.run_date, catalog_path=self.catalog_path)
+        return DailyProcessFromCatalogSubjectTask(date=self.date, catalog_path=self.catalog_path)
 
     @property
     def table(self):
@@ -172,7 +172,7 @@ class CourseCatalogWorkflow(PullCatalogMixin, VerticaCopyTaskMixin, luigi.Wrappe
         kwargs2 = {
             'schema': self.schema,
             'credentials': self.credentials,
-            'run_date': self.run_date,
+            'date': self.date,
             'catalog_path': self.catalog_path,
             'overwrite': self.overwrite,
         }

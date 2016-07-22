@@ -31,7 +31,6 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             'InsertToMysqlCourseEnrollByCountryWorkflow',
             '--source', self.test_src,
             '--interval', self.DATE_INTERVAL.to_string(),
-            '--user-country-output', url_path_join(self.test_out, 'user'),
             '--course-country-output', url_path_join(self.test_out, 'country'),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
