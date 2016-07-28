@@ -7,12 +7,12 @@ import luigi
 import luigi.task
 import luigi.date_interval
 
-from edx.analytics.tasks.canonicalization import CanonicalizationTask
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
+from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, HivePartitionTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
@@ -23,21 +23,26 @@ ACTIVATED = 'edx.course.enrollment.activated'
 MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
-class CourseEnrollmentTask(OverwriteOutputMixin, WarehouseMixin, MapReduceJobTask):
+class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
     """Produce a data set that shows which days each user was enrolled in each course."""
 
+    # TODO: Do we want this turned on for incremental?
+    # enable_direct_output = True
+
     date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+
+    # TODO: This is duplicated in DownstreamMixin.
     interval_start = luigi.DateParameter(
-        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        config_path={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
     )
 
     def requires(self):
-        yield CanonicalizationTask(
-            date=self.date,
-            overwrite=self.overwrite,
-            warehouse_path=self.warehouse_path,
-        )
+        # yield CanonicalizationTask(
+        #     date=self.date,
+        #     overwrite=self.overwrite,
+        #     warehouse_path=self.warehouse_path,
+        # )
         if self.date > self.interval_start:
             yield CourseEnrollmentTask(
                 date=(self.date - datetime.timedelta(days=1)),
@@ -253,14 +258,24 @@ class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDown
     """All parameters needed to run the CourseEnrollmentTableTask task."""
 
     # Make the interval be optional:
-    interval = luigi.DateIntervalParameter(default=None)
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to export logs for. '
+        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
+    )
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
-        default_from_config={'section': 'enrollments', 'name': 'interval_start'},
+        config_path={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
+        description='The start date to export logs for.  Ignored if `interval` is provided.',
     )
-    interval_end = luigi.DateParameter(default=datetime.datetime.utcnow().date(), significant=False)
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='The end date to export logs for.  Ignored if `interval` is provided. '
+        'Default is today, UTC.',
+    )
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentTableDownstreamMixin, self).__init__(*args, **kwargs)
@@ -335,7 +350,9 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
             CourseEnrollmentPartitionTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
                 interval=self.interval,
+                pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.hive_overwrite,
             ),
@@ -539,13 +556,16 @@ class EnrollmentDailyTask(EnrollmentTask):
         ]
 
 
+@workflow_entry_point
 class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
         kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
             'interval': self.interval,
+            'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
         }
         yield (
