@@ -328,6 +328,14 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
         )
 
 
+class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
+
+    def requires(self):
+        yield ExternalURL(
+            url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
+        )
+
+
 class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for breakdowns of enrollments"""
 
