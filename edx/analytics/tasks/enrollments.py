@@ -26,8 +26,7 @@ MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
     """Produce a data set that shows which days each user was enrolled in each course."""
 
-    # TODO: Do we want this turned on for incremental?
-    # enable_direct_output = True
+    enable_direct_output = True
 
     date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
 
@@ -38,17 +37,13 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
     )
 
     def requires(self):
-        # yield CanonicalizationTask(
-        #     date=self.date,
-        #     overwrite=self.overwrite,
-        #     warehouse_path=self.warehouse_path,
-        # )
+        for task in super(CourseEnrollmentTask, self).requires():
+            yield task
+
         if self.date > self.interval_start:
-            yield CourseEnrollmentTask(
-                date=(self.date - datetime.timedelta(days=1)),
-                overwrite=self.overwrite,
-                warehouse_path=self.warehouse_path,
-                n_reduce_tasks=self.n_reduce_tasks,
+            yesterday = self.date - datetime.timedelta(days=1)
+            yield ExternalURL(
+                url_path_join(self.warehouse_path, 'course_enrollment', 'dt=' + yesterday.isoformat()) + '/'
             )
 
     def mapper(self, line):
@@ -104,7 +99,19 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
             yield day_enrolled_record
 
     def output(self):
-        return get_target_from_url(url_path_join(self.warehouse_path, 'course_enrollment', 'dt=' + self.date.isoformat()) + '/')
+        return get_target_from_url(
+            url_path_join(self.warehouse_path, 'course_enrollment', 'dt=' + self.date.isoformat()) + '/'
+        )
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
+
+    def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
+        super(CourseEnrollmentTask, self).run()
 
 
 class EnrollmentEvent(object):
