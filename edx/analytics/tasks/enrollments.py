@@ -404,8 +404,7 @@ class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
             CourseEnrollmentPartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path
-            ),
-            ImportAuthUserProfileTask()
+            )
         )
 
     def complete(self):
@@ -441,6 +440,9 @@ class EnrollmentByModePartitionDataTask(CourseEnrollmentTableDownstreamMixin, Ov
 
 class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
 
+    def update_id(self):
+        return '{task}(date={date})'.format(task=self.task_family, date=self.date.isoformat())
+
     @property
     def table(self):
         return "course_enrollment_mode_daily"
@@ -469,6 +471,172 @@ class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, Incr
     @property
     def insert_source_task(self):
         return EnrollmentByModePartitionDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+
+
+class EnrollmentByEducationLevelTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'course_enrollment_education_level_daily'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('education_level', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByEducationLevelPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePartitionTask):
+
+    partition_value = None
+
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByEducationLevelPartitionTask, self).__init__(*args, **kwargs)
+        self.partition_value = self.date.isoformat()
+
+    def query(self):
+        return """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec})
+        SELECT
+            ce.date,
+            ce.course_id,
+            CASE p.level_of_education
+                WHEN 'el'    THEN 'primary'
+                WHEN 'jhs'   THEN 'junior_secondary'
+                WHEN 'hs'    THEN 'secondary'
+                WHEN 'a'     THEN 'associates'
+                WHEN 'b'     THEN 'bachelors'
+                WHEN 'm'     THEN 'masters'
+                WHEN 'p'     THEN 'doctorate'
+                WHEN 'p_se'  THEN 'doctorate'
+                WHEN 'p_oth' THEN 'doctorate'
+                WHEN 'none'  THEN 'none'
+                WHEN 'other' THEN 'other'
+                ELSE NULL
+            END,
+            SUM(ce.at_end),
+            COUNT(ce.user_id)
+        FROM course_enrollment ce
+        LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+        WHERE ce.date = '{date}'
+        GROUP BY
+            ce.date,
+            ce.course_id,
+            CASE p.level_of_education
+                WHEN 'el'    THEN 'primary'
+                WHEN 'jhs'   THEN 'junior_secondary'
+                WHEN 'hs'    THEN 'secondary'
+                WHEN 'a'     THEN 'associates'
+                WHEN 'b'     THEN 'bachelors'
+                WHEN 'm'     THEN 'masters'
+                WHEN 'p'     THEN 'doctorate'
+                WHEN 'p_se'  THEN 'doctorate'
+                WHEN 'p_oth' THEN 'doctorate'
+                WHEN 'none'  THEN 'none'
+                WHEN 'other' THEN 'other'
+                ELSE NULL
+            END
+        """.format(
+            date=self.date,
+            database_name=hive_database_name(),
+            partition=self.partition,
+            table=self.hive_table_task.table,
+        )
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByEducationLevelTableTask(
+            warehouse_path=self.warehouse_path
+        )
+
+    def requires(self):
+        yield (
+            self.hive_table_task,
+            CourseEnrollmentPartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def complete(self):
+        metadata_exists = super(EnrollmentByEducationLevelPartitionTask, self).complete()
+        output_data_exists = get_target_from_url(self.partition_location).exists()
+        return output_data_exists and metadata_exists
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
+
+
+class EnrollmentByEducationLevelPartitionDataTask(CourseEnrollmentTableDownstreamMixin, OverwriteOutputMixin, luigi.WrapperTask):
+
+    def requires(self):
+        return EnrollmentByEducationLevelPartitionTask(
+            warehouse_path=self.warehouse_path,
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+
+    def output(self):
+        return get_target_from_url(self.requires().partition_location)
+
+    def complete(self):
+        return self.output().exists()
+
+
+class EnrollmentByEducationLevelMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
+
+    def update_id(self):
+        return '{task}(date={date})'.format(task=self.task_family, date=self.date.isoformat())
+
+    @property
+    def table(self):
+        return "course_enrollment_education_level_daily"
+
+    @property
+    def record_filter(self):
+        return "date='{date}'".format(date=self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('education_level', 'VARCHAR(16)'),
+            ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'date'),
+            ('date',)
+        ]
+
+    @property
+    def insert_source_task(self):
+        return EnrollmentByEducationLevelPartitionDataTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -547,70 +715,6 @@ class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, Incr
 #             ('date', 'DATE NOT NULL'),
 #             ('course_id', 'VARCHAR(255) NOT NULL'),
 #             ('birth_year', 'INTEGER'),
-#             ('count', 'INTEGER'),
-#             ('cumulative_count', 'INTEGER')
-#         ]
-#
-#
-# class EnrollmentByEducationLevelTask(EnrollmentTask):
-#     """Breakdown of enrollments by education level as reported by the user"""
-#
-#     @property
-#     def query(self):
-#         return """
-#             SELECT
-#                 ce.date,
-#                 ce.course_id,
-#                 CASE p.level_of_education
-#                     WHEN 'el'    THEN 'primary'
-#                     WHEN 'jhs'   THEN 'junior_secondary'
-#                     WHEN 'hs'    THEN 'secondary'
-#                     WHEN 'a'     THEN 'associates'
-#                     WHEN 'b'     THEN 'bachelors'
-#                     WHEN 'm'     THEN 'masters'
-#                     WHEN 'p'     THEN 'doctorate'
-#                     WHEN 'p_se'  THEN 'doctorate'
-#                     WHEN 'p_oth' THEN 'doctorate'
-#                     WHEN 'none'  THEN 'none'
-#                     WHEN 'other' THEN 'other'
-#                     ELSE NULL
-#                 END,
-#                 SUM(ce.at_end),
-#                 COUNT(ce.user_id)
-#             FROM course_enrollment ce
-#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-#             WHERE ce.date = '{date}'
-#             GROUP BY
-#                 ce.date,
-#                 ce.course_id,
-#                 CASE p.level_of_education
-#                     WHEN 'el'    THEN 'primary'
-#                     WHEN 'jhs'   THEN 'junior_secondary'
-#                     WHEN 'hs'    THEN 'secondary'
-#                     WHEN 'a'     THEN 'associates'
-#                     WHEN 'b'     THEN 'bachelors'
-#                     WHEN 'm'     THEN 'masters'
-#                     WHEN 'p'     THEN 'doctorate'
-#                     WHEN 'p_se'  THEN 'doctorate'
-#                     WHEN 'p_oth' THEN 'doctorate'
-#                     WHEN 'none'  THEN 'none'
-#                     WHEN 'other' THEN 'other'
-#                     ELSE NULL
-#                 END
-#         """.format(
-#             date=self.date
-#         )
-#
-#     @property
-#     def table(self):
-#         return 'course_enrollment_education_level_daily'
-#
-#     @property
-#     def columns(self):
-#         return [
-#             ('date', 'DATE NOT NULL'),
-#             ('course_id', 'VARCHAR(255) NOT NULL'),
-#             ('education_level', 'VARCHAR(16)'),
 #             ('count', 'INTEGER'),
 #             ('cumulative_count', 'INTEGER')
 #         ]
