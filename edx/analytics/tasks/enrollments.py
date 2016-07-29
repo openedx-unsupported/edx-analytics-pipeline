@@ -340,6 +340,27 @@ class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
         )
 
 
+class EnrollmentByModeTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
 class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePartitionTask):
 
     partition_value = None
@@ -351,7 +372,7 @@ class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
     def query(self):
         return """
         USE {database_name};
-        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec})
         SELECT
             ce.date,
             ce.course_id,
@@ -366,7 +387,6 @@ class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
             ce.mode
         """.format(
             date=self.date,
-            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
             database_name=hive_database_name(),
             partition=self.partition,
             table=self.hive_table_task.table,
@@ -388,6 +408,11 @@ class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
             ImportAuthUserProfileTask()
         )
 
+    def complete(self):
+        metadata_exists = super(EnrollmentByModePartitionTask, self).complete()
+        output_data_exists = get_target_from_url(self.partition_location).exists()
+        return output_data_exists and metadata_exists
+
     def job_runner(self):
         return OverwriteAwareHiveQueryRunner()
 
@@ -397,25 +422,21 @@ class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
             self.attempted_removal = True
 
 
-class EnrollmentByModeTableTask(BareHiveTableTask):
+class EnrollmentByModePartitionDataTask(CourseEnrollmentTableDownstreamMixin, OverwriteOutputMixin, luigi.WrapperTask):
 
-    @property
-    def table(self):
-        return 'course_enrollment_mode_daily'
+    def requires(self):
+        return EnrollmentByModePartitionTask(
+            warehouse_path=self.warehouse_path,
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
 
-    @property
-    def partition_by(self):
-        return 'dt'
+    def output(self):
+        return get_target_from_url(self.requires().partition_location)
 
-    @property
-    def columns(self):
-        return [
-            ('date', 'STRING'),
-            ('course_id', 'STRING'),
-            ('mode', 'STRING'),
-            ('count', 'INT'),
-            ('cumulative_count', 'INT')
-        ]
+    def complete(self):
+        return self.output().exists()
 
 
 class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
@@ -447,8 +468,9 @@ class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, Incr
 
     @property
     def insert_source_task(self):
-        return EnrollmentByModePartitionTask(
+        return EnrollmentByModePartitionDataTask(
             date=self.date,
+            warehouse_path=self.warehouse_path,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite
         )
