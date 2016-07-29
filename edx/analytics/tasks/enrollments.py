@@ -6,7 +6,6 @@ import datetime
 import luigi
 import luigi.task
 import luigi.date_interval
-from luigi.hive import HiveQueryTask
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
@@ -15,7 +14,7 @@ from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, Event
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.decorators import workflow_entry_point
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveQueryToMysqlTask, HivePartitionTask, \
+from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartitionTask, \
     BareHiveTableTask, hive_database_name, OverwriteAwareHiveQueryRunner
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
@@ -332,9 +331,10 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
         )
 
 
-class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
+class ExternalCourseEnrollmentPartitionTask(CourseEnrollmentPartitionTask):
 
     def requires(self):
+        yield self.hive_table_task
         yield ExternalURL(
             url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
         )
@@ -604,7 +604,12 @@ class EnrollmentByEducationLevelPartitionDataTask(CourseEnrollmentTableDownstrea
         return self.output().exists()
 
 
-class EnrollmentByEducationLevelMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
+class EnrollmentByEducationLevelMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        significant=False
+    )
 
     def update_id(self):
         return '{task}(date={date})'.format(task=self.task_family, date=self.date.isoformat())
@@ -612,10 +617,6 @@ class EnrollmentByEducationLevelMysqlInsertTask(CourseEnrollmentTableDownstreamM
     @property
     def table(self):
         return "course_enrollment_education_level_daily"
-
-    @property
-    def record_filter(self):
-        return "date='{date}'".format(date=self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -644,80 +645,286 @@ class EnrollmentByEducationLevelMysqlInsertTask(CourseEnrollmentTableDownstreamM
         )
 
 
-# class EnrollmentByGenderTask(EnrollmentTask):
-#     """Breakdown of enrollments by gender as reported by the user"""
-#
-#     @property
-#     def query(self):
-#         return """
-#             SELECT
-#                 ce.date,
-#                 ce.course_id,
-#                 IF(p.gender != '', p.gender, NULL),
-#                 SUM(ce.at_end),
-#                 COUNT(ce.user_id)
-#             FROM course_enrollment ce
-#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-#             WHERE ce.date = '{date}'
-#             GROUP BY
-#                 ce.date,
-#                 ce.course_id,
-#                 IF(p.gender != '', p.gender, NULL)
-#         """.format(
-#             date=self.date
-#         )
-#
-#     @property
-#     def table(self):
-#         return 'course_enrollment_gender_daily'
-#
-#     @property
-#     def columns(self):
-#         return [
-#             ('date', 'DATE NOT NULL'),
-#             ('course_id', 'VARCHAR(255) NOT NULL'),
-#             ('gender', 'VARCHAR(6)'),
-#             ('count', 'INTEGER'),
-#             ('cumulative_count', 'INTEGER')
-#         ]
-#
-#
-# class EnrollmentByBirthYearTask(EnrollmentTask):
-#     """Breakdown of enrollments by age as reported by the user"""
-#
-#     @property
-#     def query(self):
-#         return """
-#             SELECT
-#                 ce.date,
-#                 ce.course_id,
-#                 p.year_of_birth,
-#                 SUM(ce.at_end),
-#                 COUNT(ce.user_id)
-#             FROM course_enrollment ce
-#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-#             WHERE ce.date = '{date}'
-#             GROUP BY
-#                 ce.date,
-#                 ce.course_id,
-#                 p.year_of_birth
-#         """.format(
-#             date=self.date
-#         )
-#
-#     @property
-#     def table(self):
-#         return 'course_enrollment_birth_year_daily'
-#
-#     @property
-#     def columns(self):
-#         return [
-#             ('date', 'DATE NOT NULL'),
-#             ('course_id', 'VARCHAR(255) NOT NULL'),
-#             ('birth_year', 'INTEGER'),
-#             ('count', 'INTEGER'),
-#             ('cumulative_count', 'INTEGER')
-#         ]
+class EnrollmentByGenderTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'course_enrollment_gender_daily'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('gender', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByGenderPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePartitionTask):
+
+    partition_value = None
+
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByGenderPartitionTask, self).__init__(*args, **kwargs)
+        self.partition_value = self.date.isoformat()
+
+    def query(self):
+        return """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec})
+        SELECT
+            ce.date,
+            ce.course_id,
+            IF(p.gender != '', p.gender, NULL),
+            SUM(ce.at_end),
+            COUNT(ce.user_id)
+        FROM course_enrollment ce
+        LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+        WHERE ce.date = '{date}'
+        GROUP BY
+            ce.date,
+            ce.course_id,
+            IF(p.gender != '', p.gender, NULL)
+        """.format(
+            date=self.date,
+            database_name=hive_database_name(),
+            partition=self.partition,
+            table=self.hive_table_task.table,
+        )
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByGenderTableTask(
+            warehouse_path=self.warehouse_path
+        )
+
+    def requires(self):
+        yield (
+            self.hive_table_task,
+            CourseEnrollmentPartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def complete(self):
+        metadata_exists = super(EnrollmentByGenderPartitionTask, self).complete()
+        output_data_exists = get_target_from_url(self.partition_location).exists()
+        return output_data_exists and metadata_exists
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
+
+
+class EnrollmentByGenderPartitionDataTask(CourseEnrollmentTableDownstreamMixin, OverwriteOutputMixin, luigi.WrapperTask):
+
+    def requires(self):
+        return EnrollmentByGenderPartitionTask(
+            warehouse_path=self.warehouse_path,
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+
+    def output(self):
+        return get_target_from_url(self.requires().partition_location)
+
+    def complete(self):
+        return self.output().exists()
+
+
+class EnrollmentByGenderMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        significant=False
+    )
+
+    def update_id(self):
+        return '{task}(date={date})'.format(task=self.task_family, date=self.date.isoformat())
+
+    @property
+    def table(self):
+        return "course_enrollment_gender_daily"
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('gender', 'VARCHAR(6)'),
+            ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'date'),
+            ('date',)
+        ]
+
+    @property
+    def insert_source_task(self):
+        return EnrollmentByGenderPartitionDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+
+
+class EnrollmentByBirthYearTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'course_enrollment_birth_year_daily'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('birth_year', 'INT'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByBirthYearPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePartitionTask):
+
+    partition_value = None
+
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByBirthYearPartitionTask, self).__init__(*args, **kwargs)
+        self.partition_value = self.date.isoformat()
+
+    def query(self):
+        return """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec})
+        SELECT
+            ce.date,
+            ce.course_id,
+            p.year_of_birth,
+            SUM(ce.at_end),
+            COUNT(ce.user_id)
+        FROM course_enrollment ce
+        LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+        WHERE ce.date = '{date}'
+        GROUP BY
+            ce.date,
+            ce.course_id,
+            p.year_of_birth
+        """.format(
+            date=self.date,
+            database_name=hive_database_name(),
+            partition=self.partition,
+            table=self.hive_table_task.table,
+        )
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByBirthYearTableTask(
+            warehouse_path=self.warehouse_path
+        )
+
+    def requires(self):
+        yield (
+            self.hive_table_task,
+            CourseEnrollmentPartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def complete(self):
+        metadata_exists = super(EnrollmentByBirthYearPartitionTask, self).complete()
+        output_data_exists = get_target_from_url(self.partition_location).exists()
+        return output_data_exists and metadata_exists
+
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
+
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
+
+
+class EnrollmentByBirthYearPartitionDataTask(CourseEnrollmentTableDownstreamMixin, OverwriteOutputMixin, luigi.WrapperTask):
+
+    def requires(self):
+        return EnrollmentByBirthYearPartitionTask(
+            warehouse_path=self.warehouse_path,
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+
+    def output(self):
+        return get_target_from_url(self.requires().partition_location)
+
+    def complete(self):
+        return self.output().exists()
+
+
+class EnrollmentByBirthYearMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, MysqlInsertTask):
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        significant=False
+    )
+
+    def update_id(self):
+        return '{task}(date={date})'.format(task=self.task_family, date=self.date.isoformat())
+
+    @property
+    def table(self):
+        return "course_enrollment_birth_year_daily"
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'DATE NOT NULL'),
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('birth_year', 'INTEGER'),
+            ('count', 'INTEGER'),
+            ('cumulative_count', 'INTEGER')
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'date'),
+            ('date',)
+        ]
+
+    @property
+    def insert_source_task(self):
+        return EnrollmentByBirthYearPartitionDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
 
 
 @workflow_entry_point
@@ -731,7 +938,7 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
         }
         yield (
             EnrollmentByModeMysqlInsertTask(**kwargs),
-            # EnrollmentByGenderTask(**kwargs),
-            # EnrollmentByBirthYearTask(**kwargs),
-            # EnrollmentByEducationLevelTask(**kwargs),
+            EnrollmentByGenderMysqlInsertTask(**kwargs),
+            EnrollmentByBirthYearMysqlInsertTask(**kwargs),
+            EnrollmentByEducationLevelMysqlInsertTask(**kwargs),
         )
