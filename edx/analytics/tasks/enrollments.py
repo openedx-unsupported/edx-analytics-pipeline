@@ -81,7 +81,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, OverwriteOutputMixin, Warehou
             return
 
         course_id = event_data.get('course_id')
-        if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
+        if course_id is None:
             log.error("encountered explicit enrollment event with invalid course_id: %s", event)
             return
 
