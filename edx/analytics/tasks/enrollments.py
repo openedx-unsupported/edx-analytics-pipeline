@@ -13,9 +13,9 @@ from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, Event
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.decorators import workflow_entry_point
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, HivePartitionTask
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveQueryToMysqlTask, HivePartitionTask, \
+    BareHiveTableTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
 
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'
@@ -23,12 +23,18 @@ ACTIVATED = 'edx.course.enrollment.activated'
 MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
-class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
+class CourseEnrollmentTask(EventLogSelectionMixin, OverwriteOutputMixin, WarehouseMixin, MapReduceJobTask):
     """Produce a data set that shows which days each user was enrolled in each course."""
 
     enable_direct_output = True
 
     date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    interval = None
+
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentTask, self).__init__(*args, **kwargs)
+
+        self.interval = luigi.date_interval.Date.from_date(self.date)
 
     # TODO: This is duplicated in DownstreamMixin.
     interval_start = luigi.DateParameter(
@@ -98,10 +104,12 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         for day_enrolled_record in event_stream_processor.enrollments():
             yield day_enrolled_record
 
+    @property
+    def output_root(self):
+        return url_path_join(self.warehouse_path, 'course_enrollment', 'dt=' + self.date.isoformat()) + '/'
+
     def output(self):
-        return get_target_from_url(
-            url_path_join(self.warehouse_path, 'course_enrollment', 'dt=' + self.date.isoformat()) + '/'
-        )
+        return get_target_from_url(self.output_root)
 
     def complete(self):
         return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
@@ -110,6 +118,8 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
+
+        self.remove_output_on_overwrite()
 
         super(CourseEnrollmentTask, self).run()
 
@@ -264,39 +274,25 @@ class DaysEnrolledForEvents(object):
 class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the CourseEnrollmentTableTask task."""
 
-    # Make the interval be optional:
-    interval = luigi.DateIntervalParameter(
-        default=None,
-        description='The range of dates to export logs for. '
-        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
-    )
-
-    # Define optional parameters, to be used if 'interval' is not defined.
-    interval_start = luigi.DateParameter(
-        config_path={'section': 'enrollments', 'name': 'interval_start'},
-        significant=False,
-        description='The start date to export logs for.  Ignored if `interval` is provided.',
-    )
-    interval_end = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        significant=False,
-        description='The end date to export logs for.  Ignored if `interval` is provided. '
-        'Default is today, UTC.',
-    )
+    date = luigi.DateParameter(default=datetime.datetime.utcnow().date())
+    interval = None
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentTableDownstreamMixin, self).__init__(*args, **kwargs)
 
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+        self.interval = luigi.date_interval.Date.from_date(self.date)
 
 
-class CourseEnrollmentTableTask(HiveTableTask):
+class CourseEnrollmentTableTask(BareHiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     @property
     def table(self):
         return 'course_enrollment'
+
+    @property
+    def partition_by(self):
+        return 'dt'
 
     @property
     def columns(self):
@@ -323,15 +319,13 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentTableDownstreamMixin, HivePa
     def partition_value(self):
         return self.date.isoformat()
 
-    def requires(self):
-        yield self.hive_table_task
-        yield CourseEnrollmentTask(
+    @property
+    def data_task(self):
+        return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
-            date=self.interval_end,
-            interval_start=self.interval_start,
-            overwrite=self.overwrite,
+            date=self.date,
         )
 
 
@@ -352,22 +346,18 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
             ('course_id',),
             # Note that the order here is extremely important. The API query pattern needs to filter first by course and
             # then by date.
-            ('course_id', 'date'),
+            ('course_id', 'date')
         ]
 
     @property
     def partition_value(self):
-        return self.interval.date_b.isoformat()
+        return self.date.isoformat()
 
     @property
     def required_table_tasks(self):
         yield (
             CourseEnrollmentPartitionTask(
-                mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.hive_overwrite,
             ),
@@ -389,11 +379,14 @@ class EnrollmentByGenderTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
                 IF(p.gender != '', p.gender, NULL)
-        """
+        """.format(
+            date=self.date
+        )
 
     @property
     def table(self):
@@ -424,11 +417,14 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
                 p.year_of_birth
-        """
+        """.format(
+            date=self.date
+        )
 
     @property
     def table(self):
@@ -472,6 +468,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -489,7 +486,9 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     WHEN 'other' THEN 'other'
                     ELSE NULL
                 END
-        """
+        """.format(
+            date=self.date
+        )
 
     @property
     def table(self):
@@ -519,11 +518,14 @@ class EnrollmentByModeTask(EnrollmentTask):
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
                 ce.mode
-        """
+        """.format(
+            date=self.date
+        )
 
     @property
     def table(self):
@@ -552,10 +554,13 @@ class EnrollmentDailyTask(EnrollmentTask):
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.course_id,
                 ce.date
-        """
+        """.format(
+            date=self.date
+        )
 
     @property
     def table(self):
@@ -578,15 +583,11 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
     def requires(self):
         kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
-            'source': self.source,
-            'interval': self.interval,
-            'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
         }
         yield (
+            EnrollmentByModeTask(**kwargs),
             EnrollmentByGenderTask(**kwargs),
             EnrollmentByBirthYearTask(**kwargs),
             EnrollmentByEducationLevelTask(**kwargs),
-            EnrollmentByModeTask(**kwargs),
-            EnrollmentDailyTask(**kwargs),
         )
