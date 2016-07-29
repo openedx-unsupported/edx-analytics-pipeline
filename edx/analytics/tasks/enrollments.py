@@ -405,14 +405,13 @@ class EnrollmentByModeTableTask(BareHiveTableTask):
 
     @property
     def partition_by(self):
-        return None
+        return 'dt'
 
     @property
     def columns(self):
         return [
             ('date', 'STRING'),
             ('course_id', 'STRING'),
-            ('user_id', 'INT'),
             ('mode', 'STRING'),
             ('count', 'INT'),
             ('cumulative_count', 'INT')
