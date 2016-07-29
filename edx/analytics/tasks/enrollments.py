@@ -53,14 +53,16 @@ class CourseEnrollmentTask(EventLogSelectionMixin, OverwriteOutputMixin, Warehou
             )
 
     def mapper(self, line):
-        event = eventlog.parse_json_event(line)
-        if event is None:
+        maybe_tuple = self.get_event_and_date_string(line)
+        if maybe_tuple is None:
             try:
                 datestamp, course_id, user_id, enrolled_at_end, change_since_last_day, mode_at_end = line.split('\t')
                 yield (course_id, int(user_id)), ("state", int(enrolled_at_end), mode_at_end)
                 return
             except ValueError:
                 return
+        else:
+            event, _date_string = maybe_tuple
 
         event_type = event.get('event_type')
         if event_type is None:
