@@ -43,8 +43,7 @@ class CourseEnrollmentTask(EventLogSelectionMixin, OverwriteOutputMixin, Warehou
     )
 
     def requires(self):
-        for task in super(CourseEnrollmentTask, self).requires():
-            yield task
+        yield super(CourseEnrollmentTask, self).requires()
 
         if self.date > self.interval_start:
             yesterday = self.date - datetime.timedelta(days=1)
