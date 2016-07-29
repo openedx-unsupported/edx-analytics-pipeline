@@ -6,15 +6,17 @@ import datetime
 import luigi
 import luigi.task
 import luigi.date_interval
+from luigi.hive import HiveQueryTask
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask, IncrementalMysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveQueryToMysqlTask, HivePartitionTask, \
-    BareHiveTableTask
+    BareHiveTableTask, hive_database_name, OverwriteAwareHiveQueryRunner
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
@@ -338,199 +340,93 @@ class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
         )
 
 
-class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
-    """Base class for breakdowns of enrollments"""
+class EnrollmentByModePartitionTask(CourseEnrollmentTableDownstreamMixin, HivePartitionTask):
+
+    partition_value = None
+
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByModePartitionTask, self).__init__(*args, **kwargs)
+        self.partition_value = self.date.isoformat()
+
+    def query(self):
+        return """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+        SELECT
+            ce.date,
+            ce.course_id,
+            ce.mode,
+            SUM(ce.at_end),
+            COUNT(ce.user_id)
+        FROM course_enrollment ce
+        WHERE ce.date = '{date}'
+        GROUP BY
+            ce.date,
+            ce.course_id,
+            ce.mode
+        """.format(
+            date=self.date,
+            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
+            database_name=hive_database_name(),
+            partition=self.partition,
+            table=self.hive_table_task.table,
+        )
 
     @property
-    def indexes(self):
-        return [
-            ('course_id',),
-            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
-            # then by date.
-            ('course_id', 'date')
-        ]
+    def hive_table_task(self):
+        return EnrollmentByModeTableTask(
+            warehouse_path=self.warehouse_path
+        )
 
-    @property
-    def partition_value(self):
-        return self.date.isoformat()
-
-    @property
-    def required_table_tasks(self):
+    def requires(self):
         yield (
+            self.hive_table_task,
             CourseEnrollmentPartitionTask(
-                n_reduce_tasks=self.n_reduce_tasks,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.hive_overwrite,
+                date=self.date,
+                warehouse_path=self.warehouse_path
             ),
             ImportAuthUserProfileTask()
         )
 
+    def job_runner(self):
+        return OverwriteAwareHiveQueryRunner()
 
-class EnrollmentByGenderTask(EnrollmentTask):
-    """Breakdown of enrollments by gender as reported by the user"""
-
-    @property
-    def query(self):
-        return """
-            SELECT
-                ce.date,
-                ce.course_id,
-                IF(p.gender != '', p.gender, NULL),
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.date = '{date}'
-            GROUP BY
-                ce.date,
-                ce.course_id,
-                IF(p.gender != '', p.gender, NULL)
-        """.format(
-            date=self.date
-        )
-
-    @property
-    def table(self):
-        return 'course_enrollment_gender_daily'
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('gender', 'VARCHAR(6)'),
-            ('count', 'INTEGER'),
-            ('cumulative_count', 'INTEGER')
-        ]
+    def remove_output_on_overwrite(self):
+        # Note that the query takes care of actually removing the old partition.
+        if self.overwrite:
+            self.attempted_removal = True
 
 
-class EnrollmentByBirthYearTask(EnrollmentTask):
-    """Breakdown of enrollments by age as reported by the user"""
-
-    @property
-    def query(self):
-        return """
-            SELECT
-                ce.date,
-                ce.course_id,
-                p.year_of_birth,
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.date = '{date}'
-            GROUP BY
-                ce.date,
-                ce.course_id,
-                p.year_of_birth
-        """.format(
-            date=self.date
-        )
-
-    @property
-    def table(self):
-        return 'course_enrollment_birth_year_daily'
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('birth_year', 'INTEGER'),
-            ('count', 'INTEGER'),
-            ('cumulative_count', 'INTEGER')
-        ]
-
-
-class EnrollmentByEducationLevelTask(EnrollmentTask):
-    """Breakdown of enrollments by education level as reported by the user"""
-
-    @property
-    def query(self):
-        return """
-            SELECT
-                ce.date,
-                ce.course_id,
-                CASE p.level_of_education
-                    WHEN 'el'    THEN 'primary'
-                    WHEN 'jhs'   THEN 'junior_secondary'
-                    WHEN 'hs'    THEN 'secondary'
-                    WHEN 'a'     THEN 'associates'
-                    WHEN 'b'     THEN 'bachelors'
-                    WHEN 'm'     THEN 'masters'
-                    WHEN 'p'     THEN 'doctorate'
-                    WHEN 'p_se'  THEN 'doctorate'
-                    WHEN 'p_oth' THEN 'doctorate'
-                    WHEN 'none'  THEN 'none'
-                    WHEN 'other' THEN 'other'
-                    ELSE NULL
-                END,
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.date = '{date}'
-            GROUP BY
-                ce.date,
-                ce.course_id,
-                CASE p.level_of_education
-                    WHEN 'el'    THEN 'primary'
-                    WHEN 'jhs'   THEN 'junior_secondary'
-                    WHEN 'hs'    THEN 'secondary'
-                    WHEN 'a'     THEN 'associates'
-                    WHEN 'b'     THEN 'bachelors'
-                    WHEN 'm'     THEN 'masters'
-                    WHEN 'p'     THEN 'doctorate'
-                    WHEN 'p_se'  THEN 'doctorate'
-                    WHEN 'p_oth' THEN 'doctorate'
-                    WHEN 'none'  THEN 'none'
-                    WHEN 'other' THEN 'other'
-                    ELSE NULL
-                END
-        """.format(
-            date=self.date
-        )
-
-    @property
-    def table(self):
-        return 'course_enrollment_education_level_daily'
-
-    @property
-    def columns(self):
-        return [
-            ('date', 'DATE NOT NULL'),
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('education_level', 'VARCHAR(16)'),
-            ('count', 'INTEGER'),
-            ('cumulative_count', 'INTEGER')
-        ]
-
-
-class EnrollmentByModeTask(EnrollmentTask):
-    """Breakdown of enrollments by mode"""
-
-    @property
-    def query(self):
-        return """
-            SELECT
-                ce.date,
-                ce.course_id,
-                ce.mode,
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            WHERE ce.date = '{date}'
-            GROUP BY
-                ce.date,
-                ce.course_id,
-                ce.mode
-        """.format(
-            date=self.date
-        )
+class EnrollmentByModeTableTask(BareHiveTableTask):
 
     @property
     def table(self):
         return 'course_enrollment_mode_daily'
+
+    @property
+    def partition_by(self):
+        return None
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('user_id', 'INT'),
+            ('mode', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
+    @property
+    def table(self):
+        return "course_enrollment_mode_daily"
+
+    @property
+    def record_filter(self):
+        return "date='{date}'".format(date=self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def columns(self):
@@ -542,39 +438,161 @@ class EnrollmentByModeTask(EnrollmentTask):
             ('cumulative_count', 'INTEGER')
         ]
 
-
-class EnrollmentDailyTask(EnrollmentTask):
-    """A history of the number of students enrolled in each course at the end of each day"""
-
     @property
-    def query(self):
-        return """
-            SELECT
-                ce.course_id,
-                ce.date,
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            WHERE ce.date = '{date}'
-            GROUP BY
-                ce.course_id,
-                ce.date
-        """.format(
-            date=self.date
-        )
-
-    @property
-    def table(self):
-        return 'course_enrollment_daily'
-
-    @property
-    def columns(self):
+    def indexes(self):
         return [
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('date', 'DATE NOT NULL'),
-            ('count', 'INTEGER'),
-            ('cumulative_count', 'INTEGER')
+            ('course_id', 'date'),
+            ('date',)
         ]
+
+    @property
+    def insert_source_task(self):
+        partition_task = EnrollmentByModePartitionTask(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite
+        )
+        return partition_task.data_task
+
+
+# class EnrollmentByGenderTask(EnrollmentTask):
+#     """Breakdown of enrollments by gender as reported by the user"""
+#
+#     @property
+#     def query(self):
+#         return """
+#             SELECT
+#                 ce.date,
+#                 ce.course_id,
+#                 IF(p.gender != '', p.gender, NULL),
+#                 SUM(ce.at_end),
+#                 COUNT(ce.user_id)
+#             FROM course_enrollment ce
+#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+#             WHERE ce.date = '{date}'
+#             GROUP BY
+#                 ce.date,
+#                 ce.course_id,
+#                 IF(p.gender != '', p.gender, NULL)
+#         """.format(
+#             date=self.date
+#         )
+#
+#     @property
+#     def table(self):
+#         return 'course_enrollment_gender_daily'
+#
+#     @property
+#     def columns(self):
+#         return [
+#             ('date', 'DATE NOT NULL'),
+#             ('course_id', 'VARCHAR(255) NOT NULL'),
+#             ('gender', 'VARCHAR(6)'),
+#             ('count', 'INTEGER'),
+#             ('cumulative_count', 'INTEGER')
+#         ]
+#
+#
+# class EnrollmentByBirthYearTask(EnrollmentTask):
+#     """Breakdown of enrollments by age as reported by the user"""
+#
+#     @property
+#     def query(self):
+#         return """
+#             SELECT
+#                 ce.date,
+#                 ce.course_id,
+#                 p.year_of_birth,
+#                 SUM(ce.at_end),
+#                 COUNT(ce.user_id)
+#             FROM course_enrollment ce
+#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+#             WHERE ce.date = '{date}'
+#             GROUP BY
+#                 ce.date,
+#                 ce.course_id,
+#                 p.year_of_birth
+#         """.format(
+#             date=self.date
+#         )
+#
+#     @property
+#     def table(self):
+#         return 'course_enrollment_birth_year_daily'
+#
+#     @property
+#     def columns(self):
+#         return [
+#             ('date', 'DATE NOT NULL'),
+#             ('course_id', 'VARCHAR(255) NOT NULL'),
+#             ('birth_year', 'INTEGER'),
+#             ('count', 'INTEGER'),
+#             ('cumulative_count', 'INTEGER')
+#         ]
+#
+#
+# class EnrollmentByEducationLevelTask(EnrollmentTask):
+#     """Breakdown of enrollments by education level as reported by the user"""
+#
+#     @property
+#     def query(self):
+#         return """
+#             SELECT
+#                 ce.date,
+#                 ce.course_id,
+#                 CASE p.level_of_education
+#                     WHEN 'el'    THEN 'primary'
+#                     WHEN 'jhs'   THEN 'junior_secondary'
+#                     WHEN 'hs'    THEN 'secondary'
+#                     WHEN 'a'     THEN 'associates'
+#                     WHEN 'b'     THEN 'bachelors'
+#                     WHEN 'm'     THEN 'masters'
+#                     WHEN 'p'     THEN 'doctorate'
+#                     WHEN 'p_se'  THEN 'doctorate'
+#                     WHEN 'p_oth' THEN 'doctorate'
+#                     WHEN 'none'  THEN 'none'
+#                     WHEN 'other' THEN 'other'
+#                     ELSE NULL
+#                 END,
+#                 SUM(ce.at_end),
+#                 COUNT(ce.user_id)
+#             FROM course_enrollment ce
+#             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+#             WHERE ce.date = '{date}'
+#             GROUP BY
+#                 ce.date,
+#                 ce.course_id,
+#                 CASE p.level_of_education
+#                     WHEN 'el'    THEN 'primary'
+#                     WHEN 'jhs'   THEN 'junior_secondary'
+#                     WHEN 'hs'    THEN 'secondary'
+#                     WHEN 'a'     THEN 'associates'
+#                     WHEN 'b'     THEN 'bachelors'
+#                     WHEN 'm'     THEN 'masters'
+#                     WHEN 'p'     THEN 'doctorate'
+#                     WHEN 'p_se'  THEN 'doctorate'
+#                     WHEN 'p_oth' THEN 'doctorate'
+#                     WHEN 'none'  THEN 'none'
+#                     WHEN 'other' THEN 'other'
+#                     ELSE NULL
+#                 END
+#         """.format(
+#             date=self.date
+#         )
+#
+#     @property
+#     def table(self):
+#         return 'course_enrollment_education_level_daily'
+#
+#     @property
+#     def columns(self):
+#         return [
+#             ('date', 'DATE NOT NULL'),
+#             ('course_id', 'VARCHAR(255) NOT NULL'),
+#             ('education_level', 'VARCHAR(16)'),
+#             ('count', 'INTEGER'),
+#             ('cumulative_count', 'INTEGER')
+#         ]
 
 
 @workflow_entry_point
@@ -587,8 +605,8 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
             'warehouse_path': self.warehouse_path,
         }
         yield (
-            EnrollmentByModeTask(**kwargs),
-            EnrollmentByGenderTask(**kwargs),
-            EnrollmentByBirthYearTask(**kwargs),
-            EnrollmentByEducationLevelTask(**kwargs),
+            EnrollmentByModeMysqlInsertTask(**kwargs),
+            # EnrollmentByGenderTask(**kwargs),
+            # EnrollmentByBirthYearTask(**kwargs),
+            # EnrollmentByEducationLevelTask(**kwargs),
         )
