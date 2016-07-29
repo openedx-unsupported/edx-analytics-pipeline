@@ -419,6 +419,7 @@ class EnrollmentByModeTableTask(BareHiveTableTask):
 
 
 class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, IncrementalMysqlInsertTask):
+
     @property
     def table(self):
         return "course_enrollment_mode_daily"
@@ -446,12 +447,11 @@ class EnrollmentByModeMysqlInsertTask(CourseEnrollmentTableDownstreamMixin, Incr
 
     @property
     def insert_source_task(self):
-        partition_task = EnrollmentByModePartitionTask(
+        return EnrollmentByModePartitionTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite
         )
-        return partition_task.data_task
 
 
 # class EnrollmentByGenderTask(EnrollmentTask):

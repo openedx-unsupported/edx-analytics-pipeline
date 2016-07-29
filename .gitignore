@@ -69,3 +69,5 @@ docs/source/workflow_entry_point.rst
 !docs/source/_themes/*
 
 *.java
+derby.log
+TempStatsStore
