@@ -18,7 +18,7 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
     """Base class for setting up answer dist acceptance tests"""
 
     INPUT_FILE = 'answer_dist_acceptance_tracking.log'
-    INPUT_FORMAT = 'oddjob.ManifestTextInputFormat'
+    INPUT_FORMAT = 'org.edx.hadoop.input.ManifestTextInputFormat'
     NUM_REDUCERS = 1
 
     def setUp(self):
