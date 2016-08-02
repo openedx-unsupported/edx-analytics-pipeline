@@ -241,6 +241,11 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         problem_data['answers'][answer_id] = "4"
         problem_data['correct_map'][answer_id] = {
             "correctness": "incorrect",
+            "queuestate": None,
+            "npoints": None,
+            "msg": "",
+            "hintmode": None,
+            "hint": "",
         }
 
     def _get_answer_data(self, **kwargs):
@@ -252,6 +257,16 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
             "correct": False,
             "problem_id": self.problem_id,
             "attempt_category": 'last',
+            "answer_correct_map": {
+                "queuestate": None,
+                "npoints": None,
+                "msg": "",
+                "correctness": "incorrect",
+                "hintmode": None,
+                "hint": "",
+            },
+            "grade": 0,
+            "max_grade": 1,
         }
         answer_data.update(**kwargs)
         return answer_data
@@ -266,7 +281,17 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
                 "response_type": "numericalresponse",
                 "answer": "3",
                 "variant": "",
-                "correct": False
+                "correct": False,
+                "answer_correct_map": {
+                    "queuestate": None,
+                    "npoints": None,
+                    "msg": "",
+                    "correctness": "incorrect",
+                    "hintmode": None,
+                    "hint": ""
+                },
+                "grade": 0,
+                "max_grade": 1,
             },
         }
         self._update_with_kwargs(problem_data_submission, **kwargs)
@@ -301,6 +326,9 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
                     "question": submission_data['question'],
                     "problem_id": self.problem_id,
                     "attempt_category": attempt_category,
+                    "answer_correct_map": submission_data['answer_correct_map'],
+                    "grade": submission_data['grade'],
+                    "max_grade": submission_data['max_grade'],
                 }
                 if 'answer_value_id' in submission_data:
                     answer_id_data['answer_value_id'] = submission_data['answer_value_id']
@@ -345,11 +373,12 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
         )
 
     def test_one_correct_answer_event(self):
+        answer_correct_map = {"correctness": "correct"}
         problem_data = self._create_problem_data_dict(
-            correct_map={self.answer_id: {"correctness": "correct"}}
+            correct_map={self.answer_id: answer_correct_map},
         )
         input_data = (self.timestamp, json.dumps(problem_data))
-        answer_data = self._get_answer_data(correct=True)
+        answer_data = self._get_answer_data(correct=True, answer_correct_map=answer_correct_map)
         first, last = self._augment_single_submission_data(answer_data)
 
         self._check_output(

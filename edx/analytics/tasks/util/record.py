@@ -510,17 +510,23 @@ class StringField(Field):  # pylint: disable=abstract-method
         if self.length is not None and self.length == 0:
             raise ValueError('Length must be greater than 0')
 
+        if not hasattr(self, 'truncate'):
+            self.truncate = False
+
     def validate(self, value):
         validation_errors = super(StringField, self).validate(value)
         if value is not None:
             if not isinstance(value, basestring):
                 validation_errors.append('The value is not a string')
-            elif self.length and len(value) > self.length:
+            elif self.length and not self.truncate and len(value) > self.length:
                 validation_errors.append('The string length exceeds the maximum allowed')
         return validation_errors
 
     def serialize_to_string(self, value):
-        """Returns a unicode string representation of a value for this field."""
+        """Returns a unicode string representation of a value for this field, truncating if required."""
+        if self.truncate and len(value) > self.length:
+            value = value[:self.length]
+
         try:
             return unicode(value, encoding=getattr(self, 'encoding', 'utf8'))
         except TypeError:

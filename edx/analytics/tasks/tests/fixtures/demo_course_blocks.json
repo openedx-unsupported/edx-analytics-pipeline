@@ -1,0 +1,434 @@
+{  
+   "blocks":{  
+      "block-v1:edX+DemoX+Demo_Course+type@course+block@course":{  
+         "display_name":"edX Demonstration Course",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@course+block@course",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@course+block@course",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@course+block@course",
+         "type":"course",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@edx_introduction",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@graded_simulations",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@175e76c4951144a29d46211361266e0e",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@07bc32474380492cb34f76e5f9d9a135",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@19a30717eff543078a5d94ae9d6c18a5",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@basic_questions",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@48ecb924d7fe4b66a230137626bfa93e",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@dbe8fc027bcb4fe9afb744d2e8415855",
+            "block-v1:edX+DemoX+Demo_Course+type@sequential+block@6ab9c442501d472c8ed200e367b4edfa"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@graded_simulations":{  
+         "display_name":"Homework - Labs and Demos",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@graded_simulations",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@graded_simulations",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@graded_simulations",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6cee45205a449369d7ef8f159b22bdf",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0fab6aa52165",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_aae927868e55",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_c037f3757df1",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_bc69a47c6fae"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@175e76c4951144a29d46211361266e0e":{  
+         "display_name":"Homework - Essays",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@175e76c4951144a29d46211361266e0e",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@175e76c4951144a29d46211361266e0e",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@175e76c4951144a29d46211361266e0e",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@fb79dcbad35b466a8c6364f8ffee9050"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_98cf62510471":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_98cf62510471",
+         "display_name":"Zooming Diagrams",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_98cf62510471",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_98cf62510471"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@6ab9c442501d472c8ed200e367b4edfa":{  
+         "display_name":"More Ways to Connect",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@6ab9c442501d472c8ed200e367b4edfa",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@6ab9c442501d472c8ed200e367b4edfa",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@6ab9c442501d472c8ed200e367b4edfa",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3f2c11aba9434e459676a7d7acc4d960"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@1b0e2c2c84884b95b1c99fb678cc964c":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@1b0e2c2c84884b95b1c99fb678cc964c",
+         "display_name":"Overall Grade Performance",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@1b0e2c2c84884b95b1c99fb678cc964c",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@1b0e2c2c84884b95b1c99fb678cc964c"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow":{  
+         "display_name":"edX Exams",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@workflow",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@934cc32c177d41b580c8413e561346b3",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_f04afeac0131",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@b6662b497c094bcc9b870d8270c90c93",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@f91d8d31f7cf48ce990f8d8745ae4cfa",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_ac391cde8a91",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_36e0beb03f0a",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@1b0e2c2c84884b95b1c99fb678cc964c",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@c7e98fd39a6944edb6b286c32e1150ff",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6eaa391d2be41dea20b8b1bfbcb1c45"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@26d89b08f75d48829a63520ed8b0037d":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@26d89b08f75d48829a63520ed8b0037d",
+         "display_name":"Homework - Find Your Study Buddy",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@26d89b08f75d48829a63520ed8b0037d",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@26d89b08f75d48829a63520ed8b0037d"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@19a30717eff543078a5d94ae9d6c18a5":{  
+         "display_name":"Lesson 1 - Getting Started",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@19a30717eff543078a5d94ae9d6c18a5",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@19a30717eff543078a5d94ae9d6c18a5",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@19a30717eff543078a5d94ae9d6c18a5",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@867dddb6f55d410caaa9c1eb9c6743ec",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@4f6c1b4e316a419ab5b6bf30e6c708e9",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3dc16db8d14842e38324e95d4030b8a0",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@4a1bba2a403f40bca5ec245e945b0d76",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@256f17a44983429fb1a60802203ee4e0",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@e3601c0abee6427d8c17e6d6f8fdddd1",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@134df56c516a4a0dbb24dd5facef746e"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_d32bf9b2242c":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_d32bf9b2242c",
+         "display_name":"Electronic Sound Experiment",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_d32bf9b2242c",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_d32bf9b2242c"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@07bc32474380492cb34f76e5f9d9a135":{  
+         "type":"sequential",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@07bc32474380492cb34f76e5f9d9a135",
+         "display_name":"New Subsection",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@07bc32474380492cb34f76e5f9d9a135",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@07bc32474380492cb34f76e5f9d9a135"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_f04afeac0131":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_f04afeac0131",
+         "display_name":"Immediate Feedback",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_f04afeac0131",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_f04afeac0131"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@4a1bba2a403f40bca5ec245e945b0d76":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@4a1bba2a403f40bca5ec245e945b0d76",
+         "display_name":"Video Demonstrations",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@4a1bba2a403f40bca5ec245e945b0d76",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@4a1bba2a403f40bca5ec245e945b0d76"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@312cb4faed17420e82ab3178fc3e251a":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@312cb4faed17420e82ab3178fc3e251a",
+         "display_name":"Getting Help",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@312cb4faed17420e82ab3178fc3e251a",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@312cb4faed17420e82ab3178fc3e251a"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_bc69a47c6fae":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_bc69a47c6fae",
+         "display_name":"Protein Creator",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_bc69a47c6fae",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_bc69a47c6fae"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@48ecb924d7fe4b66a230137626bfa93e":{  
+         "display_name":"Lesson 3 - Be Social",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@48ecb924d7fe4b66a230137626bfa93e",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@48ecb924d7fe4b66a230137626bfa93e",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@48ecb924d7fe4b66a230137626bfa93e",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3c4b575924bf4b75a2f3542df5c354fc",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_3888db0bc286",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@312cb4faed17420e82ab3178fc3e251a"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@b6662b497c094bcc9b870d8270c90c93":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@b6662b497c094bcc9b870d8270c90c93",
+         "display_name":"Getting Answers",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@b6662b497c094bcc9b870d8270c90c93",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@b6662b497c094bcc9b870d8270c90c93"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@867dddb6f55d410caaa9c1eb9c6743ec":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@867dddb6f55d410caaa9c1eb9c6743ec",
+         "display_name":"Getting Started",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@867dddb6f55d410caaa9c1eb9c6743ec",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@867dddb6f55d410caaa9c1eb9c6743ec"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@256f17a44983429fb1a60802203ee4e0":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@256f17a44983429fb1a60802203ee4e0",
+         "display_name":"Video Presentation Styles",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@256f17a44983429fb1a60802203ee4e0",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@256f17a44983429fb1a60802203ee4e0"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@f91d8d31f7cf48ce990f8d8745ae4cfa":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@f91d8d31f7cf48ce990f8d8745ae4cfa",
+         "display_name":"Answering More Than Once",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@f91d8d31f7cf48ce990f8d8745ae4cfa",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@f91d8d31f7cf48ce990f8d8745ae4cfa"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0c92347a5c00":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0c92347a5c00",
+         "display_name":"Mathematical Expressions",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0c92347a5c00",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0c92347a5c00"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@dbe8fc027bcb4fe9afb744d2e8415855":{  
+         "display_name":"Homework - Find Your Study Buddy",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@dbe8fc027bcb4fe9afb744d2e8415855",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@dbe8fc027bcb4fe9afb744d2e8415855",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@dbe8fc027bcb4fe9afb744d2e8415855",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@26d89b08f75d48829a63520ed8b0037d"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@134df56c516a4a0dbb24dd5facef746e":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@134df56c516a4a0dbb24dd5facef746e",
+         "display_name":"Reading Assignments",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@134df56c516a4a0dbb24dd5facef746e",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@134df56c516a4a0dbb24dd5facef746e"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3dc16db8d14842e38324e95d4030b8a0":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3dc16db8d14842e38324e95d4030b8a0",
+         "display_name":"Videos on edX",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@3dc16db8d14842e38324e95d4030b8a0",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3dc16db8d14842e38324e95d4030b8a0"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@2152d4a4aadc4cb0af5256394a3d1fc7":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@2152d4a4aadc4cb0af5256394a3d1fc7",
+         "display_name":"Pointing on a Picture",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@2152d4a4aadc4cb0af5256394a3d1fc7",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@2152d4a4aadc4cb0af5256394a3d1fc7"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3c4b575924bf4b75a2f3542df5c354fc":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3c4b575924bf4b75a2f3542df5c354fc",
+         "display_name":"Be Social",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@3c4b575924bf4b75a2f3542df5c354fc",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3c4b575924bf4b75a2f3542df5c354fc"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@e3601c0abee6427d8c17e6d6f8fdddd1":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@e3601c0abee6427d8c17e6d6f8fdddd1",
+         "display_name":"Interactive Questions",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@e3601c0abee6427d8c17e6d6f8fdddd1",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@e3601c0abee6427d8c17e6d6f8fdddd1"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d0d804e8863c4a95a659c04d8a2b2bc0":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d0d804e8863c4a95a659c04d8a2b2bc0",
+         "display_name":"Lesson 2 - Let's Get Interactive! ",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@d0d804e8863c4a95a659c04d8a2b2bc0",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d0d804e8863c4a95a659c04d8a2b2bc0"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@4f6c1b4e316a419ab5b6bf30e6c708e9":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@4f6c1b4e316a419ab5b6bf30e6c708e9",
+         "display_name":"Working with Videos",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@4f6c1b4e316a419ab5b6bf30e6c708e9",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@4f6c1b4e316a419ab5b6bf30e6c708e9"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@c7e98fd39a6944edb6b286c32e1150ff":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@c7e98fd39a6944edb6b286c32e1150ff",
+         "display_name":"Passing a Course",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@c7e98fd39a6944edb6b286c32e1150ff",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@c7e98fd39a6944edb6b286c32e1150ff"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@54bb9b142c6c4c22afc62bcb628f0e68":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@54bb9b142c6c4c22afc62bcb628f0e68",
+         "display_name":"Multiple Choice Questions",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@54bb9b142c6c4c22afc62bcb628f0e68",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@54bb9b142c6c4c22afc62bcb628f0e68"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0270f6de40fc":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0270f6de40fc",
+         "display_name":"Introduction: Video and Sequences",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0270f6de40fc",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0270f6de40fc"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_ac391cde8a91":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_ac391cde8a91",
+         "display_name":"Limited Checks",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_ac391cde8a91",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_ac391cde8a91"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_aae927868e55":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_aae927868e55",
+         "display_name":"Code Grader",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_aae927868e55",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_aae927868e55"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_3888db0bc286":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_3888db0bc286",
+         "display_name":"Discussion Forums",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_3888db0bc286",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_3888db0bc286"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_36e0beb03f0a":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_36e0beb03f0a",
+         "display_name":"Randomized Questions",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_36e0beb03f0a",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_36e0beb03f0a"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@basic_questions":{  
+         "display_name":"Homework - Question Styles",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@basic_questions",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@basic_questions",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@basic_questions",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@2152d4a4aadc4cb0af5256394a3d1fc7",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@47dbd5f836544e61877a483c0b75606c",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@54bb9b142c6c4c22afc62bcb628f0e68",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0c92347a5c00",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_1fef54c2b23b",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@2889db1677a549abb15eb4d886f95d1c",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@e8a5cc2aed424838853defab7be45e42"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@47dbd5f836544e61877a483c0b75606c":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@47dbd5f836544e61877a483c0b75606c",
+         "display_name":"Drag and Drop",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@47dbd5f836544e61877a483c0b75606c",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@47dbd5f836544e61877a483c0b75606c"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@edx_introduction":{  
+         "display_name":"Demo Course Overview",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@edx_introduction",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@edx_introduction",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@edx_introduction",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0270f6de40fc"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@3f2c11aba9434e459676a7d7acc4d960":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3f2c11aba9434e459676a7d7acc4d960",
+         "display_name":"Google Hangout",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@3f2c11aba9434e459676a7d7acc4d960",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@3f2c11aba9434e459676a7d7acc4d960"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6cee45205a449369d7ef8f159b22bdf":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6cee45205a449369d7ef8f159b22bdf",
+         "display_name":"Labs and Demos",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6cee45205a449369d7ef8f159b22bdf",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6cee45205a449369d7ef8f159b22bdf"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0fab6aa52165":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0fab6aa52165",
+         "display_name":"Molecule Editor",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0fab6aa52165",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_0fab6aa52165"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@fb79dcbad35b466a8c6364f8ffee9050":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@fb79dcbad35b466a8c6364f8ffee9050",
+         "display_name":"Peer Assessed Essays",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@fb79dcbad35b466a8c6364f8ffee9050",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@fb79dcbad35b466a8c6364f8ffee9050"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@2889db1677a549abb15eb4d886f95d1c":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@2889db1677a549abb15eb4d886f95d1c",
+         "display_name":"Numerical Input",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@2889db1677a549abb15eb4d886f95d1c",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@2889db1677a549abb15eb4d886f95d1c"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_2dbb0072785e":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_2dbb0072785e",
+         "display_name":"An Interactive Reference Table",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_2dbb0072785e",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_2dbb0072785e"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_1fef54c2b23b":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_1fef54c2b23b",
+         "display_name":"Chemical Equations",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_1fef54c2b23b",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_1fef54c2b23b"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@934cc32c177d41b580c8413e561346b3":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@934cc32c177d41b580c8413e561346b3",
+         "display_name":"EdX Exams",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@934cc32c177d41b580c8413e561346b3",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@934cc32c177d41b580c8413e561346b3"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_c037f3757df1":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_c037f3757df1",
+         "display_name":"Electric Circuit Simulator",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_c037f3757df1",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_c037f3757df1"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations":{  
+         "display_name":"Lesson 2 - Let's Get Interactive!",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@sequential+block@simulations",
+         "type":"sequential",
+         "children":[  
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d0d804e8863c4a95a659c04d8a2b2bc0",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_2dbb0072785e",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_98cf62510471",
+            "block-v1:edX+DemoX+Demo_Course+type@vertical+block@vertical_d32bf9b2242c"
+         ]
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@e8a5cc2aed424838853defab7be45e42":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@e8a5cc2aed424838853defab7be45e42",
+         "display_name":"Text input",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@e8a5cc2aed424838853defab7be45e42",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@e8a5cc2aed424838853defab7be45e42"
+      },
+      "block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6eaa391d2be41dea20b8b1bfbcb1c45":{  
+         "type":"vertical",
+         "lms_web_url":"http://localhost:8000/courses/course-v1:edX+DemoX+Demo_Course/jump_to/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6eaa391d2be41dea20b8b1bfbcb1c45",
+         "display_name":"Getting Your edX Certificate",
+         "id":"block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6eaa391d2be41dea20b8b1bfbcb1c45",
+         "student_view_url":"http://localhost:8000/xblock/block-v1:edX+DemoX+Demo_Course+type@vertical+block@d6eaa391d2be41dea20b8b1bfbcb1c45"
+      }
+   },
+   "root":"block-v1:edX+DemoX+Demo_Course+type@course+block@course"
+}

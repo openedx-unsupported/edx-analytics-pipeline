@@ -136,6 +136,8 @@ class ProblemCheckEventMixin(object):
         course_id = eventlog.get_course_id(event)
         timestamp = event.get('timestamp')
         problem_id = event.get('problem_id')
+        grade = event.get('grade')
+        max_grade = event.get('max_grade')
         problem_display_name = event.get('context').get('module', {}).get('display_name', None)
         result = []
 
@@ -146,6 +148,8 @@ class ProblemCheckEventMixin(object):
             submission['problem_id'] = problem_id
             submission['problem_display_name'] = problem_display_name
             submission['attempt_category'] = attempt_category
+            submission['grade'] = grade
+            submission['max_grade'] = max_grade
 
             # Add the timestamp so that all responses can be sorted in order.
             # We want to use the "latest" values for some fields.
@@ -154,6 +158,7 @@ class ProblemCheckEventMixin(object):
             result.append((output_key, output_value))
 
         answers = event.get('answers')
+        correct_map = event.get('correct_map', {})
         if 'submission' in event:
             submissions = event.get('submission')
             for answer_id in submissions:
@@ -166,13 +171,12 @@ class ProblemCheckEventMixin(object):
                     if answer_value != submission.get('answer'):
                         submission['answer_value_id'] = answer_value
 
+                    submission['answer_correct_map'] = correct_map.get(answer_id)
                     append_submission(answer_id, submission)
 
         else:
             # Otherwise, it's an older event with no 'submission'
             # information, so parse it as well as possible.
-            answers = event.get('answers')
-            correct_map = event.get('correct_map')
             for answer_id in answers:
                 if not self.is_hidden_answer(answer_id):
                     answer_value = answers[answer_id]
@@ -205,6 +209,7 @@ class ProblemCheckEventMixin(object):
                         'answer_value_id': answer_value,
                         'correct': correctness,
                         'variant': variant,
+                        'answer_correct_map': correct_map.get(answer_id),
                     }
                     append_submission(answer_id, submission)
 
@@ -928,13 +933,13 @@ def try_str_to_float(value_str):
         return None
 
 
-def get_problem_check_event(line):
+def get_problem_check_event(line_or_event):
     """
     Generates output values for explicit problem_check events.
 
     Args:
 
-        line: text line from a tracking event log.
+        line_or_event: pre-parsed event dict, or text line from a tracking event log
 
     Returns:
 
@@ -952,10 +957,17 @@ def get_problem_check_event(line):
             (i4x://edX/DemoX/Demo_Course/problem/PS1_P1, dummy_username), (2013-09-10T00:01:05.123456, blah)
 
     """
-    # Parse the line into a dict.
-    event = eventlog.parse_json_server_event(line, 'problem_check')
-    if event is None:
-        return None
+    # Ensure the given event dict is a problem_check event
+    if isinstance(line_or_event, dict):
+        event = line_or_event
+        if event.get('event_type') != 'problem_check':
+            return None
+
+    # Parse the line into an event dict, if not provided.
+    else:
+        event = eventlog.parse_json_server_event(line_or_event, 'problem_check')
+        if event is None:
+            return None
 
     # Get the "problem data".  This is the event data, the context, and anything else that would
     # be useful further downstream.  (We could just pass the entire event dict?)
