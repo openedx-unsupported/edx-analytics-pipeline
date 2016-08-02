@@ -13,6 +13,7 @@ from edx.analytics.tasks.user_activity import UserActivityTableTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, CredentialFileVerticaTarget
 from edx.analytics.tasks.database_imports import ImportAuthUserTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
 
 log = logging.getLogger(__name__)
@@ -234,23 +235,17 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
         ]
 
 
-class UserActivityWorkflow(luigi.WrapperTask):
+class UserActivityWorkflow(WeeklyIntervalMixin, luigi.WrapperTask):
 
-    end_date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Default is today, UTC.',
-    )
-    weeks = luigi.IntParameter(default=24)
     n_reduce_tasks = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
-    pipeline_credentials = luigi.Parameter()
+    credentials = luigi.Parameter()
 
     def requires(self):
         yield CourseActivityWeeklyTask(
             end_date=self.end_date,
             weeks=self.weeks,
             n_reduce_tasks=self.n_reduce_tasks,
-            credentials=self.pipeline_credentials,
+            credentials=self.credentials,
         )
         yield AggregateInternalReportingUserActivityTableHive(
             interval=self.interval,
