@@ -115,7 +115,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             'context_user_id': '10',
             'problem_id': 'block-v1:FooX+1.23x+2013_Spring+type@problem+block@9cee77a606ea4c1aa5440e0ea5d0f618',
             'success': 'incorrect',
-            'agent_string': 'blah, blah, blah',
+            'agent': 'blah, blah, blah',
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(
@@ -146,7 +146,8 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             'context_path': '/event',
             'page': 'long meaningful url',
             'referer': 'long meaningful url',
-            'agent_string': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/600.8.9 (KHTML, like Gecko) Version/8.0.8 Safari/600.8.9",
+            'accept_language': 'en-us',
+            'agent': "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_5) AppleWebKit/600.8.9 (KHTML, like Gecko) Version/8.0.8 Safari/600.8.9",
             'agent_type': 'desktop',
             'agent_device_name': 'Other',
             'agent_os': 'Mac OS X',
@@ -273,6 +274,11 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
 
+    @data(
+    )
+    def test_funky_timestamps(self, kwargs):
+        self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
+        
     def test_android_screen(self):
         template = self.event_templates['android_screen']
         event = self.create_event_log_line(template=template)
@@ -286,7 +292,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             'timestamp': '2013-12-17T15:38:32+00:00',
             'received_at': '2013-12-17T15:38:32.796000+00:00',
             'date': self.DEFAULT_DATE,
-            'agent_string': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)',
+            'agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)',
             'agent_type': 'tablet',
             'agent_device_name': 'Samsung SM-N920A',
             'agent_os': 'Android',
