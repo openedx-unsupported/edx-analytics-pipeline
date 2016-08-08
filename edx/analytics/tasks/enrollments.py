@@ -372,9 +372,17 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
             ImportAuthUserProfileTask()
         )
 
+    @property
+    def query_date(self):
+        """We want to store demographics breakdown from the enrollment numbers of most recent day only."""
+        query_date = self.interval.date_b - datetime.timedelta(days=1)
+        return query_date.isoformat()
 
 class EnrollmentByGenderTask(EnrollmentTask):
-    """Breakdown of enrollments by gender as reported by the user"""
+    """
+    Breakdown of enrollments by gender as reported by the user.
+    Note that we do not filter by the query_date here as insights displays breakdown by gender accross multiple days.
+    """
 
     @property
     def query(self):
@@ -413,7 +421,7 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
 
     @property
     def query(self):
-        return """
+        query = """
             SELECT
                 ce.date,
                 ce.course_id,
@@ -422,11 +430,13 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
                 p.year_of_birth
-        """
+        """.format(date=self.query_date)
+        return query
 
     @property
     def table(self):
@@ -448,7 +458,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
 
     @property
     def query(self):
-        return """
+        query = """
             SELECT
                 ce.date,
                 ce.course_id,
@@ -470,6 +480,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -487,7 +498,8 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                     WHEN 'other' THEN 'other'
                     ELSE NULL
                 END
-        """
+        """.format(date=self.query_date)
+        return query
 
     @property
     def table(self):
@@ -509,7 +521,7 @@ class EnrollmentByModeTask(EnrollmentTask):
 
     @property
     def query(self):
-        return """
+        query = """
             SELECT
                 ce.date,
                 ce.course_id,
@@ -517,11 +529,13 @@ class EnrollmentByModeTask(EnrollmentTask):
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
                 ce.mode
-        """
+        """.format(date=self.query_date)
+        return query
 
     @property
     def table(self):
@@ -543,17 +557,19 @@ class EnrollmentDailyTask(EnrollmentTask):
 
     @property
     def query(self):
-        return """
+        query = """
             SELECT
                 ce.course_id,
                 ce.date,
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
+            WHERE ce.date = '{date}'
             GROUP BY
                 ce.course_id,
                 ce.date
-        """
+        """.format(date=self.query_date)
+        return query
 
     @property
     def table(self):
