@@ -4,7 +4,7 @@ Tests for utilities that parse event logs.
 
 from opaque_keys.edx.locator import CourseLocator
 
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util import opaque_key_util
 from edx.analytics.tasks.tests import unittest
 
 
@@ -57,53 +57,6 @@ class CourseIdTest(unittest.TestCase):
     def test_get_invalid_legacy_org_id(self):
         self.assertIsNone(opaque_key_util.get_org_id_for_course(INVALID_LEGACY_COURSE_ID))
         self.assertIsNone(opaque_key_util.get_org_id_for_course(INVALID_NONASCII_LEGACY_COURSE_ID))
-
-    def test_get_filename(self):
-        self.assertEquals(opaque_key_util.get_filename_safe_course_id(VALID_COURSE_ID), "org_course_id_course_run")
-        self.assertEquals(opaque_key_util.get_filename_safe_course_id(VALID_COURSE_ID, '-'), "org-course_id-course_run")
-
-    def test_get_filename_with_colon(self):
-        course_id = unicode(CourseLocator(org='org', course='course:id', run='course:run'))
-        self.assertEquals(opaque_key_util.get_filename_safe_course_id(VALID_COURSE_ID), "org_course_id_course_run")
-        self.assertEquals(opaque_key_util.get_filename_safe_course_id(course_id, '-'), "org-course-id-course-run")
-
-    def test_get_filename_for_legacy_id(self):
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(VALID_LEGACY_COURSE_ID),
-            "org_course_id_course_run"
-        )
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(VALID_LEGACY_COURSE_ID, '-'),
-            "org-course_id-course_run"
-        )
-
-    def test_get_filename_for_invalid_id(self):
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(INVALID_LEGACY_COURSE_ID),
-            "org_course_id_course_run"
-        )
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(INVALID_LEGACY_COURSE_ID, '-'),
-            "org-course_id-course_run"
-        )
-
-    def test_get_filename_for_nonascii_id(self):
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(VALID_NONASCII_LEGACY_COURSE_ID),
-            u"org_cours__id_course_run"
-        )
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(VALID_NONASCII_LEGACY_COURSE_ID, '-'),
-            u"org-cours-_id-course_run"
-        )
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(INVALID_NONASCII_LEGACY_COURSE_ID),
-            u"org_course__id_course_run"
-        )
-        self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(INVALID_NONASCII_LEGACY_COURSE_ID, '-'),
-            u"org-course-_id-course_run"
-        )
 
     def test_get_course_key_from_url(self):
         url = "https://courses.edx.org/courses/{course_id}/stuff".format(course_id=VALID_COURSE_ID)

@@ -13,8 +13,8 @@ from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
-from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.file_util import copy_file_to_file
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 log = logging.getLogger(__name__)
 

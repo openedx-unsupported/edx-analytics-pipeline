@@ -19,7 +19,7 @@ from edx.analytics.tasks.util.obfuscate_util import (
 )
 from edx.analytics.tasks.util.file_util import read_config_file, copy_file_to_file
 from edx.analytics.tasks.util.tempdir import make_temp_directory
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 
 log = logging.getLogger(__name__)
@@ -627,7 +627,7 @@ class ObfuscatedCourseDumpTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
     def __init__(self, *args, **kwargs):
         super(ObfuscatedCourseDumpTask, self).__init__(*args, **kwargs)
 
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
+        filename_safe_course_id = get_filename_safe_course_id(self.course)
         dump_path = url_path_join(self.dump_root, filename_safe_course_id, 'state')
         auth_userprofile_targets = PathSetTask([dump_path], ['*auth_userprofile*']).output()
         # TODO: Refactor out this logic of getting latest file. Right now we expect a date, so we use that

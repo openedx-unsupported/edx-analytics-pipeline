@@ -17,6 +17,7 @@ from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.datetime_util import add_microseconds, mysql_datetime_to_isoformat, ensure_microseconds
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 from edx.analytics.tasks.util.hive import WarehouseMixin
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 
 log = logging.getLogger(__name__)
@@ -785,7 +786,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
                 outfile.write('\n')
 
     def output_path_for_key(self, course_id):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
+        filename_safe_course_id = get_filename_safe_course_id(course_id, '_')
         filename = u'{course_id}_enroll_validated_{dumpdate}.log.gz'.format(
             course_id=filename_safe_course_id,
             dumpdate=self.dump_date,

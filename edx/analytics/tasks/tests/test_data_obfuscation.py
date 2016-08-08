@@ -19,8 +19,8 @@ from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.data_obfuscation as obfuscate
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.obfuscate_util import reset_user_info_for_testing
-from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 
 LOG = logging.getLogger(__name__)

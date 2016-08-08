@@ -18,8 +18,8 @@ from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
 )
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util import eventlog
+from edx.opaque_keys.util import get_filename_safe_course_id
+from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.file_util import read_config_file
 
 log = logging.getLogger(__name__)
@@ -43,7 +43,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, GeolocationTa
     dump_root = luigi.Parameter(default=None)
 
     def requires(self):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
+        filename_safe_course_id = get_filename_safe_course_id(self.course)
         event_files_url = url_path_join(self.dump_root, filename_safe_course_id, 'events')
         return PathSetTask([event_files_url], ['*'])
 
@@ -101,7 +101,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, GeolocationTa
                 outfile.close()
 
     def output_path_for_key(self, key):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
+        filename_safe_course_id = get_filename_safe_course_id(self.course)
 
         return url_path_join(
             self.output_root,

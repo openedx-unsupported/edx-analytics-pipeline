@@ -9,8 +9,8 @@ import luigi.date_interval
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util import eventlog
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 log = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
 
     def output_path_for_key(self, key):
         date, course_id = key
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id)
+        filename_safe_course_id = get_filename_safe_course_id(course_id)
 
         return url_path_join(
             self.output_root,
