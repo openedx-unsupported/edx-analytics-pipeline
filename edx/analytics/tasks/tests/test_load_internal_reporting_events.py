@@ -71,7 +71,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
                 "referer": "long meaningful url",
                 "page": "long meaningful url",
                 "nonInteraction": 1,
-            },                
+            },
         }
         self.default_event_template = 'problem_check'
         self.create_task()
@@ -164,7 +164,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             expected_key,
             expected_value
         )
-        
+
 @ddt
 class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Base class for test analysis of detailed student engagement"""
@@ -274,11 +274,35 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
 
+    def _get_event_record_from_mapper(self, kwargs):
+        """Returns an EventRecord constructed from mapper output."""
+        line = self.create_event_log_line(**kwargs)
+        mapper_output = tuple(self.task.mapper(line))
+        self.assertEquals(len(mapper_output), 1)
+        row = mapper_output[0]
+        self.assertEquals(len(row), 2)
+        _actual_key, actual_value = row
+        return EventRecord.from_tsv(actual_value)
+
     @data(
+        {'sentAt': '2016-7-26T13:26:23-0500'},
+        {'sentAt': '2016-07-26T13:34:0026-0400'},
+        {'sentAt': '2016-0007-29T12:15:34+0530'},
+        {'sentAt': '2016-07-26 05:11:37 a.m. +0000'},
     )
-    def test_funky_timestamps(self, kwargs):
-        self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
-        
+    def test_funky_but_parsable_timestamps(self, kwargs):
+        actual_record = self._get_event_record_from_mapper(kwargs)
+        timestamp = getattr(actual_record, 'timestamp')
+        self.assertNotEquals(timestamp, None)
+
+    @data(
+        {'sentAt': '2016-07-26 05:11:37 a.m. +000A'},
+    )
+    def test_unparsable_timestamps(self, kwargs):
+        actual_record = self._get_event_record_from_mapper(kwargs)
+        timestamp = getattr(actual_record, 'timestamp')
+        self.assertEquals(timestamp, None)
+
     def test_android_screen(self):
         template = self.event_templates['android_screen']
         event = self.create_event_log_line(template=template)

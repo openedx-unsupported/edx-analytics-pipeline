@@ -495,7 +495,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             return datetime.astimezone(pytz.utc).isoformat()
         else:
             return None
-        
+
     def convert_date(self, date_string):
         """Converts date from string format to date object, for use by DateField."""
         if date_string:
@@ -568,7 +568,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 # Avoid validation errors later due to length by truncating here.
                 field_length = event_record_field.length
                 value_length = len(value)
-                # TODO: This implies that field_length is at least 4. 
+                # TODO: This implies that field_length is at least 4.
                 if value_length > field_length:
                     log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, event_record_key, value)
                     value = u"{}...".format(value[:field_length - 4])
@@ -791,8 +791,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     else:
                         # Log this for now, until we have confidence this is reasonable.
                         log.warning("Parsable unparseable type for %s time in event: %r", key, event)
-                        self.incr_counter('Event', 'Parsable unparseable for {} Time Field'.format(key), 1)                    
-                except:
+                        self.incr_counter('Event', 'Parsable unparseable for {} Time Field'.format(key), 1)
+                except Exception:
                     log.error("Unparseable %s time from event: %r", key, event)
                     self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
             return event_time
@@ -801,6 +801,15 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             self.incr_counter('Event', 'Missing {} Time Field'.format(key), 1)
             return None
         except TypeError:
+            log.error("Bad type for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
+            return None
+        except UnicodeEncodeError:
+            # This is more specific than ValueError, so it is processed first.
+            log.error("Bad encoding for %s time in event: %r", key, event)
+            self.incr_counter('Event', 'Bad encoding for {} Time Field'.format(key), 1)
+            return None
+        except ValueError:
             # Try again, with a more powerful (and more flexible) parser.
             try:
                 event_time = self.extended_normalize_time(event[key])
@@ -809,21 +818,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     self.incr_counter('Event', 'Unparseable {} Time Field'.format(key), 1)
                 else:
                     # Log this for now, until we have confidence this is reasonable.
-                    log.warning("Parsable bad type for %s time in event: %r", key, event)
-                    self.incr_counter('Event', 'Parsable bad type for {} Time Field'.format(key), 1)                    
+                    log.warning("Parsable bad value for %s time in event: %r", key, event)
+                    self.incr_counter('Event', 'Parsable bad value for {} Time Field'.format(key), 1)
                 return event_time
-            except:
-                log.error("Bad type for %s time in event: %r", key, event)
-                self.incr_counter('Event', 'Bad type for {} Time Field'.format(key), 1)
-            return None
-        except UnicodeEncodeError:
-            # This is more specific than ValueError, so it is processed first.
-            log.error("Bad encoding for %s time in event: %r", key, event)
-            self.incr_counter('Event', 'Bad encoding for {} Time Field'.format(key), 1)
-            return None
-        except ValueError:
-            log.error("Bad value for %s time in event: %r", key, event)
-            self.incr_counter('Event', 'Bad value for {} Time Field'.format(key), 1)
+            except Exception:
+                log.error("Bad value for %s time in event: %r", key, event)
+                self.incr_counter('Event', 'Bad value for {} Time Field'.format(key), 1)
             return None
 
     def get_event_arrival_time(self, event):
@@ -975,7 +975,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        
+
         self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
         self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
@@ -1159,7 +1159,7 @@ class LoadEventRecordIntervalToVertica(EventRecordDownstreamMixin, VerticaCopyTa
     def requires(self):
         for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
             # should_overwrite = date >= self.overwrite_from_date
-            yield  LoadDailyEventRecordToVertica(
+            yield LoadDailyEventRecordToVertica(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
