@@ -19,8 +19,8 @@ from edx.analytics.tasks.events_obfuscation import ObfuscateCourseEventsTask
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.util import opaque_key_util
 from edx.analytics.tasks.util.tempdir import make_temp_directory
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 
 log = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class ObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.Task):
             }, metadata_file)
 
     def output(self):
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
+        filename_safe_course_id = get_filename_safe_course_id(self.course)
         return get_target_from_url(url_path_join(
             self.obfuscated_output_root, self.format_version, filename_safe_course_id, 'metadata_file.json'
         ))
@@ -110,7 +110,7 @@ class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
 
     def __init__(self, *args, **kwargs):
         super(ObfuscatedPackageTask, self).__init__(*args, **kwargs)
-        self.filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(self.course)
+        self.filename_safe_course_id = get_filename_safe_course_id(self.course)
         self.course_files_url = url_path_join(
             self.obfuscated_output_root, self.format_version, self.filename_safe_course_id
         )

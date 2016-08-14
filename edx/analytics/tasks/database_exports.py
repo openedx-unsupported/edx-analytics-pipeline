@@ -14,7 +14,7 @@ from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util import csv_util
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 
 log = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ class StudentModulePerCourseTask(MultiOutputMapReduceJobTask):
         template = "{course_id}-courseware_studentmodule-{suffix}analytics.sql"
 
         filename = template.format(
-            course_id=opaque_key_util.get_filename_safe_course_id(course_id, '-'),
+            course_id=get_filename_safe_course_id(course_id, '-'),
             suffix=(self.output_suffix + '-') if self.output_suffix else ''
         )
 

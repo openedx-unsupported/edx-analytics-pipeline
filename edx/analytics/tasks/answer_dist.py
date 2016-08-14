@@ -21,7 +21,8 @@ from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
 import edx.analytics.tasks.util.eventlog as eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util import opaque_key_util
+from edx.opaque_keys.util import get_filename_safe_course_id
 
 import logging
 log = logging.getLogger(__name__)
@@ -743,7 +744,7 @@ class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, 
         directory will be displayed on the instructor dashboard for that course.
         """
         hashed_course_id = hashlib.sha1(course_id).hexdigest()
-        filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
+        filename_safe_course_id = get_filename_safe_course_id(course_id, '_')
         filename = u'{course_id}_answer_distribution.csv'.format(course_id=filename_safe_course_id)
         return url_path_join(self.output_root, hashed_course_id, filename)
 
