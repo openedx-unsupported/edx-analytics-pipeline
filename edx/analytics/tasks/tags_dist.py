@@ -155,7 +155,8 @@ class TagsDistributionWorkflow(
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
     overwrite = luigi.BooleanParameter(
         default=True,
-        description="Whether or not to overwrite existing outputs"
+        description="Whether or not to overwrite existing outputs",
+        significant=False
     )
 
     @property

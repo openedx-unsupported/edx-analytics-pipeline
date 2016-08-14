@@ -65,6 +65,7 @@ class OverwriteFromDateMixin(object):
                     ' in the past up to the end of the interval. Events are not always collected at the time that they'
                     ' are emitted, sometimes much later. By re-processing past days we can gather late events and'
                     ' include them in the computations.',
+        default=None,
         significant=False
     )
 
@@ -270,6 +271,25 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
         default=False,
         config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
     )
+    overwrite_hive = luigi.BooleanParameter(
+        default=False,
+        significant=False
+    )
+
+    def update_id(self):
+        """
+        Use the task name and date to uniquely identify this update.
+
+        This means that other significant parameters will be ignored when testing to see if this task is complete.
+        This is a deliberate choice since we really only care about the date. We should only execute this task if the
+        data for that date has never been loaded or if overwrite is True. Any other changes to parameters should not
+        cause a re-insert.
+
+        Without this, changes to any parameter would result in duplicate records being inserted into the database since
+        the hash code would change for the task, so it would be marked incomplete. Since records are only deleted if
+        overwrite is specified, then it was relatively easy to insert duplicate records into the database.
+        """
+        return '{task_name}(date={key})'.format(task_name=self.task_family, key=self.date.isoformat())
 
     @property
     def table(self):
@@ -286,7 +306,8 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     @property
     def indexes(self):
         return [
-            ('course_id', 'username', 'date')
+            ('course_id', 'username', 'date'),
+            ('date',),
         ]
 
     @property
@@ -294,8 +315,8 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
         partition_task = ModuleEngagementPartitionTask(
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
-            overwrite=self.overwrite,
-            overwrite_from_date=self.overwrite_from_date,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite_hive,
         )
         return partition_task.data_task
 
@@ -303,6 +324,11 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
 class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin,
                                    OverwriteOutputMixin, OverwriteFromDateMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
+
+    overwrite_mysql = luigi.BooleanParameter(
+        default=False,
+        significant=False
+    )
 
     def requires(self):
         for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
@@ -312,14 +338,13 @@ class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDowns
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
                 overwrite=should_overwrite,
-                overwrite_from_date=self.overwrite_from_date,
             )
             yield ModuleEngagementMysqlTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=should_overwrite,
-                overwrite_from_date=self.overwrite_from_date,
+                overwrite=should_overwrite or self.overwrite_mysql,
+                overwrite_hive=should_overwrite
             )
 
     def output(self):
@@ -734,8 +759,12 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
 class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMixin, MysqlInsertTask):
     """Result store storage for the metric ranges."""
 
-    overwrite = luigi.BooleanParameter(default=True, description='Overwrite the table when writing to it by default.'
-                                                                 ' Allow users to override this behavior if they want.')
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
 
     @property
     def table(self):
@@ -1312,7 +1341,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
     )
 
     # Don't use the OverwriteOutputMixin since it changes the behavior of complete() (which we don't want).
-    overwrite = luigi.BooleanParameter(default=False)
+    overwrite = luigi.BooleanParameter(default=False, significant=False)
 
     def requires(self):
         overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
