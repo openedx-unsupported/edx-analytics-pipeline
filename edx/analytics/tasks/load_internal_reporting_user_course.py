@@ -5,7 +5,8 @@ import luigi
 import logging
 
 from edx.analytics.tasks.vertica_load import (
-    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
+    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE,
+    VerticaCopyTaskMixin, CredentialFileVerticaTarget
 )
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
@@ -172,3 +173,38 @@ AS
  GROUP BY 1, 2, 3, 4;"""
             ),
         ]
+
+class BuildUserCourseView(WarehouseMixin, VerticaCopyTask):
+
+
+    def requires(self):
+        return {'credentials': ExternalURL(self.credentials)}
+
+    @property
+    def table(self):
+        return "f_user_course"
+
+    def run(self):
+        self.attempted_removal = True
+
+        connection = self.output().connect()
+        try:
+            cursor = connection.cursor()
+
+            self.init_touch(connection)
+            # We mark this task as complete first, since the view creation does an implicit commit.
+            self.output().touch(connection)
+
+            build_view_query = "CREATE VIEW {schema}.{view} AS SELECT * FROM {persistent_schema}.f_user_course".format(
+                schema=self.schema,
+                view=self.table,
+                persistent_schema=self.persistent_schema
+            )
+            log.debug(build_view_query)
+            cursor.execute(build_view_query)
+        except Exception as exc:
+            log.debug("Rolled back the transaction; exception raised: %s", str(exc))
+            connection.rollback()
+            raise
+        finally:
+            connection.close()

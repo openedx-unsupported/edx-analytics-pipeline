@@ -52,6 +52,10 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
         'default to the schema value if the value here is None.'
     )
 
+    persistent_schema = luigi.Parameter(
+        default='experimental',
+        config_path={'section': 'vertica-export', 'name': 'persistent_schema'}
+    )
 
 class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     """
@@ -348,9 +352,11 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         if self.overwrite:
             # Clear the appropriate rows from the luigi Vertica marker table
             marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            marker_schema = self.output().marker_schema
             try:
-                query = "DELETE FROM {schema}.{marker_table} where target_table='{schema}.{target_table}';".format(
+                query = "DELETE FROM {marker_schema}.{marker_table} where target_table='{schema}.{target_table}';".format(
                     schema=self.schema,
+                    marker_schema=marker_schema,
                     marker_table=marker_table,
                     target_table=self.table,
                 )
