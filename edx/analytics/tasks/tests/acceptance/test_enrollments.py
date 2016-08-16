@@ -70,20 +70,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 1975, 1, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 2000, 2, 2),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 1975, 0, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2000, 2, 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 1975, 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 2000, 2, 2),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 1975, 0, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2000, 2, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1975, 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1984, 1, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1975, 0, 1),
@@ -102,20 +88,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2, 2),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1, 2),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 2, 2),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 1, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'associates', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
@@ -134,19 +106,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'audit', 0, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 3),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'honor', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 3),
@@ -160,12 +119,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         self.assertItemsEqual(results, [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 3, 4),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2, 4),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 3, 4),
-            (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2, 4),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 2, 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1, 4),
         ])
