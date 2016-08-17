@@ -52,7 +52,7 @@ class TestCourseInformation(unittest.TestCase):
 
         fake_warehouse_path = self.input_dir
 
-        task = ProcessCourseStructureAPIData(warehouse_path=fake_warehouse_path, run_date=datetime.date(2015, 8, 25))
+        task = ProcessCourseStructureAPIData(warehouse_path=fake_warehouse_path, date=datetime.date(2015, 8, 25))
 
         output_target = FakeTarget()
         task.output = MagicMock(return_value=output_target)

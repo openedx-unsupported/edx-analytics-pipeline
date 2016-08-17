@@ -1,6 +1,5 @@
 """Collect info from the course blocks API for processing of course structure for subsequent query."""
 from collections import defaultdict
-import datetime
 import json
 import logging
 from urllib import quote
@@ -8,16 +7,17 @@ from urllib import quote
 import luigi
 import requests
 
+from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.load_internal_reporting_course import LoadInternalReportingCourseMixin, PullCourseStructureAPIData
 from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
+    BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
-from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.vertica_load import VerticaCopyTask
 
 VERSION = '0.1.1'
 
@@ -46,7 +46,7 @@ class AllCourseMixin(LoadInternalReportingCourseMixin):
 
     def do_action_per_course(self, course_id, output_root):
         raise NotImplementedError
-                             
+
     def run(self):
         self.remove_output_on_overwrite()
         for course_id in self.generate_course_list_from_file():
@@ -58,10 +58,11 @@ class AllCourseMixin(LoadInternalReportingCourseMixin):
             output_file.write("DONE.")
 
     def output(self):
-        return get_target_from_url(self.output_root, "_SUCCESS")
+        return get_target_from_url(url_path_join(self.output_root, "_SUCCESS"))
 
     def complete(self):
-        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
+        # TODO: do we still need this?
+        return self.output().exists()
 
 
 class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
@@ -124,13 +125,13 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
         return get_target_from_url(self.get_output_path(self.course_id, self.output_root))
 
 
-class AllBlocksTask(AllCourseMixin, BlocksPerCourseTask):
+class AllCourseBlocksTask(AllCourseMixin, BlocksPerCourseTask):
 
     course_id = None
 
     def requires(self):
         return_value = {}
-        parent = super(AllBlocksTask, self).requires()
+        parent = super(AllCourseBlocksTask, self).requires()
         if parent is not None:
             return_value['parent'] = parent
         all_course = self.get_all_course_requires()
@@ -141,7 +142,7 @@ class AllBlocksTask(AllCourseMixin, BlocksPerCourseTask):
         self.output_blocks_for_course(course_id, output_root)
 
 
-class BlockRecord(SparseRecord):
+class CourseBlockRecord(SparseRecord):
     """Represents a block in a course."""
 
     # Metadata:
@@ -152,8 +153,10 @@ class BlockRecord(SparseRecord):
     block_id = StringField(length=255, nullable=True, description='blah.')  # id?
     block_type = StringField(length=255, nullable=True, description='blah.')  # type
     display_name = StringField(length=255, nullable=True, description='blah.')
-    
-    graded = BooleanField(nullable=True, description='blah.')
+
+    # TODO: switch to non-string field types once support is added in Vertica converters.
+    # graded = BooleanField(nullable=True, description='blah.')
+    graded = StringField(length=255, nullable=True, description='blah.')
     block_format = StringField(length=255, nullable=True, description='blah.')  # format
     student_view_multi_device = BooleanField(nullable=True, description='blah.')
     student_view_url = StringField(length=255, nullable=True, description='blah.')
@@ -161,19 +164,30 @@ class BlockRecord(SparseRecord):
     lti_url = StringField(length=255, nullable=True, description='blah.')
 
     # Calculated values:
-    depth = IntegerField(nullable=True, description='blah.')
-    order_index = IntegerField(nullable=True, description='blah.')
+    # depth = IntegerField(nullable=True, description='blah.')
+    # order_index = IntegerField(nullable=True, description='blah.')
+    depth = StringField(length=255, nullable=True, description='blah.')
+    order_index = StringField(length=255, nullable=True, description='blah.')
+
     parent_id = StringField(length=255, nullable=True, description='blah.')
-    ancestor_gen2_id = StringField(length=255, nullable=True, description='blah.')
-    ancestor_gen3_id = StringField(length=255, nullable=True, description='blah.')
-    ancestor_gen4_id = StringField(length=255, nullable=True, description='blah.')
-    ancestor_gen5_id = StringField(length=255, nullable=True, description='blah.')
-    ancestor_gen6_id = StringField(length=255, nullable=True, description='blah.')
-    
+    ancestor_gen_2_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_gen_3_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_gen_4_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_gen_5_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_gen_6_id = StringField(length=255, nullable=True, description='blah.')
+
+    ancestor_level_1_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_level_2_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_level_3_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_level_4_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_level_5_id = StringField(length=255, nullable=True, description='blah.')
+    ancestor_level_6_id = StringField(length=255, nullable=True, description='blah.')
+
     # Specific information from student_view_data (depending on block type):
     topic_id = StringField(length=255, nullable=True, description='blah.')
     duration = StringField(length=255, nullable=True, description='blah.')
-    only_on_web = BooleanField(nullable=True, description='blah.')
+    # only_on_web = BooleanField(nullable=True, description='blah.')
+    only_on_web = StringField(length=255, nullable=True, description='blah.')
     transcript_en_url = StringField(length=255, nullable=True, description='blah.')
     youtube_url = StringField(length=255, nullable=True, description='blah.')
     mobile_low_url = StringField(length=255, nullable=True, description='blah.')
@@ -183,7 +197,7 @@ class RecordMapper(object):
     """Load a record from a dictionary object, according to a given mapping."""
 
     record_mapping = None
-    
+
     def _add_entry(self, record_dict, record_key, record_field, label, obj):
         if isinstance(record_field, StringField):
             if obj is None:
@@ -194,7 +208,7 @@ class RecordMapper(object):
                 # Avoid validation errors later due to length by truncating here.
                 field_length = record_field.length
                 value_length = len(value)
-                # TODO: This implies that field_length is at least 4. 
+                # TODO: This implies that field_length is at least 4.
                 if value_length > field_length:
                     log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, record_key, value)
                     value = u"{}...".format(value[:field_length - 4])
@@ -256,11 +270,11 @@ class RecordMapper(object):
     def calculate_record_mapping(self):
         raise NotImplementedError
 
-    
-class BlockRecordMapper(RecordMapper):
 
-    def record_class(self):    
-        return BlockRecord
+class CourseBlockRecordMapper(RecordMapper):
+
+    def record_class(self):
+        return CourseBlockRecord
 
     def calculate_record_mapping(self):
         """Return dictionary of block attributes to the output keys they map to."""
@@ -283,7 +297,7 @@ class BlockRecordMapper(RecordMapper):
             # Handle special-cases:
             elif field_key.startswith('block_'):
                 add_event_mapping_entry(u"root.{}".format(field_key[len('block_'):]))
-            
+
             # Map values that are top-level:
             elif field_key in ['course_id', 'display_name', 'graded', 'student_view_multi_device', 'student_view_url', 'lms_web_url', 'lti_url']:
                 add_event_mapping_entry(u"root.{}".format(field_key))
@@ -303,20 +317,123 @@ class BlockRecordMapper(RecordMapper):
 
         return record_mapping
 
+    def populate_depth_map(self, child_map, depth_map, ancestor_list, course_root):
+
+        def find_depth_for_children(block_id, depth):
+            """
+            Find tree depth of block_id within course.
+
+            Performs search breadth-first, to make sure depth values are minima for a block that may appear
+            in multiple locations in a course.
+            """
+            for child_id in child_map[block_id]:
+                if child_id in depth_map:
+                    # When we find a block that has already been encountered, we only log it and skip on.
+                    # But we try to log a few details to understand better why there is a duplicate.
+                    prev_depth = depth_map[child_id]
+                    if prev_depth < depth + 1:
+                        log.debug("Found block %s child of %s at depth %d but already depth %d", child_id, block_id, depth + 1, prev_depth)
+                    elif prev_depth == depth + 1:
+                        # found sibling.  Ignore.
+                        log.debug("Found block %s child of %s at depth %d but already found at that depth",
+                                  child_id, block_id, depth + 1)
+                    else:
+                        log.debug("Weird: Found block %s child of %s at depth %d but already depth %d",
+                                  child_id, block_id, depth + 1, prev_depth)
+                else:
+                    # Prefer those parents that are encountered first in a breadth-first search.
+                    depth_map[child_id] = depth + 1
+                    ancestor_list[child_id].extend(ancestor_list[block_id])
+                    ancestor_list[child_id].append(block_id)
+
+            for child_id in child_map[block_id]:
+                find_depth_for_children(child_id, depth_map[child_id])
+
+        # Now run the traversal
+        depth_map[course_root] = 1  # one-based, for now...
+        find_depth_for_children(course_root, 1)
+
+    def populate_order_index_map(self, child_map, order_index_map, course_root):
+
+        def find_order_index_for_children(block_id, current_index):
+            """Returns the next index to use for siblings."""
+            next_index = current_index + 1
+            for child_id in child_map[block_id]:
+                order_index_map[child_id] = next_index
+                next_index = find_order_index_for_children(child_id, next_index)
+            return next_index
+
+        # Now run the traversal
+        order_index_map[course_root] = 1
+        find_order_index_for_children(course_root, 1)
+
+    def generate_records_from_course_blocks(self, course_blocks_info):
+        course_id = course_blocks_info.get('course_id')
+        block_dict = course_blocks_info.get('blocks')
+        course_root = course_blocks_info.get('root')
+        # TODO: make a first pass through blocks to construct child-to-parent
+        # mapping to use for calculating depth and ancestors.
+        # TODO: what to do if there are multiple parents or ancestors?
+        # (Very likely to happen with drafts, anyway. Ugh.  Approximate,
+        # for the cases where it does work.)
+        child_map = defaultdict(list)
+        # parent_map = defaultdict(list)
+        for block_id in block_dict:
+            block = block_dict[block_id]
+            children = block.get('children', [])
+            for child_id in children:
+                child_map[block_id].append(child_id)
+                # parent_map[child_id].append(block_id)
+
+        # Traverse course from root, calculating depth and choosing ancestors.
+        depth_map = {}
+        ancestor_list = defaultdict(list)
+        self.populate_depth_map(child_map, depth_map, ancestor_list, course_root)
+
+        # Traverse course again from root, calculating order_index values.
+        order_index_map = {}
+        self.populate_order_index_map(child_map, order_index_map, course_root)
+
+        # Traverse each block, and populate a record for it:
+        for block_id in block_dict:
+            block = block_dict[block_id]
+
+            record_dict = {'version': VERSION}
+            self.add_calculated_entry(record_dict, 'course_id', course_id)
+
+            # Add information about relative position of block in the course.
+            depth = depth_map.get(block_id)
+            if depth:
+                self.add_calculated_entry(record_dict, 'depth', depth)
+            order_index = order_index_map.get(block_id)
+            if order_index:
+                self.add_calculated_entry(record_dict, 'order_index', order_index)
+
+            if block_id in ancestor_list:
+                ancestors = ancestor_list[block_id]
+                num_ancestors = len(ancestors)
+                for index, ancestor_id in enumerate(ancestors, 1):
+                    # Add entry for ancestor "above" block
+                    label = "ancestor_gen_{}_id".format(num_ancestors + 1 - index)
+                    if index == num_ancestors:
+                        label = "parent_id"
+                    self.add_calculated_entry(record_dict, label, ancestor_id)
+                    # Add entry for level below root:
+                    label = "ancestor_level_{}_id".format(index)
+                    self.add_calculated_entry(record_dict, label, ancestor_id)
+
+            self.add_info(record_dict, block)
+
+            record = self.record_class()(**record_dict)
+            yield record
+
 
 class BlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
 
     course_id = luigi.Parameter()
-    date = luigi.DateParameter(default=None, description='blah')
 
-    def __init__(self, *args, **kwargs):
-        super(BlockRecordsPerCourseTask, self).__init__(*args, **kwargs)
-
-        if not self.date:
-            self.date = datetime.datetime.utcnow().date()
-    
     def output(self):
-        record_table_name = 'course-block-records'
+        record_table_name = 'course_block_records'
         dummy_partition = HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
         partition_path_spec = dummy_partition.path_spec
         suffix = 'tsv'
@@ -326,7 +443,7 @@ class BlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
         return get_target_from_url(output_path)
 
     def requires(self):
-        raw_table_name = 'course-block-raw'
+        raw_table_name = 'course_block_raw'
         dummy_partition = HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
         partition_path_spec = dummy_partition.path_spec
         input_path = url_path_join(self.warehouse_path, raw_table_name, partition_path_spec + '/')
@@ -336,131 +453,185 @@ class BlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
             'api_access_token': self.api_access_token,
             'course_id': self.course_id,
             'output_root': input_path,
+            'date': self.date,
         }
         return BlocksPerCourseTask(**kwargs)
 
     def run(self):
-        mapper = BlockRecordMapper()
+        mapper = CourseBlockRecordMapper()
         with self.input().open('r') as input_file:
             course_blocks_info = json.load(input_file)
-            course_id = course_blocks_info.get('course_id')
-            block_dict = course_blocks_info.get('blocks')
-            course_root = course_blocks_info.get('root')
-            # TODO: make a first pass through blocks to construct child-to-parent
-            # mapping to use for calculating depth and ancestors.
-            # TODO: what to do if there are multiple parents or ancestors?
-            # (Very likely to happen with drafts, anyway. Ugh.  Approximate,
-            # for the cases where it does work.)
-            child_map = defaultdict(list)
-            parent_map = defaultdict(list)
-            for block_id in block_dict:
-                block = block_dict[block_id]
-                children = block.get('children', [])
-                for child_id in children:
-                    child_map[block_id].append(child_id)
-                    parent_map[child_id].append(block_id)
-
-            # Traverse course from root, calculating depth and choosing parents.
-            depth_map = {}
-            preferred_parent = {}
-            depth_map[course_root] = 1  # one-based, for now...
-            def find_depth_for_children(block_id, depth):
-                # Breadth-first, to make sure depth measurements are minima.
-                for child_id in child_map[block_id]:
-                    if child_id in depth_map:
-                        prev_depth = depth_map[child_id]
-                        if prev_depth < depth + 1:
-                            log.debug("Found block %s child of %s at depth %d but already depth %d", child_id, block_id, depth + 1, prev_depth)
-                        elif prev_depth == depth + 1:
-                            # found sibling.  Ignore.
-                            log.debug("Found block %s child of %s at depth %d but already found at that depth",
-                                      child_id, block_id, depth + 1)
-                        else:
-                            log.debug("Weird: Found block %s child of %s at depth %d but already depth %d",
-                                      child_id, block_id, depth + 1, prev_depth)
-                    else:
-                        depth_map[child_id] = depth + 1
-                        preferred_parent[child_id] = block_id
-                for child_id in child_map[block_id]:
-                    find_depth_for_children(child_id, depth_map[child_id])
-
-            # Now run the traversal
-            find_depth_for_children(course_root, 1)
-
-            # Traverse course again from root, calculating order_index values.
-            order_index_map = {}
-            order_index_map[course_root] = 1
-            def find_order_index_for_children(block_id, current_index):
-                """Returns the next index to use for siblings."""
-                next_index = current_index + 1
-                for child_id in child_map[block_id]:
-                    order_index_map[child_id] = next_index
-                    next_index = find_order_index_for_children(child_id, next_index)
-                return next_index
-            # Now run the traversal
-            find_order_index_for_children(course_root, 1)
-            
             with self.output().open('w') as output_file:
-                for block_id in block_dict:
-                    block = block_dict[block_id]
-                    
-                    record_dict = {'version': VERSION}
-                    mapper.add_calculated_entry(record_dict, 'course_id', course_id)
-                    depth = depth_map.get(block_id)
-                    if depth:
-                        mapper.add_calculated_entry(record_dict, 'depth', depth)
-                    order_index = order_index_map.get(block_id)
-                    if order_index:
-                        mapper.add_calculated_entry(record_dict, 'order_index', order_index)
-                    if block_id in preferred_parent:
-                        parent_id = preferred_parent[block_id]
-                        mapper.add_calculated_entry(record_dict, 'parent_id', parent_id)
-                        if parent_id in preferred_parent:
-                            ancestor_gen2_id = preferred_parent[parent_id]
-                            mapper.add_calculated_entry(record_dict, 'ancestor_gen2_id', ancestor_gen2_id)
-                            if ancestor_gen2_id in preferred_parent:
-                                ancestor_gen3_id = preferred_parent[ancestor_gen2_id]
-                                mapper.add_calculated_entry(record_dict, 'ancestor_gen3_id', ancestor_gen3_id)
-                                if ancestor_gen3_id in preferred_parent:
-                                    ancestor_gen4_id = preferred_parent[ancestor_gen3_id]
-                                    mapper.add_calculated_entry(record_dict, 'ancestor_gen4_id', ancestor_gen4_id)
-                                    if ancestor_gen4_id in preferred_parent:
-                                        ancestor_gen5_id = preferred_parent[ancestor_gen4_id]
-                                        mapper.add_calculated_entry(record_dict, 'ancestor_gen5_id', ancestor_gen5_id)
-                                        if ancestor_gen5_id in preferred_parent:
-                                            ancestor_gen6_id = preferred_parent[ancestor_gen5_id]
-                                            mapper.add_calculated_entry(record_dict, 'ancestor_gen6_id', ancestor_gen6_id)
-                        
-                    mapper.add_info(record_dict, block)
-
-                    record = mapper.record_class()(**record_dict)
+                for record in mapper.generate_records_from_course_blocks(course_blocks_info):
                     record_string = record.to_separated_values()
                     output_file.write(record_string)
                     output_file.write('\n')
 
 
-# Note that this class doesn't work as written, because we need a dynamic
-# dependency.  That is, we need to run the base course task in order to know
-# what requirements to output.
+class AllCourseBlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
 
-# But maybe we can stack it, by requiring that the course json dumps
-# are done for all courses, and then if it were successful (by the presence
-# of the marker), then we would run the output, which would similarly
-# generate a marker when done.  So it's really two very different modes:
-# either per-course or all-courses.
-class AllBlockRecordsTask(AllCourseMixin, BlockRecordsPerCourseTask):
+    record_mapper = CourseBlockRecordMapper()
 
-    course_id = None
+    @property
+    def input_path(self):
+        raw_table_name = 'course_block_raw'
+        dummy_partition = HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        partition_path_spec = dummy_partition.path_spec
+        _input_path = url_path_join(self.warehouse_path, raw_table_name, partition_path_spec + '/')
+        return _input_path
+
+    @property
+    def output_path(self):
+        record_table_name = 'course_block_records'
+        dummy_partition = HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        partition_path_spec = dummy_partition.path_spec
+        _output_path = url_path_join(self.warehouse_path, record_table_name, partition_path_spec + '/')
+        return _output_path
+
+    def get_output_target(self, course_id):
+        suffix = 'tsv'
+        safe_course_id = get_filename_safe_course_id(course_id)
+        output_pathname = "{}_{}.{}".format(safe_course_id, 'records', suffix)
+        return get_target_from_url(url_path_join(self.output_path, output_pathname))
 
     def requires(self):
-        return_value = {}
-        parent = super(AllBlockRecordsTask, self).requires()
-        if parent is not None:
-            return_value['parent'] = parent
-        all_course = self.get_all_course_requires()
-        return_value.update(all_course)
-        return return_value
+        kwargs = {
+            'warehouse_path': self.warehouse_path,
+            'api_root_url': self.api_root_url,
+            'api_access_token': self.api_access_token,
+            'output_root': self.input_path,
+            'date': self.date,
+        }
+        return AllCourseBlocksTask(**kwargs)
 
-    def do_action_per_course(self, course_id, output_root):
-        self.output_blocks_for_course(course_id, output_root)
-    
+    def generate_input_file_list(self):
+        # Need to do a directory on self.input_path to get all .json
+        # files.  At the moment, return a string, not a target.  We
+        # convert it before opening.
+        file_pattern = "*.json"
+        path_set_task = PathSetTask([self.input_path], [file_pattern], include_zero_length=False)
+        for input_task in path_set_task.generate_file_list():
+            yield input_task.output().path
+
+    def do_action_per_course(self, input_filepath):
+        input_target = get_target_from_url(input_filepath)
+        with input_target.open('r') as input_file:
+            course_blocks_info = json.load(input_file)
+            course_id = course_blocks_info.get('course_id')
+            output_target = self.get_output_target(course_id)
+            with output_target.open('w') as output_file:
+                for record in self.record_mapper.generate_records_from_course_blocks(course_blocks_info):
+                    record_string = record.to_separated_values()
+                    output_file.write(record_string)
+                    output_file.write('\n')
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        for input_file in self.generate_input_file_list():
+            log.info("Processing blocks from %s", input_file)
+            self.do_action_per_course(input_file)
+            log.info("Processed blocks from %s", input_file)
+
+        with self.output().open('w') as output_file:
+            output_file.write("DONE.")
+
+    def output(self):
+        return get_target_from_url(url_path_join(self.output_path, '_SUCCESS'))
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output_path, '_SUCCESS')).exists()
+
+
+class CourseBlockRecordTableTask(BareHiveTableTask):
+    """The hive table for event_record data."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_block_records'
+
+    @property
+    def columns(self):
+        return CourseBlockRecord.get_hive_schema()
+
+
+class CourseBlockRecordPartitionTask(LoadInternalReportingCourseMixin, HivePartitionTask):
+    """The hive table partition for this engagement data."""
+
+    # Required parameter
+    date = luigi.DateParameter()
+    interval = None
+
+    @property
+    def partition_value(self):
+        """Use a dynamic partition value based on the date parameter."""
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return CourseBlockRecordTableTask(
+            warehouse_path=self.warehouse_path,
+            # overwrite=self.overwrite,
+        )
+
+    @property
+    def data_task(self):
+        return AllCourseBlockRecordsPerCourseTask(
+            date=self.date,
+            # TODO: plumb this through.  Right now, we're counting on the
+            # various classes agreeing, which is very fragile.
+            # output_root=self.partition_location,
+            # overwrite=self.overwrite,
+        )
+
+
+class LoadCourseBlockRecordToVertica(LoadInternalReportingCourseMixin, VerticaCopyTask):
+
+    # Required parameter
+    # date = luigi.DateParameter()
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        # For now, let's just get by with ExternalURL.
+        hive_table = "course_block_records"
+        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
+        return ExternalURL(url=partition_location)
+
+        # But this should actually work as well, without the partition property being needed.
+        # WRONG. It really needs the underlying data-generating task.  The partition task's output
+        # itself cannot be opened as a file for reading.
+        # return CourseBlockRecordPartitionTask(
+        #     date=self.date,
+        #     n_reduce_tasks=self.n_reduce_tasks,
+        #     warehouse_path=self.warehouse_path,
+        #     events_list_file_path=self.events_list_file_path,
+        # )
+
+    @property
+    def table(self):
+        return 'course_block_records'
+
+# Just use the default default:  "created"
+#    @property
+#    def default_columns(self):
+#        """List of tuples defining name and definition of automatically-filled columns."""
+#        return None
+
+    @property
+    def auto_primary_key(self):
+        # The default is to use 'id', which would cause a conflict with field already having that name.
+        # But I don't see that there's any value to having such a column.
+        # return ('row_number', 'AUTO_INCREMENT')
+        return None
+
+    @property
+    def columns(self):
+        return CourseBlockRecord.get_sql_schema()
