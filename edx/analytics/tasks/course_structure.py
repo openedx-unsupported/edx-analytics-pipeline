@@ -454,13 +454,16 @@ class CourseBlockRecordMapper(RecordMapper):
                 num_ancestors = len(ancestors)
                 for index, ancestor_id in enumerate(ancestors, 1):
                     # Add entry for ancestor "above" block
-                    label = "ancestor_gen_{}_id".format(num_ancestors + 1 - index)
-                    if index == num_ancestors:
-                        label = "parent_id"
-                    self.add_calculated_entry(record_dict, label, ancestor_id)
+                    gen_index = num_ancestors + 1 - index
+                    if gen_index <= 6:
+                        label = "ancestor_gen_{}_id".format(gen_index)
+                        if gen_index == 1:
+                            label = "parent_id"
+                        self.add_calculated_entry(record_dict, label, ancestor_id)
                     # Add entry for level below root:
-                    label = "ancestor_level_{}_id".format(index)
-                    self.add_calculated_entry(record_dict, label, ancestor_id)
+                    if index <= 6:
+                        label = "ancestor_level_{}_id".format(index)
+                        self.add_calculated_entry(record_dict, label, ancestor_id)
 
             self.add_info(record_dict, block)
 
