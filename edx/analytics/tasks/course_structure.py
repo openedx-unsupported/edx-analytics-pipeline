@@ -9,7 +9,7 @@ import luigi
 import requests
 
 from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.load_internal_reporting_course import LoadInternalReportingCourseMixin, PullCourseStructureAPIData
 from edx.analytics.tasks.util.hive import (
@@ -39,11 +39,16 @@ class AllCourseMixin(LoadInternalReportingCourseMixin):
         return {"all_course": PullCourseStructureAPIData(**kwargs)}
 
     def generate_course_list_from_file(self):
+        count = 0
         with self.input()['all_course'].open('r') as input_file:
             course_info = json.load(input_file)
             result_list = course_info.get('results')
             for result in result_list:
                 yield result.get('id').strip()
+                count += 1
+                # For testing, put a circuit-breaker here.
+                if count > 10:
+                    return
 
     def do_action_per_course(self, course_id, output_root):
         raise NotImplementedError
@@ -82,7 +87,12 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
         return {'authorization': ('Bearer ' + self.api_access_token), 'accept': 'application/json'}
 
     def retry_api_call(self, api_url, attempt, max_tries):
-        """Allow API calls to be retried several times if they fail."""
+        """
+        Allow API calls to be retried several times if they fail.
+
+        Return None instead of response if we decide to actually skip this one.  (We get a 500
+        on one course repeatedly.)
+        """
         response = requests.get(url=api_url, headers=self.get_api_request_headers(), stream=True)
         if response.status_code == requests.codes.ok:  # pylint: disable=no-member
             return response
@@ -90,7 +100,9 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
             # TODO: probably should fail on some 500's as well, and not on 429 Too Many Requests (rate-limiting)
             # or 408 Request Timeout.
             if attempt > 1:
-                log.exception("Failure occurred on attempt %d of %d", attempt, max_tries)
+                log.error("Failure occurred on attempt %d of %d", attempt, max_tries)
+            if response.status_code == 500:
+                return None
             msg = "Encountered status {} on request to API for {}".format(response.status_code, api_url)
             raise Exception(msg)
         else:  # status_code >= 500, so retry.
@@ -116,8 +128,10 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
         attempt = 1
         max_tries = self.MAX_TRIES_FOR_API_CALL
         response = self.retry_api_call(api_url, attempt, max_tries)
-        block_info = json.loads(response.content)
-        return block_info
+        if response:
+            return json.loads(response.content)
+        else:
+            return None
 
     def get_output_path(self, course_id, output_root):
         suffix = 'json'
@@ -127,16 +141,19 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
 
     def output_blocks_for_course(self, course_id, output_root):
         output_path = self.get_output_path(course_id, output_root)
-        log.info('Writing output file: %s', output_path)
-        output_file_target = get_target_from_url(output_path)
-        with output_file_target.open('w') as output_file:
-            block_info = self.get_course_block_info(course_id)
-            # Add the course_id into the block output, since it's not explicitly there?
+        block_info = self.get_course_block_info(course_id)
+        if block_info is not None:
+            # Add the course_id into the block output, since it's not explicitly there.
             # And convert back to JSON.
             block_info['course_id'] = course_id
             block_info_string = json.dumps(block_info)
-            output_file.write(block_info_string)
-            output_file.write('\n')
+            log.info('Writing output file: %s', output_path)
+            output_file_target = get_target_from_url(output_path)
+            with output_file_target.open('w') as output_file:
+                output_file.write(block_info_string)
+                output_file.write('\n')
+        else:
+            log.info('No blocks fetched for course_id %s', course_id)
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -491,7 +508,7 @@ class BlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
                     output_file.write('\n')
 
 
-class AllCourseBlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
+class AllCourseBlockRecordsTask(LoadInternalReportingCourseMixin, luigi.Task):
 
     record_mapper = CourseBlockRecordMapper()
 
@@ -555,14 +572,18 @@ class AllCourseBlockRecordsPerCourseTask(LoadInternalReportingCourseMixin, luigi
             self.do_action_per_course(input_file)
             log.info("Processed blocks from %s", input_file)
 
-        with self.output().open('w') as output_file:
+        with self.marker_target.open('w') as output_file:
             output_file.write("DONE.")
 
-    def output(self):
+    @property
+    def marker_target(self):
         return get_target_from_url(url_path_join(self.output_path, '_SUCCESS'))
+            
+    def output(self):
+        return get_target_from_url(self.output_path)
 
     def complete(self):
-        return get_target_from_url(url_path_join(self.output_path, '_SUCCESS')).exists()
+        return self.marker_target.exists()
 
 
 class CourseBlockRecordTableTask(BareHiveTableTask):
@@ -582,11 +603,7 @@ class CourseBlockRecordTableTask(BareHiveTableTask):
 
 
 class CourseBlockRecordPartitionTask(LoadInternalReportingCourseMixin, HivePartitionTask):
-    """The hive table partition for this engagement data."""
-
-    # Required parameter
-    date = luigi.DateParameter()
-    interval = None
+    """The hive table partition for this course block data."""
 
     @property
     def partition_value(self):
@@ -602,7 +619,7 @@ class CourseBlockRecordPartitionTask(LoadInternalReportingCourseMixin, HiveParti
 
     @property
     def data_task(self):
-        return AllCourseBlockRecordsPerCourseTask(
+        return AllCourseBlockRecordsTask(
             date=self.date,
             # TODO: plumb this through.  Right now, we're counting on the
             # various classes agreeing, which is very fragile.
@@ -613,9 +630,14 @@ class CourseBlockRecordPartitionTask(LoadInternalReportingCourseMixin, HiveParti
 
 class LoadCourseBlockRecordToVertica(LoadInternalReportingCourseMixin, VerticaCopyTask):
 
-    # Required parameter
-    # date = luigi.DateParameter()
-
+    def requires(self):
+        if self.required_tasks is None:
+            self.required_tasks = {
+                'credentials': ExternalURL(url=self.credentials),
+                'insert_source': self.insert_source_task,
+            }
+        return self.required_tasks
+    
     @property
     def partition(self):
         """The table is partitioned by date."""
@@ -623,30 +645,11 @@ class LoadCourseBlockRecordToVertica(LoadInternalReportingCourseMixin, VerticaCo
 
     @property
     def insert_source_task(self):
-        # For now, let's just get by with ExternalURL.
-        hive_table = "course_block_records"
-        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
-        return ExternalURL(url=partition_location)
-
-        # But this should actually work as well, without the partition property being needed.
-        # WRONG. It really needs the underlying data-generating task.  The partition task's output
-        # itself cannot be opened as a file for reading.
-        # return CourseBlockRecordPartitionTask(
-        #     date=self.date,
-        #     n_reduce_tasks=self.n_reduce_tasks,
-        #     warehouse_path=self.warehouse_path,
-        #     events_list_file_path=self.events_list_file_path,
-        # )
+        return AllCourseBlockRecordsTask(date=self.date)
 
     @property
     def table(self):
         return 'course_block_records'
-
-# Just use the default default:  "created"
-#    @property
-#    def default_columns(self):
-#        """List of tuples defining name and definition of automatically-filled columns."""
-#        return None
 
     @property
     def auto_primary_key(self):
