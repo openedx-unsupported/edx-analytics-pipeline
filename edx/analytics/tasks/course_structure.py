@@ -47,8 +47,8 @@ class AllCourseMixin(LoadInternalReportingCourseMixin):
                 yield result.get('id').strip()
                 count += 1
                 # For testing, put a circuit-breaker here.
-                if count > 10:
-                    return
+                # if count > 10:
+                # return
 
     def do_action_per_course(self, course_id, output_root):
         raise NotImplementedError
@@ -621,6 +621,7 @@ class CourseBlockRecordPartitionTask(LoadInternalReportingCourseMixin, HiveParti
     def data_task(self):
         return AllCourseBlockRecordsTask(
             date=self.date,
+            warehouse_path=self.warehouse_path,
             # TODO: plumb this through.  Right now, we're counting on the
             # various classes agreeing, which is very fragile.
             # output_root=self.partition_location,
@@ -645,7 +646,10 @@ class LoadCourseBlockRecordToVertica(LoadInternalReportingCourseMixin, VerticaCo
 
     @property
     def insert_source_task(self):
-        return AllCourseBlockRecordsTask(date=self.date)
+        return AllCourseBlockRecordsTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+        )
 
     @property
     def table(self):
