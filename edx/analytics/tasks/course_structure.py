@@ -2,6 +2,7 @@
 from collections import defaultdict
 import json
 import logging
+import time
 from urllib import quote
 
 import luigi
@@ -71,11 +72,35 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
     output_root = luigi.Parameter()
     course_id = luigi.Parameter()
 
+    BASE_RETRY_DELAY_IN_SECONDS = 5
+    MAX_TRIES_FOR_API_CALL = 5
+
     def requires(self):
         pass
 
     def get_api_request_headers(self):
         return {'authorization': ('Bearer ' + self.api_access_token), 'accept': 'application/json'}
+
+    def retry_api_call(self, api_url, attempt, max_tries):
+        """Allow API calls to be retried several times if they fail."""
+        response = requests.get(url=api_url, headers=self.get_api_request_headers(), stream=True)
+        if response.status_code == requests.codes.ok:  # pylint: disable=no-member
+            return response
+        elif response.status_code < 500 or attempt >= max_tries:
+            # TODO: probably should fail on some 500's as well, and not on 429 Too Many Requests (rate-limiting)
+            # or 408 Request Timeout.
+            if attempt > 1:
+                log.exception("Failure occurred on attempt %d of %d", attempt, max_tries)
+            msg = "Encountered status {} on request to API for {}".format(response.status_code, api_url)
+            raise Exception(msg)
+        else:  # status_code >= 500, so retry.
+            log.exception("Error occurred on attempt %d of %d", attempt, max_tries)
+            attempt += 1
+            exponential_delay = self.BASE_RETRY_DELAY_IN_SECONDS * (2 ** attempt)
+            log.warning("Waiting %d seconds before attempting retry %d", exponential_delay, attempt)
+            time.sleep(exponential_delay)
+            log.warning("Retrying API call: attempt %d", attempt)
+            return self.retry_api_call(api_url, attempt, max_tries)
 
     def get_course_block_info(self, course_id):
         # TODO: fix this hack.  It may not be needed now that all_blocks is specified, but it's not clear
@@ -83,16 +108,14 @@ class BlocksPerCourseTask(LoadInternalReportingCourseMixin, luigi.Task):
         username = 'brianstaff'
         input_course_id = quote(course_id)
         # TODO: move requested_fields into a parameter, and overridden in a config file.
-        # Try adding student_view_data here, to see what we get.  Hopefully we don't have to enumerate types on it.
         requested_fields = 'children,graded,format,student_view_multi_device,student_view_url,lms_web_url,lti_url,student_view_data'
         query_args = "?course_id={}&username={}&depth=all&all_blocks=true&requested_fields={}".format(
             input_course_id, username, requested_fields,
         )
         api_url = url_path_join(self.api_root_url, 'api', 'courses', 'v1', 'blocks', query_args)
-        response = requests.get(url=api_url, headers=self.get_api_request_headers(), stream=True)
-        if response.status_code != requests.codes.ok:  # pylint: disable=no-member
-            msg = "Encountered status {} on request to API for {}".format(response.status_code, api_url)
-            raise Exception(msg)
+        attempt = 1
+        max_tries = self.MAX_TRIES_FOR_API_CALL
+        response = self.retry_api_call(api_url, attempt, max_tries)
         block_info = json.loads(response.content)
         return block_info
 
