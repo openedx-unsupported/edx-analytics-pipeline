@@ -1,5 +1,7 @@
 """Tests for some hive related utilities"""
 
+from datetime import date
+
 from mock import sentinel
 
 from edx.analytics.tasks.tests import unittest
@@ -82,3 +84,29 @@ class HiveQueryToMysqlTaskTest(unittest.TestCase):
 
         requirements = TestOtherTables().requires()
         self.assertEquals(requirements['other_tables'], (sentinel.table_1, sentinel.table_2))
+
+
+class HiveWarehouseMixinTest(unittest.TestCase):
+    """Test the partition path generation"""
+
+    def setUp(self):
+        self.mixin = hive.WarehouseMixin()
+        self.mixin.warehouse_path = 's3://warehouse/'
+
+    def test_hive_partition_from_string(self):
+        self.assertEqual(
+            's3://warehouse/foo/dt=bar/',
+            self.mixin.hive_partition_path('foo', 'bar')
+        )
+
+    def test_hive_partition_custom_key(self):
+        self.assertEqual(
+            's3://warehouse/foo/baz=bar/',
+            self.mixin.hive_partition_path('foo', 'bar', partition_key='baz')
+        )
+
+    def test_hive_partition_date_key(self):
+        self.assertEqual(
+            's3://warehouse/foo/dt=2016-01-02/',
+            self.mixin.hive_partition_path('foo', date(2016, 1, 2))
+        )

@@ -65,6 +65,21 @@ class WarehouseMixin(object):
         description='A URL location of the data warehouse.',
     )
 
+    def hive_partition_path(self, table_name, partition_value, partition_key='dt'):
+        """
+        Given a table name and partition value return the full URL of the folder for that partition in the warehouse.
+
+        Arguments:
+            table_name (str): The name of the hive table.
+            partition_value (object): Usually a string specifying the partition in the table. If it is a `date` object
+                it will be serialized to a ISO8601 formatted date string. This is a common use case.
+            partition_key (str): The partition key. This is usually "dt".
+        """
+        if hasattr(partition_value, 'isoformat'):
+            partition_value = partition_value.isoformat()
+        partition = HivePartition(partition_key, partition_value)
+        return url_path_join(self.warehouse_path, table_name, partition.path_spec) + '/'
+
 
 class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     """

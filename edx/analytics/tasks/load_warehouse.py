@@ -7,6 +7,7 @@ import luigi
 from edx.analytics.tasks.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
 from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
 from edx.analytics.tasks.load_internal_reporting_course import LoadInternalReportingCourseToWarehouse
+from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingProgramCourseToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_course import BuildUserCourseView
 from edx.analytics.tasks.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
@@ -215,6 +216,10 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 **kwargs
             ),
             DailyLoadSubjectsToVerticaTask(
+                date=self.date,
+                **kwargs
+            ),
+            LoadInternalReportingProgramCourseToWarehouse(
                 date=self.date,
                 **kwargs
             )
