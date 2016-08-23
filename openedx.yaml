@@ -4,6 +4,6 @@
 nick: pipe
 oeps: {}
 openedx-release: {ref: release}
-owner: MUST FILL IN OWNER
+owner: edx/analytics
 tags: [analytics]
 track-pulls: true
