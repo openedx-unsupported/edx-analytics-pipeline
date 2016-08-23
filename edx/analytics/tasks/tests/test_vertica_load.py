@@ -120,6 +120,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
         }
 
         fake_output = MagicMock(return_value=self.mock_vertica_connector)
+        self.mock_vertica_connector.marker_schema = "name_of_marker_schema"
         self.mock_vertica_connector.marker_table = "name_of_marker_table"
 
         task.input = MagicMock(return_value=fake_input)
@@ -320,7 +321,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
             call('DROP PROJECTION IF EXISTS foobar.dummy_table_projection_2;'),
             call('DELETE FROM foobar.dummy_table'),
             call("SET TIMEZONE TO 'GMT';"),
-            call("DELETE FROM foobar.name_of_marker_table where target_table='foobar.dummy_table';"),
+            call("DELETE FROM name_of_marker_schema.name_of_marker_table where target_table='foobar.dummy_table';"),
             call("SELECT PURGE_TABLE('foobar.dummy_table')"),
             call('CREATE PROJECTION IF NOT EXISTS foobar.dummy_table_projection_2 DEFINITION_2 on foobar.dummy_table;'),
             call('SELECT start_refresh();'),

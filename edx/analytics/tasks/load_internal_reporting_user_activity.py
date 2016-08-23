@@ -4,8 +4,10 @@ Loads the user_activity table into the warehouse through the pipeline via Hive.
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
 import datetime
+import os
 import logging
 import luigi
+from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.user_activity import UserActivityTableTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, CredentialFileVerticaTarget
@@ -72,10 +74,21 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         description='Number of reduce tasks',
     )
 
+    def __init__(self, *args, **kwargs):
+        super(LoadInternalReportingUserActivityToWarehouse, self).__init__(*args, **kwargs)
+
+        path = url_path_join(self.warehouse_path, 'internal_reporting_user_activity')
+        path_targets = PathSetTask([path]).output()
+        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+        dates = [path.rsplit('/', 2)[-1] for path in paths]
+        latest_date = sorted(dates)[-1]
+
+        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.load_date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):

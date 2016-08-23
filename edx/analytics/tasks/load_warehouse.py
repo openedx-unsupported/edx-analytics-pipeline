@@ -8,7 +8,7 @@ from edx.analytics.tasks.load_internal_reporting_certificates import LoadInterna
 from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
 from edx.analytics.tasks.load_internal_reporting_course import LoadInternalReportingCourseToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
-from edx.analytics.tasks.load_internal_reporting_user_course import LoadInternalReportingUserCourseToWarehouse
+from edx.analytics.tasks.load_internal_reporting_user_course import BuildUserCourseView
 from edx.analytics.tasks.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
 from edx.analytics.tasks.course_catalog import DailyLoadSubjectsToVerticaTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin, CredentialFileVerticaTarget
@@ -97,8 +97,9 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
             marker_table = self.output().marker_table
             try:
                 query = """
-                DELETE FROM {marker_schema}.{marker_table} where target_table='{marker_schema}.{target_table}';
+                DELETE FROM {marker_schema}.{marker_table} where target_table='{schema}.{target_table}';
                 """.format(
+                    schema=self.schema,
                     marker_schema=self.marker_schema,
                     marker_table=marker_table,
                     target_table=self.marker_name
@@ -200,10 +201,8 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
-            LoadInternalReportingUserCourseToWarehouse(
-                date=self.date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                **kwargs
+            BuildUserCourseView(
+                 **kwargs
             ),
             LoadInternalReportingUserActivityToWarehouse(
                 date=self.date,
