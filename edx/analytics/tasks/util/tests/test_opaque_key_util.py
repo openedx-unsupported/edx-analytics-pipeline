@@ -128,3 +128,12 @@ class CourseIdTest(unittest.TestCase):
         url = u"https://courses.edx.org/courses/{course_id}/stuff".format(course_id=INVALID_NONASCII_LEGACY_COURSE_ID)
         course_key = opaque_key_util.get_course_key_from_url(url)
         self.assertIsNone(course_key)
+
+    def test_newline_terminated_course_id(self):
+        self.assertFalse(opaque_key_util.is_valid_course_id(VALID_COURSE_ID + '\n'))
+
+    def test_empty_course_id(self):
+        self.assertFalse(opaque_key_util.is_valid_course_id(''))
+
+    def test_just_newline_course_id(self):
+        self.assertFalse(opaque_key_util.is_valid_course_id('\n'))
