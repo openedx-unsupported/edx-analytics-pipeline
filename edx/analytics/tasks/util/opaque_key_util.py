@@ -22,7 +22,7 @@ def is_valid_course_id(course_id):
     """
     Determines if a course_id from an event log is possibly legitimate.
     """
-    if course_id[-1] == '\n':
+    if course_id and course_id[-1] == '\n':
         log.error("Found course_id that ends with a newline character '%s'", course_id)
         return False
 
