@@ -529,7 +529,6 @@ class EnrollmentByModeTask(EnrollmentTask):
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
-            WHERE ce.date = '{date}'
             GROUP BY
                 ce.date,
                 ce.course_id,
@@ -564,7 +563,6 @@ class EnrollmentDailyTask(EnrollmentTask):
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
-            WHERE ce.date = '{date}'
             GROUP BY
                 ce.course_id,
                 ce.date
