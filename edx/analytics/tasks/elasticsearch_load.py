@@ -29,6 +29,7 @@ log = logging.getLogger(__name__)
 HTTP_CONNECT_TIMEOUT_STATUS_CODE = 408
 REJECTED_REQUEST_STATUS = 429
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
+HTTP_SERVICE_UNAVAILABLE_STATUS_CODE = 503
 
 
 class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
@@ -184,7 +185,11 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
         return elasticsearch.Elasticsearch(
             hosts=self.host,
             timeout=self.timeout,
-            retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
+            retry_on_status=(
+                HTTP_CONNECT_TIMEOUT_STATUS_CODE,
+                HTTP_GATEWAY_TIMEOUT_STATUS_CODE,
+                HTTP_SERVICE_UNAVAILABLE_STATUS_CODE
+            ),
             retry_on_timeout=True,
             **kwargs
         )
