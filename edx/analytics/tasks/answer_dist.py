@@ -133,7 +133,7 @@ class ProblemCheckEventMixin(object):
         event = json.loads(event_string)
 
         # Get context information:
-        course_id = event.get('context').get('course_id')
+        course_id = eventlog.get_course_id(event)
         timestamp = event.get('timestamp')
         problem_id = event.get('problem_id')
         problem_display_name = event.get('context').get('module', {}).get('display_name', None)
@@ -979,7 +979,7 @@ def get_problem_check_event(line):
     # contain the org and course name, but not the run.)  Course_id
     # information could be found from other events, but it would
     # require expanding the events being selected.
-    course_id = problem_data.get('context').get('course_id')
+    course_id = eventlog.get_course_id(event)
     if course_id is None:
         log.error("encountered explicit problem_check event with missing course_id: %s", event)
         return None

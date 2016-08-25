@@ -331,7 +331,7 @@ def get_explicit_enrollment_output(line):
         return None
 
     # Get the course_id from the data, and validate.
-    course_id = event_data['course_id']
+    course_id = opaque_key_util.normalize_course_id(event_data['course_id'])
     if not opaque_key_util.is_valid_course_id(course_id):
         log.error("encountered explicit enrollment event with bogus course_id: %s", event)
         return None

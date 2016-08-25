@@ -18,6 +18,14 @@ COURSE_ID_PATTERN = COURSE_KEY_PATTERN.replace('course_key_string', 'course_id')
 COURSE_REGEX = re.compile(r'^.*?/courses/{}'.format(COURSE_ID_PATTERN))
 
 
+def normalize_course_id(course_id):
+    """Make a best effort to rescue malformed course_ids"""
+    if course_id:
+        return course_id.strip()
+    else:
+        return course_id
+
+
 def is_valid_course_id(course_id):
     """
     Determines if a course_id from an event log is possibly legitimate.

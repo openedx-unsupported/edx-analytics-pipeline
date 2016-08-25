@@ -119,7 +119,7 @@ class CourseEnrollmentValidationTask(
         if event_data is None:
             return
 
-        course_id = event_data.get('course_id')
+        course_id = opaque_key_util.normalize_course_id(event_data.get('course_id'))
         if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered explicit enrollment event with invalid course_id: %s", event)
             return

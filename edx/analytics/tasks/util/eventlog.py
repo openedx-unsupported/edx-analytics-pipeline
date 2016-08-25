@@ -266,7 +266,7 @@ def get_course_id(event, from_url=False):
         return None
 
     # Get the course_id from the data, and validate.
-    course_id = event_context.get('course_id', '')
+    course_id = opaque_key_util.normalize_course_id(event_context.get('course_id', ''))
     if course_id:
         if opaque_key_util.is_valid_course_id(course_id):
             return course_id

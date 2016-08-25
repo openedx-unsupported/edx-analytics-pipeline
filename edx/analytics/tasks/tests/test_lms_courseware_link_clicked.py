@@ -62,7 +62,7 @@ class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysM
         line = self.create_event_log_line(event="")
         self.assert_no_map_output_for(line)
 
-        line = self.create_event_log_line(context="")
+        line = self.create_event_log_line(context={})
         self.assert_no_map_output_for(line)
 
         line = self.create_event_log_line(context={"course_id": ""})

@@ -53,13 +53,8 @@ class LMSCoursewareLinkClickedTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered explicit link_clicked event with no event data: %s", event)
             return
 
-        context = event.get('context')
-        if not context:
-            log.error("encountered explicit link_clicked event with no context: %s", event)
-            return
-
-        course_id = context.get('course_id')
-        if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
+        course_id = eventlog.get_course_id(event)
+        if course_id is None:
             log.error("encountered explicit link_clicked event with invalid course_id: %s", event)
             return
 

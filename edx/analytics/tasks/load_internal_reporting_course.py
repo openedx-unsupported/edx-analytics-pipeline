@@ -12,7 +12,7 @@ import ciso8601
 
 from opaque_keys.edx.keys import CourseKey
 
-from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id
+from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, normalize_course_id
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -99,7 +99,7 @@ class ProcessCourseStructureAPIData(LoadInternalReportingCourseMixin, luigi.Task
                         else:
                             cleaned_end_string = ciso8601.parse_datetime(end_string)
 
-                        course_id = course.get('id', '\N')
+                        course_id = normalize_course_id(course.get('id', '\N'))
                         if is_valid_course_id(course_id):
                             course_key = CourseKey.from_string(course_id)
                             course_run = course_key.run
