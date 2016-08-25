@@ -59,7 +59,7 @@ class AwsHttpConnection(Connection):
 
         # Raise errors based on http status codes and let the client handle them.
         if not (200 <= status < 300) and status not in ignore:
-            self.log_request_fail(method, url, body, duration, response.status)
+            self.log_request_fail(method, url, body, duration, status)
             self._raise_error(status, raw_data)
 
         self.log_request_success(method, url, url, body, status, raw_data, duration)
