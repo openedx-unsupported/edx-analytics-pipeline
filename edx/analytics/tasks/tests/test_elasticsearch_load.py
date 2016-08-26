@@ -5,6 +5,7 @@ import luigi.hdfs
 from elasticsearch import TransportError
 from mock import patch, call
 from freezegun import freeze_time
+import ddt
 
 from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, AwsHttpConnection, IndexingError
 
@@ -188,6 +189,7 @@ class RawIndexTask(ElasticsearchIndexTask):
             yield {'_source': {'all_text': line}}
 
 
+@ddt.ddt
 class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
     """Test the reducer for the elasticsearch indexing task."""
 
@@ -252,7 +254,11 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
         with self.assertRaises(RuntimeError):
             self._get_reducer_output(['a'])
 
-    def test_rejected_bulk_requests(self):
+    @ddt.data(
+        TransportError(503, 'Service Unavailable', ''),
+        TransportError(429, 'Rejected bulk request', 'Queue is full')
+    )
+    def test_rejected_bulk_requests(self, rejected_batch_error):
         self.create_task(max_attempts=10)
         self._rejection_counter = 0
         self.addCleanup(delattr, self, '_rejection_counter')
@@ -261,7 +267,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
             """Reject the first 3 batches that are indexed, and then accept the rest."""
             if self._rejection_counter < 3:
                 self._rejection_counter += 1
-                raise TransportError(429, 'Rejected bulk request', 'Queue is full')
+                raise rejected_batch_error
             else:
                 return self.get_bulk_api_response(1)
 

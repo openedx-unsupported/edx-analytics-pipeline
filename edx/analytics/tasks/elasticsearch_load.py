@@ -28,11 +28,22 @@ log = logging.getLogger(__name__)
 # These are standard HTTP status codes used by elasticsearch to represent various error conditions
 HTTP_CONNECT_TIMEOUT_STATUS_CODE = 408
 REJECTED_REQUEST_STATUS = 429
+HTTP_SERVICE_UNAVAILABLE_STATUS_CODE = 503
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
 
 
-class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
-    """A task that either loads data into elasticsearch or depends on a task that does."""
+class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
+    """
+    Index a stream of documents in an elasticsearch index.
+
+    This task is intended to do the following:
+    * Create a new index that is unique to this task run (all significant parameters).
+    * Load all of the documents into this unique index.
+    * If the alias is already pointing at one or more indexes, switch it so that it only points at this newly loaded
+      index.
+    * Delete any indexes that were previously pointed at by the alias, leaving only the newly loaded index.
+
+    """
 
     host = luigi.Parameter(
         is_list=True,
@@ -93,20 +104,6 @@ class ElasticsearchIndexTaskMixin(OverwriteOutputMixin):
                     ' indexing process will retry up to this many times before giving up. It uses an exponential back-'
                     'off strategy, so a high value here can result in very significant wait times before retrying.'
     )
-
-
-class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
-    """
-    Index a stream of documents in an elasticsearch index.
-
-    This task is intended to do the following:
-    * Create a new index that is unique to this task run (all significant parameters).
-    * Load all of the documents into this unique index.
-    * If the alias is already pointing at one or more indexes, switch it so that it only points at this newly loaded
-      index.
-    * Delete any indexes that were previously pointed at by the alias, leaving only the newly loaded index.
-
-    """
 
     # These attributes should be overridden, but don't need to be.
     settings = {}
@@ -274,7 +271,7 @@ class ElasticsearchIndexTask(ElasticsearchIndexTaskMixin, MapReduceJobTask):
             try:
                 resp = elasticsearch_client.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
             except TransportError as transport_error:
-                if transport_error.status_code != REJECTED_REQUEST_STATUS:
+                if transport_error.status_code not in (REJECTED_REQUEST_STATUS, HTTP_SERVICE_UNAVAILABLE_STATUS_CODE):
                     raise transport_error
             else:
                 num_errors = 0

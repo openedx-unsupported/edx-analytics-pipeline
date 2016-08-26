@@ -1342,6 +1342,12 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
 
     # Don't use the OverwriteOutputMixin since it changes the behavior of complete() (which we don't want).
     overwrite = luigi.BooleanParameter(default=False, significant=False)
+    throttle = luigi.FloatParameter(
+        config_path={'section': 'module-engagement', 'name': 'throttle'},
+        description=ElasticsearchIndexTask.throttle.description,
+        default=0.75,
+        significant=False
+    )
 
     def requires(self):
         overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
@@ -1353,6 +1359,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite_from_date=overwrite_from_date,
             overwrite=self.overwrite,
+            throttle=self.throttle
         )
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
