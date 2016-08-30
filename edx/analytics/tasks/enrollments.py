@@ -323,10 +323,6 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
-    def init_local(self):
-        super(CourseEnrollmentTableTask, self).init_local()
-        self.remove_output_on_overwrite()
-
     def requires(self):
         return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
@@ -372,7 +368,6 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
                 interval=self.interval,
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
-                overwrite=True,
             ),
             ImportAuthUserProfileTask()
         )
