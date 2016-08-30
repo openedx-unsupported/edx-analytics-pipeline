@@ -5,13 +5,15 @@ import datetime
 
 import luigi
 import luigi.task
+from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
 
 
@@ -21,18 +23,25 @@ ACTIVATED = 'edx.course.enrollment.activated'
 MODE_CHANGED = 'edx.course.enrollment.mode_changed'
 
 
-class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
-    """Produce a data set that shows which days each user was enrolled in each course."""
+class CourseEnrollmentEventsTask(
+        OverwriteOutputMixin,
+        WarehouseMixin,
+        EventLogSelectionMixin,
+        MultiOutputMapReduceJobTask):
+    """
+    Task to extract enrollment events from eventlogs over a given interval.
+    This would produce a different output file for each day within the interval
+    containing that day's enrollment events only.
+    """
 
-    output_root = luigi.Parameter()
-
-    enable_direct_output = True
+    # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
+    FILEPATH_PATTERN = '.*?course_enrollment_events_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, _date_string = value
+        event, date_string = value
 
         event_type = event.get('event_type')
         if event_type is None:
@@ -66,7 +75,149 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
             log.error("encountered explicit enrollment event with no mode: %s", event)
             return
 
-        yield (course_id, user_id), (timestamp, event_type, mode)
+        yield date_string, (course_id, user_id, timestamp, event_type, mode)
+
+    def multi_output_reducer(self, _date_string, values, output_file):
+        for value in values:
+            output_file.write('\t'.join([str(field) for field in value]))
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('course_enrollment_events', date_string),
+            'course_enrollment_events_{date}'.format(
+                date=date_string,
+            ),
+        )
+
+    def downstream_input_tasks(self):
+        """
+        MultiOutputMapReduceJobTask returns marker as output.
+        This method returns the external tasks which can then be used as input in other jobs.
+        Note that this method does not verify the existence of the underlying urls. It assumes that
+        there is an output file for every date within the interval. Any MapReduce job
+        which uses this as input would fail if there is missing data for any date within the interval.
+        """
+
+        tasks = []
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            tasks.append(UncheckedExternalURL(url))
+
+        return tasks
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(CourseEnrollmentEventsTask, self).run()
+
+        # This makes sure that a output file exists for each date in the interval
+        # as downstream tasks require that they exist.
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
+
+
+class CourseEnrollmentDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
+    """All parameters needed to run the CourseEnrollmentTask task."""
+
+    # Make the interval be optional:
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to extract enrollments events for. '
+        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
+    )
+
+    # Define optional parameters, to be used if 'interval' is not defined.
+    interval_start = luigi.DateParameter(
+        config_path={'section': 'enrollments', 'name': 'interval_start'},
+        significant=False,
+        description='The start date to extract enrollments events for.  Ignored if `interval` is provided.',
+    )
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='The end date to extract enrollments events for.  Ignored if `interval` is provided. '
+        'Default is today, UTC.',
+    )
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'enrollments', 'name': 'overwrite_n_days'},
+        significant=False,
+        description='This parameter is used by CourseEnrollmentTask which will overwrite course enrollment '
+                    ' events for the most recent n days.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentDownstreamMixin, self).__init__(*args, **kwargs)
+
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
+
+class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
+    """Produce a data set that shows which days each user was enrolled in each course."""
+
+    output_root = luigi.Parameter()
+
+    enable_direct_output = True
+
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentTask, self).__init__(*args, **kwargs)
+
+        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+        self.course_enrollment_events_root = url_path_join(self.warehouse_path, 'course_enrollment_events')
+
+    def requires_local(self):
+        overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.overwrite_from_date,
+            self.interval.date_b
+        ))
+
+        return CourseEnrollmentEventsTask(
+            interval=overwrite_interval,
+            source=self.source,
+            pattern=self.pattern,
+            n_reduce_tasks=self.n_reduce_tasks,
+            output_root=self.course_enrollment_events_root,
+            warehouse_path=self.warehouse_path,
+            overwrite=True,
+        )
+
+    def requires_hadoop(self):
+        # We want to pass in the historical data as well as the output of CourseEnrollmentEventsTask to the hadoop job.
+        # CourseEnrollmentEventsTask returns the marker as output, so we need custom logic to pass the output
+        # of CourseEnrollmentEventsTask as actual hadoop input to this job.
+
+        path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.interval.date_a,
+            self.overwrite_from_date,
+        ))
+
+        path_selection_task = PathSelectionByDateIntervalTask(
+            source=[self.course_enrollment_events_root],
+            interval=path_selection_interval,
+            pattern=[CourseEnrollmentEventsTask.FILEPATH_PATTERN],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        return {
+            'path_selection_task': path_selection_task,
+            'downstream_input_tasks': self.requires_local().downstream_input_tasks(),
+        }
+
+    def mapper(self, line):
+        (
+            course_id,
+            user_id,
+            timestamp,
+            event_type,
+            mode
+        ) = line.split('\t')
+        yield ((course_id, user_id), (timestamp, event_type, mode))
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
@@ -271,37 +422,7 @@ class DaysEnrolledForEvents(object):
             )
 
 
-class CourseEnrollmentTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
-    """All parameters needed to run the CourseEnrollmentTableTask task."""
-
-    # Make the interval be optional:
-    interval = luigi.DateIntervalParameter(
-        default=None,
-        description='The range of dates to export logs for. '
-        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
-    )
-
-    # Define optional parameters, to be used if 'interval' is not defined.
-    interval_start = luigi.DateParameter(
-        config_path={'section': 'enrollments', 'name': 'interval_start'},
-        significant=False,
-        description='The start date to export logs for.  Ignored if `interval` is provided.',
-    )
-    interval_end = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        significant=False,
-        description='The end date to export logs for.  Ignored if `interval` is provided. '
-        'Default is today, UTC.',
-    )
-
-    def __init__(self, *args, **kwargs):
-        super(CourseEnrollmentTableDownstreamMixin, self).__init__(*args, **kwargs)
-
-        if not self.interval:
-            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
-
-
-class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableTask):
+class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     @property
@@ -326,11 +447,13 @@ class CourseEnrollmentTableTask(CourseEnrollmentTableDownstreamMixin, HiveTableT
     def requires(self):
         return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
+            warehouse_path=self.warehouse_path,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
             output_root=self.partition_location,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
 
@@ -342,7 +465,7 @@ class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
         )
 
 
-class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask):
+class EnrollmentTask(CourseEnrollmentDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for breakdowns of enrollments"""
 
     @property
@@ -368,6 +491,7 @@ class EnrollmentTask(CourseEnrollmentTableDownstreamMixin, HiveQueryToMysqlTask)
                 interval=self.interval,
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
             ),
             ImportAuthUserProfileTask()
         )
@@ -584,7 +708,7 @@ class EnrollmentDailyTask(EnrollmentTask):
 
 
 @workflow_entry_point
-class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.WrapperTask):
+class ImportEnrollmentsIntoMysql(CourseEnrollmentDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
@@ -594,6 +718,7 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentTableDownstreamMixin, luigi.Wra
             'interval': self.interval,
             'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
+            'overwrite_n_days': self.overwrite_n_days,
         }
         yield (
             EnrollmentByGenderTask(**kwargs),
