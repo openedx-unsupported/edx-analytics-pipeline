@@ -570,7 +570,7 @@ class PaypalTaskMixin(OverwriteOutputMixin):
         description='The date to generate a report for. Default is today, UTC.',
     )
     account_id = luigi.Parameter(
-        config_path={'section': 'paypal', 'name': 'account_id'}
+        config_path={'section': 'paypal', 'name': 'account_id'},
         description='A human readable name for the paypal account data is being gathered for.',
     )
 
