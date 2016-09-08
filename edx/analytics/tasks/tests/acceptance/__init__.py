@@ -227,8 +227,7 @@ class AcceptanceTestCase(unittest.TestCase):
         self.vertica = vertica.VerticaService(self.config, schema)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
-        if os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true':
-            self.reset_external_state()
+        self.reset_external_state()
 
         max_diff = os.getenv('MAX_DIFF', None)
         if max_diff is not None:
@@ -237,7 +236,14 @@ class AcceptanceTestCase(unittest.TestCase):
             else:
                 self.maxDiff = int(max_diff)
 
+    @property
+    def should_reset_state(self):
+        return os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true'
+
     def reset_external_state(self):
+        if not self.should_reset_state:
+            return
+
         root_target = get_target_from_url(get_jenkins_safe_url(self.test_root))
         if root_target.exists():
             root_target.remove()

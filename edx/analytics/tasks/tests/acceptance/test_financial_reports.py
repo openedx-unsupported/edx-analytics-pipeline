@@ -10,6 +10,7 @@ import luigi
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
+from edx.analytics.tasks.s3_util import S3HdfsTarget
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available, get_jenkins_safe_url
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
@@ -26,6 +27,9 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
 
     def setUp(self):
         super(FinancialReportsAcceptanceTest, self).setUp()
+
+        if not self.should_reset_state:
+            return
 
         for input_file_name in ('paypal.tsv', 'cybersource_test.tsv'):
             src = url_path_join(self.data_dir, 'input', input_file_name)
@@ -100,7 +104,8 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
         output_targets = PathSetTask([output_root], ['*']).output()
         raw_output = ""
         for output_target in output_targets:
-            output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
+            if isinstance(output_target, S3HdfsTarget):
+                output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
             raw_output += output_target.open('r').read()
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
