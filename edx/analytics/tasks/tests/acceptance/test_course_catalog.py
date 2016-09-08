@@ -7,7 +7,7 @@ import logging
 
 import pandas
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available, when_vertica_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.url import url_path_join
 
 
@@ -37,7 +37,6 @@ class BaseCourseCatalogAcceptanceTest(AcceptanceTestCase):
 class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
     """End-to-end test of pulling the course subject data into Vertica."""
 
-    @when_s3_available
     @when_vertica_available
     def test_course_subjects(self):
         """Tests the workflow for the course subjects, end to end."""

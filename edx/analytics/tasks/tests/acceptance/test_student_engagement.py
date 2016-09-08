@@ -8,13 +8,11 @@ import logging
 import os.path
 import re
 
-from luigi.s3 import S3Target
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
-from edx.analytics.tasks.url import url_path_join
-
 from pandas import read_csv
 from pandas.util.testing import assert_frame_equal
+
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -47,7 +45,6 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         },
     }
 
-    @when_s3_available
     def test_student_engagement(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2015, 4, 10))
         self.execute_sql_fixture_file('load_student_engagement.sql')
@@ -61,36 +58,37 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
             for course_id in self.ALL_COURSES:
                 hashed_course_id = hashlib.sha1(course_id).hexdigest()
                 course_dir = url_path_join(self.test_out, interval_type, hashed_course_id)
-                csv_filenames = list(self.s3_client.list(course_dir))
+                csv_targets = self.get_targets_from_remote_path(course_dir)
 
                 # Check expected number of CSV files.
                 if interval_type == 'daily':
-                    self.assertEqual(len(csv_filenames), 14)
+                    self.assertEqual(len(csv_targets), 14)
                 elif interval_type == 'weekly':
-                    self.assertEqual(len(csv_filenames), 2)
+                    self.assertEqual(len(csv_targets), 2)
                 elif interval_type == 'all':
-                    self.assertEqual(len(csv_filenames), 1)
+                    self.assertEqual(len(csv_targets), 1)
 
                 # Check that the CSV files contain the expected data.
-                for csv_filename in csv_filenames:
+                for csv_target in csv_targets:
 
                     # Parse expected date from filename.
                     if interval_type == 'all':
                         expected_date = '2015-04-19'
                     else:
                         csv_pattern = '.*student_engagement_.*_(\\d\\d\\d\\d-\\d\\d-\\d\\d)\\.csv'
-                        match = re.match(csv_pattern, csv_filename)
+                        match = re.match(csv_pattern, csv_target.path)
                         expected_date = match.group(1)
 
                     # Build dataframe from csv file generated from events.
                     actual_dataframe = []
-                    with S3Target(url_path_join(course_dir, csv_filename)).open() as csvfile:
+                    with csv_target.open('r') as csvfile:
                         actual_dataframe = read_csv(csvfile)
                         actual_dataframe.fillna('', inplace=True)
 
                     self.check_engagement_dataframe(actual_dataframe, interval_type, course_id, expected_date)
 
                     # Validate specific values:
+                    csv_filename = os.path.basename(csv_target.path)
                     expected_dataframe = self.get_expected_engagement(interval_type, hashed_course_id, csv_filename)
                     if expected_dataframe is not None:
                         assert_frame_equal(actual_dataframe, expected_dataframe, check_names=True)

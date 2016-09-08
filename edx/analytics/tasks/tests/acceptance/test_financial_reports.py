@@ -10,11 +10,9 @@ import luigi
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available, get_jenkins_safe_url
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
+from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
-from edx.analytics.tasks.pathutil import PathSetTask
 
 log = logging.getLogger(__name__)
 
@@ -26,6 +24,9 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
 
     def setUp(self):
         super(FinancialReportsAcceptanceTest, self).setUp()
+
+        if not self.should_reset_state:
+            return
 
         for input_file_name in ('paypal.tsv', 'cybersource_test.tsv'):
             src = url_path_join(self.data_dir, 'input', input_file_name)
@@ -97,11 +98,11 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             import_date=luigi.DateParameter().parse(self.UPPER_BOUND_DATE)
         )
         columns = [x[0] for x in final_output_task.columns]
-        raw_output = self.read_dfs_directory(output_root)
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
         expected = pandas.read_csv(expected_output_csv, parse_dates=True)
 
+        raw_output = self.read_dfs_directory(output_root)
         output = StringIO(raw_output.replace('\t\\N', '\t'))
         data = pandas.read_table(output, header=None, names=columns, parse_dates=True)
         # Re-order dataframe for consistent comparison:

@@ -8,13 +8,10 @@ import tempfile
 import textwrap
 import shutil
 
-from luigi.s3 import S3Target
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
 from edx.analytics.tasks.url import url_path_join
 
-from edx.analytics.tasks.s3_util import get_file_from_key
 
 log = logging.getLogger(__name__)
 
@@ -48,24 +45,22 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
     def upload_data(self):
         with fs.gzipped_file(os.path.join(self.data_dir, 'input', self.INPUT_FILE)) as compressed_file_name:
             for dst in self.input_paths:
-                self.s3_client.put(compressed_file_name, dst)
+                self.upload_file(compressed_file_name, dst)
 
     def write_config(self):
-        with S3Target(self.test_config).open('w') as target_file:
-            target_file.write(
-                textwrap.dedent(
-                    """
-                    ---
-                    organizations:
-                      edX:
-                        recipients:
-                          - daemon@edx.org
-                      AcceptanceX:
-                        recipients:
-                          - daemon+2@edx.org
-                    """
-                )
-            )
+        content = textwrap.dedent(
+            """
+            ---
+            organizations:
+              edX:
+                recipients:
+                  - daemon@edx.org
+              AcceptanceX:
+                recipients:
+                  - daemon+2@edx.org
+            """
+        )
+        self.upload_file_with_content(self.test_config, content)
 
     def upload_public_keys(self):
         gpg_key_dir = os.path.join('gpg-keys')
@@ -74,9 +69,8 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
             remote_url = url_path_join(self.test_gpg_key_dir, key_filename)
 
             if not key_filename.endswith('.key'):
-                self.s3_client.put(full_local_path, remote_url)
+                self.upload_file(full_local_path, remote_url)
 
-    @when_s3_available
     def test_event_log_exports_using_manifest(self):
         config_override = {
             'manifest': {
@@ -123,8 +117,8 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         self.temporary_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.temporary_dir)
 
-        self.downloaded_outputs = os.path.join(self.temporary_dir, 'output')
-        os.makedirs(self.downloaded_outputs)
+        self.downloaded_output_dir = os.path.join(self.temporary_dir, 'output')
+        os.makedirs(self.downloaded_output_dir)
 
         local_file_name = '{org}-{site}-events-{date}.log'.format(
             org=org_id,
@@ -135,11 +129,7 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         year = str(date).split("-")[0]
 
         remote_url = url_path_join(self.test_out, org_id, site, "events", year, local_file_name + '.gz.gpg')
-
-        downloaded_output_path = get_file_from_key(self.s3_client, remote_url, self.downloaded_outputs)
-
-        if downloaded_output_path is None:
-            self.fail('Unable to find expected output file {0}'.format(remote_url))
+        downloaded_output_path = self.download_file_to_local_directory(remote_url, self.downloaded_output_dir)
 
         # first decrypt file
         decrypted_file_name = downloaded_output_path[:-len('.gpg')]
