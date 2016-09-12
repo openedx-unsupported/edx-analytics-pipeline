@@ -176,6 +176,18 @@ class MysqlSelectTaskTestCase(unittest.TestCase):
 
         self.assertEquals(output[0][0], unicode_string)
 
+    def test_escaping(self):
+        json_string = '{"This is": "a JSON document", "Why?": "test the csv writer\'s escaping"}'
+        self.mock_cursor.fetchone.side_effect = [
+            (json_string,),
+            None
+        ]
+
+        output = self.run_task(query=sentinel.query)
+
+        self.mock_cursor.execute.assert_called_once_with(sentinel.query, tuple())
+        self.assertEquals(output[0][0], json_string)
+
     def test_default_attributes(self):
         destination = 'file:///tmp/foo'
 
