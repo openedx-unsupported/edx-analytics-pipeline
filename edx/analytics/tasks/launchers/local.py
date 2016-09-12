@@ -56,8 +56,13 @@ def main():
     # - cjson is used for all parsing event logs.
     # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
+    #   - opaque_keys extensions:  ccx_keys
     #   - dependencies of opaque_keys:  bson, stevedore
     luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, requests)
+
+    if configuration.getboolean('ccx', 'enabled', default=False):
+        import ccx_keys
+        luigi.hadoop.attach(ccx_keys)
 
     # TODO: setup logging for tasks or configured logging mechanism
 
