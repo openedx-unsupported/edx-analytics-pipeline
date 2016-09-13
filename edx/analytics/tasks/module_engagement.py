@@ -996,17 +996,6 @@ class ModuleEngagementRosterRecord(Record):
                     ' (problem_attempts_per_completed ASC, attempt_ratio_order DESC). To see struggling learners sort'
                     ' by (problem_attempts_per_completed DESC, attempt_ratio_order ASC).'
     )
-    # More user profile fields, appended after initial schema creation
-    user_id = IntegerField(description='Learner\'s user ID.')
-    language = StringField(description='Learner\'s preferred language.')
-    location = StringField(description='Learner\'s reported location.')
-    year_of_birth = IntegerField(description='Learner\'s reported year of birth.')
-    level_of_education = StringField(description='Learner\'s reported level of education.')
-    gender = StringField(description='Learner\'s reported gender.')
-    mailing_address = StringField(description='Learner\'s reported mailing address.')
-    city = StringField(description='Learner\'s reported city.')
-    country = StringField(description='Learner\'s reported country.')
-    goals = StringField(description='Learner\'s reported goals.')
 
 
 class ModuleEngagementRosterTableTask(BareHiveTableTask):
@@ -1089,17 +1078,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 eng.problem_attempts_per_completed IS NULL,
                 -COALESCE(eng.problem_attempts, 0),
                 COALESCE(eng.problem_attempts, 0)
-            ),
-            aup.user_id,
-            aup.language,
-            aup.location,
-            aup.year_of_birth,
-            aup.level_of_education,
-            aup.gender,
-            aup.mailing_address,
-            aup.city,
-            aup.country,
-            aup.goals
+            )
         FROM course_enrollment ce
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)

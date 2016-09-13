@@ -77,12 +77,6 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 'segments': [''],
                 'start_date': '2015-04-10',
                 'username': 'staff',
-                'user_id': 4,
-                'location': '',
-                'language': '',
-                'year_of_birth': 2000,
-                'country': '',
-                'level_of_education': '',
                 'videos_viewed': 1
             },
             {
@@ -102,16 +96,6 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 'segments': [''],
                 'start_date': u'2015-04-10',
                 'username': u'honor',
-                'user_id': 1,
-                'location': 'Europe',
-                'language': 'es-ES',
-                'year_of_birth': 1984,
-                'gender': 'm',
-                'goals': 'Me encanta aprender.',
-                'level_of_education': 'a',
-                'mailing_address': 'Luna, 10 - 3, 28300 ARANJUEZ',
-                'city': 'Madrid',
-                'country': 'ES',
                 'videos_viewed': 2
             },
             {
@@ -130,16 +114,6 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 'segments': [u'highly_engaged'],
                 'start_date': u'2015-04-10',
                 'username': u'honor',
-                'user_id': 1,
-                'location': 'Europe',
-                'language': 'es-ES',
-                'year_of_birth': 1984,
-                'gender': 'm',
-                'goals': 'Me encanta aprender.',
-                'level_of_education': 'a',
-                'mailing_address': 'Luna, 10 - 3, 28300 ARANJUEZ',
-                'city': 'Madrid',
-                'country': 'ES',
                 'videos_viewed': 1
             },
             {
@@ -158,16 +132,6 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 'segments': [''],
                 'start_date': u'2015-04-10',
                 'username': u'honor',
-                'user_id': 1,
-                'location': 'Europe',
-                'language': 'es-ES',
-                'year_of_birth': 1984,
-                'gender': 'm',
-                'goals': 'Me encanta aprender.',
-                'level_of_education': 'a',
-                'mailing_address': 'Luna, 10 - 3, 28300 ARANJUEZ',
-                'city': 'Madrid',
-                'country': 'ES',
                 'videos_viewed': 1
             },
         ]

@@ -916,17 +916,7 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
                     'attempt_ratio_order': -1,
                     'problem_attempts_per_completed': 4.0,
                     'course_id': 'foo/bar/baz',
-                    'start_date': datetime.date(2014, 3, 25),
-                    'user_id': 10,
-                    'language': 'en',
-                    'location': 'Asia Pacific',
-                    'year_of_birth': 1970,
-                    'level_of_education': 'none',
-                    'gender': 'o',
-                    'mailing_address': '123 Sesame St',
-                    'city': 'Springfield',
-                    'country': 'USA',
-                    'goals': 'Aim high',
+                    'start_date': datetime.date(2014, 3, 25)
                 }
             }
         )
@@ -951,16 +941,6 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
             'course_id': self.COURSE_ID,
             'start_date': datetime.date(2014, 3, 25),
             'cohort': None,
-            'user_id': 10,
-            'language': 'en',
-            'location': 'Asia Pacific',
-            'year_of_birth': 1970,
-            'level_of_education': 'none',
-            'gender': 'o',
-            'mailing_address': '123 Sesame St',
-            'city': 'Springfield',
-            'country': 'USA',
-            'goals': 'Aim high',
         }
         field_values.update(kwargs)
         return ModuleEngagementRosterRecord(**field_values)
