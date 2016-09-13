@@ -1,40 +1,40 @@
 -r base.txt
-argparse==1.2.1 	# Python Software Foundation License
-cffi==1.1.0             # MIT
-ciso8601==1.0.1         # MIT
-cryptography==0.9       # BSD or Apache 2.0
-edx-opaque-keys==0.2.1  # AGPL
-edx-ccx-keys==0.1.2     # AGPL
-elasticsearch==1.7.0    # Apache
-enum34==1.0.4           # BSD
-filechunkio==1.5	# MIT
+# argparse==1.4.0    	# Python Software Foundation License
+cffi==1.8.2             # MIT
+ciso8601==1.0.2         # MIT
+cryptography==1.5       # BSD or Apache 2.0
+edx-opaque-keys==0.3.4  # AGPL
+edx-ccx-keys==0.2.1     # AGPL
+elasticsearch==1.7.0    # Apache   NOW AT 2.4.0.  What to upgrade to?
+enum34==1.1.6           # BSD
+filechunkio==1.8	# MIT
 html5lib==1.0b3 	# MIT
-idna==2.0               # BSD-like
+idna==2.1               # BSD-like
 isoweek==1.3.0		# BSD
 mechanize==0.2.5	# BSD
 http://cdn.mysql.com/Downloads/Connector-Python/mysql-connector-python-1.2.2.zip  	# GPL v2 with FOSS License Exception
-ndg-httpsclient==0.4.0  # BSD
-numpy==1.8.0 		# BSD
-pandas==0.13.0 		# BSD
-paypalrestsdk==1.9.0    # Paypal SDK License
-pbr==0.5.23 		# Apache
-pyOpenSSL==0.15.1       # Apache 2.0
-pyasn1==0.1.7           # BSD
-pycparser==2.13         # BSD
-pygeoip==0.3.1 		# LGPL
-pymongo==2.7.2		# Apache 2.0
-python-cjson==1.0.5	# LGPL
-python-dateutil==2.2 	# BSD
-python-gnupg==0.3.6	# BSD
-pytz==2014.4		# ZPL
-requests==2.7.0         # Apache 2.0
-setuptools==23.1.0
-six==1.6.1		# MIT
-stevedore==0.14.1 	# Apache 2.0
-tornado==3.1.1 		# Apache 2.0
-urllib3==1.10.4         # MIT
-vertica-python==0.5.1   # MIT
+ndg-httpsclient==0.4.2  # BSD
+numpy==1.11.1 		# BSD
+pandas==0.18.1 		# BSD
+paypalrestsdk==1.11.7   # Paypal SDK License
+pbr==1.10.0 		# Apache
+pyOpenSSL==16.1.0       # Apache 2.0
+pyasn1==0.1.9           # BSD
+pycparser==2.14         # BSD
+pygeoip==0.3.2 		# LGPL
+pymongo==3.3.0		# Apache 2.0
+python-cjson==1.1.0	# LGPL
+python-dateutil==2.5.3 	# BSD
+python-gnupg==0.3.9	# BSD
+pytz==2016.6.1		# ZPL
+requests==2.11.1        # Apache 2.0
+setuptools==27.1.2
+six==1.10.0		# MIT
+stevedore==1.17.1 	# Apache 2.0
+tornado==4.4.1 		# Apache 2.0
+urllib3==1.17           # MIT
+vertica-python==0.6.6   # MIT
 wsgiref==0.1.2 		# ZPL
-pip==1.5.6
+pip==8.1.2
 git+https://github.com/edx/luigi.git@ce1d96977ae1a75a178352a81245810b92faf1c7#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
