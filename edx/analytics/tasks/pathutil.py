@@ -62,7 +62,7 @@ class PathSetTask(luigi.Task):
             if src.startswith('s3'):
                 # connect lazily as needed:
                 if self.s3_conn is None:
-                    self.s3_conn = boto.connect_s3()
+                    self.s3_conn = boto.connect_s3(host='s3.amazonaws.com')
                 for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include, self.include_zero_length):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
@@ -192,7 +192,7 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_s3_urls(self, source):
         """Recursively list all files inside the source URL directory."""
-        s3_conn = boto.connect_s3()
+        s3_conn = boto.connect_s3(host='s3.amazonaws.com')
         bucket_name, root = get_s3_bucket_key_names(source)
         bucket = s3_conn.get_bucket(bucket_name)
         for key_metadata in bucket.list(root):

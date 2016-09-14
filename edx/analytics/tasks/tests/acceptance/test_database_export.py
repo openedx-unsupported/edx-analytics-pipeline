@@ -194,7 +194,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         """
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        bucket = boto.connect_s3().get_bucket(self.config.get('exporter_output_bucket'))
+        bucket = boto.connect_s3(host='s3.amazonaws.com').get_bucket(self.config.get('exporter_output_bucket'))
         export_id = '{org}-{date}'.format(org=org_id, date=today)
         filename = export_id + '.zip'
         key = bucket.lookup(self.output_prefix + filename)
