@@ -3,6 +3,7 @@
 from collections import OrderedDict
 import datetime
 import itertools
+import re
 
 
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
@@ -358,6 +359,9 @@ class Record(object):
             properties[field_name] = {
                 'type': field_obj.elasticsearch_type
             }
+            elasticsearch_format = getattr(field_obj, 'elasticsearch_format', None)
+            if elasticsearch_format:
+                properties[field_name]['format'] = elasticsearch_format
             if not getattr(field_obj, 'analyzed', False):
                 properties[field_name]['index'] = 'not_analyzed'
         return properties
@@ -579,3 +583,59 @@ class FloatField(Field):  # pylint: disable=abstract-method
 
     def deserialize_from_string(self, string_value):
         return float(string_value)
+
+
+class DateTimeField(Field):  # pylint: disable=abstract-method
+    """Represents a field that contains a date and time."""
+
+    hive_type = 'TIMESTAMP'
+    sql_base_type = 'DATETIME'
+    elasticsearch_type = 'date'
+    elasticsearch_format = 'yyyy-MM-dd HH:mm:ss.SSSSSS'
+    string_format = '%Y-%m-%d %H:%M:%S.%f'  # hive timestamp format
+
+    class TzUtc(datetime.tzinfo):
+        """
+        Tzinfo subclass which represents UTC.
+
+        Borrowed from dateutil.tz, to avoid having to include dateutil in our map/reduce requirements.
+        """
+        ZERO = datetime.timedelta(0)
+
+        def utcoffset(self, dt):  # pylint: disable=unused-argument
+            return self.ZERO
+
+        def dst(self, dt):  # pylint: disable=unused-argument
+            return self.ZERO
+
+        def tzname(self, dt):  # pylint: disable=unused-argument
+            return "UTC"
+
+    utc_tz = TzUtc()
+
+    def validate(self, value):
+        validation_errors = super(DateTimeField, self).validate(value)
+        if value is None:
+            pass
+        elif not isinstance(value, datetime.datetime):
+            validation_errors.append('The value is not a datetime')
+        elif value.utcoffset() is None:
+            validation_errors.append('The value is a naive datetime.')
+        elif value.utcoffset().total_seconds() != 0:
+            validation_errors.append('The value must use UTC timezone.')
+
+        return validation_errors
+
+    def serialize_to_string(self, value):
+        """Returns a string representation of the datetime value."""
+        return value.strftime(self.string_format)
+
+    def deserialize_from_string(self, string_value):
+        """Returns a datetime instance parsed from the numbers in the given string_value."""
+        if string_value is None:
+            return None
+
+        # Note: we need to be flexible here, because the datetime format differs between input sources
+        # (e.g.  tracking logs, REST API)
+        # However, we assume the datetime does not include TZ info, and that it's UTC.
+        return datetime.datetime(*[int(x) for x in re.split(r'\D+', string_value) if x], tzinfo=self.utc_tz)
