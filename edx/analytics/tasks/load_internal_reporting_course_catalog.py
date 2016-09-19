@@ -6,7 +6,6 @@ import json
 import datetime
 import logging
 
-import ciso8601
 import luigi
 
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
@@ -96,8 +95,10 @@ class ProgramCourseRecord(Record):
     partner_short_code = StringField(nullable=True, length=8)
 
 
-class ExtractProgramCourseTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
-    """Process the information from the course structure API and write it to a tsv."""
+class BaseCourseMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Process the information from the API and write it to a tsv."""
+
+    table_name = 'override_me'
 
     def requires(self):
         return PullCourseCatalogAPIData(
@@ -114,17 +115,32 @@ class ExtractProgramCourseTask(LoadInternalReportingCourseCatalogMixin, luigi.Ta
             with self.output().open('w') as output_file:
                 for course_run_str in input_file:
                     course_run = json.loads(course_run_str)
-                    self.extract_program_mapping(course_run, output_file)
+                    self.process_course_run(course_run, output_file)
 
-    @staticmethod
-    def extract_program_mapping(course_run, output_file):
+    def process_course_run(self, course_run, output_file):
         """
-        Given a course_run, write program mappings to the output file.
+        Given a course_run, write output to the output file.
 
         Arguments:
             course_run (dict): A plain-old-python-object that represents the course run.
             output_file (file-like): A file handle that program mappings can be written to. Must implement write(str).
         """
+        raise NotImplementedError
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path(self.table_name, partition_value=self.date), '{0}.tsv'.format(self.table_name)
+            )
+        )
+
+
+class ExtractProgramCourseTask(BaseCourseMetadataTask):
+    """Process the information from the course structure API and write it to a tsv."""
+
+    table_name = 'program_course'
+
+    def process_course_run(self, course_run, output_file):
         for program in course_run.get('programs', []):
             record = ProgramCourseRecord(
                 program_id=program['uuid'],
@@ -138,13 +154,6 @@ class ExtractProgramCourseTask(LoadInternalReportingCourseCatalogMixin, luigi.Ta
             )
             output_file.write(record.to_separated_values(sep=u'\t'))
             output_file.write('\n')
-
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.hive_partition_path('program_course', partition_value=self.date), 'program_course.tsv'
-            )
-        )
 
 
 class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
@@ -179,47 +188,23 @@ class CourseSeatRecord(Record):
     course_seat_credit_hours = IntegerField(nullable=True)
 
 
-class ExtractCourseSeatTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+class ExtractCourseSeatTask(BaseCourseMetadataTask):
 
-    def requires(self):
-        return PullCourseCatalogAPIData(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
+    table_name = 'course_seat'
 
-    def run(self):
-        self.remove_output_on_overwrite()
-        with self.input().open('r') as input_file:
-            with self.output().open('w') as output_file:
-                for course_run_str in input_file:
-                    course_run = json.loads(course_run_str)
-                    for seat in course_run.get('seats', []):
-                        deadline_str = seat.get('upgrade_deadline')
-                        if deadline_str:
-                            upgrade_deadline = ciso8601.parse_datetime(deadline_str)
-                        else:
-                            upgrade_deadline = None
-                        record = CourseSeatRecord(
-                            course_id=course_run['key'],
-                            course_seat_type=seat['type'],
-                            course_seat_price=float(seat.get('price', 0)),
-                            course_seat_currency=seat.get('currency'),
-                            course_seat_upgrade_deadline=upgrade_deadline,
-                            course_seat_credit_provider=seat.get('credit_provider'),
-                            course_seat_credit_hours=seat.get('credit_hours')
-                        )
-                        output_file.write(record.to_separated_values(sep=u'\t'))
-                        output_file.write('\n')
-
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.hive_partition_path('course_seat', partition_value=self.date), 'course_seat.tsv'
+    def process_course_run(self, course_run, output_file):
+        for seat in course_run.get('seats', []):
+            record = CourseSeatRecord(
+                course_id=course_run['key'],
+                course_seat_type=seat['type'],
+                course_seat_price=float(seat.get('price', 0)),
+                course_seat_currency=seat.get('currency'),
+                course_seat_upgrade_deadline=DateTimeField().deserialize_from_string(seat.get('upgrade_deadline')),
+                course_seat_credit_provider=seat.get('credit_provider'),
+                course_seat_credit_hours=seat.get('credit_hours')
             )
-        )
+            output_file.write(record.to_separated_values(sep=u'\t'))
+            output_file.write('\n')
 
 
 class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
@@ -259,53 +244,28 @@ class CourseRecord(Record):
     partner_short_code = StringField(nullable=True, length=255)
 
 
-class ExtractCourseTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+class ExtractCourseTask(BaseCourseMetadataTask):
 
-    def requires(self):
-        return PullCourseCatalogAPIData(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
+    table_name = 'course_catalog'
+
+    def process_course_run(self, course_run, output_file):
+        record = CourseRecord(
+            course_id=course_run['key'],
+            catalog_course=course_run['course'],
+            catalog_course_title=course_run.get('title'),
+            start_time=DateTimeField().deserialize_from_string(course_run.get('start')),
+            end_time=DateTimeField().deserialize_from_string(course_run.get('end')),
+            enrollment_start_time=DateTimeField().deserialize_from_string(course_run.get('enrollment_start')),
+            enrollment_end_time=DateTimeField().deserialize_from_string(course_run.get('enrollment_end')),
+            content_language=course_run.get('content_language'),
+            pacing_type=course_run.get('pacing_type'),
+            level_type=course_run.get('level_type'),
+            availability=course_run.get('availability'),
+            org_id=get_org_id_for_course(course_run['key']),
+            partner_short_code=course_run.get('partner_short_code')
         )
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        with self.input().open('r') as input_file:
-            with self.output().open('w') as output_file:
-                for course_run_str in input_file:
-                    course_run = json.loads(course_run_str)
-                    record = CourseRecord(
-                        course_id=course_run['key'],
-                        catalog_course=course_run['course'],
-                        catalog_course_title=course_run.get('title'),
-                        start_time=self.parse_timestamp(course_run.get('start')),
-                        end_time=self.parse_timestamp(course_run.get('end')),
-                        enrollment_start_time=self.parse_timestamp(course_run.get('enrollment_start')),
-                        enrollment_end_time=self.parse_timestamp(course_run.get('enrollment_end')),
-                        content_language=course_run.get('content_language'),
-                        pacing_type=course_run.get('pacing_type'),
-                        level_type=course_run.get('level_type'),
-                        availability=course_run.get('availability'),
-                        org_id=get_org_id_for_course(course_run['key']),
-                        partner_short_code=course_run.get('partner_short_code')
-                    )
-                    output_file.write(record.to_separated_values(sep=u'\t'))
-                    output_file.write('\n')
-
-    def parse_timestamp(self, timestamp):
-        if timestamp is None:
-            return None
-        else:
-            return ciso8601.parse_datetime(timestamp)
-
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.hive_partition_path('course_catalog', partition_value=self.date), 'course_catalog.tsv'
-            )
-        )
+        output_file.write(record.to_separated_values(sep=u'\t'))
+        output_file.write('\n')
 
 
 class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
