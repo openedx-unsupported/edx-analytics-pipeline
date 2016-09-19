@@ -6,6 +6,7 @@ import json
 import datetime
 import logging
 
+import ciso8601
 import luigi
 
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
@@ -13,9 +14,10 @@ from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
-from edx.analytics.tasks.util.record import Record, StringField
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
+
 
 # pylint: disable=anomalous-unicode-escape-in-string
 
@@ -165,3 +167,189 @@ class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseC
     @property
     def columns(self):
         return ProgramCourseRecord.get_sql_schema()
+
+
+class CourseSeatRecord(Record):
+    course_id = StringField(nullable=False, length=255)
+    course_seat_type = StringField(nullable=False, length=255)
+    course_seat_price = FloatField(nullable=False)
+    course_seat_currency = StringField(nullable=False, length=255)
+    course_seat_upgrade_deadline = DateTimeField(nullable=True)
+    course_seat_credit_provider = StringField(nullable=True, length=255)
+    course_seat_credit_hours = IntegerField(nullable=True)
+
+
+class ExtractCourseSeatTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+
+    def requires(self):
+        return PullCourseCatalogAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for course_run_str in input_file:
+                    course_run = json.loads(course_run_str)
+                    for seat in course_run.get('seats', []):
+                        deadline_str = seat.get('upgrade_deadline')
+                        if deadline_str:
+                            upgrade_deadline = ciso8601.parse_datetime(deadline_str)
+                        else:
+                            upgrade_deadline = None
+                        record = CourseSeatRecord(
+                            course_id=course_run['key'],
+                            course_seat_type=seat['type'],
+                            course_seat_price=float(seat.get('price', 0)),
+                            course_seat_currency=seat.get('currency'),
+                            course_seat_upgrade_deadline=upgrade_deadline,
+                            course_seat_credit_provider=seat.get('credit_provider'),
+                            course_seat_credit_hours=seat.get('credit_hours')
+                        )
+                        output_file.write(record.to_separated_values(sep=u'\t'))
+                        output_file.write('\n')
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('course_seat', partition_value=self.date), 'course_seat.tsv'
+            )
+        )
+
+
+class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
+
+    @property
+    def insert_source_task(self):
+        return ExtractCourseSeatTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def table(self):
+        return 'd_course_seat'
+
+    @property
+    def columns(self):
+        return CourseSeatRecord.get_sql_schema()
+
+
+class CourseRecord(Record):
+    course_id = StringField(nullable=False, length=255)
+    catalog_course = StringField(nullable=False, length=255)
+    catalog_course_title = StringField(nullable=True, length=255)
+    start_time = DateTimeField(nullable=True)
+    end_time = DateTimeField(nullable=True)
+    enrollment_start_time = DateTimeField(nullable=True)
+    enrollment_end_time = DateTimeField(nullable=True)
+    content_language = StringField(nullable=True, length=255)
+    pacing_type = StringField(nullable=True, length=255)
+    level_type = StringField(nullable=True, length=255)
+    availability = StringField(nullable=True, length=255)
+    org_id = StringField(nullable=False, length=255)
+    partner_short_code = StringField(nullable=True, length=255)
+
+
+class ExtractCourseTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+
+    def requires(self):
+        return PullCourseCatalogAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for course_run_str in input_file:
+                    course_run = json.loads(course_run_str)
+                    record = CourseRecord(
+                        course_id=course_run['key'],
+                        catalog_course=course_run['course'],
+                        catalog_course_title=course_run.get('title'),
+                        start_time=self.parse_timestamp(course_run.get('start')),
+                        end_time=self.parse_timestamp(course_run.get('end')),
+                        enrollment_start_time=self.parse_timestamp(course_run.get('enrollment_start')),
+                        enrollment_end_time=self.parse_timestamp(course_run.get('enrollment_end')),
+                        content_language=course_run.get('content_language'),
+                        pacing_type=course_run.get('pacing_type'),
+                        level_type=course_run.get('level_type'),
+                        availability=course_run.get('availability'),
+                        org_id=get_org_id_for_course(course_run['key']),
+                        partner_short_code=course_run.get('partner_short_code')
+                    )
+                    output_file.write(record.to_separated_values(sep=u'\t'))
+                    output_file.write('\n')
+
+    def parse_timestamp(self, timestamp):
+        if timestamp is None:
+            return None
+        else:
+            return ciso8601.parse_datetime(timestamp)
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('course_catalog', partition_value=self.date), 'course_catalog.tsv'
+            )
+        )
+
+
+class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
+
+    @property
+    def insert_source_task(self):
+        return ExtractCourseTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def default_columns(self):
+        return []
+
+    @property
+    def table(self):
+        return 'd_course_run'
+
+    @property
+    def columns(self):
+        return CourseRecord.get_sql_schema()
+
+
+class LoadInternalReportingCourseCatalogToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+
+    def requires(self):
+        kwargs = {
+            'date': self.date,
+            'warehouse_path': self.warehouse_path,
+            'api_root_url': self.api_root_url,
+            'api_page_size': self.api_page_size,
+            'overwrite': self.overwrite,
+            'schema': self.schema,
+            'credentials': self.credentials,
+            'read_timeout': self.read_timeout,
+            'marker_schema': self.marker_schema,
+        }
+        yield LoadInternalReportingCourseToWarehouse(**kwargs)
+        yield LoadInternalReportingCourseSeatToWarehouse(**kwargs)
+        yield LoadInternalReportingProgramCourseToWarehouse(**kwargs)
+
+    def output(self):
+        return [t.output() for t in self.requires()]
