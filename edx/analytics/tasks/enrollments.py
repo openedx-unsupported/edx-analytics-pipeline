@@ -30,42 +30,45 @@ class CourseEnrollmentTask(EventLogSelectionMixin, MapReduceJobTask):
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
+        log.error("LINE:%s", line)
         if value is None:
             return
         event, _date_string = value
-
+        log.error("here1")
         event_type = event.get('event_type')
         if event_type is None:
             log.error("encountered event with no event_type: %s", event)
             return
-
+        log.error("here2")
         if event_type not in (DEACTIVATED, ACTIVATED, MODE_CHANGED):
             return
-
+        log.error("here3")
         timestamp = eventlog.get_event_time_string(event)
         if timestamp is None:
             log.error("encountered event with bad timestamp: %s", event)
             return
-
+        log.error("here4")
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             return
-
+        log.error("here5")
         course_id = opaque_key_util.normalize_course_id(event_data.get('course_id'))
+        
         if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered explicit enrollment event with invalid course_id: %s", event)
             return
-
+        log.error("here6")
         user_id = event_data.get('user_id')
         if user_id is None:
             log.error("encountered explicit enrollment event with no user_id: %s", event)
             return
 
+        log.error("here7")
         mode = event_data.get('mode')
         if mode is None:
             log.error("encountered explicit enrollment event with no mode: %s", event)
             return
-
+        log.error("here8 before yield")
         yield (course_id, user_id), (timestamp, event_type, mode)
 
     def reducer(self, key, values):
