@@ -224,7 +224,7 @@ class Record(object):
         new_attribute_values.update(kwargs)
         return self.__class__(**new_attribute_values)
 
-    def to_string_tuple(self, null_value=DEFAULT_NULL_VALUE):
+    def to_string_tuple(self, string_encoder=None):
         """
         Convert the record into a tuple of UTF-8 encoded byte strings.
 
@@ -234,15 +234,16 @@ class Record(object):
             null_value (str): The string to use to represent None if a nullable field has a None value.
 
         """
+        if string_encoder is None:
+            string_encoder = HiveTsvEncoder()
+
         field_values = []
         for field_name, field_obj in self.get_fields().items():
             val = getattr(self, field_name)
             if val is not None:
-                string_val = field_obj.serialize_to_string(val)
-            else:
-                string_val = null_value
+                val = field_obj.serialize_to_string(val)
 
-            field_values.append(string_val.encode('utf8'))
+            field_values.append(string_encoder.encode(val, field_obj))
 
         return tuple(field_values)
 
@@ -259,7 +260,7 @@ class Record(object):
 
         return field_values
 
-    def to_separated_values(self, sep=u'\t', null_value=DEFAULT_NULL_VALUE):
+    def to_separated_values(self, sep=u'\t', string_encoder=None):
         """
         Convert this record to a string with fields delimited by `sep`.
 
@@ -270,10 +271,10 @@ class Record(object):
         Returns: a UTF8 string representation of the record.
         """
         utf8sep = sep.encode('utf-8')
-        return utf8sep.join(self.to_string_tuple(null_value=null_value))
+        return utf8sep.join(self.to_string_tuple(string_encoder=string_encoder))
 
     @classmethod
-    def from_string_tuple(cls, string_tuple, null_value=DEFAULT_NULL_VALUE):
+    def from_string_tuple(cls, string_tuple, string_decoder=None):
         """
         Construct a record from an iterable of strings.
 
@@ -285,16 +286,18 @@ class Record(object):
             null_value (string): When an input string has this value it is set to None in the constructed Record.
 
         """
+        if string_decoder is None:
+            string_decoder = HiveTsvEncoder()
+
         fields = cls.get_fields()
         if len(string_tuple) != len(fields):
             raise ValueError('The length of the tuple of strings must exactly match the number of fields in the Record')
         typed_field_values = []
         for str_value, field_name in zip(string_tuple, fields):
             field_obj = fields[field_name]
-            if str_value != null_value:
-                value = field_obj.deserialize_from_string(str_value.decode('utf8'))
-            else:
-                value = None
+            value = string_decoder.decode(str_value, field_obj)
+            if value is not None:
+                value = field_obj.deserialize_from_string(value)
 
             typed_field_values.append(value)
 
@@ -387,6 +390,28 @@ class Record(object):
         return '\n'.join(field_doc)
 
 
+class HiveTsvEncoder(object):
+
+    def __init__(self, normalize_whitespace=False, **kwargs):
+        self.null_value = kwargs.get('null_value', DEFAULT_NULL_VALUE)
+        self.normalize_whitespace = normalize_whitespace
+
+    def encode(self, decoded_string, field_obj):
+        if decoded_string is None:
+            return self.null_value
+        else:
+            if self.normalize_whitespace or getattr(field_obj, 'normalize_whitespace', False):
+                decoded_string = re.sub(r'\s+', ' ', decoded_string)
+
+        return decoded_string.encode('utf8')
+
+    def decode(self, encoded_string, _field_obj):
+        if encoded_string == self.null_value:
+            return None
+        else:
+            return encoded_string.decode('utf8')
+
+
 class Field(object):
     """
     Represents a field within a record.
@@ -436,7 +461,7 @@ class Field(object):
         return validation_errors
 
     def serialize_to_string(self, value):
-        """Returns a string representation of a value for this field."""
+        """Returns a unicode string representation of a value for this field."""
         return unicode(value)
 
     def deserialize_from_string(self, string_value):
@@ -487,6 +512,14 @@ class StringField(Field):  # pylint: disable=abstract-method
             elif self.length and len(value) > self.length:
                 validation_errors.append('The string length exceeds the maximum allowed')
         return validation_errors
+
+    def serialize_to_string(self, value):
+        """Returns a unicode string representation of a value for this field."""
+        try:
+            return unicode(value, encoding=getattr(self, 'encoding', 'utf8'))
+        except TypeError:
+            # It's already a unicode string
+            return value
 
     @property
     def sql_base_type(self):
