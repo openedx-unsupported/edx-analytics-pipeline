@@ -6,7 +6,7 @@ Main method for running tasks on a local machine.
   to submit the task to run on an EMR cluster.
 
 """
-
+import optparse
 from contextlib import contextmanager
 import logging
 import os
@@ -27,7 +27,10 @@ import luigi.hadoop
 
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
+import sys
 import urllib3.contrib.pyopenssl
+from luigi.interface import PassThroughOptionParser
+
 urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 
@@ -67,9 +70,21 @@ def main():
     # TODO: setup logging for tasks or configured logging mechanism
 
     # Launch Luigi using the default builder
+    base_option_parser = PassThroughOptionParser(add_help_option=False)
+    base_option_parser.add_option('--config-override', action='append', default=[])
+    options, args = base_option_parser.parse_args(sys.argv)
+
+    for override in options.config_override:
+        path, value = override.split('=', 1)
+        section, option = path.split('.', 1)
+        log.debug('Overriding config %s.%s with value "%s"', section, option, value)
+        configuration.set(section, option, value)
 
     with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
-        luigi.run()
+        if luigi.run(existing_optparse=base_option_parser):
+            sys.exit(0)
+        else:
+            sys.exit(1)
 
 
 @contextmanager
