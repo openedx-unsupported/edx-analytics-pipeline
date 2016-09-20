@@ -87,9 +87,9 @@ class ProgramCourseRecord(Record):
     """Represents a course run within a program."""
     program_id = StringField(nullable=False, length=36)
     program_type = StringField(nullable=False, length=32)
-    program_title = StringField(nullable=True, length=255)
+    program_title = StringField(nullable=True, length=255, normalize_whitespace=True)
     catalog_course = StringField(nullable=False, length=255)
-    catalog_course_title = StringField(nullable=True, length=255)
+    catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True)
     course_id = StringField(nullable=False, length=255)
     org_id = StringField(nullable=False, length=255)
     partner_short_code = StringField(nullable=True, length=8)
@@ -231,7 +231,7 @@ class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCata
 class CourseRecord(Record):
     course_id = StringField(nullable=False, length=255)
     catalog_course = StringField(nullable=False, length=255)
-    catalog_course_title = StringField(nullable=True, length=255)
+    catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True)
     start_time = DateTimeField(nullable=True)
     end_time = DateTimeField(nullable=True)
     enrollment_start_time = DateTimeField(nullable=True)
