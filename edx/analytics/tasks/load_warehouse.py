@@ -6,7 +6,7 @@ import luigi
 
 from edx.analytics.tasks.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
 from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
-from edx.analytics.tasks.load_internal_reporting_course import LoadInternalReportingCourseToWarehouse
+from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingCourseCatalogToWarehouse
 from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingProgramCourseToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_course import BuildUserCourseView, LoadUserCourseSummary
@@ -197,9 +197,8 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
-            LoadInternalReportingCourseToWarehouse(
+            LoadInternalReportingCourseCatalogToWarehouse(
                 date=self.date,
-                n_reduce_tasks=self.n_reduce_tasks,
                 **kwargs
             ),
             BuildUserCourseView(
@@ -223,10 +222,6 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 date=self.date,
                 **kwargs
             ),
-            LoadInternalReportingProgramCourseToWarehouse(
-                date=self.date,
-                **kwargs
-            )
         )
 
 

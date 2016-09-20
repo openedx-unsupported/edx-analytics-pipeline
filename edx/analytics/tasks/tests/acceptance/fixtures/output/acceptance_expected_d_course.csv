@@ -1,4 +1,4 @@
-course_id,course_org_id,course_number,course_run,course_start,course_end,course_name
-edX/Open_DemoX/edx_demo_course,edX,DemoX,2T2015,2015-08-21 00:00:00,2016-08-30 00:00:00,EdX Demo Course
-course-v1:edX+Open_DemoX+edx_demo_course2,edX,OpenDemoX,,2015-08-21 00:00:00,2016-08-30 00:00:00,EdX Demo Course 2
-course-v1:edX+Open_DemoX+edx_demo_course3,None,None,None,None,None,None
+course_id,catalog_course,catalog_course_title,start_time,end_time,enrollment_start_time,enrollment_end_time,content_language,pacing_type,level_type,availability,org_id,partner_short_code,marketing_url,min_effort,max_effort
+course-v1:AcceptanceX+Testing101x+2T2016,AcceptanceX+Testing101x,All about acceptance testing!,2016-06-01 00:00:00,2016-09-01 00:00:00,2016-03-01 00:00:00,2016-06-01 00:00:00,en-us,self_paced,Introductory,Archived,AcceptanceX,openedx,https://www.edx.org/course/all-about-acceptance-testing-edx-testing101-2t2016,3,5
+course-v1:AcceptanceX+Testing101x+3T2016,AcceptanceX+Testing101x,All about acceptance testing!,2016-09-01 00:00:00,2016-12-01 00:00:00,2016-06-01 00:00:00,2016-09-01 00:00:00,en-us,instructor_paced,Intermediate,Current,AcceptanceX,openedx,https://www.edx.org/course/all-about-acceptance-testing-edx-testing101-3t2016,2,4
+course-v1:AcceptanceX+Testing102x+1T2017,AcceptanceX+Testing102x,All about acceptance testing Part 3!,2016-12-01 00:00:00,2017-02-01 00:00:00,2016-09-01 00:00:00,2016-12-01 00:00:00,en-us,instructor_paced,Advanced,Upcoming,AcceptanceX,openedx,https://www.edx.org/course/all-about-acceptance-testing-edx-testing-part-3-102-1t2017,2,5
