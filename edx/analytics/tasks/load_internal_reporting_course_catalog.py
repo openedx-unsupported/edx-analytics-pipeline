@@ -242,6 +242,7 @@ class CourseRecord(Record):
     availability = StringField(nullable=True, length=255)
     org_id = StringField(nullable=False, length=255)
     partner_short_code = StringField(nullable=True, length=255)
+    marketing_url = StringField(nullable=True, length=1024)
 
 
 class ExtractCourseTask(BaseCourseMetadataTask):
@@ -262,7 +263,8 @@ class ExtractCourseTask(BaseCourseMetadataTask):
             level_type=course_run.get('level_type'),
             availability=course_run.get('availability'),
             org_id=get_org_id_for_course(course_run['key']),
-            partner_short_code=course_run.get('partner_short_code')
+            partner_short_code=course_run.get('partner_short_code'),
+            marketing_url=course_run.get('marketing_url')
         )
         output_file.write(record.to_separated_values(sep=u'\t'))
         output_file.write('\n')
