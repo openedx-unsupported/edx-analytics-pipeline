@@ -4,9 +4,9 @@ Loads the user_course table into the warehouse through the pipeline via Hive.
 import luigi
 import logging
 
+from edx.analytics.tasks.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.vertica_load import (
-    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE,
-    VerticaCopyTaskMixin, CredentialFileVerticaTarget
+    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
 )
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
@@ -208,3 +208,30 @@ class BuildUserCourseView(WarehouseMixin, VerticaCopyTask):
             raise
         finally:
             connection.close()
+
+
+class LoadUserCourseSummary(WarehouseMixin, VerticaCopyTask):
+    """
+    Load the course enrollment summary table into vertica.
+    """
+    date = luigi.DateParameter()
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(url=self.hive_partition_path('course_enrollment_summary', self.date))
+
+    @property
+    def table(self):
+        return 'd_user_course'
+
+    @property
+    def default_columns(self):
+        return None
+
+    @property
+    def auto_primary_key(self):
+        return None
+
+    @property
+    def columns(self):
+        return EnrollmentSummaryRecord.get_sql_schema()

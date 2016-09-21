@@ -97,11 +97,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             import_date=luigi.DateParameter().parse(self.UPPER_BOUND_DATE)
         )
         columns = [x[0] for x in final_output_task.columns]
-        output_targets = PathSetTask([output_root], ['*']).output()
-        raw_output = ""
-        for output_target in output_targets:
-            output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
-            raw_output += output_target.open('r').read()
+        raw_output = self.read_dfs_directory(output_root)
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
         expected = pandas.read_csv(expected_output_csv, parse_dates=True)
@@ -112,21 +108,5 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
         for frame in (data, expected):
             frame.sort(['payment_ref_id', 'transaction_type'], inplace=True, ascending=[True, False])
             frame.reset_index(drop=True, inplace=True)
-        try:
-            assert_frame_equal(data, expected)
-        except AssertionError:
-            pandas.set_option('display.max_columns', None)
-            print('----- The report generated this data: -----')
-            print(data)
-            print('----- vs expected: -----')
-            print(expected)
-            if data.shape != expected.shape:
-                print("Data shapes differ.")
-            else:
-                for index, series in data.iterrows():
-                    # Try to print a more helpful/localized difference message:
-                    try:
-                        assert_series_equal(data.iloc[index, :], expected.iloc[index, :])
-                    except AssertionError:
-                        print("First differing row: {index}".format(index=index))
-            raise
+
+        self.assert_data_frames_equal(data, expected)

@@ -9,18 +9,21 @@ from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, \
+    EventLogSelectionMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
-
+from edx.analytics.tasks.util.record import Record, StringField, IntegerField, BooleanField, DateTimeField
 
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'
 ACTIVATED = 'edx.course.enrollment.activated'
 MODE_CHANGED = 'edx.course.enrollment.mode_changed'
+ENROLLED = 1
+UNENROLLED = 0
 
 
 class CourseEnrollmentEventsTask(
@@ -171,6 +174,9 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
         self.course_enrollment_events_root = url_path_join(self.warehouse_path, 'course_enrollment_events')
 
     def requires_local(self):
+        if self.overwrite_n_days == 0:
+            return []
+
         overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
             self.overwrite_from_date,
             self.interval.date_b
@@ -204,10 +210,14 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
             date_pattern='%Y-%m-%d',
         )
 
-        return {
+        requirements = {
             'path_selection_task': path_selection_task,
-            'downstream_input_tasks': self.requires_local().downstream_input_tasks(),
         }
+
+        if self.overwrite_n_days > 0:
+            requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
+
+        return requirements
 
     def mapper(self, line):
         (
@@ -308,8 +318,6 @@ class DaysEnrolledForEvents(object):
 
     """
 
-    ENROLLED = 1
-    UNENROLLED = 0
     MODE_UNKNOWN = 'unknown'
 
     def __init__(self, course_id, user_id, interval, events):
@@ -341,7 +349,7 @@ class DaysEnrolledForEvents(object):
 
         # Before we start processing events, we can assume that their current state is the same as it has been for all
         # time before the first event.
-        self.state = self.previous_state = self.UNENROLLED
+        self.state = self.previous_state = UNENROLLED
         self.mode = self.MODE_UNKNOWN
 
     def days_enrolled(self):
@@ -409,10 +417,10 @@ class DaysEnrolledForEvents(object):
         """
         self.mode = self.event.mode
 
-        if self.state == self.ENROLLED and self.event.event_type == DEACTIVATED:
-            self.state = self.UNENROLLED
-        elif self.state == self.UNENROLLED and self.event.event_type == ACTIVATED:
-            self.state = self.ENROLLED
+        if self.state == ENROLLED and self.event.event_type == DEACTIVATED:
+            self.state = UNENROLLED
+        elif self.state == UNENROLLED and self.event.event_type == ACTIVATED:
+            self.state = ENROLLED
         elif self.event.event_type == MODE_CHANGED:
             pass
         else:
@@ -465,6 +473,147 @@ class ExternalCourseEnrollmentTableTask(CourseEnrollmentTableTask):
         )
 
 
+class EnrollmentSummaryRecord(Record):
+    """Summarizes a user's enrollment history for a particular course."""
+
+    course_id = StringField(length=255, nullable=False, description='Course the learner enrolled in.')
+    user_id = IntegerField(nullable=False, description='The user\'s numeric identifier.')
+    current_enrollment_mode = StringField(
+        length=100,
+        nullable=False,
+        description='The last mode seen on an activation or mode change event.'
+    )
+    current_enrollment_is_active = BooleanField(
+        nullable=False,
+        description='True if the user is currently enrolled as of the end of the interval.'
+    )
+    first_enrollment_mode = StringField(length=100, nullable=True, description='The mode the user first enrolled with.')
+    first_enrollment_time = DateTimeField(nullable=True, description='The time of the user\'s first enrollment.')
+    last_unenrollment_time = DateTimeField(nullable=True, description='The time of the user\'s last unenrollment.')
+    first_verified_enrollment_time = DateTimeField(
+        nullable=True,
+        description='The time the user first switched to the verified track.'
+    )
+    first_credit_enrollment_time = DateTimeField(
+        nullable=True,
+        description='The time the user first switched to the credit track.'
+    )
+    end_time = DateTimeField(nullable=False, description='The end of the interval that was analyzed.')
+
+
+class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
+    """Produce a data set that captures critical details about a user's enrollment history in each course."""
+
+    def reducer(self, key, values):
+        """Emit one record per user course enrollment, summarizing their enrollment activity."""
+        course_id, user_id = key
+
+        sorted_events = sorted(values)
+        sorted_events = [
+            EnrollmentEvent(timestamp, event_type, mode) for timestamp, event_type, mode in sorted_events
+        ]
+        first_enroll_event = None
+        last_unenroll_event = None
+        first_event_by_mode = {}
+        most_recent_mode = None
+        state = UNENROLLED
+
+        for event in sorted_events:
+            is_enrolled_mode_change = (state == ENROLLED and event.event_type == MODE_CHANGED)
+            is_enrolled_deactivate = (state == ENROLLED and event.event_type == DEACTIVATED)
+            is_unenrolled_activate = (state == UNENROLLED and event.event_type == ACTIVATED)
+
+            if is_enrolled_deactivate:
+                state = UNENROLLED
+                last_unenroll_event = event
+                # If we see more than one deactivate in a row, we only consider the first one as the last unenrollment.
+                if event.mode != most_recent_mode:
+                    self.incr_counter('Enrollment State', 'Deactivation Mode Changed', 1)
+            elif is_unenrolled_activate or is_enrolled_mode_change:
+                if event.event_type == ACTIVATED:
+                    # If we see multiple activation events in a row, consider the first one to be the first enrollment.
+                    state = ENROLLED
+                    if first_enroll_event is None:
+                        first_enroll_event = event
+
+                if event.event_type == MODE_CHANGED:
+                    if event.mode == most_recent_mode:
+                        self.incr_counter('Enrollment State', 'Redundant Mode Change', 1)
+
+                # The most recent mode is computed from the activation and mode changes. If we see a different mode
+                # on the deactivation event, it is ignored. It's unclear in many of these cases which event to trust,
+                # so fairly arbitrary decisions have been made.
+                most_recent_mode = event.mode
+                if event.mode not in first_event_by_mode:
+                    first_event_by_mode[event.mode] = event
+            else:
+                # increment counters for invalid events
+                if state == ENROLLED and event.event_type == ACTIVATED:
+                    if event.mode == most_recent_mode:
+                        self.incr_counter('Enrollment State', 'Enrolled Activation', 1)
+                    else:
+                        self.incr_counter('Enrollment State', 'Enrolled Activation Mode Changed', 1)
+                elif state == UNENROLLED:
+                    if event.event_type == DEACTIVATED:
+                        self.incr_counter('Enrollment State', 'Unenrolled Deactivation', 1)
+                    elif event.event_type == MODE_CHANGED:
+                        self.incr_counter('Enrollment State', 'Unenrolled Mode Change', 1)
+
+        if first_enroll_event is None:
+            # The user only has deactivate and mode change events... that's odd, just throw away the record.
+            self.incr_counter('Enrollment State', 'Missing Enrollment Event', 1)
+            return
+
+        record = EnrollmentSummaryRecord(
+            course_id=course_id,
+            user_id=int(user_id),
+            current_enrollment_mode=most_recent_mode,
+            current_enrollment_is_active=(state == ENROLLED),
+            first_enrollment_mode=first_enroll_event.mode,
+            first_enrollment_time=self.format_timestamp(first_enroll_event),
+            last_unenrollment_time=self.format_timestamp(last_unenroll_event),
+            first_verified_enrollment_time=self.format_timestamp(first_event_by_mode.get('verified')),
+            first_credit_enrollment_time=self.format_timestamp(first_event_by_mode.get('credit')),
+            end_time=DateTimeField().deserialize_from_string(self.interval.date_b.isoformat())
+        )
+        yield record.to_string_tuple()
+
+    @staticmethod
+    def format_timestamp(event):
+        """Given an event, return a datetime object for its timestamp."""
+        if event is None or event.timestamp is None:
+            return None
+        return DateTimeField().deserialize_from_string(event.timestamp)
+
+
+class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
+    """Hive table that stores the set of users enrolled in each course over time."""
+
+    @property
+    def table(self):
+        return 'course_enrollment_summary'
+
+    @property
+    def columns(self):
+        return EnrollmentSummaryRecord.get_hive_schema()
+
+    @property
+    def partition(self):
+        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+    def requires(self):
+        return CourseEnrollmentSummaryTask(
+            mapreduce_engine=self.mapreduce_engine,
+            warehouse_path=self.warehouse_path,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            output_root=self.partition_location,
+            overwrite_n_days=self.overwrite_n_days,
+        )
+
+
 class EnrollmentTask(CourseEnrollmentDownstreamMixin, HiveQueryToMysqlTask):
     """Base class for breakdowns of enrollments"""
 
@@ -501,6 +650,7 @@ class EnrollmentTask(CourseEnrollmentDownstreamMixin, HiveQueryToMysqlTask):
         """We want to store demographics breakdown from the enrollment numbers of most recent day only."""
         query_date = self.interval.date_b - datetime.timedelta(days=1)
         return query_date.isoformat()
+
 
 class EnrollmentByGenderTask(EnrollmentTask):
     """
@@ -721,6 +871,7 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentDownstreamMixin, luigi.WrapperT
             'overwrite_n_days': self.overwrite_n_days,
         }
         yield (
+            CourseEnrollmentSummaryTableTask(**kwargs),
             EnrollmentByGenderTask(**kwargs),
             EnrollmentByBirthYearTask(**kwargs),
             EnrollmentByEducationLevelTask(**kwargs),

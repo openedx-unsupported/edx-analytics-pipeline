@@ -2,11 +2,17 @@ import boto
 import hashlib
 import json
 import logging
+
 from luigi.s3 import S3Client
 import os
 import shutil
 import unittest
 
+import pandas
+from pandas.util.testing import assert_frame_equal, assert_series_equal
+
+from edx.analytics.tasks.pathutil import PathSetTask
+from edx.analytics.tasks.s3_util import S3HdfsTarget
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch_service
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 
@@ -283,3 +289,37 @@ class AcceptanceTestCase(unittest.TestCase):
                 expected = sorted([json.loads(eventline) for eventline in expected_output_file])
                 actual = sorted([json.loads(eventline) for eventline in actual_output_file])
                 self.assertListEqual(expected, actual)
+
+    @staticmethod
+    def read_dfs_directory(url):
+        """Given the URL to a directory, read all of the files from it and concatenate them."""
+        output_targets = PathSetTask([url], ['*']).output()
+        raw_output = []
+        for output_target in output_targets:
+            if isinstance(output_target, S3HdfsTarget):
+                output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
+            raw_output.append(output_target.open('r').read())
+
+        return ''.join(raw_output)
+
+    @staticmethod
+    def assert_data_frames_equal(data, expected):
+        """Compare two pandas DataFrames and display diagnostic output if they don't match."""
+        try:
+            assert_frame_equal(data, expected)
+        except AssertionError:
+            pandas.set_option('display.max_columns', None)
+            print '----- The report generated this data: -----'
+            print data
+            print '----- vs expected: -----'
+            print expected
+            if data.shape != expected.shape:
+                print "Data shapes differ."
+            else:
+                for index, _series in data.iterrows():
+                    # Try to print a more helpful/localized difference message:
+                    try:
+                        assert_series_equal(data.iloc[index, :], expected.iloc[index, :])
+                    except AssertionError:
+                        print "First differing row: {index}".format(index=index)
+            raise
