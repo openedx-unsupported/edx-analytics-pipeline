@@ -1,7 +1,6 @@
 """Group events by institution and export them for research purposes"""
 
 import logging
-import os
 import gzip
 from collections import defaultdict
 
@@ -139,13 +138,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         Return True iff the contents of the input file being processed should be included in the export.
 
         """
-        try:
-            # Hadoop sets an environment variable with the full URL of the input file. This url will be something like:
-            # s3://bucket/root/host1/tracking.log.gz. In this example, assume self.source is "s3://bucket/root".
-            return self.required_path_text in os.environ['map_input_file']
-        except KeyError:
-            log.warn('map_input_file not defined in os.environ, unable to determine input file path')
-            return False
+        return self.required_path_text in self.get_map_input_file()
 
     def output_path_for_key(self, key):
         date, org_id = key
