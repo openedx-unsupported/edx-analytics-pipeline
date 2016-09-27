@@ -43,7 +43,10 @@ class InternalReportingCertificateLoadAcceptanceTest(AcceptanceTestCase):
 
             cursor.execute("SELECT * FROM {schema}.d_user_course_certificate".format(schema=self.vertica.schema_name))
             response = cursor.fetchall()
-            d_user_course_certificate = pandas.DataFrame(response, columns=['user_id', 'course_id', 'is_certified', 'enrollment_mode', 'final_grade'])
+            d_user_course_certificate = pandas.DataFrame(response, columns=[
+                'user_id', 'course_id', 'is_certified', 'certificate_mode',
+                'final_grade', 'has_passed', 'created_date', 'modified_date',
+            ])
 
             try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
                 self.assertTrue(all(d_user_course_certificate == expected))

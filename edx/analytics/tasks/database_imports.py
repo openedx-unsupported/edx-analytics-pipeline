@@ -852,6 +852,8 @@ class ImportGeneratedCertificatesTask(ImportMysqlToHiveTableTask):
             ('grade', 'STRING'),
             ('status', 'STRING'),
             ('mode', 'STRING'),
+            ('created_date', 'TIMESTAMP'),
+            ('modified_date', 'TIMESTAMP'),
         ]
 
 

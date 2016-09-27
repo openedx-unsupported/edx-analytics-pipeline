@@ -30,8 +30,11 @@ class LoadInternalReportingCertificatesTableHive(HiveTableFromQueryTask):
             ('user_id', 'INT'),
             ('course_id', 'STRING'),
             ('is_certified', 'INT'),
-            ('enrollment_mode', 'STRING'),
+            ('certificate_mode', 'STRING'),
             ('final_grade', 'STRING'),
+            ('has_passed', 'INT'),
+            ('created_date', 'TIMESTAMP'),
+            ('modified_date', 'TIMESTAMP'),
         ]
 
     @property
@@ -45,8 +48,11 @@ class LoadInternalReportingCertificatesTableHive(HiveTableFromQueryTask):
               user_id
             , course_id
             , if(status='downloadable', 1, 0) as is_certified
-            , mode as enrollment_mode
+            , mode as certificate_mode
             , grade as final_grade
+            , if(status='downloadable' OR status='audit_passing', 1, 0) as has_passed
+            , created_date
+            , modified_date
             FROM certificates_generatedcertificate
             """
 
@@ -78,8 +84,11 @@ class LoadInternalReportingCertificatesToWarehouse(WarehouseMixin, VerticaCopyTa
             ('user_id', 'INTEGER NOT NULL'),
             ('course_id', 'VARCHAR(255) NOT NULL'),
             ('is_certified', 'INTEGER'),
-            ('enrollment_mode', 'VARCHAR(200)'),
-            ('final_grade', 'VARCHAR(5)')
+            ('certificate_mode', 'VARCHAR(200)'),
+            ('final_grade', 'VARCHAR(5)'),
+            ('has_passed', 'INTEGER'),
+            ('created_date', 'TIMESTAMP'),
+            ('modified_date', 'TIMESTAMP'),
         ]
 
     @property
