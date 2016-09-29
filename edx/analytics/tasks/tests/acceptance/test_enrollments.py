@@ -24,6 +24,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             'ImportEnrollmentsIntoMysql',
             '--interval', '2014-08-01-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--overwrite-n-days', '5',
         ])
 
         self.maxDiff = None

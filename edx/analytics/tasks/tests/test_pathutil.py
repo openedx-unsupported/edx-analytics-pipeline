@@ -6,13 +6,13 @@ from mock import patch
 
 from luigi.date_interval import Month
 
-from edx.analytics.tasks.pathutil import EventLogSelectionTask
+from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask
 from edx.analytics.tasks.url import UncheckedExternalURL
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config
 
 
-class EventLogSelectionTaskTest(unittest.TestCase):
+class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
     """Test selection of event log files."""
 
     SOURCE_1 = 's3://collection-bucket/'
@@ -73,7 +73,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
 
         bucket_mock.list.return_value = [FakeKey(path) for path in self.SAMPLE_KEY_PATHS]
 
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
             pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
@@ -91,18 +91,18 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         )
 
     def test_default_source(self):
-        task = EventLogSelectionTask(interval=Month.parse('2014-03'))
+        task = PathSelectionByDateIntervalTask(interval=Month.parse('2014-03'))
         self.assertEquals(task.source, ('s3://fake/input/', 's3://fake/input2/'))
 
     def test_default_pattern(self):
-        task = EventLogSelectionTask(interval=Month.parse('2014-03'))
+        task = PathSelectionByDateIntervalTask(interval=Month.parse('2014-03'))
         self.assertEquals(task.pattern, (
             r'.*tracking.log-(?P<date>\d{8}).*\.gz',
             r'.*tracking.notalog-(?P<date>\d{8}).*\.gz',
         ))
 
     def test_filtering_of_urls(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
             pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
@@ -115,7 +115,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         ])
 
     def test_multiple_filtering_of_urls(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
             pattern=[
@@ -146,7 +146,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         self.assertItemsEqual(matched_urls, expected_urls)
 
     def test_edge_urls(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
             pattern=[r'.*?FakeEdgeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
@@ -158,7 +158,7 @@ class EventLogSelectionTaskTest(unittest.TestCase):
         ])
 
     def test_expanded_interval(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
             interval=Month.parse('2014-03'),
             pattern=[r'.*?FakeServerGroup/tracking.log-(?P<date>\d{8}).*\.gz'],
@@ -174,14 +174,14 @@ class EventLogSelectionTaskTest(unittest.TestCase):
 
     @with_luigi_config('event-logs', 'pattern', 'foobar')
     def test_pattern_from_config(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             interval=Month.parse('2014-03')
         )
         self.assertEquals(task.pattern, ('foobar',))
 
     @with_luigi_config('event-logs', 'pattern', ['foobar'])
     def test_pattern_override(self):
-        task = EventLogSelectionTask(
+        task = PathSelectionByDateIntervalTask(
             interval=Month.parse('2014-03'),
             pattern=['baz']
         )

@@ -132,8 +132,15 @@ class EventLogSelectionDownstreamMixin(object):
         'the right file in order for them to be processed.',
     )
 
+    date_pattern = luigi.Parameter(
+        default='%Y%m%d',
+        description='The format of the date as it appears in the source file name. Note that this correlates with the '
+        'named capture group for date in the pattern parameter. This is intended to select relevant event log files '
+        'by making sure the date is within the interval.',
+    )
 
-class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
+
+class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
     """
     Select all relevant event log input files from a directory.
 
@@ -144,7 +151,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
     """
 
     def __init__(self, *args, **kwargs):
-        super(EventLogSelectionTask, self).__init__(*args, **kwargs)
+        super(PathSelectionByDateIntervalTask, self).__init__(*args, **kwargs)
         self.interval = DateInterval(
             self.interval.date_a - self.expand_interval,
             self.interval.date_b + self.expand_interval
@@ -195,8 +202,10 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
 
     def _get_hdfs_urls(self, source):
         """Recursively list all files inside the source directory on the hdfs filesystem."""
-        for source in luigi.hdfs.listdir(source, recursive=True):
-            yield source
+        if luigi.hdfs.exists(source):
+            # listdir raises an exception if the source doesn't exist.
+            for source in luigi.hdfs.listdir(source, recursive=True):
+                yield source
 
     def _get_local_urls(self, source):
         """Recursively list all files inside the source directory on the local filesystem."""
@@ -224,7 +233,7 @@ class EventLogSelectionTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask)
         # If it doesn't contain such a group, then assume that it should be included.
         should_include = True
         if 'date' in match.groupdict():
-            parsed_datetime = datetime.datetime.strptime(match.group('date'), '%Y%m%d')
+            parsed_datetime = datetime.datetime.strptime(match.group('date'), self.date_pattern)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
 
@@ -241,11 +250,12 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
     """
 
     def requires(self):
-        """Use EventLogSelectionTask to define inputs."""
-        return EventLogSelectionTask(
+        """Use PathSelectionByDateIntervalTask to define inputs."""
+        return PathSelectionByDateIntervalTask(
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
+            date_pattern=self.date_pattern,
         )
 
     def init_local(self):

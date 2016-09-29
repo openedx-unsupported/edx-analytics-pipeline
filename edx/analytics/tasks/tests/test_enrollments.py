@@ -6,6 +6,7 @@ import luigi
 
 from edx.analytics.tasks.enrollments import (
     CourseEnrollmentTask,
+    CourseEnrollmentEventsTask,
     DEACTIVATED,
     ACTIVATED,
     MODE_CHANGED
@@ -20,7 +21,7 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, un
     Tests to verify that event log parsing by mapper works correctly.
     """
     def setUp(self):
-        self.task_class = CourseEnrollmentTask
+        self.task_class = CourseEnrollmentEventsTask
         super(CourseEnrollmentTaskMapTest, self).setUp()
 
         self.initialize_ids()
@@ -51,7 +52,7 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, un
         }
         self.default_event_template = 'enrollment_event'
 
-        self.expected_key = (self.course_id, self.user_id)
+        self.expected_key = '2013-12-17'
 
     def test_non_enrollment_event(self):
         line = 'this is garbage'
@@ -62,7 +63,7 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, un
         self.assert_no_map_output_for(line)
 
     def test_missing_event_type(self):
-        event_dict = self._create_event_dict()
+        event_dict = self.create_event_dict()
         event_dict['old_event_type'] = event_dict['event_type']
         del event_dict['event_type']
         line = json.dumps(event_dict)
@@ -90,16 +91,16 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, un
 
     def test_good_enroll_event(self):
         line = self.create_event_log_line()
-        expected_value = (self.timestamp, ACTIVATED, 'honor')
+        expected_value = (self.course_id, self.user_id, self.timestamp, ACTIVATED, 'honor')
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_unenroll_event(self):
         line = self.create_event_log_line(event_type=DEACTIVATED)
-        expected_value = (self.timestamp, DEACTIVATED, 'honor')
+        expected_value = (self.course_id, self.user_id, self.timestamp, DEACTIVATED, 'honor')
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
-class CourseEnrollmentTaskMapTest(InitializeLegacyKeysMixin, unittest.TestCase):
+class CourseEnrollmentTaskLegacyMapTest(InitializeLegacyKeysMixin, CourseEnrollmentTaskMapTest, unittest.TestCase):
     pass
 
 
@@ -109,7 +110,6 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     """
     def setUp(self):
         self.task_class = CourseEnrollmentTask
-        super(CourseEnrollmentTaskReducerTest, self).setUp()
 
         # Create the task locally, since we only need to check certain attributes
         self.create_enrollment_task()
@@ -131,6 +131,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self.task = CourseEnrollmentTask(
             interval=fake_param.parse(interval),
             output_root="/fake/output",
+            overwrite_n_days=5,
         )
 
     def test_single_unenrollment(self):
