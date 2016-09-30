@@ -146,7 +146,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         self.assertEqual(inc_enrollment['2013-01-14'], 14)
         self.assertTrue(isnan(inc_enrollment['2013-01-21']))  # no data
 
-    def nontest_less_than_week(self):
+    def test_less_than_week(self):
         registrations = """
         2013-01-01 11
         2013-01-05 22
@@ -190,7 +190,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         self.assertTrue(isnan(inc_enrollment['2013-01-14']))  # no data
         self.assertEqual(inc_enrollment['2013-01-21'], 27)
 
-    def nontest_incremental_registration(self):
+    def test_incremental_registration(self):
         registrations = """
         2013-02-01 4
         2013-02-04 4
@@ -213,7 +213,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         self.assertEqual(avg_registration['2013-02-11'], 5 / 7)
         self.assertEqual(avg_registration['2013-02-18'], 11 / 7)
 
-    def nontest_incremental_enrollment(self):
+    def test_incremental_enrollment(self):
         enrollments = """
         course_1 2013-02-01 4
         course_1 2013-02-04 4
@@ -237,7 +237,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         self.assertEqual(avg_enrollment['2013-02-11'], 5 / 7)
         self.assertEqual(avg_enrollment['2013-02-18'], 11 / 7)
 
-    def nontest_output_row_order(self):
+    def test_output_row_order(self):
         res = self.run_task(None, None, '2013-02-18', 2)
         expected_rows = [
             self.row_label('registration_change'),
@@ -247,7 +247,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         ]
         self.assertEqual(res.index.tolist(), expected_rows)
 
-    def nontest_unicode_course_id(self):
+    def test_unicode_course_id(self):
         course_id = u'course_\u2603'
 
         enrollments = u"""

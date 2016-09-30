@@ -138,13 +138,14 @@ class ScalableS3Client(S3Client):
     # TODO: Make this behavior configurable and submit this change upstream.
 
     def __init__(self, aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
+        # Note: this deliberately does not call the base class __init__ method,
+        # to avoid the connect_s3 call there without the host argument, which fails.
         if not aws_access_key_id:
             aws_access_key_id = self._get_s3_config('aws_access_key_id')
         if not aws_secret_access_key:
             aws_secret_access_key = self._get_s3_config('aws_secret_access_key')
-        # TODO: add host to s3 config
-        host='s3.amazonaws.com'
-        
+        # TODO: add "host" to s3 config
+        host = 's3.amazonaws.com'
         self.s3 = connect_s3(aws_access_key_id, aws_secret_access_key, is_secure=True, host=host, **kwargs)
 
     def put(self, local_path, destination_s3_path):
