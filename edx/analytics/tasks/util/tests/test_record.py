@@ -1,16 +1,19 @@
 """Test the typed record utilities"""
 
 import datetime
+import dateutil
 import pickle
 
-from ddt import data, ddt
+from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
+from edx.analytics.tasks.util.record import (
+    Record, StringField, IntegerField, DateField, DateTimeField, FloatField, DelimitedStringField, BooleanField,
+)
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
-
+UTC = dateutil.tz.tzutc()
 
 @ddt
 class RecordTestCase(unittest.TestCase):
@@ -178,6 +181,29 @@ class RecordTestCase(unittest.TestCase):
                 ('index', 'INT'),
                 ('date', 'STRING')
             ]
+        )
+
+    def test_elasticsearch_properties(self):
+        self.assertEqual(
+            SampleElasticSearchStruct.get_elasticsearch_properties(),
+            {
+                'name': {
+                    'type': 'string',
+                    'index': 'not_analyzed',
+                },
+                'index': {
+                    'type': 'integer',
+                },
+                'date': {
+                    'type': 'date',
+                    'index': 'not_analyzed',
+                },
+                'dateTime': {
+                    'type': 'date',
+                    'index': 'not_analyzed',
+                    'format': 'yyyy-MM-dd HH:mm:ss.SSSSSS',
+                },
+            }
         )
 
     def test_from_tsv_nulls(self):
@@ -380,6 +406,14 @@ class SampleStruct(Record):
     date = DateField()
 
 
+class SampleElasticSearchStruct(Record):
+    """A record with a variety of field types to illustrate all elasticsearch properties"""
+    name = StringField()
+    index = IntegerField(analyzed=True)
+    date = DateField()
+    dateTime = DateTimeField()
+
+
 @ddt
 class StringFieldTest(unittest.TestCase):
     """Tests for StringField"""
@@ -451,6 +485,111 @@ class StringFieldTest(unittest.TestCase):
 
 
 @ddt
+class DelimitedStringFieldTest(unittest.TestCase):
+    """Tests for DelimitedStringField"""
+
+    @data(
+        (),
+        ('a', 'b', 'c'),
+        None,
+    )
+    def test_validate_success(self, value):
+        test_record = DelimitedStringField()
+        self.assertEqual(len(test_record.validate(value)), 0)
+
+    @data(
+        '',
+        'abc',
+        ['a', 'b', 'c'],
+        [],
+    )
+    def test_validate_error(self, value):
+        test_record = DelimitedStringField()
+        self.assertEqual(len(test_record.validate(value)), 1)
+
+    @data(
+        ((), ''),
+        (('a', 'b', 'c'), 'a\0b\0c'),
+    )
+    @unpack
+    def test_serialize(self, value, expected_value):
+        test_record = DelimitedStringField()
+        self.assertEquals(test_record.serialize_to_string(value), expected_value)
+
+    @data(
+        ('', ('',)),
+        ('a\0b\0c', ('a', 'b', 'c')),
+        (None, None),
+    )
+    @unpack
+    def test_deserialize(self, value, expected_value):
+        test_record = DelimitedStringField()
+        self.assertEquals(test_record.deserialize_from_string(value), expected_value)
+
+    def test_sql_type(self):
+        self.assertEqual(DelimitedStringField().sql_type, 'VARCHAR')
+
+    def test_hive_type(self):
+        self.assertEqual(DelimitedStringField().hive_type, 'STRING')
+
+    def test_elasticsearch_type(self):
+        self.assertEqual(DelimitedStringField().elasticsearch_type, 'string')
+
+    def test_delimiter(self):
+        self.assertEqual(DelimitedStringField().delimiter, '\0')
+
+
+@ddt
+class BooleanFieldTest(unittest.TestCase):
+    """Tests for BooleanField"""
+
+    @data(
+        True,
+        False,
+        None,
+    )
+    def test_validate_success(self, value):
+        test_record = BooleanField()
+        self.assertEqual(len(test_record.validate(value)), 0)
+
+    @data(
+        1,
+        0,
+        -1,
+        10,
+        'True',
+        'true',
+        'False',
+        'false',
+    )
+    def test_validate_error(self, value):
+        test_record = BooleanField()
+        self.assertEqual(len(test_record.validate(value)), 1)
+
+    @data(
+        (True, '1'),
+        (False, '0'),
+    )
+    @unpack
+    def test_serialize(self, value, expected_value):
+        # Test with nullable and not
+        for test_record in (BooleanField(), BooleanField(nullable=True)):
+            self.assertEquals(test_record.serialize_to_string(value), expected_value)
+
+    @data(
+        ('1', True),
+        (u'1', True),
+        ('0', False),
+        (u'0', False),
+        (None, None),
+    )
+    @unpack
+    def test_deserialize(self, value, expected_value):
+        for test_record in (BooleanField(), BooleanField(nullable=True)):
+            self.assertEquals(test_record.deserialize_from_string(value), expected_value)
+
+
+@ddt
 class IntegerFieldTest(unittest.TestCase):
     """Tests for IntegerField"""
 
@@ -511,6 +650,77 @@ class DateFieldTest(unittest.TestCase):
 
     def test_serialize_to_string(self):
         self.assertEqual(DateField().serialize_to_string(datetime.date(2015, 11, 1)), '2015-11-01')
+
+
+@ddt
+class DateTimeFieldTest(unittest.TestCase):
+    """Tests for DateTimeField"""
+
+    @data(
+        datetime.datetime.now(UTC),
+        datetime.datetime(2016, 10, 10, tzinfo=UTC),
+        None,
+    )
+    def test_validate_success(self, value):
+        test_record = DateTimeField()
+        self.assertEqual(len(test_record.validate(value)), 0)
+
+    @data(
+        (0, 'The value is not a datetime'),
+        (False, 'The value is not a datetime'),
+        (1.0, 'The value is not a datetime'),
+        ('abc', 'The value is not a datetime'),
+        ('2015-11-01', 'The value is not a datetime'),
+        ('2015-11-01 10:10', 'The value is not a datetime'),
+        (object(), 'The value is not a datetime'),
+        (datetime.datetime.now(), 'The value is a naive datetime.'),
+        (datetime.datetime(2016, 10, 10), 'The value is a naive datetime.'),
+        (datetime.datetime(2016, 10, 10, 1, 2, 3, 4), 'The value is a naive datetime.'),
+        (datetime.datetime(2016, 10, 10, tzinfo=dateutil.tz.gettz('America/Los_Angeles')),
+         'The value must use UTC timezone.'),
+    )
+    @unpack
+    def test_validate_error(self, value, expected_error):
+        test_record = DateTimeField()
+        errors = test_record.validate(value)
+        self.assertEqual(len(errors), 1)
+        self.assertEqual(errors[0], expected_error)
+
+    @data(
+        ('2015-11-01T00:00:00Z', datetime.datetime(2015, 11, 1, tzinfo=UTC)),
+        ('2015-11-01 00:00:00.0', datetime.datetime(2015, 11, 1, tzinfo=UTC)),
+        ('2015-11-11 01:20:30.123456', datetime.datetime(2015, 11, 11, 1, 20, 30, 123456, UTC)),
+        ('2015-11-11T01:20:30.123456Z', datetime.datetime(2015, 11, 11, 1, 20, 30, 123456, UTC)),
+        (None, None),
+    )
+    @unpack
+    def test_deserialize_from_string(self, string, expected):
+        self.assertEqual(DateTimeField().deserialize_from_string(string), expected)
+
+    @data(
+        (datetime.datetime(2015, 11, 1, tzinfo=UTC), '2015-11-01 00:00:00.000000'),
+        (datetime.datetime(2015, 11, 11, 1, 20, 30, 123456, UTC), '2015-11-11 01:20:30.123456'),
+    )
+    @unpack
+    def test_serialize_to_string(self, date, expected):
+        self.assertEqual(DateTimeField().serialize_to_string(date), expected)
+
+
+class DateTimeFieldTzUtcTest(unittest.TestCase):
+    """Tests for DateTimeField.TzUtc"""
+    def setUp(self):
+        super(DateTimeFieldTzUtcTest, self).setUp()
+        self.utc_tz = DateTimeField.TzUtc()
+        self.now = datetime.datetime.now()
+
+    def test_utcoffset(self):
+        self.assertEquals(self.utc_tz.utcoffset(self.now).total_seconds(), 0)
+
+    def test_dst(self):
+        self.assertEquals(self.utc_tz.dst(self.now).total_seconds(), 0)
+
+    def test_tzname(self):
+        self.assertEquals(self.utc_tz.tzname(self.now), 'UTC')
 
 
 @ddt

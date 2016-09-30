@@ -1,6 +1,7 @@
 """Tools for working with typed records."""
 
 from collections import OrderedDict
+import re
 import datetime
 import itertools
 
@@ -355,6 +356,11 @@ class Record(object):
             properties[field_name] = {
                 'type': field_obj.elasticsearch_type
             }
+
+            elasticsearch_format = getattr(field_obj, 'elasticsearch_format', None)
+            if elasticsearch_format:
+                properties[field_name]['format'] = elasticsearch_format
+
             if not getattr(field_obj, 'analyzed', False):
                 properties[field_name]['index'] = 'not_analyzed'
         return properties
@@ -496,6 +502,59 @@ class StringField(Field):  # pylint: disable=abstract-method
             return 'VARCHAR'
 
 
+class DelimitedStringField(Field):
+    """Represents a list of strings, stored as a single delimited string."""
+
+    hive_type = 'STRING'
+    sql_base_type = 'VARCHAR'
+    elasticsearch_type = 'string'
+    delimiter = '\0'
+
+    def serialize_to_string(self, value):
+        """Flatten array values to a delimited string."""
+        return self.delimiter.join(value)
+
+    def deserialize_from_string(self, string_value):
+        """Unpack delimited strings into an array."""
+        if string_value is None:
+            return None
+        return tuple(string_value.split(self.delimiter))
+
+    def validate(self, value):
+        """Accepts tuple values."""
+        validation_errors = super(DelimitedStringField, self).validate(value)
+        if not(value is None or isinstance(value, tuple)):
+            validation_errors.append('The value is not a tuple')
+        return validation_errors
+
+
+class BooleanField(Field):
+    """Represents a field that contains a boolean."""
+
+    hive_type = 'TINYINT'
+    sql_base_type = 'BOOLEAN'
+    elasticsearch_type = 'boolean'
+
+    def serialize_to_string(self, value):
+        """Returns '1' for true values, '0' for false."""
+        return '1' if value else '0'
+
+    def deserialize_from_string(self, string_value):
+        """Return a bool value from the given string."""
+        if string_value is None:
+            return None
+        elif string_value == '1':
+            return True
+        return False
+
+    def validate(self, value):
+        """Accepts boolean values."""
+        validation_errors = super(BooleanField, self).validate(value)
+        if not(value is None or isinstance(value, bool)):
+            validation_errors.append('The value is not a bool')
+        return validation_errors
+
+
 class IntegerField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains an integer."""
 
@@ -527,6 +586,61 @@ class DateField(Field):  # pylint: disable=abstract-method
 
     def deserialize_from_string(self, string_value):
         return datetime.date(*[int(x) for x in string_value.split('-')])
+
+
+class DateTimeField(Field):  # pylint: disable=abstract-method
+    """Represents a field that contains a date and time."""
+
+    hive_type = 'TIMESTAMP'
+    sql_base_type = 'DATETIME'
+    elasticsearch_type = 'date'
+    elasticsearch_format = 'yyyy-MM-dd HH:mm:ss.SSSSSS'
+    string_format = '%Y-%m-%d %H:%M:%S.%f'  # hive timestamp format
+
+    class TzUtc(datetime.tzinfo):
+        """
+        Tzinfo subclass which represents UTC.
+
+        Borrowed from dateutil.tz, to avoid having to include dateutil in our map/reduce requirements.
+        """
+        ZERO = datetime.timedelta(0)
+
+        def utcoffset(self, dt):  # pylint: disable=unused-argument
+            return self.ZERO
+
+        def dst(self, dt):  # pylint: disable=unused-argument
+            return self.ZERO
+
+        def tzname(self, dt):  # pylint: disable=unused-argument
+            return "UTC"
+
+    utc_tz = TzUtc()
+
+    def validate(self, value):
+        validation_errors = super(DateTimeField, self).validate(value)
+        if value is None:
+            pass
+        elif not isinstance(value, datetime.datetime):
+            validation_errors.append('The value is not a datetime')
+        elif value.utcoffset() is None:
+            validation_errors.append('The value is a naive datetime.')
+        elif value.utcoffset().total_seconds() != 0:
+            validation_errors.append('The value must use UTC timezone.')
+
+        return validation_errors
+
+    def serialize_to_string(self, value):
+        """Returns a string representation of the datetime value."""
+        return value.strftime(self.string_format)
+
+    def deserialize_from_string(self, string_value):
+        """Returns a datetime instance parsed from the numbers in the given string_value."""
+        if string_value is None:
+            return None
+        # Note: we need to be flexible here, because the datetime format differs between input sources
+        # (e.g.  tracking logs, REST API)
+        # However, we assume the datetime does not include TZ info, and that it's UTC.
+        return datetime.datetime(*[int(x) for x in re.split(r'\D+', string_value) if x], tzinfo=self.utc_tz)
 
 
 class FloatField(Field):  # pylint: disable=abstract-method
