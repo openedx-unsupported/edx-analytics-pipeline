@@ -996,6 +996,17 @@ class ModuleEngagementRosterRecord(Record):
                     ' (problem_attempts_per_completed ASC, attempt_ratio_order DESC). To see struggling learners sort'
                     ' by (problem_attempts_per_completed DESC, attempt_ratio_order ASC).'
     )
+    # More user profile fields, appended after initial schema creation
+    user_id = IntegerField(description='Learner\'s user ID.')
+    language = StringField(description='Learner\'s preferred language.')
+    location = StringField(description='Learner\'s reported location.')
+    year_of_birth = IntegerField(description='Learner\'s reported year of birth.')
+    level_of_education = StringField(description='Learner\'s reported level of education.')
+    gender = StringField(description='Learner\'s reported gender.')
+    mailing_address = StringField(description='Learner\'s reported mailing address.')
+    city = StringField(description='Learner\'s reported city.')
+    country = StringField(description='Learner\'s reported country.')
+    goals = StringField(description='Learner\'s reported goals.')
 
 
 class ModuleEngagementRosterTableTask(BareHiveTableTask):
@@ -1022,6 +1033,13 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
     """
 
     date = luigi.DateParameter()
+    max_field_length = luigi.IntParameter(
+        description='If set, truncate any long strings from the auth_userprofile table to this maximum length. '
+                    ' This is required for ElasticSearch, which throws a MaxBytesLengthExceededException for any term '
+                    ' that is longer than its configured max length.',
+        default=20000,
+    )
+
     interval = None
     partition_value = None
 
@@ -1034,6 +1052,18 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         # The end of the interval is not closed, so use the prior day's enrollment data.
         last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
 
+        def strip_and_truncate(field):
+            """
+            Identify delimiters in the data and strip them out to prevent parsing errors.
+
+            Also, if self.max_field_length is set, then truncate the field to self.max_field_length.
+            """
+            stripped = "regexp_replace(regexp_replace({}, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', '')".format(field)
+
+            if self.max_field_length is not None:
+                stripped = "substring({}, 1, {})".format(stripped, self.max_field_length)
+            return stripped
+
         query = """
         USE {database_name};
         INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
@@ -1043,8 +1073,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             '{start}',
             '{end}',
             au.email,
-            -- identify delimiters in the data and strip them out to prevent parsing errors
-            regexp_replace(regexp_replace(aup.name, '\\\\t|\\\\n|\\\\r', ' '), '\\\\\\\\', ''),
+            {aup_name},
             ce.mode,
             lce.first_enrollment_date,
             cohort.name,
@@ -1078,7 +1107,17 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 eng.problem_attempts_per_completed IS NULL,
                 -COALESCE(eng.problem_attempts, 0),
                 COALESCE(eng.problem_attempts, 0)
-            )
+            ),
+            aup.user_id,
+            {aup_language},
+            {aup_location},
+            aup.year_of_birth,
+            {aup_level_of_education},
+            {aup_gender},
+            {aup_mailing_address},
+            {aup_city},
+            {aup_country},
+            {aup_goals}
         FROM course_enrollment ce
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
@@ -1129,6 +1168,15 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
             database_name=hive_database_name(),
             table=self.hive_table_task.table,
+            aup_name=strip_and_truncate('aup.name'),
+            aup_language=strip_and_truncate('aup.language'),
+            aup_location=strip_and_truncate('aup.location'),
+            aup_level_of_education=strip_and_truncate('aup.level_of_education'),
+            aup_gender=strip_and_truncate('aup.gender'),
+            aup_mailing_address=strip_and_truncate('aup.mailing_address'),
+            aup_city=strip_and_truncate('aup.city'),
+            aup_country=strip_and_truncate('aup.country'),
+            aup_goals=strip_and_truncate('aup.goals'),
         )
         return query
 

@@ -275,6 +275,12 @@ class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
             ('gender', 'STRING'),
             ('year_of_birth', 'INT'),
             ('level_of_education', 'STRING'),
+            ('language', 'STRING'),
+            ('location', 'STRING'),
+            ('mailing_address', 'STRING'),
+            ('city', 'STRING'),
+            ('country', 'STRING'),
+            ('goals', 'STRING'),
         ]
 
 
