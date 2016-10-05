@@ -230,8 +230,8 @@ class CourseActivityWeeklyTask(WeeklyIntervalMixin, CourseActivityTask):
                 act.category as label,
                 COUNT(DISTINCT username) as count
             FROM user_activity_daily act
-            JOIN calendar cal ON act.date = cal.date
-            WHERE "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            JOIN calendar cal ON act.`date` = cal.`date`
+            WHERE "{interval_start}" <= cal.`date` AND cal.`date` < "{interval_end}"
             GROUP BY
                 act.course_id,
                 cal.iso_week_start,
@@ -268,15 +268,15 @@ class CourseActivityDailyTask(CourseActivityTask):
     def activity_query(self):
         return """
             SELECT
-                act.date,
+                act.`date`,
                 act.course_id as course_id,
                 act.category as label,
                 COUNT(DISTINCT username) as count
             FROM user_activity_daily act
-            WHERE "{interval_start}" <= act.date AND act.date < "{interval_end}"
+            WHERE "{interval_start}" <= act.`date` AND act.`date` < "{interval_end}"
             GROUP BY
                 act.course_id,
-                act.date,
+                act.`date`,
                 act.category;
         """
 
@@ -293,7 +293,7 @@ class CourseActivityDailyTask(CourseActivityTask):
     def indexes(self):
         return [
             ('course_id', 'label'),
-            ('date',)
+            ('`date`',)
         ]
 
 
@@ -352,8 +352,8 @@ class CourseActivityMonthlyTask(CourseActivityTask):
                 act.category as label,
                 COUNT(DISTINCT username) as count
             FROM user_activity_daily act
-            JOIN calendar cal ON act.date = cal.date
-            WHERE "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            JOIN calendar cal ON act.`date` = cal.`date`
+            WHERE "{interval_start}" <= cal.`date` AND cal.`date` < "{interval_end}"
             GROUP BY
                 act.course_id,
                 cal.year,
