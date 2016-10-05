@@ -40,6 +40,8 @@ class CourseEnrollmentEventsTask(
     # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
     FILEPATH_PATTERN = '.*?course_enrollment_events_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
+    output_root = ''
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
@@ -187,7 +189,6 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
             source=self.source,
             pattern=self.pattern,
             n_reduce_tasks=self.n_reduce_tasks,
-            output_root=self.course_enrollment_events_root,
             warehouse_path=self.warehouse_path,
             overwrite=True,
         )
