@@ -346,26 +346,26 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
         # Join with calendar data only if calculating weekly engagement.
         calendar_join = ""
         if self.interval_type == "daily":
-            date_where = "ce.date >= '{start}' AND ce.date < '{end}'".format(
+            date_where = "ce.`date` >= '{start}' AND ce.`date` < '{end}'".format(
                 start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
                 end=self.interval.date_b.isoformat()  # pylint: disable=no-member
             )
         elif self.interval_type == "weekly":
             last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
             iso_weekday = last_complete_date.isoweekday()
-            calendar_join = "INNER JOIN calendar cal ON (ce.date = cal.date) "
-            date_where = "ce.date >= '{start}' AND ce.date < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
+            calendar_join = "INNER JOIN calendar cal ON (ce.`date` = cal.`date`) "
+            date_where = "ce.`date` >= '{start}' AND ce.`date` < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
                 start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
                 end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
                 iso_weekday=iso_weekday,
             )
         elif self.interval_type == "all":
             last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            date_where = "ce.date = '{last_complete_date}'".format(last_complete_date=last_complete_date.isoformat())
+            date_where = "ce.`date` = '{last_complete_date}'".format(last_complete_date=last_complete_date.isoformat())
 
         return """
         SELECT
-            ce.date,
+            ce.`date`,
             ce.course_id,
             au.username,
             au.email,
@@ -389,7 +389,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
         LEFT OUTER JOIN student_engagement_raw_{interval_type} ser
-            ON (au.username = ser.username AND ce.date = ser.end_date and ce.course_id = ser.course_id)
+            ON (au.username = ser.username AND ce.`date` = ser.end_date and ce.course_id = ser.course_id)
         LEFT OUTER JOIN (
             SELECT
                 cugu.user_id,

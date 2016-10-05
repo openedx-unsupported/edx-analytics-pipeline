@@ -728,7 +728,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
     def query(self):
         return """
             SELECT
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 IF(p.gender != '', p.gender, NULL),
                 SUM(ce.at_end),
@@ -736,7 +736,7 @@ class EnrollmentByGenderTask(EnrollmentTask):
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
             GROUP BY
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 IF(p.gender != '', p.gender, NULL)
         """
@@ -763,16 +763,16 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
     def query(self):
         query = """
             SELECT
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 p.year_of_birth,
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.date = '{date}'
+            WHERE ce.`date` = '{date}'
             GROUP BY
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 p.year_of_birth
         """.format(date=self.query_date)
@@ -800,7 +800,7 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
     def query(self):
         query = """
             SELECT
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 CASE p.level_of_education
                     WHEN 'el'    THEN 'primary'
@@ -820,9 +820,9 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.date = '{date}'
+            WHERE ce.`date` = '{date}'
             GROUP BY
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 CASE p.level_of_education
                     WHEN 'el'    THEN 'primary'
@@ -863,14 +863,14 @@ class EnrollmentByModeTask(EnrollmentTask):
     def query(self):
         query = """
             SELECT
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 ce.mode,
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             GROUP BY
-                ce.date,
+                ce.`date`,
                 ce.course_id,
                 ce.mode
         """.format(date=self.query_date)
@@ -899,13 +899,13 @@ class EnrollmentDailyTask(EnrollmentTask):
         query = """
             SELECT
                 ce.course_id,
-                ce.date,
+                ce.`date`,
                 SUM(ce.at_end),
                 COUNT(ce.user_id)
             FROM course_enrollment ce
             GROUP BY
                 ce.course_id,
-                ce.date
+                ce.`date`
         """.format(date=self.query_date)
         return query
 
@@ -981,13 +981,13 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                    LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
                                 ON enrollment_start.course_id = enrollment_end.course_id
                                AND enrollment_start.mode = enrollment_end.mode
-                               AND enrollment_start.date = '{start_date}'
+                               AND enrollment_start.`date` = '{start_date}'
                    LEFT OUTER JOIN course_catalog course
                                 ON course.course_id = enrollment_end.course_id
                    LEFT OUTER JOIN course_grade_by_mode
                                 ON enrollment_end.course_id = course_grade_by_mode.course_id
                                AND enrollment_end.mode = course_grade_by_mode.mode
-            WHERE  enrollment_end.date = '{end_date}'
+            WHERE  enrollment_end.`date` = '{end_date}'
         """.format(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
@@ -1240,19 +1240,19 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
                  LEFT OUTER JOIN (
                      SELECT ce.course_id,
                             ce.user_id,
-                            MAX(ce.date) AS enrollment_date,
+                            MAX(ce.`date`) AS enrollment_date,
                             MAX(grades.passed_timestamp) AS passed_timestamp
                      FROM   course_enrollment ce
                             INNER JOIN grades_persistentcoursegrade grades
                                     ON grades.course_id = ce.course_id
                                    AND grades.user_id = ce.user_id
-                     WHERE  ce.date <= to_date(grades.modified)
+                     WHERE  ce.`date` <= to_date(grades.modified)
                      GROUP BY ce.course_id,
                               ce.user_id
                  ) closest_enrollment
                          ON all_enrollments.course_id = closest_enrollment.course_id
                         AND all_enrollments.user_id = closest_enrollment.user_id
-                        AND all_enrollments.date = closest_enrollment.enrollment_date
+                        AND all_enrollments.`date` = closest_enrollment.enrollment_date
         GROUP BY all_enrollments.course_id,
                  all_enrollments.mode
         """

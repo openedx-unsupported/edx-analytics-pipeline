@@ -497,7 +497,7 @@ class QueryLastCountryPerCourseTask(
             USE {database_name};
             DROP TABLE IF EXISTS {table_name};
             CREATE EXTERNAL TABLE {table_name} (
-                date STRING,
+                `date` STRING,
                 course_id STRING,
                 country_code STRING,
                 count INT,
