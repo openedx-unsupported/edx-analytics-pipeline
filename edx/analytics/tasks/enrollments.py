@@ -40,6 +40,7 @@ class CourseEnrollmentEventsTask(
     # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
     FILEPATH_PATTERN = '.*?course_enrollment_events_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
+    # We use warehouse_path to generate the output path, so we make this a non-param.
     output_root = ''
 
     def mapper(self, line):
