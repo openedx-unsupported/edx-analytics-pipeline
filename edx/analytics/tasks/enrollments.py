@@ -41,7 +41,7 @@ class CourseEnrollmentEventsTask(
     FILEPATH_PATTERN = '.*?course_enrollment_events_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
     # We use warehouse_path to generate the output path, so we make this a non-param.
-    output_root = ''
+    output_root = None
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
