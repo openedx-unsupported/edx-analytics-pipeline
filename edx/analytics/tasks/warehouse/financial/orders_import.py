@@ -33,10 +33,10 @@ from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition,
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     otto_credentials = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'credentials'}
+        config_path={'section': 'otto-database-import', 'name': 'credentials'}
     )
     otto_database = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'database'}
+        config_path={'section': 'otto-database-import', 'name': 'database'}
     )
 
     def requires(self):

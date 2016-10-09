@@ -427,7 +427,7 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
 
     insert_query = luigi.Parameter()
     table = luigi.Parameter()
-    columns = luigi.Parameter(is_list=True)
+    columns = luigi.ListParameter()
     partition = HivePartitionParameter()
 
 

@@ -571,7 +571,7 @@ class PaypalTaskMixin(OverwriteOutputMixin):
         description='The date to generate a report for. Default is today, UTC.',
     )
     account_id = luigi.Parameter(
-        default_from_config={'section': 'paypal', 'name': 'account_id'},
+        config_path={'section': 'paypal', 'name': 'account_id'},
         description='A human readable name for the paypal account data is being gathered for.',
     )
 
@@ -678,7 +678,7 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
 
     date = None
     interval_start = luigi.DateParameter(
-        default_from_config={'section': 'paypal', 'name': 'interval_start'},
+        config_path={'section': 'paypal', 'name': 'interval_start'},
         significant=False,
     )
     interval_end = luigi.DateParameter(

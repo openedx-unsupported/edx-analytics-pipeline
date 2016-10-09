@@ -82,8 +82,7 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseH
     table_name = luigi.Parameter(
         description='The name of the table to import.',
     )
-    columns = luigi.Parameter(
-        is_list=True,
+    columns = luigi.ListParameter(
         default=[],
         description='A list of column names to be included.  Default is to include all columns.'
     )

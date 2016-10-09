@@ -601,15 +601,13 @@ class BaseAnswerDistributionDownstreamMixin(object):
         description='A unique identifier to distinguish one run from another.  It is used in '
         'the construction of output filenames, so each run will have distinct outputs.',
     )
-    src = luigi.Parameter(
-        is_list=True,
+    src = luigi.ListParameter(
         description='A list of URLs to the root location of input tracking log files.',
     )
     dest = luigi.Parameter(
         description='A URL to the root location to write output file(s).',
     )
-    include = luigi.Parameter(
-        is_list=True,
+    include = luigi.ListParameter(
         default=('*',),
         description='A list of patterns to be used to match input files, relative to `src` URL. '
         'The default value is [\'*\'].',

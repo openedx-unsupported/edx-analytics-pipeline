@@ -154,7 +154,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 class ObfuscatorDownstreamMixin(UserInfoDownstreamMixin):
     """Class for defining Luigi functions used downstream of obfuscating classes."""
 
-    entities = luigi.Parameter(is_list=True, default=[])
+    entities = luigi.ListParameter(default=[])
     log_context = luigi.IntParameter(default=None)
 
 

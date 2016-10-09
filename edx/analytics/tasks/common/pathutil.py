@@ -33,13 +33,11 @@ class PathSetTask(luigi.Task):
     A task to select a subset of files in an S3 bucket or local FS.
 
     """
-    src = luigi.Parameter(
-        is_list=True,
+    src = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'source'},
         description='A URL pointing to a folder in s3:// or local FS.',
     )
-    include = luigi.Parameter(
-        is_list=True,
+    include = luigi.ListParameter(
         default=('*',),
         description='A list of patterns to use to select.  Multiple patterns are OR\'d.',
     )
@@ -112,8 +110,7 @@ class PathSetTask(luigi.Task):
 class EventLogSelectionDownstreamMixin(object):
     """Defines parameters for passing upstream to tasks that use EventLogSelectionMixin."""
 
-    source = luigi.Parameter(
-        is_list=True,
+    source = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'source'},
         description='A URL to a path that contains log files that contain the events. (e.g., s3://my_bucket/foo/).',
     )
@@ -125,8 +122,7 @@ class EventLogSelectionDownstreamMixin(object):
         description='A time interval to add to the beginning and end of the interval to expand the windows of '
         'files captured.',
     )
-    pattern = luigi.Parameter(
-        is_list=True,
+    pattern = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'pattern'},
         description='A regex with a named capture group for the date that approximates the date that the events '
         'within were emitted. Note that the search interval is expanded, so events don\'t have to be in exactly '

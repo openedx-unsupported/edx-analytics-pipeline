@@ -33,8 +33,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         config_path={'section': 'event-export', 'name': 'config'},
         description='A URL to a YAML file that contains the list of organizations and servers to export events for.',
     )
-    org_id = luigi.Parameter(
-        is_list=True,
+    org_id = luigi.ListParameter(
         default=[],
         description='A list of organizations to process data for. If provided, only these organizations will be '
         'processed.  Otherwise, all valid organizations will be processed.',

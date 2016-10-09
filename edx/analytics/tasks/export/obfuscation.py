@@ -52,7 +52,7 @@ class ObfuscatedPackageTaskMixin(object):
     output_root = luigi.Parameter(
         config_path={'section': 'obfuscation', 'name': 'output_root'}
     )
-    recipient = luigi.Parameter(is_list=True)
+    recipient = luigi.ListParameter()
     format_version = luigi.Parameter()
 
 
@@ -166,7 +166,7 @@ class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
 class MultiCourseObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.WrapperTask):
     """Task to obfuscate multiple courses at once."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
 
     def requires(self):
         for course in self.course:   # pylint: disable=not-an-iterable
@@ -187,7 +187,7 @@ class MultiCourseObfuscatedCourseTask(ObfuscatedCourseTaskMixin, luigi.WrapperTa
 class MultiCourseObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.WrapperTask):
     """Task to package multiple courses at once."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
     temporary_dir = luigi.Parameter(default=None)
 
     def requires(self):

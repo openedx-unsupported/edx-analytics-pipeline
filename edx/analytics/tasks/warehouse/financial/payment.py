@@ -8,9 +8,8 @@ from edx.analytics.tasks.warehouse.financial.paypal import PaypalTransactionsInt
 class PaymentTask(luigi.WrapperTask):
 
     import_date = luigi.DateParameter()
-    cybersource_merchant_ids = luigi.Parameter(
-        default_from_config={'section': 'payment', 'name': 'cybersource_merchant_ids'},
-        is_list=True
+    cybersource_merchant_ids = luigi.ListParameter(
+        config_path={'section': 'payment', 'name': 'cybersource_merchant_ids'},
     )
 
     def requires(self):

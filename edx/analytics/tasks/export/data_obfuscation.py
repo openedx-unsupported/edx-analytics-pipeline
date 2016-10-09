@@ -673,7 +673,7 @@ class ObfuscatedCourseDumpTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
 class DataObfuscationTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
     """Wrapper task for data obfuscation development."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter(
         config_path={'section': 'obfuscation', 'name': 'output_root'}

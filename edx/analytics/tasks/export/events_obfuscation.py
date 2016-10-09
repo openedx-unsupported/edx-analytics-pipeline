@@ -354,7 +354,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
     """Wrapper task for course events obfuscation."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter()
     explicit_event_whitelist = luigi.Parameter(
