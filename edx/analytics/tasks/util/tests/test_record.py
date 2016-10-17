@@ -9,6 +9,7 @@ from ddt import data, ddt, unpack
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.util.record import (
     Record, StringField, IntegerField, DateField, DateTimeField, FloatField, DelimitedStringField, BooleanField,
+    HiveTsvEncoder
 )
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
@@ -120,7 +121,7 @@ class RecordTestCase(unittest.TestCase):
     def test_to_string_tuple_custom_nulls(self):
         test_record = SampleStruct(None, 0, None)
         self.assertEqual(
-            test_record.to_string_tuple(null_value='empty'),
+            test_record.to_string_tuple(string_encoder=HiveTsvEncoder(null_value='empty')),
             ('empty', '0', 'empty')
         )
 
@@ -140,10 +141,28 @@ class RecordTestCase(unittest.TestCase):
 
     def test_from_string_tuple_custom_nulls(self):
         string_tuple = ('empty', '0', '2015-11-01')
-        test_record = SampleStruct.from_string_tuple(string_tuple, null_value='empty')
+        test_record = SampleStruct.from_string_tuple(string_tuple, string_decoder=HiveTsvEncoder(null_value='empty'))
         self.assertEqual(test_record.name, None)
         self.assertEqual(test_record.index, 0)
         self.assertEqual(test_record.date, datetime.date(2015, 11, 1))
+
+    @data(
+        ('a\tb', 'a b'),
+        ('a\t\t\tb', 'a b'),
+        ('a\nb\t', 'a b '),
+        ('a    b\t', 'a b '),
+        ('a\r\nb', 'a b'),
+        ('a \t\n\r\f\vb', 'a b'),
+        ('a\tbC D', 'a bC D'),
+        (u'{0}\t\n{0}'.format(UNICODE_STRING), '{0} {0}'.format(UTF8_BYTE_STRING)),
+        ('{0}\t\n{0}'.format(UTF8_BYTE_STRING), '{0} {0}'.format(UTF8_BYTE_STRING)),
+    )
+    @unpack
+    def test_whitespace_normalization(self, name, normalized_name):
+        self.assertEqual(
+            SingleFieldRecord(name=name).to_string_tuple(string_encoder=HiveTsvEncoder(normalize_whitespace=True)),
+            (normalized_name,)
+        )
 
     @data(
         ('foo', '0'),
