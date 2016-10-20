@@ -15,7 +15,7 @@ EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
 
 REMOTE_DATA_DIR = '/var/lib/analytics-tasks'
 REMOTE_LOG_DIR = '/var/log/analytics-tasks'
-
+ANSIBLE_MAX_RETRY = 3
 
 def main():
     """Parse arguments and run the remote task."""
@@ -79,7 +79,16 @@ def run_task_playbook(inventory, arguments, uid):
         extra_vars = convert_args_to_extra_vars(arguments, uid)
         args = ['task.yml', '-e', extra_vars]
         prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+
+        retry = 0
+        while prep_result !=0 and retry < ANSIBLE_MAX_RETRY:
+            log('ANSIBLE RUN RETURNED NON-ZERO EXIT STATUS: {0}'.format(prep_result))
+            log('RETRYING')
+            retry += 1
+            prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+
         if prep_result != 0:
+            log('ANSIBLE RUN FAILED AFTER {0} RETRIES'.format(ANSIBLE_MAX_RETRY))
             return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
