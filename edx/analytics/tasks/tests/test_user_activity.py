@@ -113,7 +113,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unitte
         self.assertEquals(event, expected)
 
     def test_post_forum_event(self):
-        line = self.create_event_log_line(event_source='server', event_type='blah/blah/threads/create')
+        line = self.create_event_log_line(event_source='server', event_type='edx.forum.thread.created')
         event = tuple(self.task.mapper(line))
         expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
                     ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))

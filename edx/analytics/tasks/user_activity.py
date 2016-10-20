@@ -22,6 +22,9 @@ PROBLEM_LABEL = "ATTEMPTED_PROBLEM"
 PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
 POST_FORUM_LABEL = "POSTED_FORUM"
 
+DISCUSSION_ACTIVITIES = ['edx.forum.thread.created', 'edx.forum.thread.voted', 'edx.forum.response.created',
+                         'edx.forum.comment.created']
+
 
 class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
     """
@@ -78,7 +81,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
             if event_type == 'problem_check':
                 labels.append(PROBLEM_LABEL)
 
-            if event_type.endswith("threads/create"):
+            if event_type in DISCUSSION_ACTIVITIES:
                 labels.append(POST_FORUM_LABEL)
 
         if event_source in ('browser', 'mobile'):
