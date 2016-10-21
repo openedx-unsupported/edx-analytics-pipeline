@@ -119,6 +119,27 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unitte
                     ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
         self.assertEquals(event, expected)
 
+    def test_forum_response_event(self):
+        line = self.create_event_log_line(event_source='server', event_type='edx.forum.response.created')
+        event = tuple(self.task.mapper(line))
+        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
+                    ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
+        self.assertEquals(event, expected)
+
+    def test_forum_comment_event(self):
+        line = self.create_event_log_line(event_source='server', event_type='edx.forum.comment.created')
+        event = tuple(self.task.mapper(line))
+        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
+                    ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
+        self.assertEquals(event, expected)
+
+    def test_forum_vote_event(self):
+	# The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
+        line = self.create_event_log_line(event_source='server', event_type='edx.forum.thread.voted')
+        event = tuple(self.task.mapper(line))
+        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
+        self.assertEquals(event, expected)
+
     def test_exclusion_of_events_by_source(self):
         line = self.create_event_log_line(event_source='task')
         self.assert_no_map_output_for(line)
