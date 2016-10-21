@@ -78,7 +78,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
             if event_type == 'problem_check':
                 labels.append(PROBLEM_LABEL)
 
-            if event_type.endswith("threads/create"):
+            if event_type.startswith('edx.forum.') and event_type.endswith('.created'):
                 labels.append(POST_FORUM_LABEL)
 
         if event_source in ('browser', 'mobile'):
