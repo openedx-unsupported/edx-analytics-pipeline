@@ -4,6 +4,7 @@ Tests for tasks that collect enrollment events.
 """
 import datetime
 import json
+from ddt import ddt, data, unpack
 from edx.analytics.tasks.tests.map_reduce_mixins import ReducerTestMixin, MapperTestMixin
 
 from luigi import date_interval
@@ -22,6 +23,7 @@ from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
+@ddt
 class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
@@ -112,32 +114,18 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unitte
                     ((self.course_id, self.username, self.expected_date_string, PROBLEM_LABEL), 1))
         self.assertEquals(event, expected)
 
-    def test_post_forum_event(self):
-        line = self.create_event_log_line(event_source='server', event_type='edx.forum.thread.created')
+    @data(('edx.forum.thread.created', True), ('edx.forum.response.created', True), ('edx.forum.comment.created', True),
+          ('edx.forum.thread.voted', False))
+    @unpack
+    def test_post_forum_event(self, event_type, is_labeled_forum):
+        line = self.create_event_log_line(event_source='server', event_type=event_type)
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                    ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
-        self.assertEquals(event, expected)
-
-    def test_forum_response_event(self):
-        line = self.create_event_log_line(event_source='server', event_type='edx.forum.response.created')
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                    ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
-        self.assertEquals(event, expected)
-
-    def test_forum_comment_event(self):
-        line = self.create_event_log_line(event_source='server', event_type='edx.forum.comment.created')
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                    ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
-        self.assertEquals(event, expected)
-
-    def test_forum_vote_event(self):
-	# The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
-        line = self.create_event_log_line(event_source='server', event_type='edx.forum.thread.voted')
-        event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
+        if is_labeled_forum:
+            expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
+                        ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
+        else:
+	    # The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
+            expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
         self.assertEquals(event, expected)
 
     def test_exclusion_of_events_by_source(self):
