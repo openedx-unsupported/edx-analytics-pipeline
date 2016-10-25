@@ -9,7 +9,7 @@ from edx.analytics.tasks.load_internal_reporting_country import LoadInternalRepo
 from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingCourseCatalogToWarehouse
 from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingProgramCourseToWarehouse
 from edx.analytics.tasks.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
-from edx.analytics.tasks.load_internal_reporting_user_course import BuildUserCourseView, LoadUserCourseSummary
+from edx.analytics.tasks.load_internal_reporting_user_course import LoadUserCourseSummary
 from edx.analytics.tasks.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
 from edx.analytics.tasks.course_catalog import DailyLoadSubjectsToVerticaTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin, CredentialFileVerticaTarget
@@ -201,9 +201,6 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 date=self.date,
                 **kwargs
             ),
-            BuildUserCourseView(
-                **kwargs
-            ),
             LoadUserCourseSummary(
                 date=self.date,
                 **kwargs
@@ -269,7 +266,7 @@ class PostLoadWarehouseTask(SchemaManagementTask):
             'd_user_course_certificate',
             'd_course',
             'd_country',
-            'f_user_course',
+            'd_user_course',
             'f_user_activity',
             'd_user',
             'd_course_subjects'
