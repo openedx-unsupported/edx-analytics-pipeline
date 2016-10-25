@@ -141,7 +141,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
             '--target-dir', self.destination,
             # '--hive-partition-key', 'dt',
             # '--hive-partition-value', '2016-10-25',
-            '--hive-import',
+            #'--hive-import',
         ]
         if len(self.columns) > 0:
             arglist.extend(['--columns', ','.join(self.columns)])
