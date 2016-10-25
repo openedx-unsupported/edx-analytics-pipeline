@@ -16,7 +16,6 @@ http://cdn.mysql.com/Downloads/Connector-Python/mysql-connector-python-1.2.2.zip
 numpy==1.11.3 		# BSD
 pandas==0.13.0 		# BSD
 paypalrestsdk==1.9.0    # Paypal SDK License
-<<<<<<< HEAD
 pygeoip==0.3.2 		# LGPL
 python-cjson==1.1.0	# LGPL
 python-dateutil==2.6.0 	# BSD
@@ -34,7 +33,7 @@ google-cloud-bigquery==0.27.0
 
 # We patched Luigi, but we want to try the upgrade out of the box.
 # git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
-git+https://github.com/spotify/luigi.git@2.3.2#egg=luigi # Apache License 2.0
+git+https://github.com/spotify/luigi.git@2.3.3#egg=luigi # Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
 
 # These dependencies are pulled in by the above requirements,
