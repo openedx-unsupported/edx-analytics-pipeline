@@ -50,6 +50,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         config_path={'section': 'database-import', 'name': 'destination'},
         description='The directory to write the output files to.',
     )
+    buffer_dir = luigi.Parameter()
     credentials = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'credentials'},
         description='Path to the external access credentials file.',
@@ -142,6 +143,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
             # '--hive-partition-key', 'dt',
             # '--hive-partition-value', '2016-10-25',
             '--hive-import',
+            '-D fs.s3.buffer.dir', self.buffer_dir,
         ]
         if len(self.columns) > 0:
             arglist.extend(['--columns', ','.join(self.columns)])
