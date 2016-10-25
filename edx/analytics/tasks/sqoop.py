@@ -62,7 +62,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         description='The number of map tasks to ask Sqoop to use.',
     )
     verbose = luigi.BooleanParameter(
-        default=False,
+        default=True,
         description='Print more information while working.',
     )
     table_name = luigi.Parameter(
