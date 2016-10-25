@@ -57,7 +57,7 @@ def retry(should_retry=retry_on_any_exception, base_delay=0.5, timeout=None):
                     return func(*args, **kwargs)
                 except Exception as exception:  # pylint: disable=broad-except
                     if should_retry(exception):
-                        log.exception('Caught exception in retry handler, logging and retrying.')
+                        log.warning('Caught retryable exception "%s" in retry handler.  Message: %s', type(exception).__name__, exception)
                         if max_time and datetime.utcnow() > max_time:
                             raise RetryTimeoutError(
                                 'Unable to successfully complete call before {} the max timeout time.'.format(
