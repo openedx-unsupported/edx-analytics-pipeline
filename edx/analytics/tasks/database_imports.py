@@ -239,6 +239,8 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
     """Imports user information from an external LMS DB to a destination directory."""
 
+    class TableRecord(Record):pass
+
     def init_local(self):
         super(ImportAuthUserTask, self).init_local()
 
@@ -250,7 +252,6 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
         )
         connection = mysql_target.connect()
 
-        class TableRecord(Record):pass
 
         try:
             cursor = connection.cursor()
