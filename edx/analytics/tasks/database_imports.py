@@ -247,7 +247,7 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
             credentials_target=self.input_local()['credentials'],
             database_name=self.database,
             table=self.table_name,
-            update_id=self.update_id()
+            update_id=self.task_id
         )
         connection = mysql_target.connect()
 
