@@ -45,13 +45,13 @@ class FindInvalidOpaqueKeys(EventLogSelectionMixin, MapReduceJobTask):
         if self.any_mixed_case(r"[ic]4x:%2F%2F", line):
             yield ("Mixed case 'i4x' and 'c4x'", line)
 
-        if self.any_mixed_case(r"\W[ic]4x/", line):
+        if self.any_mixed_case(r"\b[ic]4x/\w+/\w+/\w+/\w+", line):
             yield ("Mixed case 'i4x' and 'c4x'", line)
 
-        if self.any_mixed_case(r"\W[ic]4x(;_)", line):
+        if self.any_mixed_case(r"\b[ic]4x;_\w+;_\w+;_\w+;_\w+", line):
             yield ("Mixed case 'i4x' and 'c4x'", line)
 
-        if self.any_mixed_case(r"\W[ic]4x%2F", line):
+        if self.any_mixed_case(r"\b[ic]4x%2F\w+%2F\w+%2F\w+%2F\w+", line):
             yield ("Mixed case 'i4x' and 'c4x'", line)
 
         if re.search(r'"event_type": "(([^:]+:[^/]+)|(i4x://)|(\W[ic]4x/))(%0A|%0D|\\n|\\r)', line):
@@ -78,13 +78,13 @@ class FindInvalidOpaqueKeys(EventLogSelectionMixin, MapReduceJobTask):
         if re.search(r'/?i4x/', line):
             yield ("Invalid form of i4x://", line)
 
-        if re.search(r'''\wi4x:;_''', line):
+        if re.search(r'''[^\W_]\wi4x:;_''', line):
             yield ("i4x:// misspellings", line)
 
-        if re.search(r'''\wi4x:%2F''', line):
+        if re.search(r'''[^\W_]i4x:%2F''', line):
             yield ("i4x:// misspellings", line)
 
-        if re.search(r'''\wi4x:/''', line):
+        if re.search(r'''[^\W_]i4x:/''', line):
             yield ("i4x:// misspellings", line)
 
         if re.search(r'aside-(usage|def)', line):
