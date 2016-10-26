@@ -564,7 +564,7 @@ class DelimitedStringField(Field):
 class BooleanField(Field):
     """Represents a field that contains a boolean."""
 
-    hive_type = 'TINYINT'
+    hive_type = 'BOOLEAN'
     sql_base_type = 'BOOLEAN'
     elasticsearch_type = 'boolean'
 

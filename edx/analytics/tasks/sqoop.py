@@ -193,7 +193,7 @@ class SqoopImportFromMysql(SqoopImportTask):
         description='Use standard mysql delimiters (on by default).',
     )
     direct = luigi.BooleanParameter(
-        default=False,
+        default=True,
         significant=False,
         description='Use mysqldumpi\'s "direct" mode.  Requires that no set of columns be selected.',
     )
