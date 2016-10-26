@@ -193,7 +193,6 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             table_name=self.table_name,
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
             # Make sure delimiters and nulls etc. still work after removal.
-            columns=[c[0] for c in self.columns],
             destination=self.partition_location,
             credentials=self.credentials,
             num_mappers=self.num_mappers,
@@ -251,7 +250,6 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
             update_id=self.update_id()
         )
         connection = mysql_target.connect()
-
 
         try:
             cursor = connection.cursor()
