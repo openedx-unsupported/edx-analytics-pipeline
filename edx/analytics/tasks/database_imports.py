@@ -270,15 +270,15 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
                     column_type = column_type_info
 
                 if column_type == 'int' or column_type == 'smallint':
-                    TableRecord.column_name = IntegerField(nullable=nullable)
+                    setattr(TableRecord, column_name, IntegerField(nullable=nullable))
                 elif column_type == 'tinyint':
-                    TableRecord.column_name = BooleanField(nullable=nullable)
+                    setattr(TableRecord, column_name, BooleanField(nullable=nullable))
                 elif column_type == 'varchar':
-                    TableRecord.column_name = StringField(nullable=nullable, length=column_length)
+                    setattr(TableRecord, column_name, StringField(nullable=nullable, length=column_length))
                 elif column_type == 'datetime' or column_type == 'date':
-                    TableRecord.column_name = DateTimeField(nullable=nullable)
+                    setattr(TableRecord, column_name, DateTimeField(nullable=nullable))
                 elif column_name == 'longtext':
-                    TableRecord.column_name = StringField(nullable=nullable, length=65000)
+                    setattr(TableRecord, column_name, StringField(nullable=nullable, length=65000))
         except:
             connection.rollback()
             raise
