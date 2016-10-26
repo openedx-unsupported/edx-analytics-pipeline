@@ -4,6 +4,7 @@ Import data from external RDBMS databases into Hive.
 import datetime
 import logging
 import textwrap
+import re
 
 import luigi
 from luigi.hive import HiveQueryTask, HivePartitionTarget
