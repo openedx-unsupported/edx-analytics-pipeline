@@ -12,6 +12,8 @@ from edx.analytics.tasks.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type
+from edx.analytics.tasks.mysql_load import MysqlInsertTaskMixin, CredentialFileMysqlTarget
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField, BooleanField
 
 log = logging.getLogger(__name__)
 
@@ -237,24 +239,76 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
     """Imports user information from an external LMS DB to a destination directory."""
 
+    def init_local(self):
+        super(ImportAuthUserTask, self).init_local()
+
+        mysql_target = CredentialFileMysqlTarget(
+            credentials_target=self.input_local()['credentials'],
+            database_name=self.database,
+            table=self.table,
+            update_id=self.update_id()
+        )
+        connection = mysql_target.connect()
+
+        class TableRecord(Record):pass
+
+        try:
+            cursor = connection.cursor()
+            cursor.execute("describe {0}".format(self.table_name))
+            column_info = cursor.fetchall()
+            for column in column_info:
+                column_name = column[0]
+                column_type_info = column[1]
+                column_nullable = column[2]
+                nullable = True if column_nullable == 'YES' else False
+
+                match = re.search("(.*)\((\d*)\)", column_type_info)
+                if match:
+                    column_type = match.group(1)
+                    column_length = match.group(2)
+                else:
+                    column_type = column_type_info
+
+                if column_type == 'int' or column_type == 'smallint':
+                    TableRecord.column_name = IntegerField(nullable=nullable)
+                elif column_type == 'tinyint':
+                    TableRecord.column_name = BooleanField(nullable=nullable)
+                elif column_type == 'varchar':
+                    TableRecord.column_name = StringField(nullable=nullable, length=column_length)
+                elif column_type == 'datetime' or column_type == 'date':
+                    TableRecord.column_name = DateTimeField(nullable=nullable)
+                elif column_name == 'longtext':
+                    TableRecord.column_name = StringField(nullable=nullable, length=65000)
+        except:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def requires_local(self):
+        return {
+            'credentials': ExternalURL(self.credentials)
+        }
+
     @property
     def table_name(self):
         return 'auth_user'
 
     @property
     def columns(self):
+        return TableRecord.get_sql_schema()
         # Fields not included are 'password', 'first_name' and 'last_name'.
         # In our LMS, the latter two are always empty.
-        return [
-            ('id', 'INT'),
-            ('username', 'STRING'),
-            ('last_login', 'TIMESTAMP'),
-            ('date_joined', 'TIMESTAMP'),
-            ('is_active', 'BOOLEAN'),
-            ('is_superuser', 'BOOLEAN'),
-            ('is_staff', 'BOOLEAN'),
-            ('email', 'STRING'),
-        ]
+        # return [
+        #     ('id', 'INT'),
+        #     ('username', 'STRING'),
+        #     ('last_login', 'TIMESTAMP'),
+        #     ('date_joined', 'TIMESTAMP'),
+        #     ('is_active', 'BOOLEAN'),
+        #     ('is_superuser', 'BOOLEAN'),
+        #     ('is_staff', 'BOOLEAN'),
+        #     ('email', 'STRING'),
+        # ]
 
 
 class ImportAuthUserProfileTask(ImportMysqlToHiveTableTask):
@@ -861,6 +915,7 @@ class ImportGeneratedCertificatesTask(ImportMysqlToHiveTableTask):
             ('created_date', 'TIMESTAMP'),
             ('modified_date', 'TIMESTAMP'),
         ]
+
 
 
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
