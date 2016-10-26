@@ -296,7 +296,7 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
 
     @property
     def columns(self):
-        return TableRecord.get_sql_schema()
+        return TableRecord.get_hive_schema()
         # Fields not included are 'password', 'first_name' and 'last_name'.
         # In our LMS, the latter two are always empty.
         # return [
