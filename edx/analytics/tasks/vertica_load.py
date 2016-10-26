@@ -398,6 +398,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                             '(column string, type string) tuples (was %r ...)'
                             % (self.columns[0],))
 
+        log.debug(type(self.input()['insert_source']))
         with self.input()['insert_source'].open('r') as insert_source_file:
             log.debug("Running stream copy from source file")
             cursor.copy(
