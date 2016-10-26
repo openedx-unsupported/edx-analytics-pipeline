@@ -277,7 +277,7 @@ class ImportAuthUserTask(ImportMysqlToHiveTableTask):
                     setattr(TableRecord, column_name, StringField(nullable=nullable, length=column_length))
                 elif column_type == 'datetime' or column_type == 'date':
                     setattr(TableRecord, column_name, DateTimeField(nullable=nullable))
-                elif column_name == 'longtext':
+                elif column_type == 'longtext':
                     setattr(TableRecord, column_name, StringField(nullable=nullable, length=65000))
         except:
             connection.rollback()
