@@ -10,7 +10,6 @@ import luigi
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
-from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available, get_jenkins_safe_url
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
@@ -27,7 +26,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
     def setUp(self):
         super(FinancialReportsAcceptanceTest, self).setUp()
 
-        for input_file_name in ('paypal.tsv', 'cybersource_test.tsv'):
+        for input_file_name in ('paypal.tsv', 'cybersource_test.tsv', 'adyen.tsv'):
             src = url_path_join(self.data_dir, 'input', input_file_name)
             dst = url_path_join(self.warehouse_path, "payments", "dt=" + self.IMPORT_DATE, input_file_name)
             self.upload_file(src, dst)

@@ -1,0 +1,5 @@
+Company Account,Merchant Account,Psp Reference,Merchant Reference,Payment Method,Booking Date,TimeZone,Main Currency,Main Amount,Record Type,Payment Currency,Received (PC),Authorised (PC),Captured (PC),Settlement Currency,Payable (SC),Commission (SC),Markup (SC),Scheme Fees (SC),Interchange (SC),Processing Fee Currency,Processing Fee (FC),User Name,Payment Method Variant,Modification Merchant Reference,Reserved3,Reserved4,Reserved5,Reserved6,Reserved7,Reserved8,Reserved9,Reserved10
+EdXAccount,EdXORG,8514713641604195,EDX-100431,visa,2016-08-17 03:44:21,UTC,USD,273.85,Refunded,USD,0.00,0.00,295.00,USD,-273.85,5.37,0.00,0.00,0.00,,,system,visa,EDX-100431,,,,,,,,
+EdXAccount,EdXORG,8514713899528930,EDX-100440,visa,2016-08-16 23:25:52,UTC,USD,295.00,Authorised,USD,-295.00,295.00,0.00,,,,,,,,,ws@Company.EdXAccount,visa,,,,,,,,,
+EdXAccount,EdXORG,8514713899528930,EDX-100440,visa,2016-08-16 23:25:52,UTC,USD,295.00,Received,USD,295.00,0.00,0.00,,,,,,,USD,-0.10,ws@Company.EdXAccount,visa,,,,,,,,,
+EdXAccount,EdXORG,7914712985122903,EDX-100430,visa,2016-08-17 03:44:20,UTC,USD,250.00,Settled,USD,0.00,0.00,-295.00,USD,264.32,0.00,1.61,0.54,2.01,,,system,visa,<auto>,,,,,,,,

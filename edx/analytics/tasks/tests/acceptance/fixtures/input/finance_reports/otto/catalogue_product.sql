@@ -41,4 +41,6 @@ INSERT INTO `catalogue_product` VALUES
   (20,'standalone',NULL,'AccTest 25% off Otto Verified','578E9F3544','',NULL,'2016-03-22 20:44:23.266854','2016-03-22 20:44:23.310765',1,NULL,3,NULL,NULL),
   (21,'standalone',NULL,'AccTest $200 off Otto Prof','92D741F650','',NULL,'2016-03-22 20:46:39.846749','2016-03-22 20:46:39.958757',1,NULL,3,NULL,NULL),
   (22,'standalone',NULL,'AccTest Otto Pro Enroll Code','450483FB7B','',NULL,'2016-03-22 20:47:58.279367','2016-03-22 20:47:58.384073',1,NULL,3,NULL,NULL),
-  (23,'standalone',NULL,'AccTest 40% off Otto Credit','901A4FE566','',NULL,'2016-03-22 20:50:27.485071','2016-03-22 20:50:27.538182',1,NULL,3,NULL,NULL);
+  (23,'standalone',NULL,'AccTest 40% off Otto Credit','901A4FE566','',NULL,'2016-03-22 20:50:27.485071','2016-03-22 20:50:27.538182',1,NULL,3,NULL,NULL),
+  (24,'parent',NULL,'Seat in Adyen Otto Verified Course','seat-in','',NULL,'2016-08-11 20:32:49.444111','2016-08-11 20:32:49.476687',1,NULL,1,'course-v1:AccTest+Otto+Adyen',NULL),
+  (25,'child',NULL,'Seat in Adyen Otto Verified Course','seat-in-adyen-otto-verified-course','',NULL,'2016-08-11 20:32:49.520169','2016-08-11 20:32:49.520208',1,24,NULL,'course-v1:AccTest+Otto+Adyen',NULL);
