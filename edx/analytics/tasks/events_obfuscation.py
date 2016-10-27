@@ -13,7 +13,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.user_location import GeolocationMixin, GeolocationTask
+from edx.analytics.tasks.util.geolocation import GeolocationMixin, GeolocationTask
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS

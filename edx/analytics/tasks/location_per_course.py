@@ -2,6 +2,7 @@
 Determine the number of users in each country are enrolled in each course.
 """
 import logging
+import pygeoip
 import textwrap
 
 import luigi
@@ -13,7 +14,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.user_location import BaseGeolocation, GeolocationMixin
+from edx.analytics.tasks.util.geolocation import GeolocationMixin, GeolocationTask, UNKNOWN_COUNTRY, UNKNOWN_CODE
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name
@@ -35,7 +36,7 @@ class LastCountryOfUserMixin(
     pass
 
 
-class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeolocation, MapReduceJobTask):
+class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, GeolocationTask, MapReduceJobTask):
     """
     Identifies the country of the last IP address associated with each user.
 
@@ -92,6 +93,53 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, BaseGeol
             return
 
         yield username, (timestamp, ip_address)
+
+    def reducer(self, key, values):
+        """Outputs country for last ip address associated with a user."""
+
+        # DON'T presort input values (by timestamp).  The data potentially takes up too
+        # much memory.  Scan the input values instead.
+
+        # We assume the timestamp values (strings) are in ISO
+        # representation, so that they can be compared as strings.
+        username = key
+        last_ip = None
+        last_timestamp = ""
+        for timestamp, ip_address in values:
+            if timestamp > last_timestamp:
+                last_ip = ip_address
+                last_timestamp = timestamp
+
+        if not last_ip:
+            return
+
+        # This ip address might not provide a country name.
+        try:
+            country = self.geoip.country_name_by_addr(last_ip)
+            code = self.geoip.country_code_by_addr(last_ip)
+        except Exception:
+            log.exception("Encountered exception getting country:  user '%s', last_ip '%s' on '%s'.",
+                          username, last_ip, last_timestamp)
+            country = UNKNOWN_COUNTRY
+            code = UNKNOWN_CODE
+
+        if country is None or len(country.strip()) <= 0:
+            log.error("No country found for user '%s', last_ip '%s' on '%s'.", username, last_ip, last_timestamp)
+            # TODO: try earlier IP addresses, if we find this happens much.
+            country = UNKNOWN_COUNTRY
+
+        if code is None or len(code.strip()) <= 0:
+            log.error("No code found for user '%s', last_ip '%s', country '%s' on '%s'.",
+                      username, last_ip, country, last_timestamp)
+            # TODO: try earlier IP addresses, if we find this happens much.
+            code = UNKNOWN_CODE
+
+        # Add the username for debugging purposes.  (Not needed for counts.)
+        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
+
+    def extra_modules(self):
+        """Pygeoip is required by all tasks that load this file."""
+        return [pygeoip]
 
 
 class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTableTask):
@@ -159,6 +207,7 @@ class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
         yield ExternalURL(
             url=url_path_join(self.warehouse_path, 'last_country_of_user', self.partition_spec()) + '/'
         )
+
 
 class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
     """

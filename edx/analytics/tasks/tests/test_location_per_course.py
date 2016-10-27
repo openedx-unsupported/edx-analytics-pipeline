@@ -3,27 +3,48 @@ Tests for geolocation-per-course tasks.
 """
 import json
 import textwrap
-from edx.analytics.tasks.tests.map_reduce_mixins import ReducerTestMixin
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
 from mock import Mock, patch
 
 from luigi.date_interval import Year
 
 from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.location_per_course import ImportLastCountryOfUserToHiveTask
-from edx.analytics.tasks.location_per_course import LastCountryOfUser, QueryLastCountryPerCourseTask
-from edx.analytics.tasks.location_per_course import QueryLastCountryPerCourseWorkflow
-from edx.analytics.tasks.location_per_course import InsertToMysqlCourseEnrollByCountryWorkflow
-from edx.analytics.tasks.user_location import UNKNOWN_COUNTRY, UNKNOWN_CODE
-from edx.analytics.tasks.tests.test_user_location import FakeGeoLocation, BaseUserLocationEventTestCase
+from edx.analytics.tasks.location_per_course import (
+    ImportLastCountryOfUserToHiveTask,
+    LastCountryOfUser, QueryLastCountryPerCourseTask,
+    QueryLastCountryPerCourseWorkflow,
+    InsertToMysqlCourseEnrollByCountryWorkflow,
+)
+from edx.analytics.tasks.util.geolocation import UNKNOWN_COUNTRY, UNKNOWN_CODE
+from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
-class LastCountryOfUserMapperTestCase(BaseUserLocationEventTestCase):
+class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
     """Tests of LastCountryOfUser.mapper()"""
+
+    username = 'test_user'
+    timestamp = "2013-12-17T15:38:32.805444"
+    ip_address = FakeGeoLocation.ip_address_1
 
     def setUp(self):
         self.task_class = LastCountryOfUser
         super(LastCountryOfUserMapperTestCase, self).setUp()
+
+    def _create_event_log_line(self, **kwargs):
+        """Create an event log with test values, as a JSON string."""
+        return json.dumps(self._create_event_dict(**kwargs))
+
+    def _create_event_dict(self, **kwargs):
+        """Create an event log with test values, as a dict."""
+        # Define default values for event log entry.
+        event_dict = {
+            "username": self.username,
+            "time": "{0}+00:00".format(self.timestamp),
+            "ip": self.ip_address,
+        }
+        event_dict.update(**kwargs)
+        return event_dict
 
     def test_non_enrollment_event(self):
         line = 'this is garbage'

@@ -11,7 +11,7 @@ from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, Reducer
 from edx.analytics.tasks.tests.target import FakeTarget
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
-from edx.analytics.tasks.tests.test_user_location import FakeGeoLocation
+from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
 class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
