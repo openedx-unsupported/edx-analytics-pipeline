@@ -52,7 +52,7 @@ def when_geolocation_data_available(function):
     geolocation_data = config.get('geolocation_data')
     geolocation_data_available = bool(geolocation_data)
     if geolocation_data_available:
-        geolocation_data_available = get_target_from_url(get_jenkins_safe_url(geolocation_data)).exists()
+        geolocation_data_available = get_target_for_local_server(geolocation_data).exists()
     return unittest.skipIf(
         not geolocation_data_available, 'Geolocation data is not available'
     )(function)
@@ -97,11 +97,21 @@ def get_test_config():
     return config
 
 
-def get_jenkins_safe_url(url):
+def get_target_for_local_server(url):
     # The machine running the acceptance test suite may not have hadoop installed on it, so convert S3 paths (which
     # are normally handled by the hadoop DFS client) to S3+https paths, which are handled by the python native S3
     # client.
-    return url.replace('s3://', 's3+https://')
+    return get_target_from_url(url.replace('s3://', 's3+https://'))
+
+
+def modify_target_for_local_server(target):
+    # The machine running the acceptance test suite may not have hadoop installed on it (e.g. Jenkins), so convert
+    # S3 paths (which are normally handled by the hadoop DFS client) to S3+https paths, which are handled by the python
+    # native S3 client.  But avoid creating a new target for a HDFS target, because the path has had the scheme stripped.
+    if target.path.startswith('s3://'):
+        return get_target_for_local_server(target.path)
+    else:
+        return target
 
 
 class AcceptanceTestCase(unittest.TestCase):
@@ -233,8 +243,7 @@ class AcceptanceTestCase(unittest.TestCase):
         self.vertica = vertica.VerticaService(self.config, schema)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
-        if os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true':
-            self.reset_external_state()
+        self.reset_external_state()
 
         max_diff = os.getenv('MAX_DIFF', None)
         if max_diff is not None:
@@ -243,8 +252,15 @@ class AcceptanceTestCase(unittest.TestCase):
             else:
                 self.maxDiff = int(max_diff)
 
+    @property
+    def should_reset_state(self):
+        return os.getenv('DISABLE_RESET_STATE', 'false').lower() != 'true'
+
     def reset_external_state(self):
-        root_target = get_target_from_url(get_jenkins_safe_url(self.test_root))
+        if not self.should_reset_state:
+            return
+
+        root_target = get_target_for_local_server(self.test_root)
         if root_target.exists():
             root_target.remove()
         self.import_db.reset()
@@ -291,18 +307,6 @@ class AcceptanceTestCase(unittest.TestCase):
                 self.assertListEqual(expected, actual)
 
     @staticmethod
-    def read_dfs_directory(url):
-        """Given the URL to a directory, read all of the files from it and concatenate them."""
-        output_targets = PathSetTask([url], ['*']).output()
-        raw_output = []
-        for output_target in output_targets:
-            if isinstance(output_target, S3HdfsTarget):
-                output_target = get_target_from_url(get_jenkins_safe_url(output_target.path))
-            raw_output.append(output_target.open('r').read())
-
-        return ''.join(raw_output)
-
-    @staticmethod
     def assert_data_frames_equal(data, expected):
         """Compare two pandas DataFrames and display diagnostic output if they don't match."""
         try:
@@ -323,3 +327,30 @@ class AcceptanceTestCase(unittest.TestCase):
                     except AssertionError:
                         print "First differing row: {index}".format(index=index)
             raise
+
+    @staticmethod
+    def get_targets_from_remote_path(remote_path, pattern='*'):
+        output_targets = PathSetTask([remote_path], [pattern]).output()
+        modified = [modify_target_for_local_server(output_target) for output_target in output_targets]
+        return modified
+
+    @staticmethod
+    def download_file_to_local_directory(remote_file_path, local_file_dir_name):
+        log.debug('Downloading %s to %s', remote_file_path, local_file_dir_name)
+        filename = os.path.basename(remote_file_path)
+        local_file_path = url_path_join(local_file_dir_name, filename)
+        with get_target_for_local_server(remote_file_path).open('r') as remote_file:
+            with open(local_file_path, 'w') as local_file:
+                shutil.copyfileobj(remote_file, local_file)
+        return local_file_path
+
+    @staticmethod
+    def read_dfs_directory(url):
+        """Given the URL to a directory, read all of the files from it and concatenate them."""
+        output_targets = AcceptanceTestCase.get_targets_from_remote_path(url)
+        raw_output = []
+        for output_target in output_targets:        
+            raw_output.append(output_target.open('r').read())
+
+        return ''.join(raw_output)
+

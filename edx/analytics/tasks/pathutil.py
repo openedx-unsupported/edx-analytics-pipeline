@@ -67,9 +67,10 @@ class PathSetTask(luigi.Task):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
-                # TODO: implement exclude_zero_length to match S3 case.
-                for source in luigi.hdfs.listdir(src, recursive=True):
-                    if any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
+                for source, size in luigi.hdfs.listdir(src, recursive=True, include_size=True):
+                    if not self.include_zero_length and size == 0:
+                        continue
+                    elif any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
                         yield ExternalURL(source)
             else:
                 # Apply the include patterns to the relative path below the src directory.
@@ -292,3 +293,17 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         except KeyError:
             self.incr_counter('Event', 'Missing Time Field', 1)
             return None
+
+    def get_map_input_file(self):
+        """Get the name of the input file from Hadoop."""
+        # Hadoop sets an environment variable with the full URL of the input file. This url will be something like:
+        # s3://bucket/root/host1/tracking.log.gz. In this example, assume self.source is "s3://bucket/root".
+        try:
+            return os.environ['mapreduce_map_input_file']
+        except KeyError:
+            try:
+                # Older versions of Hadoop support a deprecated key, so also try that.
+                return os.environ['map_input_file']
+            except KeyError:
+                log.warn('mapreduce_map_input_file not defined in os.environ, unable to determine input file path')
+                return ''
