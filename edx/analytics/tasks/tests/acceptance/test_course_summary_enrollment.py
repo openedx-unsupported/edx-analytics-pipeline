@@ -36,7 +36,6 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         self.validate_table()
 
     def launch_task(self):
-        # TODO: launch the right task
         self.task.launch([
             'CourseSummaryEnrollmentWrapperTask',
             '--interval', '2014-08-01-2014-08-06',
@@ -45,10 +44,9 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         ])
 
     def validate_table(self):
-        # TODO: actually test the results here
-        columns = ['course_id', 'catalog_course_title', 'start_time', 'end_time', 'pacing_type',
-                   'availability', 'program_id', 'program_title', 'count', 'count_change_7_days',
-                   'cumulative_count', 'enrollment_mode', 'catalog_course']
+        columns = ['course_id', 'catalog_course_title', 'program_id', 'program_title', 'catalog_course',
+                   'start_time', 'end_time', 'pacing_type', 'availability', 'enrollment_mode', 'count',
+                   'count_change_7_days', 'cumulative_count',]
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 'SELECT {columns} FROM course_meta_summary_enrollment'.format(columns.join(',')) /
