@@ -152,7 +152,7 @@ class ProgramCourseTableTask(BareHiveTableTask):
         return ProgramCourseRecord.get_hive_schema()
 
 
-class ExtractProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
+class ProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
     """The hive table partition for the program course catalog data."""
 
     @property
@@ -168,7 +168,7 @@ class ExtractProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin,
 
     @property
     def data_task(self):
-        return ExtractProgramCourseDataTask(
+        return ProgramCourseDataTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -177,7 +177,7 @@ class ExtractProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin,
         )
 
 
-class ExtractProgramCourseDataTask(BaseCourseMetadataTask):
+class ProgramCourseDataTask(BaseCourseMetadataTask):
     """Process the information from the course structure API and write it to a tsv."""
 
     table_name = 'program_course'
@@ -203,7 +203,7 @@ class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseC
 
     @property
     def insert_source_task(self):
-        return ExtractProgramCoursePartitionTask(
+        return ProgramCoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -231,7 +231,7 @@ class CourseSeatRecord(Record):
     course_seat_credit_hours = IntegerField(nullable=True)
 
 
-class ExtractCourseSeatTask(BaseCourseMetadataTask):
+class CourseSeatTask(BaseCourseMetadataTask):
     """Process course seat information from the course structure API and write it to a tsv."""
 
     table_name = 'course_seat'
@@ -256,7 +256,7 @@ class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCata
 
     @property
     def insert_source_task(self):
-        return ExtractCourseSeatTask(
+        return CourseSeatTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -309,7 +309,7 @@ class CourseTableTask(BareHiveTableTask):
         return CourseRecord.get_hive_schema()
 
 
-class ExtractCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
+class CoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
     """The hive table partition for this course catalog data."""
 
     @property
@@ -325,7 +325,7 @@ class ExtractCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePa
 
     @property
     def data_task(self):
-        return ExtractCourseDataTask(
+        return CourseDataTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -334,7 +334,7 @@ class ExtractCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePa
         )
 
 
-class ExtractCourseDataTask(BaseCourseMetadataTask):
+class CourseDataTask(BaseCourseMetadataTask):
     """Process course information from the course structure API and write it to a tsv."""
 
     table_name = 'course_catalog'
@@ -367,7 +367,7 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogM
 
     @property
     def insert_source_task(self):
-        return ExtractCoursePartitionTask(
+        return CoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,

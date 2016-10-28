@@ -6,8 +6,8 @@ from edx.analytics.tasks.enrollments import (
     EnrollmentByModeTask,
 )
 from edx.analytics.tasks.load_internal_reporting_course_catalog import (
-    ExtractCoursePartitionTask,
-    ExtractProgramCoursePartitionTask,
+    CoursePartitionTask,
+    ProgramCoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
 )
 
@@ -25,26 +25,24 @@ from edx.analytics.tasks.util.record import (
 )
 
 
-class CourseEnrollmentSummaryRecord(Record):
+class CourseSummaryEnrollmentRecord(Record):
     """Recent enrollment summary and metadata for a course."""
-    course_id = StringField(length=255, nullable=False)
-    catalog_course_title = StringField(nullable=True, length=255,
-                                       normalize_whitespace=True)
-    start_time = DateTimeField(nullable=True)
-    end_time = DateTimeField(nullable=True)
-    count = IntegerField(nullable=True)
-    count_change_7_days = IntegerField(nullable=True)
-    cumulative_count = IntegerField(nullable=True)
-    pacing_type = StringField(nullable=True, length=255)
-    availability = StringField(nullable=True, length=255)
-    enrollment_mode = StringField(
-        length=100,
-        nullable=False,
-    )
-    program_id = StringField(nullable=False, length=36)
-    program_title = StringField(nullable=True, length=255,
-                                normalize_whitespace=True)
-    catalog_course = StringField(nullable=False, length=255)
+    course_id = StringField(length=255, nullable=False, description='A unique identifier of the course')
+    catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True,
+                                       description='The name of the course')
+    program_id = StringField(nullable=False, length=36, description='A unique identifier of the program')
+    program_title = StringField(nullable=True, length=255, normalize_whitespace=True,
+                                description='The display title for the program')
+    catalog_course = StringField(nullable=False, length=255, description='Course identifier without run')
+    start_time = DateTimeField(nullable=True, description='The date and time that the course begins')
+    end_time = DateTimeField(nullable=True, description='The date and time that the course ends')
+    pacing_type = StringField(nullable=True, length=255, description='The type of pacing for this course')
+    availability = StringField(nullable=True, length=255, description='Availability status of the course')
+    enrollment_mode = StringField(length=100, nullable=False, description='Enrollment mode for the enrollment counts')
+    count = IntegerField(nullable=True, description='The count of currently enrolled learners')
+    count_change_7_days = IntegerField(nullable=True,
+                                       description='Difference in enrollment counts over the past 7 days')
+    cumulative_count = IntegerField(nullable=True, description='The cumulative total of all users ever enrolled')
 
 
 class CourseEnrollmentSummaryDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
@@ -79,11 +77,11 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseEnrollmentSummaryDownstreamM
 
     @property
     def table(self):
-        return 'course_summary'
+        return 'course_meta_summary_enrollment'
 
     @property
     def columns(self):
-        return CourseEnrollmentSummaryRecord.get_sql_schema()
+        return CourseSummaryEnrollmentRecord.get_sql_schema()
 
     def requires(self):
         yield CourseSummaryEnrollmentPartitionTask(
@@ -112,7 +110,7 @@ class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
 
     @property
     def columns(self):
-        return CourseEnrollmentSummaryRecord.get_hive_schema()
+        return CourseSummaryEnrollmentRecord.get_hive_schema()
 
 
 class CourseSummaryEnrollmentPartitionTask(CourseEnrollmentSummaryDownstreamMixin, HivePartitionTask):
@@ -143,25 +141,22 @@ class CourseSummaryEnrollmentPartitionTask(CourseEnrollmentSummaryDownstreamMixi
                 course.end_time,
                 course.pacing_type,
                 course.availability,
+                enrollment_end.mode,
                 enrollment_end.count,
                 (enrollment_end.count - COALESCE(enrollment_start.count, 0)) as count_change_7_days
                 enrollment_end.cumulative_count,
-                enrollment_end.mode,
-            FROM {enrollment_table} as enrollment_end
-            LEFT JOIN {enrollment_table} as enrollment_start
+            FROM course_enrollment_mode_daily as enrollment_end
+            LEFT JOIN course_enrollment_mode_daily as enrollment_start
                 ON enrollment_start.course_id = enrollment_end.course_id
                 AND enrollment_start.mode = enrollment_end.mode
-            LEFT JOIN {program_table} as program
-                ON program.course_id = ce_recent.course_id
-            LEFT JOIN {course_table} as course
-                ON course.course_id = ce_recent.course_id
-            WHERE ce_recent.date = '{end_date}'
-            AND ce_early.date = '{start_date}';
+            LEFT JOIN program_course as program
+                ON program.course_id = enrollment_end.course_id
+            LEFT JOIN course_catalog as course
+                ON course.course_id = enrollment_end.course_id
+            WHERE enrollment_end.date = '{end_date}'
+            AND enrollment_start.date = '{start_date}';
         """.format(
             database_name=hive_database_name(),
-            enrollment_table='course_enrollment_mode_daily',
-            program_table='program_course',
-            course_table='course_catalog',
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
@@ -186,14 +181,14 @@ class CourseSummaryEnrollmentPartitionTask(CourseEnrollmentSummaryDownstreamMixi
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
             ),
-            ExtractProgramCoursePartitionTask(
+            ProgramCoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
                 api_page_size=self.api_page_size,
                 overwrite=self.overwrite,
             ),
-            ExtractCoursePartitionTask(
+            CoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
