@@ -45,12 +45,12 @@ class CourseSummaryEnrollmentRecord(Record):
     cumulative_count = IntegerField(nullable=True, description='The cumulative total of all users ever enrolled')
 
 
-class CourseEnrollmentSummaryDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
+class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
     pass
 
 
-class CourseEnrollmentSummaryWrapperTask(CourseEnrollmentSummaryDownstreamMixin,
+class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
                                          luigi.WrapperTask):
     def requires(self):
         kwargs = {
@@ -72,7 +72,7 @@ class CourseEnrollmentSummaryWrapperTask(CourseEnrollmentSummaryDownstreamMixin,
         yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
 
 
-class ImportCourseSummaryEnrollmentsIntoMysql(CourseEnrollmentSummaryDownstreamMixin,
+class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
                                               HiveQueryToMysqlTask):
 
     @property
@@ -113,7 +113,7 @@ class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
         return CourseSummaryEnrollmentRecord.get_hive_schema()
 
 
-class CourseSummaryEnrollmentPartitionTask(CourseEnrollmentSummaryDownstreamMixin, HivePartitionTask):
+class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):
 
     def __init__(self, *args, **kwargs):
         super(CourseSummaryEnrollmentPartitionTask, self).__init__(*args, **kwargs)
