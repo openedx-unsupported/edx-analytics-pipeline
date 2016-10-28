@@ -2,7 +2,6 @@
 Determine the number of users in each country are enrolled in each course.
 """
 import logging
-import pygeoip
 import textwrap
 
 import luigi
@@ -14,7 +13,9 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.util.geolocation import GeolocationMixin, GeolocationTask, UNKNOWN_COUNTRY, UNKNOWN_CODE
+from edx.analytics.tasks.util.geolocation import (
+    GeolocationMixin, GeolocationDownstreamMixin, UNKNOWN_COUNTRY, UNKNOWN_CODE,
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name
@@ -27,7 +28,7 @@ class LastCountryOfUserMixin(
         WarehouseMixin,
         MapReduceJobTaskMixin,
         EventLogSelectionDownstreamMixin,
-        GeolocationMixin,
+        GeolocationDownstreamMixin,
         OverwriteOutputMixin):
     """
     Defines parameters for LastCountryOfUser task and downstream tasks that require it.
@@ -36,20 +37,14 @@ class LastCountryOfUserMixin(
     pass
 
 
-class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, GeolocationTask, MapReduceJobTask):
+class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, GeolocationMixin, MapReduceJobTask):
     """
     Identifies the country of the last IP address associated with each user.
 
     Uses :py:class:`LastCountryOfUserMixin` to define parameters, :py:class:`EventLogSelectionMixin`
-    to define required input log files, and :py:class:`BaseGeolocation` to provide geolocation setup.
+    to define required input log files, and :py:class:`GeolocationMixin` to provide geolocation setup.
 
     """
-
-    def requires_local(self):
-        return ExternalURL(self.geolocation_data)
-
-    def geolocation_data_target(self):
-        return self.input_local()
 
     def output(self):
         return get_target_from_url(
@@ -136,10 +131,6 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, Geolocat
 
         # Add the username for debugging purposes.  (Not needed for counts.)
         yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
-
-    def extra_modules(self):
-        """Pygeoip is required by all tasks that load this file."""
-        return [pygeoip]
 
 
 class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTableTask):

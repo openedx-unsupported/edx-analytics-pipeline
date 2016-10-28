@@ -13,7 +13,7 @@ import luigi.date_interval
 
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.util.geolocation import GeolocationMixin, GeolocationTask
+from edx.analytics.tasks.util.geolocation import GeolocationMixin
 from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
@@ -29,7 +29,7 @@ ExplicitEventType = namedtuple("ExplicitEventType", ["event_source", "event_type
 REDACTED_USERNAME = 'REDACTED_USERNAME'
 
 
-class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, GeolocationTask, MultiOutputMapReduceJobTask):
+class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMapReduceJobTask):
     """
     Task to obfuscate events for a particular course.
 
@@ -48,14 +48,11 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, GeolocationTa
         return PathSetTask([event_files_url], ['*'])
 
     def requires_local(self):
-        results = {}
+        results = super(ObfuscateCourseEventsTask, self).requires_local()
+
         if os.path.basename(self.explicit_event_whitelist) != self.explicit_event_whitelist:
             results['explicit_events'] = ExternalURL(url=self.explicit_event_whitelist)
-        results['geolocation_data'] = ExternalURL(self.geolocation_data)
         return results
-
-    def geolocation_data_target(self):
-        return self.input_local()['geolocation_data']
 
     def init_local(self):
         super(ObfuscateCourseEventsTask, self).init_local()

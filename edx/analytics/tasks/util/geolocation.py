@@ -1,15 +1,17 @@
 """Utility classes for providing geolocation functionality."""
 
-import pygeoip
 import tempfile
 
 import luigi
+import pygeoip
+
+from edx.analytics.tasks.url import ExternalURL
 
 UNKNOWN_COUNTRY = "UNKNOWN"
 UNKNOWN_CODE = "UNKNOWN"
 
 
-class GeolocationMixin(object):
+class GeolocationDownstreamMixin(object):
     """
     Defines parameters needed for geolocation lookups.
 
@@ -20,17 +22,28 @@ class GeolocationMixin(object):
     )
 
 
-class GeolocationTask(object):
+class GeolocationMixin(GeolocationDownstreamMixin):
     """Provides support for initializing a geolocation object."""
 
     geoip = None
 
+    def requires_local(self):
+        """Adds geolocation_data as a local requirement."""
+        result = super(GeolocationMixin, self).requires_local()
+        # Default is an empty list, but assume that any real data added is done
+        # so as a dict.
+        if not result:
+            result = {}
+        result['geolocation_data'] = ExternalURL(self.geolocation_data)
+        return result
+
     def geolocation_data_target(self):
         """Defines target from which geolocation data can be read."""
-        raise NotImplementedError
+        return self.input_local()['geolocation_data']
 
     def init_reducer(self):
-        super(GeolocationTask, self).init_reducer()
+        """Initialize the geolocation object for use by a reducer."""
+        super(GeolocationMixin, self).init_reducer()
         # Copy the remote version of the geolocation data file to a local file.
         # This is required by the GeoIP call, which assumes that the data file is located
         # on a local file system.
@@ -52,3 +65,11 @@ class GeolocationTask(object):
         self.temporary_data_file.close()
 
         return tuple()
+
+    def extra_modules(self):
+        """Pygeoip is required by all tasks that perform geolocation."""
+        modules = super(GeolocationMixin, self).extra_modules()
+        if not modules:
+            return [pygeoip]
+        else:
+            return modules.append(pygeoip)
