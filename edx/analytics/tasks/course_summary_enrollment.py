@@ -111,9 +111,9 @@ class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
 
 class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):
 
-    def __init__(self, *args, **kwargs):
-        super(CourseSummaryEnrollmentPartitionTask, self).__init__(*args, **kwargs)
-        self.partition_value = self.date.isoformat()
+    @property
+    def partition_value(self):
+        return self.date.isoformat()  # pylint: disable=no-member
 
     def query(self):
         """
