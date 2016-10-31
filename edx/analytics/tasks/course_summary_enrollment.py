@@ -79,7 +79,8 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
     def columns(self):
         return CourseSummaryEnrollmentRecord.get_sql_schema()
 
-    def requires(self):
+    @property
+    def required_table_tasks(self):
         yield CourseSummaryEnrollmentPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -157,7 +158,6 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
             end_date=end_date.isoformat(),
         )
         return query
-
 
     @property
     def hive_table_task(self):
