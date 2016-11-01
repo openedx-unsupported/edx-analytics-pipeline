@@ -180,6 +180,7 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
             AND enrollment_start.date = '{start_date}';
         """.format(
             database_name=hive_database_name(),
+            partition=self.partition,
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
