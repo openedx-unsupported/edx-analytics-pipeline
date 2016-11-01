@@ -49,8 +49,11 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
                    'count_change_7_days', 'cumulative_count',]
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT {columns} FROM course_meta_summary_enrollment'.format(','.join(columns)) /
-                ' ORDER BY course_id ASC'
+                '''
+                  SELECT {columns}
+                  FROM course_meta_summary_enrollment
+                  ORDER BY course_id ASC
+                '''.format(columns=','.join(columns))
             )
             results = cursor.fetchall()
 
