@@ -95,7 +95,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return self.date.isoformat()    # pylint: disable=no-member
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
     @property
     def table(self):
