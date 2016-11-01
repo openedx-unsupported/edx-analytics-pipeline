@@ -14,6 +14,7 @@ from edx.analytics.tasks.load_internal_reporting_course_catalog import (
 from edx.analytics.tasks.util.hive import (
     BareHiveTableTask,
     hive_database_name,
+    HivePartition,
     HivePartitionTask,
     HiveQueryToMysqlTask,
 )
@@ -90,6 +91,11 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                 cumulative_count
             FROM course_meta_summary_enrollment
         """
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return self.date.isoformat()    # pylint: disable=no-member
 
     @property
     def table(self):
