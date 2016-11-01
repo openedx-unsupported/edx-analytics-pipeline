@@ -49,12 +49,13 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
                    'count_change_7_days', 'cumulative_count',]
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT {columns} FROM course_meta_summary_enrollment'.format(columns.join(',')) /
+                'SELECT {columns} FROM course_meta_summary_enrollment'.format(','.join(columns)) /
                 ' ORDER BY course_id ASC'
             )
             results = cursor.fetchall()
 
         expected = [
+            # the enrollment data
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
             (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'honor', 1, 1),
