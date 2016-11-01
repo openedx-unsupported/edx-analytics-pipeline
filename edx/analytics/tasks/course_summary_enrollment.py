@@ -72,6 +72,26 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                                               HiveQueryToMysqlTask):
 
     @property
+    def query(self):
+        return """
+            SELECT
+                course_id,
+                catalog_course_title,
+                program_id,
+                program_title,
+                catalog_course,
+                start_time,
+                end_time,
+                pacing_type,
+                availability,
+                enrollment_mode,
+                count,
+                count_change_7_days,
+                cumulative_count
+            FROM course_meta_summary_enrollment
+        """
+
+    @property
     def table(self):
         return 'course_meta_summary_enrollment'
 
@@ -127,7 +147,7 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
 
         query = """
             USE {database_name};
-            INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+            INSERT OVERWRITE TABLE course_meta_summary_enrollment PARTITION ({partition.query_spec}) {if_not_exists}
             SELECT
                 enrollment_end.course_id,
                 program.catalog_course_title,
