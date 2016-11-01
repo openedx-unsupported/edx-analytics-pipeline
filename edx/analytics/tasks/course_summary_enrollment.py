@@ -181,6 +181,7 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
         """.format(
             database_name=hive_database_name(),
             partition=self.partition,
+            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
