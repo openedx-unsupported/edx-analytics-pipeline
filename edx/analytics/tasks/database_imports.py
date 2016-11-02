@@ -285,7 +285,7 @@ class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
                 column_name = column[0]
                 column_type_info = column[1]
                 column_nullable = column[2]
-                nullable = True if column_nullable == 'YES' else False
+                nullable = True# if column_nullable == 'YES' else False
 
                 match = re.search("(.*)\((\d*)\)", column_type_info)
                 if match:
