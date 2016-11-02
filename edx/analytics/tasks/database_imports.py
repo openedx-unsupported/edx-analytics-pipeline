@@ -255,13 +255,13 @@ class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
             # python code to pass through the "\" character.
             null_string='\\\\N',
             # It's unclear why, but this setting prevents us from correctly substituting nulls with \N.
-            mysql_delimiters=True,
+            mysql_delimiters=False,
             # This is a string that is interpreted as an octal number, so it is equivalent to the character Ctrl-A
             # (0x01). This is the default separator for fields in Hive.
-            #fields_terminated_by='\x09',
+            fields_terminated_by='\x01',
             # Replace delimiters with a single space if they appear in the data. This prevents the import of malformed
             # records. Hive does not support escape characters or other reasonable workarounds to this problem.
-            #delimiter_replacement=' ',
+            delimiter_replacement=' ',
         )
 
     def output(self):
@@ -318,12 +318,12 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
     @property
     def copy_delimiter(self):
         """The delimiter in the data to be copied.  Default is tab (\t)"""
-        return "','"
+        return "E'\001'"
 
-    @property
-    def copy_null_sequence(self):
-        """The null sequence in the data to be copied.  Default is Hive NULL (\\N)"""
-        return "'NULL'"
+    # @property
+    # def copy_null_sequence(self):
+    #     """The null sequence in the data to be copied.  Default is Hive NULL (\\N)"""
+    #     return "'NULL'"
 
     @property
     def insert_source_task(self):

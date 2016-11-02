@@ -401,13 +401,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         log.debug(type(self.input()['insert_source']))
         with self.input()['insert_source'].open('r') as insert_source_file:
             log.debug("Running stream copy from source file")
-            log.debug("COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
+            log.debug("COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
                     schema=self.schema,
                     table=self.table,
                     cols=column_names,
                     delim=self.copy_delimiter,
                     null=self.copy_null_sequence,
-                    enclosed_by="''''",
                 )
             )
 
