@@ -258,7 +258,7 @@ class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
             mysql_delimiters=False,
             # This is a string that is interpreted as an octal number, so it is equivalent to the character Ctrl-A
             # (0x01). This is the default separator for fields in Hive.
-            fields_terminated_by='\x01',
+            fields_terminated_by='\x09',
             # Replace delimiters with a single space if they appear in the data. This prevents the import of malformed
             # records. Hive does not support escape characters or other reasonable workarounds to this problem.
             delimiter_replacement=' ',
@@ -314,11 +314,6 @@ class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
 class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
 
     import_table = luigi.Parameter()
-
-    @property
-    def copy_delimiter(self):
-        """The delimiter in the data to be copied.  Default is tab (\t)"""
-        return "E'\001'"
 
     @property
     def copy_null_sequence(self):
