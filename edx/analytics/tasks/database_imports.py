@@ -344,6 +344,19 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
     def auto_primary_key(self):
         return None
 
+
+class VerticaLoadWrapperTask(WarehouseMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+
+    tables = luigi.Parameter(is_list=True)
+
+    def requires(self):
+        for table in self.tables:
+            yield LoadMysqlToVerticaTableTask(
+                warehouse_path=self.warehouse_path,
+                schema=self.schema,
+                import_table=table
+            )
+
 class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
     """Imports course enrollment information from an external LMS DB to a destination directory."""
 
