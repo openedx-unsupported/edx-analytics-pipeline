@@ -167,7 +167,7 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
                 enrollment_end.mode,
                 enrollment_end.count,
                 (enrollment_end.count - COALESCE(enrollment_start.count, 0)) as count_change_7_days
-                enrollment_end.cumulative_count,
+                enrollment_end.cumulative_count
             FROM course_enrollment_mode_daily as enrollment_end
             LEFT JOIN course_enrollment_mode_daily as enrollment_start
                 ON enrollment_start.course_id = enrollment_end.course_id
