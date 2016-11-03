@@ -110,14 +110,16 @@ class TagsDistributionPerCourse(
             return
         else:
             for tag_key, tag_val in latest_tags.iteritems():
-                yield TagsDistributionRecord(
-                    course_id=course_id,
-                    org_id=org_id,
-                    module_id=problem_id,
-                    tag_name=tag_key,
-                    tag_value=tag_val,
-                    total_submissions=num_total,
-                    correct_submissions=num_correct).to_string_tuple()
+                tag_val_lst = [tag_val] if isinstance(tag_val, basestring) else tag_val
+                for val in tag_val_lst:
+                    yield TagsDistributionRecord(
+                        course_id=course_id,
+                        org_id=org_id,
+                        module_id=problem_id,
+                        tag_name=tag_key,
+                        tag_value=val,
+                        total_submissions=num_total,
+                        correct_submissions=num_correct).to_string_tuple()
 
 
 class TagsDistributionRecord(Record):
