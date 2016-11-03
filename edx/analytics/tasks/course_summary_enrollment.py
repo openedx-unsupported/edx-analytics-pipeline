@@ -166,18 +166,18 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
                 course.availability,
                 enrollment_end.mode,
                 enrollment_end.count,
-                (enrollment_end.count - COALESCE(enrollment_start.count, 0)) as count_change_7_days,
+                (enrollment_end.count - COALESCE(enrollment_start.count, 0)) AS count_change_7_days,
                 enrollment_end.cumulative_count
-            FROM course_enrollment_mode_daily as enrollment_end
-            LEFT JOIN course_enrollment_mode_daily as enrollment_start
+            FROM course_enrollment_mode_daily enrollment_end
+            LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
                 ON enrollment_start.course_id = enrollment_end.course_id
                 AND enrollment_start.mode = enrollment_end.mode
-            LEFT JOIN program_course as program
+            LEFT OUTER JOIN program_course program
                 ON program.course_id = enrollment_end.course_id
-            LEFT JOIN course_catalog as course
+            LEFT OUTER JOIN course_catalog course
                 ON course.course_id = enrollment_end.course_id
             WHERE enrollment_end.date = '{end_date}'
-            AND enrollment_start.date = '{start_date}';
+            AND enrollment_start.date = '{start_date}'
         """.format(
             database_name=hive_database_name(),
             partition=self.partition,
