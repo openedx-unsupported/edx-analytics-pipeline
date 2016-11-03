@@ -3,7 +3,12 @@
 import tempfile
 
 import luigi
-import pygeoip
+try:
+    import pygeoip
+except ImportError:
+    # The module will be imported on slave nodes even though they don't actually have the package installed.
+    # The module is hopefully exported for tasks that actually use the module.
+    pygeoip = NotImplemented
 
 from edx.analytics.tasks.url import ExternalURL
 

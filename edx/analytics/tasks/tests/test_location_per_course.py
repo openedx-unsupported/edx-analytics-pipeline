@@ -11,6 +11,7 @@ from luigi.date_interval import Year
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.location_per_course import (
+    LastDailyAddressOfUserTask,
     ImportLastCountryOfUserToHiveTask,
     LastCountryOfUser, QueryLastCountryPerCourseTask,
     QueryLastCountryPerCourseWorkflow,
@@ -21,14 +22,14 @@ from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
 class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
-    """Tests of LastCountryOfUser.mapper()"""
+    """Tests of LastDailyAddressOfUserTask.mapper()"""
 
     username = 'test_user'
     timestamp = "2013-12-17T15:38:32.805444"
     ip_address = FakeGeoLocation.ip_address_1
 
     def setUp(self):
-        self.task_class = LastCountryOfUser
+        self.task_class = LastDailyAddressOfUserTask
         super(LastCountryOfUserMapperTestCase, self).setUp()
 
     def _create_event_log_line(self, **kwargs):
@@ -72,11 +73,13 @@ class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
 
     def test_good_event(self):
         line = self._create_event_log_line()
-        self.assert_single_map_output(line, self.username, (self.timestamp, self.ip_address))
+        # self.assert_single_map_output(line, self.username, (self.timestamp, self.ip_address))
+        self.assert_single_map_output(line, "2013-12-17", (self.timestamp, self.ip_address, None, self.username))
 
     def test_username_with_newline(self):
         line = self._create_event_log_line(username="baduser\n")
-        self.assert_single_map_output(line, "baduser", (self.timestamp, self.ip_address))
+        # self.assert_single_map_output(line, "baduser", (self.timestamp, self.ip_address))
+        self.assert_single_map_output(line, "2013-12-17", (self.timestamp, self.ip_address, None, "baduser"))
 
 
 class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
