@@ -1,3 +1,7 @@
+"""
+Luigi tasks for composing the course summary enrollment SQL table, which includes
+course metadata and recent enrollment numbers.
+"""
 import datetime
 import luigi
 
@@ -53,6 +57,8 @@ class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, Lo
 
 class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
                                          luigi.WrapperTask):
+    """Entrypoint for course summary enrollment task."""
+
     def requires(self):
         kwargs = {
             'date': self.date,
@@ -71,6 +77,7 @@ class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
 
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
                                               HiveQueryToMysqlTask):
+    """Creates the course summary enrollment sql table."""
 
     @property
     def query(self):
@@ -123,6 +130,8 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
 
 class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
+    """Creates the empty course summary enrollment hive table."""
+
     @property
     def partition_by(self):
         return 'dt'
@@ -137,9 +146,11 @@ class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
 
 
 class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):
+    """Populates the course summary enrollment hive table."""
 
     @property
     def partition_value(self):
+        """Partition by date."""
         return self.date.isoformat()  # pylint: disable=no-member
 
     def query(self):

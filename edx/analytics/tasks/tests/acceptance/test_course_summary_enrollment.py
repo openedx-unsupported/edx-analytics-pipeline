@@ -16,8 +16,7 @@ log = logging.getLogger(__name__)
 class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
     """Ensure course enrollment summary is populated in the result store."""
 
-    # TODO: refactor this -- a bit confusing with the date and the date time being weird...
-    DATE = '2016-09-08'
+    CATALOG_DATE = '2016-09-08'
 
     def setUp(self):
         ''' Loads enrollment and course catalog fixtures. '''
@@ -28,7 +27,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'course_catalog.json'),
-            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.DATE), 'course_catalog.json')
+            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE), 'course_catalog.json')
         )
 
     def test_table_generation(self):
@@ -36,17 +35,19 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         self.validate_table()
 
     def launch_task(self):
+        ''' Kicks off the summary task. '''
         self.task.launch([
             'CourseSummaryEnrollmentWrapperTask',
             '--interval', '2014-08-01-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--date', self.DATE,
+            '--date', self.CATALOG_DATE,
         ])
 
     def validate_table(self):
+        ''' Assert the summary table is as expected. '''
         columns = ['course_id', 'catalog_course_title', 'program_id', 'program_title', 'catalog_course',
                    'start_time', 'end_time', 'pacing_type', 'availability', 'enrollment_mode', 'count',
-                   'count_change_7_days', 'cumulative_count',]
+                   'count_change_7_days', 'cumulative_count', ]
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 '''
