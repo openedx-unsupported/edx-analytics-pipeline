@@ -27,7 +27,8 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'course_catalog.json'),
-            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE), 'course_catalog.json')
+            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE),
+                          'course_catalog.json')
         )
 
     def test_table_generation(self):
