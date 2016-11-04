@@ -147,8 +147,8 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
         Returns query for course summary metadata, current enrollment counts for
         each enrollment mode, and the week difference in enrollment.
         """
-        end_date = self.interval_end -  - datetime.timedelta(days=7)
-        start_date = self.end_date - datetime.timedelta(days=7)
+        end_date = self.interval_end - datetime.timedelta(days=1)
+        start_date = end_date - datetime.timedelta(days=7)
 
         query = """
             USE {database_name};
@@ -171,12 +171,12 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
             LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
                 ON enrollment_start.course_id = enrollment_end.course_id
                 AND enrollment_start.mode = enrollment_end.mode
+                AND enrollment_start.date = '{start_date}'
             LEFT OUTER JOIN program_course program
                 ON program.course_id = enrollment_end.course_id
             LEFT OUTER JOIN course_catalog course
                 ON course.course_id = enrollment_end.course_id
             WHERE enrollment_end.date = '{end_date}'
-            AND enrollment_start.date = '{start_date}'
         """.format(
             database_name=hive_database_name(),
             partition=self.partition,
