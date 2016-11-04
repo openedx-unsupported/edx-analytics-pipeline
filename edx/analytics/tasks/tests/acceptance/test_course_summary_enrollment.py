@@ -52,15 +52,17 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
                 '''
                   SELECT {columns}
                   FROM course_meta_summary_enrollment
-                  ORDER BY course_id ASC
+                  ORDER BY course_id ASC, enrollment_mode ASC
                 '''.format(columns=','.join(columns))
             )
             results = cursor.fetchall()
 
         expected = [
-            # the enrollment data
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
-            (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
-            (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'honor', 1, 1),
+            ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             'Testing', 'edX+Open_DemoX', datetime.date(2016, 9, 1), datetime.date(2016, 12, 1), 'instructor_paced',
+             'Current', 'honor', 1, 0, 3),
+            ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             'Testing', 'edX+Open_DemoX', datetime.date(2016, 9, 1), datetime.date(2016, 12, 1), 'instructor_paced',
+             'Current', 'verified', 0, -1, 1),
         ]
         self.assertItemsEqual(expected, results)
