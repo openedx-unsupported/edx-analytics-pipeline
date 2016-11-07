@@ -39,7 +39,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         ''' Kicks off the summary task. '''
         self.task.launch([
             'CourseSummaryEnrollmentWrapperTask',
-            '--interval', '2014-08-01-2014-08-06',
+            '--interval', '2014-07-30-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--date', self.CATALOG_DATE,
         ])
@@ -68,7 +68,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
              'Current', 'verified', 1, 1, 1),
             ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.date(2016, 9, 1), datetime.date(2016, 12, 1), 'instructor_paced',
-             'Current', 'honor', 1, 0, 3),
+             'Current', 'honor', 2, 0, 4),
             ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.date(2016, 9, 1), datetime.date(2016, 12, 1), 'instructor_paced',
              'Current', 'verified', 0, -1, 1),
