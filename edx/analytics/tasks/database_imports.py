@@ -354,7 +354,10 @@ class MysqlTableSchemaTask(OverwriteOutputMixin, DatabaseImportMixin, luigi.Task
 class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
 
     import_table = luigi.Parameter()
-
+    import_date = luigi.DateParameter(
+        default=None,
+        description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
+    )
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
