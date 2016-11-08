@@ -167,21 +167,9 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
     def query(self):
         return """
             SELECT
-                course_id,
-                catalog_course_title,
-                program_id,
-                program_title,
-                catalog_course,
-                start_time,
-                end_time,
-                pacing_type,
-                availability,
-                enrollment_mode,
-                count,
-                count_change_7_days,
-                cumulative_count
+                {columns}
             FROM course_meta_summary_enrollment
-        """
+        """.format(columns=''.join([col[0] for col in self.columns]))
 
     @property
     def partition(self):
@@ -205,11 +193,11 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
-            overwrite_n_days=self.overwrite_n_days,
+            overwrite_n_days=self.overwrite_n_days,  # for enrollment
             date=self.date,
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
+            overwrite=self.overwrite,  # for course catalog
         )
 
 
@@ -224,11 +212,11 @@ class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
             'warehouse_path': self.warehouse_path,
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
-            'overwrite': self.overwrite,
+            'overwrite': self.overwrite,  # for enrollment
             'n_reduce_tasks': self.n_reduce_tasks,
             'source': self.source,
             'interval': self.interval,
             'pattern': self.pattern,
-            'overwrite_n_days': self.overwrite_n_days,
+            'overwrite_n_days': self.overwrite_n_days,  # for course catalog
         }
         yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
