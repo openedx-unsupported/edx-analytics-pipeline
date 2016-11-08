@@ -181,7 +181,7 @@ class LastCountryOfUserMixin(
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
-        config_path={'section': 'location_per_course', 'name': 'interval_start'},
+        config_path={'section': 'location-per-course', 'name': 'interval_start'},
         significant=False,
         description='The start date to extract ip addresses for.  Ignored if `interval` is provided.',
     )
@@ -193,7 +193,7 @@ class LastCountryOfUserMixin(
     )
 
     overwrite_n_days = luigi.IntParameter(
-        config_path={'section': 'location_per_course', 'name': 'overwrite_n_days'},
+        config_path={'section': 'location-per-course', 'name': 'overwrite_n_days'},
         significant=False,
         description='This parameter is used by LastCountryOfUser which will overwrite ip address per user'
                     ' for the most recent n days.'
