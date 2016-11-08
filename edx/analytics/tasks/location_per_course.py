@@ -255,7 +255,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
                     n_reduce_tasks=self.n_reduce_tasks,
                     overwrite=True,
                 )
-                self.cached_local_requirements = requirements
+            self.cached_local_requirements = requirements
 
         return self.cached_local_requirements
 
