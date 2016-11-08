@@ -147,7 +147,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1, 1),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 2, 4),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 2, 2),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1, 4),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1, 5),
         ])
 
     def validate_summary(self):
