@@ -5,6 +5,7 @@ course metadata and recent enrollment numbers.
 import datetime
 import luigi
 
+from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.enrollments import (
     CourseEnrollmentDownstreamMixin,
     EnrollmentByModeTask,
@@ -55,80 +56,6 @@ class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, Lo
     pass
 
 
-class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
-                                         luigi.WrapperTask):
-    """Entrypoint for course summary enrollment task."""
-
-    def requires(self):
-        kwargs = {
-            'date': self.date,
-            'warehouse_path': self.warehouse_path,
-            'api_root_url': self.api_root_url,
-            'api_page_size': self.api_page_size,
-            'overwrite': self.overwrite,
-            'n_reduce_tasks': self.n_reduce_tasks,
-            'source': self.source,
-            'interval': self.interval,
-            'pattern': self.pattern,
-            'overwrite_n_days': self.overwrite_n_days,
-        }
-        yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
-
-
-class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                              HiveQueryToMysqlTask):
-    """Creates the course summary enrollment sql table."""
-
-    @property
-    def query(self):
-        return """
-            SELECT
-                course_id,
-                catalog_course_title,
-                program_id,
-                program_title,
-                catalog_course,
-                start_time,
-                end_time,
-                pacing_type,
-                availability,
-                enrollment_mode,
-                count,
-                count_change_7_days,
-                cumulative_count
-            FROM course_meta_summary_enrollment
-        """
-
-    @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
-
-    @property
-    def table(self):
-        return 'course_meta_summary_enrollment'
-
-    @property
-    def columns(self):
-        return CourseSummaryEnrollmentRecord.get_sql_schema()
-
-    @property
-    def required_table_tasks(self):
-        yield CourseSummaryEnrollmentPartitionTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-            overwrite_n_days=self.overwrite_n_days,
-            date=self.date,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
-
-
 class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
     """Creates the empty course summary enrollment hive table."""
 
@@ -158,8 +85,8 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
         Returns query for course summary metadata, current enrollment counts for
         each enrollment mode, and the week difference in enrollment.
         """
-        end_date = self.interval.date_b
-        start_date = end_date - datetime.timedelta(days=7)
+        end_date = self.interval.date_b - datetime.timedelta(days=1)
+        start_date = self.interval.date_b - datetime.timedelta(days=7)
 
         query = """
             USE {database_name};
@@ -230,3 +157,78 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
                 overwrite=self.overwrite,
             ),
         )
+
+
+class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
+                                              HiveQueryToMysqlTask):
+    """Creates the course summary enrollment sql table."""
+
+    @property
+    def query(self):
+        return """
+            SELECT
+                course_id,
+                catalog_course_title,
+                program_id,
+                program_title,
+                catalog_course,
+                start_time,
+                end_time,
+                pacing_type,
+                availability,
+                enrollment_mode,
+                count,
+                count_change_7_days,
+                cumulative_count
+            FROM course_meta_summary_enrollment
+        """
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def table(self):
+        return 'course_meta_summary_enrollment'
+
+    @property
+    def columns(self):
+        return CourseSummaryEnrollmentRecord.get_sql_schema()
+
+    @property
+    def required_table_tasks(self):
+        yield CourseSummaryEnrollmentPartitionTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+            date=self.date,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+
+@workflow_entry_point
+class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
+                                         luigi.WrapperTask):
+    """Entry point for course summary enrollment task."""
+
+    def requires(self):
+        kwargs = {
+            'date': self.date,
+            'warehouse_path': self.warehouse_path,
+            'api_root_url': self.api_root_url,
+            'api_page_size': self.api_page_size,
+            'overwrite': self.overwrite,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'overwrite_n_days': self.overwrite_n_days,
+        }
+        yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
