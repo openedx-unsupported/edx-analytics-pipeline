@@ -71,6 +71,6 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
              'Current', 'honor', 2, 1, 4),
             ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.date(2016, 9, 1), datetime.date(2016, 12, 1), 'instructor_paced',
-             'Current', 'verified', 0, -1, 1),
+             'Current', 'verified', 0, -1, 2),
         ]
         self.assertItemsEqual(expected, results)
