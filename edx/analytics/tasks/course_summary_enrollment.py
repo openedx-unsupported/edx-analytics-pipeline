@@ -158,7 +158,7 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
         Returns query for course summary metadata, current enrollment counts for
         each enrollment mode, and the week difference in enrollment.
         """
-        end_date = self.interval.date_b - datetime.timedelta(days=1)
+        end_date = self.interval.date_b
         start_date = end_date - datetime.timedelta(days=7)
 
         query = """
