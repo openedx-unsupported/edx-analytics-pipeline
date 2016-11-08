@@ -358,6 +358,7 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
         default=datetime.datetime.utcnow().date(),
         description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
     )
+
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -399,11 +400,7 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
             # Make sure delimiters and nulls etc. still work after removal.
             destination=self.hive_partition_path(self.import_table, self.import_date.isoformat()),
-            credentials=self.credentials,
-            num_mappers=self.num_mappers,
-            verbose=self.verbose,
             overwrite=self.overwrite,
-            database=self.database,
             # Hive expects NULL to be represented by the string "\N" in the data. You have to pass in "\\N" to sqoop
             # since it uses that string directly in the generated Java code, so "\\N" actually looks like "\N" to the
             # Java code. In order to get "\\N" onto the command line we have to use another set of escapes to tell the
