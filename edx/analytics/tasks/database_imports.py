@@ -374,10 +374,10 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
             for line in schema_file:
                 field_name, field_type, field_null = line.split('\t')
                 
-                int_types = ['tinyint', 'smallint', 'mediumint', 'int', 'bigint']
+                int_types = ['tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'datetime']
                 if any(int_type in field_type for int_type in int_types):
                     field_type = field_type.rsplit('(')[0]
-                if field_type == 'longtext':
+                elif field_type == 'longtext':
                     field_type = 'LONG VARCHAR'
                 elif field_type == 'double':
                     field_type = 'DOUBLE PRECISION'
