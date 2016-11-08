@@ -355,7 +355,7 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
 
     import_table = luigi.Parameter()
     import_date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),,
+        default=datetime.datetime.utcnow().date(),
         description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
     )
     def requires(self):
