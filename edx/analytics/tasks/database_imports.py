@@ -222,7 +222,7 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
         return get_target_from_url(self.partition_location.rstrip('/') + '/')
 
 
-class MysqlTableSchemaTask(OverwriteOutputMixin, DatabaseImportMixin, luigi.Task):
+class MysqlTableSchemaTask(OverwriteOutputMixin, WarehouseMixin, DatabaseImportMixin, luigi.Task):
 
     import_table = luigi.Parameter()
 
