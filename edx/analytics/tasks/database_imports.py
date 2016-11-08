@@ -253,7 +253,7 @@ class MysqlTableSchemaTask(OverwriteOutputMixin, DatabaseImportMixin, luigi.Task
                     field = column[0]
                     field_type = column[1]
                     field_null = column[2]
-                    output_file.write('\t'.join((field, field_type, field_null))
+                    output_file.write('\t'.join((field, field_type, field_null)))
                     output_file.write('\n')
         except:
             connection.rollback()
