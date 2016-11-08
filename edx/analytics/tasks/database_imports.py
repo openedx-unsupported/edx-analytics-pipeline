@@ -375,9 +375,9 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
                 field_name, field_type, field_null = line.split('\t')
                 
                 if field_type == 'longtext':
-                    field_type == 'LONG VARCHAR'
+                    field_type = 'LONG VARCHAR'
                 elif field_type == 'double':
-                    field_type == 'DOUBLE PRECISION'
+                    field_type = 'DOUBLE PRECISION'
 
                 schema.append((field_name, field_type))
         log.debug(schema)
@@ -421,6 +421,7 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
         return MysqlTableSchemaTask(
             import_table=self.import_table,
             overwrite=self.overwrite,
+            warehouse_path=self.warehouse_path,
         )
 
     @property
