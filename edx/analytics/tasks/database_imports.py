@@ -222,23 +222,175 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
         return get_target_from_url(self.partition_location.rstrip('/') + '/')
 
 
-class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
+class MysqlTableSchemaTask(OverwriteOutputMixin, DatabaseImportMixin, luigi.Task):
 
     import_table = luigi.Parameter()
-    overwrite = luigi.BooleanParameter()
-    
-    def __init__(self, *args, **kwargs):
-        super(TestTask, self).__init__(*args, **kwargs)
-        self.record = type(self.import_table, (Record,), {})
 
     def requires(self):
         return {
             'credentials': ExternalURL(self.credentials),
-            'import_task': self.import_task,
         }
 
+    def output(self):
+        url_with_filename = url_path_join(self.warehouse_path, "sql_schema", "{0}.csv".format(self.import_table))
+        return get_target_from_url(url_with_filename)
+
+    def run(self):
+        mysql_target = CredentialFileMysqlTarget(
+            credentials_target=self.input()['credentials'],
+            database_name=self.database,
+            table=self.import_table,
+            update_id=self.task_id
+        )
+        connection = mysql_target.connect()
+
+        try:
+            cursor = connection.cursor()
+            cursor.execute("describe {0}".format(self.import_table))
+            column_info = cursor.fetchall()
+            with self.output().open('w') as output_file:
+                for column in column_info:
+                    field = column[0]
+                    field_type = column[1]
+                    field_null = column[2]
+                    output_file.write('\t'.join((field, field_type, field_null))
+                    output_file.write('\n')
+        except:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+
+# class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
+#
+#     import_table = luigi.Parameter()
+#     overwrite = luigi.BooleanParameter()
+#
+#     def __init__(self, *args, **kwargs):
+#         super(TestTask, self).__init__(*args, **kwargs)
+#         self.record = type(self.import_table, (Record,), {})
+#
+#     def requires(self):
+#         return {
+#             'credentials': ExternalURL(self.credentials),
+#             'import_task': self.import_task,
+#         }
+#
+#     @property
+#     def import_task(self):
+#         return SqoopImportFromMysql(
+#             table_name=self.import_table,
+#             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
+#             # Make sure delimiters and nulls etc. still work after removal.
+#             destination=self.hive_partition_path(self.import_table, self.import_date.isoformat()),
+#             credentials=self.credentials,
+#             num_mappers=self.num_mappers,
+#             verbose=self.verbose,
+#             overwrite=self.overwrite,
+#             database=self.database,
+#             # Hive expects NULL to be represented by the string "\N" in the data. You have to pass in "\\N" to sqoop
+#             # since it uses that string directly in the generated Java code, so "\\N" actually looks like "\N" to the
+#             # Java code. In order to get "\\N" onto the command line we have to use another set of escapes to tell the
+#             # python code to pass through the "\" character.
+#             #null_string='\\\\N',
+#             # It's unclear why, but this setting prevents us from correctly substituting nulls with \N.
+#             mysql_delimiters=True,
+#             # This is a string that is interpreted as an octal number, so it is equivalent to the character Ctrl-A
+#             # (0x01). This is the default separator for fields in Hive.
+#             #fields_terminated_by='\x01',
+#             # Replace delimiters with a single space if they appear in the data. This prevents the import of malformed
+#             # records. Hive does not support escape characters or other reasonable workarounds to this problem.
+#             #delimiter_replacement=' ',
+#         )
+#
+#     def output(self):
+#         return get_target_from_url(self.hive_partition_path(self.import_table, self.import_date.isoformat()))
+#
+#
+#     def run(self):
+#         mysql_target = CredentialFileMysqlTarget(
+#             credentials_target=self.input()['credentials'],
+#             database_name=self.database,
+#             table=self.import_table,
+#             update_id=self.task_id
+#         )
+#         connection = mysql_target.connect()
+#
+#         try:
+#             cursor = connection.cursor()
+#             cursor.execute("describe {0}".format(self.import_table))
+#             column_info = cursor.fetchall()
+#             for column in column_info:
+#                 column_name = column[0]
+#                 column_type_info = column[1]
+#                 column_nullable = column[2]
+#                 nullable = True# if column_nullable == 'YES' else False
+#
+#                 match = re.search("(.*)\((\d*)\)", column_type_info)
+#                 if match:
+#                     column_type = match.group(1)
+#                     column_length = match.group(2)
+#                 else:
+#                     column_type = column_type_info
+#
+#                 if column_type == 'int' or column_type == 'smallint':
+#                     setattr(self.record, column_name, IntegerField(nullable=nullable))
+#                 elif column_type == 'tinyint':
+#                     setattr(self.record, column_name, BooleanField(nullable=nullable))
+#                 elif column_type == 'varchar' or column_type == 'char':
+#                     setattr(self.record, column_name, StringField(nullable=nullable, length=column_length))
+#                 elif column_type == 'datetime' or column_type == 'date':
+#                     setattr(self.record, column_name, DateTimeField(nullable=nullable))
+#                 elif column_type == 'longtext':
+#                     setattr(self.record, column_name, StringField(nullable=nullable, length=65000))
+#         except:
+#             connection.rollback()
+#             raise
+#         finally:
+#             connection.close()
+
+
+class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
+
+    import_table = luigi.Parameter()
+
+    def requires(self):
+        if self.required_tasks is None:
+            self.required_tasks = {
+                'credentials': ExternalURL(url=self.credentials),
+                'insert_source': self.insert_source_task,
+                'mysql_schema_task': self.mysql_schema_task,
+            }
+        return self.required_tasks
+
+    def vertica_compliant_schema(self):
+        schema = []
+        with self.input()['mysql_schema_task'].open('r') as schema_file:
+            for line in schema_file:
+                field_name, field_type, field_null = line.split('\t')
+                
+                if field_type == 'longtext':
+                    field_type == 'LONG VARCHAR'
+                elif field_type == 'double':
+                    field_type == 'DOUBLE PRECISION'
+
+                schema.append((field_name, field_type))
+        log.debug(schema)
+        return schema
+
     @property
-    def import_task(self):
+    def copy_delimiter(self):
+        """The delimiter in the data to be copied.  Default is tab (\t)"""
+        return "','"
+
+    @property
+    def copy_null_sequence(self):
+        """The null sequence in the data to be copied.  Default is Hive NULL (\\N)"""
+        return "'NULL'"
+
+    @property
+    def insert_source_task(self):
         return SqoopImportFromMysql(
             table_name=self.import_table,
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
@@ -264,73 +416,11 @@ class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
             #delimiter_replacement=' ',
         )
 
-    def output(self):
-        return get_target_from_url(self.hive_partition_path(self.import_table, self.import_date.isoformat()))
-
-
-    def run(self):
-        mysql_target = CredentialFileMysqlTarget(
-            credentials_target=self.input()['credentials'],
-            database_name=self.database,
-            table=self.import_table,
-            update_id=self.task_id
-        )
-        connection = mysql_target.connect()
-
-        try:
-            cursor = connection.cursor()
-            cursor.execute("describe {0}".format(self.import_table))
-            column_info = cursor.fetchall()
-            for column in column_info:
-                column_name = column[0]
-                column_type_info = column[1]
-                column_nullable = column[2]
-                nullable = True# if column_nullable == 'YES' else False
-
-                match = re.search("(.*)\((\d*)\)", column_type_info)
-                if match:
-                    column_type = match.group(1)
-                    column_length = match.group(2)
-                else:
-                    column_type = column_type_info
-
-                if column_type == 'int' or column_type == 'smallint':
-                    setattr(self.record, column_name, IntegerField(nullable=nullable))
-                elif column_type == 'tinyint':
-                    setattr(self.record, column_name, BooleanField(nullable=nullable))
-                elif column_type == 'varchar':
-                    setattr(self.record, column_name, StringField(nullable=nullable, length=column_length))
-                elif column_type == 'datetime' or column_type == 'date':
-                    setattr(self.record, column_name, DateTimeField(nullable=nullable))
-                elif column_type == 'longtext':
-                    setattr(self.record, column_name, StringField(nullable=nullable, length=65000))
-        except:
-            connection.rollback()
-            raise
-        finally:
-            connection.close()
-
-
-class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
-
-    import_table = luigi.Parameter()
-
     @property
-    def copy_delimiter(self):
-        """The delimiter in the data to be copied.  Default is tab (\t)"""
-        return "','"
-
-    @property
-    def copy_null_sequence(self):
-        """The null sequence in the data to be copied.  Default is Hive NULL (\\N)"""
-        return "'NULL'"
-
-    @property
-    def insert_source_task(self):
-        return TestTask(
-            warehouse_path=self.warehouse_path,
+    def mysql_schema_task(self):
+        return MysqlTableSchemaTask(
             import_table=self.import_table,
-            overwrite=True,
+            overwrite=self.overwrite,
         )
 
     @property
@@ -343,7 +433,7 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
 
     @property
     def columns(self):
-        return self.insert_source_task.record.get_sql_schema()
+        return self.vertica_compliant_schema()
 
     @property
     def auto_primary_key(self):
