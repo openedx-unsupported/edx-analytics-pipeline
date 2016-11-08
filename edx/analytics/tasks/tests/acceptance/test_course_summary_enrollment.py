@@ -22,7 +22,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         ''' Loads enrollment and course catalog fixtures. '''
         super(CourseEnrollmentSummaryAcceptanceTest, self).setUp()
 
-        self.upload_tracking_log('enrollment_trends_tracking.log', datetime.date(2014, 8, 1))
+        self.upload_tracking_log('enrollment_trends_tracking.log', datetime.date(2014, 7, 30))
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
 
         self.upload_file(
