@@ -36,10 +36,10 @@ class CourseSummaryEnrollmentRecord(Record):
     course_id = StringField(length=255, nullable=False, description='A unique identifier of the course')
     catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True,
                                        description='The name of the course')
-    program_id = StringField(nullable=False, length=36, description='A unique identifier of the program')
+    program_id = StringField(nullable=True, length=36, description='A unique identifier of the program')
     program_title = StringField(nullable=True, length=255, normalize_whitespace=True,
                                 description='The display title for the program')
-    catalog_course = StringField(nullable=False, length=255, description='Course identifier without run')
+    catalog_course = StringField(nullable=True, length=255, description='Course identifier without run')
     start_time = DateTimeField(nullable=True, description='The date and time that the course begins')
     end_time = DateTimeField(nullable=True, description='The date and time that the course ends')
     pacing_type = StringField(nullable=True, length=255, description='The type of pacing for this course')
