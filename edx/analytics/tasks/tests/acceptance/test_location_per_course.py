@@ -48,7 +48,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         self.assertItemsEqual([
             row[1:6] for row in results
         ], [
-            (today, self.COURSE_ID, '', 1, 1),
+            (today, self.COURSE_ID, None, 1, 1),
             (today, self.COURSE_ID, 'UNKNOWN', 0, 1),
             (today, self.COURSE_ID, 'IE', 1, 1),
             (today, self.COURSE_ID2, 'TH', 1, 1),
