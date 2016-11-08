@@ -169,7 +169,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             SELECT
                 {columns}
             FROM course_meta_summary_enrollment
-        """.format(columns=''.join([col[0] for col in self.columns]))
+        """.format(columns=','.join([col[0] for col in self.columns]))
 
     @property
     def partition(self):
