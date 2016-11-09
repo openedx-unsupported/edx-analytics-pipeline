@@ -441,7 +441,7 @@ class ImportMysqlToVerticaTask(MysqlQueryTaskMixin, luigi.WrapperTask):
                     warehouse_path=self.warehouse_path,
                     table_name=line.strip('\n'),
                     overwrite=self.overwrite,
-                    data=self.date,
+                    date=self.date,
                 )
 
 class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
