@@ -15,7 +15,7 @@ from edx.analytics.tasks.load_internal_reporting_course_catalog import (
     ProgramCoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
 )
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
+
 from edx.analytics.tasks.util.hive import (
     BareHiveTableTask,
     hive_database_name,
@@ -56,41 +56,20 @@ class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, Lo
     pass
 
 
-class CourseSummaryEnrollmentTableTask(BareHiveTableTask):
-    """Creates the empty course summary enrollment hive table."""
+class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
+                                              HiveQueryToMysqlTask):
+    """Creates the course summary enrollment sql table."""
 
     @property
-    def partition_by(self):
-        return 'dt'
+    def indexes(self):
+        return [('course_id')]
 
     @property
-    def table(self):
-        return 'course_meta_summary_enrollment'
-
-    @property
-    def columns(self):
-        return CourseSummaryEnrollmentRecord.get_hive_schema()
-
-
-class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):
-    """Populates the course summary enrollment hive table."""
-
-    @property
-    def partition_value(self):
-        """Partition by date."""
-        return self.date.isoformat()  # pylint: disable=no-member
-
     def query(self):
-        """
-        Returns query for course summary metadata, current enrollment counts for
-        each enrollment mode, and the week difference in enrollment.
-        """
         end_date = self.interval.date_b - datetime.timedelta(days=1)
         start_date = self.interval.date_b - datetime.timedelta(days=7)
 
         query = """
-            USE {database_name};
-            INSERT OVERWRITE TABLE course_meta_summary_enrollment PARTITION ({partition.query_spec}) {if_not_exists}
             SELECT
                 enrollment_end.course_id,
                 program.catalog_course_title,
@@ -116,23 +95,27 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
                 ON course.course_id = enrollment_end.course_id
             WHERE enrollment_end.date = '{end_date}'
         """.format(
-            database_name=hive_database_name(),
-            partition=self.partition,
-            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
         )
         return query
 
     @property
-    def hive_table_task(self):
-        return CourseSummaryEnrollmentTableTask(
-            warehouse_path=self.warehouse_path,
-        )
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
 
-    def requires(self):
+    @property
+    def table(self):
+        return 'course_meta_summary_enrollment'
+
+    @property
+    def columns(self):
+        return CourseSummaryEnrollmentRecord.get_sql_schema()
+
+    @property
+    def required_table_tasks(self):
         yield (
-            self.hive_table_task,
             EnrollmentByModeTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -156,42 +139,6 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
                 api_page_size=self.api_page_size,
                 overwrite=self.overwrite,
             ),
-        )
-
-
-
-# TODO: rename
-class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                              MysqlInsertTask):
-    """Creates the course summary enrollment sql table."""
-
-    @property
-    def partition_value(self):
-        """The table is partitioned by date."""
-        return self.date.isoformat()  # pylint: disable=no-member
-
-    @property
-    def table(self):
-        return 'course_meta_summary_enrollment'
-
-    @property
-    def columns(self):
-        return CourseSummaryEnrollmentRecord.get_sql_schema()
-
-    @property
-    def insert_source_task(self):
-        yield CourseSummaryEnrollmentPartitionTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-            overwrite_n_days=self.overwrite_n_days,  # for enrollment
-            date=self.date,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,  # for course catalog
         )
 
 
