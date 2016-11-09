@@ -49,7 +49,12 @@ class CourseSummaryEnrollmentRecord(Record):
 
 class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
-    pass
+
+    enable_course_catalog = luigi.BoolParameter(
+        config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
+        default=True,
+        description="Runs course catalog data jobs."
+    )
 
 
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
@@ -111,16 +116,17 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def required_table_tasks(self):
-        yield (
-            EnrollmentByModeTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                warehouse_path=self.warehouse_path,
-                overwrite_n_days=self.overwrite_n_days,
-            ),
+        yield EnrollmentByModeTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
+
+        catalog_tasks = [
             ProgramCoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
@@ -135,7 +141,12 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                 api_page_size=self.api_page_size,
                 overwrite=self.overwrite,
             ),
-        )
+        ]
+
+        if not self.enable_course_catalog:
+            catalog_tasks = [task.hive_table_task for task in catalog_tasks]
+
+        yield catalog_tasks
 
 
 @workflow_entry_point

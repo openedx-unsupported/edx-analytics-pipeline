@@ -6,6 +6,8 @@ import datetime
 import logging
 import os
 
+from ddt import ddt, data
+
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.url import url_path_join
 
@@ -13,6 +15,7 @@ from edx.analytics.tasks.url import url_path_join
 log = logging.getLogger(__name__)
 
 
+@ddt
 class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
     """Ensure course enrollment summary is populated in the result store."""
 
@@ -31,33 +34,22 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
                           'course_catalog.json')
         )
 
-    def test_table_generation(self):
-        self.launch_task()
-        self.validate_table()
+    @data(False, True)
+    def test_table_generation(self, enable_course_catalog):
+        self.launch_task(enable_course_catalog)
+        self.validate_table(enable_course_catalog)
 
-    def launch_task(self):
+    def launch_task(self, enable_course_catalog):
         ''' Kicks off the summary task. '''
         self.task.launch([
             'CourseSummaryEnrollmentWrapperTask',
             '--interval', '2014-07-30-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--date', self.CATALOG_DATE,
+            '--enable_course_catalog', enable_course_catalog,
         ])
 
-    def validate_table(self):
-        ''' Assert the summary table is as expected. '''
-        columns = ['course_id', 'catalog_course_title', 'program_id', 'program_title', 'catalog_course',
-                   'start_time', 'end_time', 'pacing_type', 'availability', 'enrollment_mode', 'count',
-                   'count_change_7_days', 'cumulative_count', ]
-        with self.export_db.cursor() as cursor:
-            cursor.execute(
-                '''
-                  SELECT {columns}
-                  FROM course_meta_summary_enrollment
-                '''.format(columns=','.join(columns))
-            )
-            results = cursor.fetchall()
-
+    def expected_results(self, enable_course_catalog):
         expected = [
             ('course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
@@ -72,4 +64,28 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
              'Testing', 'edX+Open_DemoX', datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1),
              'instructor_paced', 'Current', 'verified', 0, -1, 2),
         ]
+        if not enable_course_catalog:
+            # remove catalog data
+            catalog_indices = range(1,10)
+            for row in expected:
+                for catalog_index in catalog_indices:
+                    row[catalog_index] = None
+
+        return expected
+
+    def validate_table(self, enable_course_catalog):
+        ''' Assert the summary table is as expected. '''
+        columns = ['course_id', 'catalog_course_title', 'program_id', 'program_title', 'catalog_course',
+                   'start_time', 'end_time', 'pacing_type', 'availability', 'enrollment_mode', 'count',
+                   'count_change_7_days', 'cumulative_count', ]
+        with self.export_db.cursor() as cursor:
+            cursor.execute(
+                '''
+                  SELECT {columns}
+                  FROM course_meta_summary_enrollment
+                '''.format(columns=','.join(columns))
+            )
+            results = cursor.fetchall()
+
+        expected = self.expected_results(enable_course_catalog)
         self.assertItemsEqual(expected, results)
