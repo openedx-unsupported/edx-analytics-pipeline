@@ -15,7 +15,7 @@ from edx.analytics.tasks.load_internal_reporting_course_catalog import (
     ProgramCoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
 )
-
+from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.hive import (
     BareHiveTableTask,
     hive_database_name,
@@ -159,22 +159,16 @@ class CourseSummaryEnrollmentPartitionTask(CourseSummaryEnrollmentDownstreamMixi
         )
 
 
+
+# TODO: rename
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                              HiveQueryToMysqlTask):
+                                              MysqlInsertTask):
     """Creates the course summary enrollment sql table."""
 
     @property
-    def query(self):
-        return """
-            SELECT
-                {columns}
-            FROM course_meta_summary_enrollment
-        """.format(columns=','.join([col[0] for col in self.columns]))
-
-    @property
-    def partition(self):
+    def partition_value(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        return self.date.isoformat()  # pylint: disable=no-member
 
     @property
     def table(self):
@@ -185,7 +179,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
         return CourseSummaryEnrollmentRecord.get_sql_schema()
 
     @property
-    def required_table_tasks(self):
+    def insert_source_task(self):
         yield CourseSummaryEnrollmentPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
