@@ -12,8 +12,8 @@ from edx.analytics.tasks.enrollments import (
 )
 from edx.analytics.tasks.load_internal_reporting_course_catalog import (
     CoursePartitionTask,
-    ProgramCoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
+    ProgramCoursePartitionTask,
 )
 from edx.analytics.tasks.util.hive import (
     HivePartition,
