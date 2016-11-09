@@ -46,7 +46,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
             '--interval', '2014-07-30-2014-08-06',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--date', self.CATALOG_DATE,
-            '--enable_course_catalog', enable_course_catalog,
+            '--enable_course_catalog', str(enable_course_catalog),
         ])
 
     def expected_results(self, enable_course_catalog):

@@ -166,5 +166,6 @@ class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
             'interval': self.interval,
             'pattern': self.pattern,
             'overwrite_n_days': self.overwrite_n_days,  # for course catalog
+            'enable_course_catalog': self.enable_course_catalog
         }
         yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
