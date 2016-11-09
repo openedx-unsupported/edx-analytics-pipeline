@@ -62,7 +62,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def indexes(self):
-        return [('course_id')]
+        return [('course_id',)]
 
     @property
     def query(self):
