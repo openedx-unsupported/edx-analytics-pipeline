@@ -61,10 +61,10 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         expected = [
             ('course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
-             'self_paced', 'Current', 'honor', 1, 1, 1),
+             'self_paced', 'Archived', 'honor', 1, 1, 1),
             ('course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
-             'self_paced', 'Current', 'verified', 1, 1, 1),
+             'self_paced', 'Archived', 'verified', 1, 1, 1),
             ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1),
              'instructor_paced', 'Current', 'honor', 2, 1, 4),
