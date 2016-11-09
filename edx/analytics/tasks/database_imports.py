@@ -339,7 +339,7 @@ class LoadMysqlToVerticaTableTask(MysqlQueryTaskMixin, VerticaCopyTask):
                     elif field_type == 'double':
                         field_type = 'DOUBLE PRECISION'
 
-                    table_schema.append((field_name, field_type))
+                    self.table_schema.append((field_name, field_type))
 
         return self.table_schema
 
