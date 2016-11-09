@@ -50,7 +50,7 @@ class CourseSummaryEnrollmentRecord(Record):
 class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
 
-    enable_course_catalog = luigi.BoolParameter(
+    enable_course_catalog = luigi.BooleanParameter(
         config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
         default=True,
         description="Runs course catalog data jobs."
