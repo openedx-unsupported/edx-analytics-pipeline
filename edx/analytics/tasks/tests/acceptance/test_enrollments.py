@@ -63,7 +63,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 2, 2),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 2),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 3),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
         ]
         self.assertItemsEqual(expected, results)
@@ -98,7 +98,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         expected = [
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'associates', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1, 1),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 1),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 0, 2),
         ]
