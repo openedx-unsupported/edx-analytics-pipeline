@@ -83,6 +83,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1975, 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 2000, 1, 2),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 0, 1),
         ]
         self.assertItemsEqual(expected, results)
 
