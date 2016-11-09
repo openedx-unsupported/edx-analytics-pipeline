@@ -119,7 +119,7 @@ class LastDailyAddressOfUserTask(
             timestamp = last_timestamp[last_key]
             username, course_id = last_key
             value = [timestamp, ip_address, username, course_id]
-            output_file.write('\t'.join([str(field) for field in value]))
+            output_file.write('\t'.join([unicode(field).encode('utf8') for field in value]))
             output_file.write('\n')
 
     def output_path_for_key(self, key):
