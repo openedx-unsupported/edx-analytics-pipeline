@@ -15,12 +15,8 @@ from edx.analytics.tasks.load_internal_reporting_course_catalog import (
     ProgramCoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
 )
-
 from edx.analytics.tasks.util.hive import (
-    BareHiveTableTask,
-    hive_database_name,
     HivePartition,
-    HivePartitionTask,
     HiveQueryToMysqlTask,
 )
 from edx.analytics.tasks.util.record import (
