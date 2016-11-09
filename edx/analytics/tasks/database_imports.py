@@ -264,6 +264,8 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
         description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
     )
 
+    table_schema = []
+
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -274,22 +276,22 @@ class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
         return self.required_tasks
 
     def vertica_compliant_schema(self):
-        schema = []
-        with self.input()['mysql_schema_task'].open('r') as schema_file:
-            for line in schema_file:
-                field_name, field_type, field_null = line.split('\t')
+        if not self.table_schema:
+            with self.input()['mysql_schema_task'].open('r') as schema_file:
+                for line in schema_file:
+                    field_name, field_type, field_null = line.split('\t')
 
-                int_types = ['tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'datetime']
-                if any(int_type in field_type for int_type in int_types):
-                    field_type = field_type.rsplit('(')[0]
-                elif field_type == 'longtext':
-                    field_type = 'LONG VARCHAR'
-                elif field_type == 'double':
-                    field_type = 'DOUBLE PRECISION'
+                    int_types = ['tinyint', 'smallint', 'mediumint', 'int', 'bigint', 'datetime']
+                    if any(int_type in field_type for int_type in int_types):
+                        field_type = field_type.rsplit('(')[0]
+                    elif field_type == 'longtext':
+                        field_type = 'LONG VARCHAR'
+                    elif field_type == 'double':
+                        field_type = 'DOUBLE PRECISION'
 
-                schema.append((field_name, field_type))
-        log.debug(schema)
-        return schema
+                    table_schema.append((field_name, field_type))
+
+        return self.table_schema
 
     @property
     def copy_delimiter(self):
