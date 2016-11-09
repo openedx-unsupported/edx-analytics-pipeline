@@ -415,7 +415,9 @@ class ImportMysqlToVerticaTask(MysqlQueryTaskMixin, luigi.WrapperTask):
         config_path={'section': 'vertica-export', 'name': 'credentials'},
         description='Path to the external access credentials file.',
     )
-    date = luigi.DateParameter()
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+    )
     overwrite = luigi.BooleanParameter(
         default=True,
         significant=False,
