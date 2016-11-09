@@ -419,7 +419,7 @@ class ImportMysqlToVerticaTask(MysqlQueryTaskMixin, luigi.WrapperTask):
         default=datetime.datetime.utcnow().date(),
     )
     overwrite = luigi.BooleanParameter(
-        default=True,
+        default=False,
         significant=False,
     )
 
