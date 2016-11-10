@@ -50,24 +50,15 @@ class LastDailyAddressOfUserTask(
             return
         event, date_string = value
 
-        # TODO: check for eventlog implementation.
-        username = event.get('username')
+        username = eventlog.get_event_username(event)
         if not username:
             return
-        username = username.strip()
 
         # Get timestamp instead of date string, so we get the latest ip
         # address for events on the same day.
-        # TODO: simplify the round-trip conversion, so that we don't have to wait for the slow parse.
-        # The parse provides error checking, allowing bad dates to be skipped.
-        # But we may now have enough confidence in the data that this is rare (if ever).
-        # Or we could implement a faster check, e.g. reject any that are "greater" than now.
-        timestamp_as_datetime = eventlog.get_event_time(event)
-        if timestamp_as_datetime is None:
+        timestamp = eventlog.get_event_time_string(event)
+        if not timestamp:
             return
-        timestamp = eventlog.datetime_to_timestamp(timestamp_as_datetime)
-        # TODO: check if we can just use this faster method:
-        # timestamp = eventlog.get_event_time_string(event)
 
         ip_address = event.get('ip')
         if not ip_address:
@@ -89,11 +80,10 @@ class LastDailyAddressOfUserTask(
 
         # TODO: should we also get user_id?
 
-        # TODO: should(n't) we be finding ip per course here?
-        # Do this later, after we get a working bit-for-bit solution.
-        # Rats.  This isn't going to work as multi-output.  That only works
-        # when you have a single file for each key value.  Here we would
-        # be fine with a single file for each date.
+        # For multi-output, we will generate a single file for each key value.
+        # When looking at location for user in a course, we don't want to have
+        # an output file per course per date, so just use date as the key,
+        # and have a single file representing all events on the date.
         yield date_string, (timestamp, ip_address, course_id, username)
 
     def multi_output_reducer(self, _date_string, values, output_file):
@@ -160,7 +150,7 @@ class LastDailyAddressOfUserTask(
                 target.open("w").close()  # touch the file
 
 
-class LastCountryOfUserMixin(
+class LastCountryOfUserDownstreamMixin(
         WarehouseMixin,
         OverwriteOutputMixin,
         MapReduceJobTaskMixin,
@@ -200,24 +190,20 @@ class LastCountryOfUserMixin(
     )
 
     def __init__(self, *args, **kwargs):
-        super(LastCountryOfUserMixin, self).__init__(*args, **kwargs)
+        super(LastCountryOfUserDownstreamMixin, self).__init__(*args, **kwargs)
 
         if not self.interval:
             self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
-class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTask):
+class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapReduceJobTask):
     """
     Identifies the country of the last IP address associated with each user.
 
-    Uses :py:class:`LastCountryOfUserMixin` to define parameters, :py:class:`EventLogSelectionMixin`
+    Uses :py:class:`LastCountryOfUserDownstreamMixin` to define parameters, :py:class:`EventLogSelectionMixin`
     to define required input log files, and :py:class:`GeolocationMixin` to provide geolocation setup.
 
     """
-    # We want to override this parameter.
-    # TODO: do we need to?
-    # output_root = luigi.Parameter()
-
     # This is a special Luigi override that instructs the output to be written directly to output,
     # rather than being written to a temp directory that is later renamed.  Renaming in S3 is actually
     # a copy-and-delete, which can be expensive for large datasets.
@@ -260,10 +246,9 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
         return self.cached_local_requirements
 
     def requires_hadoop(self):
-        # TODO: update these comments.
-        # We want to pass in the historical data as well as the output of CourseEnrollmentEventsTask to the hadoop job.
-        # CourseEnrollmentEventsTask returns the marker as output, so we need custom logic to pass the output
-        # of CourseEnrollmentEventsTask as actual hadoop input to this job.
+        # We want to pass in the historical data as well as the output of LastDailyAddressOfUserTask to the hadoop job.
+        # LastDailyAddressOfUserTask returns the marker as output, so we need custom logic to pass the output
+        # of LastDailyAddressOfUserTask as actual hadoop input to this job.
         if not self.cached_hadoop_requirements:
             path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
                 self.interval.date_a,
@@ -273,8 +258,8 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
             last_ip_of_user_root = url_path_join(self.warehouse_path, 'last_ip_of_user')
             path_selection_task = PathSelectionByDateIntervalTask(
                 source=[last_ip_of_user_root],
-                interval=path_selection_interval,
                 pattern=[LastDailyAddressOfUserTask.FILEPATH_PATTERN],
+                interval=path_selection_interval,
                 expand_interval=datetime.timedelta(0),
                 date_pattern='%Y-%m-%d',
             )
@@ -291,14 +276,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
         return self.cached_hadoop_requirements
 
     def output(self):
-        # TODO: isn't there a partition function to do this?
-        return get_target_from_url(
-            url_path_join(
-                self.warehouse_path,
-                'last_country_of_user',
-                'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
-            )
-        )
+        return get_target_from_url(self.hive_partition_path('last_country_of_user', self.interval.date_b))  # pylint: disable=no-member
 
     def complete(self):
         return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
@@ -311,7 +289,8 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
 
     def init_local(self):
         # TODO: this was not defined in the enrollment code.  Is it really needed here, or is it handled
-        # now in the run() method?
+        # now in the run() method?  (If not in the enrollment code, where did it come from?  From the previous
+        # geolocation code, I'm guessing, but confirm.)
         super(LastCountryOfUser, self).init_local()
         self.remove_output_on_overwrite()
 
@@ -322,10 +301,11 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
             username,
             _course_id,
         ) = line.split('\t')
-        # TODO: eventually calculate separately for course_id this way?
-        # Probably not, if we want proper defaulting.
-        # yield ((username, course_id), (timestamp, ip_address))
-        # yield username, (timestamp, ip_address, course_id)
+
+        # Output all events for a username, regardless of course (for now).
+        # When including course_id, it should be included in the value, not the key.
+        # That way we can provide an appropriate default value for the user for
+        # their latest ip_address in any (or in no) course.
         yield username, (timestamp, ip_address)
 
     def reducer(self, key, values):
@@ -382,7 +362,7 @@ class LastCountryOfUser(LastCountryOfUserMixin, GeolocationMixin, MapReduceJobTa
         return (country, code)
 
 
-class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTableTask):
+class ImportLastCountryOfUserToHiveTask(LastCountryOfUserDownstreamMixin, ImportIntoHiveTableTask):
     """
     Creates a Hive Table that points to Hadoop output of LastCountryOfUser task.
 
@@ -421,8 +401,11 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
@@ -449,7 +432,7 @@ class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
         )
 
 
-class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
+class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserDownstreamMixin, MysqlInsertTask):
     """
     Copy the last_country_of_user table from Hive into MySQL.
     """
@@ -471,8 +454,11 @@ class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
@@ -547,7 +533,7 @@ class QueryLastCountryPerCourseTask(
         )
 
 
-class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountryPerCourseTask):
+class QueryLastCountryPerCourseWorkflow(LastCountryOfUserDownstreamMixin, QueryLastCountryPerCourseTask):
 
     """Defines dependencies for performing join in Hive to find course enrollment per-country counts."""
     def requires(self):
@@ -561,8 +547,11 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
@@ -570,8 +559,11 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
@@ -625,7 +617,7 @@ class InsertToMysqlCourseEnrollByCountryTask(InsertToMysqlCourseEnrollByCountryT
 @workflow_entry_point
 class InsertToMysqlCourseEnrollByCountryWorkflow(
         QueryLastCountryPerCourseMixin,
-        LastCountryOfUserMixin,
+        LastCountryOfUserDownstreamMixin,
         InsertToMysqlCourseEnrollByCountryTaskBase):
     """
     Write to course_enrollment_location_current table from CountUserActivityPerInterval.
@@ -637,8 +629,11 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
             course_country_output=self.course_country_output,
