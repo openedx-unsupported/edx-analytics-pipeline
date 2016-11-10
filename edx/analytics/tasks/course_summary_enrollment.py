@@ -143,7 +143,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             ),
         ]
 
-        if not self.enable_course_catalog:
+        if self.disable_course_catalog:
             catalog_tasks = [task.hive_table_task for task in catalog_tasks]
 
         yield catalog_tasks
@@ -166,6 +166,6 @@ class CourseSummaryEnrollmentWrapperTask(CourseSummaryEnrollmentDownstreamMixin,
             'interval': self.interval,
             'pattern': self.pattern,
             'overwrite_n_days': self.overwrite_n_days,  # for course catalog
-            'enable_course_catalog': self.enable_course_catalog
+            'disable_course_catalog': self.disable_course_catalog
         }
         yield ImportCourseSummaryEnrollmentsIntoMysql(**kwargs)
