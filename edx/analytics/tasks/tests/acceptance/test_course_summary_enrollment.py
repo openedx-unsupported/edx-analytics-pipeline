@@ -54,18 +54,18 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
 
     def expected_results(self, disable_course_catalog):
         expected = [
-            ('course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
-             'self_paced', 'Archived', 'honor', 1, 1, 1),
-            ('course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+             'self_paced', 'Archived', 'honor', 1, 1, 1],
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
-             'self_paced', 'Archived', 'verified', 1, 1, 1),
-            ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             'self_paced', 'Archived', 'verified', 1, 1, 1],
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1),
-             'instructor_paced', 'Current', 'honor', 2, 1, 4),
-            ('edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             'instructor_paced', 'Current', 'honor', 2, 1, 4],
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
              'Testing', 'edX+Open_DemoX', datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1),
-             'instructor_paced', 'Current', 'verified', 0, -1, 2),
+             'instructor_paced', 'Current', 'verified', 0, -1, 2],
         ]
         if disable_course_catalog:
             # remove catalog data
@@ -74,7 +74,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
                 for catalog_index in catalog_indices:
                     row[catalog_index] = None
 
-        return expected
+        return [tuple(row) for row in expected]
 
     def validate_table(self, disable_course_catalog):
         ''' Assert the summary table is as expected. '''
