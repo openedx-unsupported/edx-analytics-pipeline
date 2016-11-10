@@ -48,7 +48,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
             '--date', self.CATALOG_DATE,
         ]
         if disable_course_catalog:
-            task_params.append('--disable_course_catalog')
+            task_params.append('--disable-course-catalog')
 
         self.task.launch(task_params)
 
