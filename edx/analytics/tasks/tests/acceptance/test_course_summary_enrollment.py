@@ -53,6 +53,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         self.task.launch(task_params)
 
     def expected_results(self, disable_course_catalog):
+        """Returns expected results with course catalog data removed if disable_course_catalog is True."""
         expected = [
             ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
              None, None, datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1),
@@ -69,7 +70,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         ]
         if disable_course_catalog:
             # remove catalog data
-            catalog_indices = range(1,9)
+            catalog_indices = range(1, 9)
             for row in expected:
                 for catalog_index in catalog_indices:
                     row[catalog_index] = None
