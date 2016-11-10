@@ -69,7 +69,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         ]
         if disable_course_catalog:
             # remove catalog data
-            catalog_indices = range(1,10)
+            catalog_indices = range(1,9)
             for row in expected:
                 for catalog_index in catalog_indices:
                     row[catalog_index] = None
