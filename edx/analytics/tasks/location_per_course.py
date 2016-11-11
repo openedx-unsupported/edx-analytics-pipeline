@@ -306,7 +306,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         # When including course_id, it should be included in the value, not the key.
         # That way we can provide an appropriate default value for the user for
         # their latest ip_address in any (or in no) course.
-        yield username, (timestamp, ip_address)
+        yield username.encode('utf8'), (timestamp, ip_address)
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""
@@ -327,11 +327,11 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         if not last_ip:
             return
 
-        debug_message = u"user '{}' on '{}'".format(username, last_timestamp)
+        debug_message = u"user '{}' on '{}'".format(username.decode('utf8'), last_timestamp)
         country, code = self.get_country_and_code(last_ip, debug_message)
 
         # Add the username for debugging purposes.  (Not needed for counts.)
-        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
+        yield (country.encode('utf8'), code.encode('utf8')), username
 
     def get_country_and_code(self, ip_address, debug_message):
         """
