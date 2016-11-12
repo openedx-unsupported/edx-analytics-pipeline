@@ -337,9 +337,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
         ip_address = event.get('ip')
         # Skip over IPv6-format ip_address values for now.
         if ip_address and ':' not in ip_address:
-            country_code = self.geoip.country_code_by_addr(ip_address)
-            if country_code is None or len(country_code.strip()) <= 0:
-                country_code = "UNKNOWN"
+            country_code = self.get_country_code(ip_address)
             event.update({'augmented': {'country_code': country_code}})
 
         # Delete base properties other than username.

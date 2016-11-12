@@ -78,3 +78,47 @@ class GeolocationMixin(GeolocationDownstreamMixin):
             return [pygeoip]
         else:
             return modules.append(pygeoip)
+
+    def get_country_name(self, ip_address, debug_message=None):
+        """
+        Find country name for a given IP address.
+
+        The ip address might not provide a country name, so return
+        UNKNOWN_COUNTRY in those cases.
+
+        """
+        try:
+            name = self.geoip.country_name_by_addr(ip_address)
+        except Exception:
+            if debug_message:
+                log.exception("Encountered exception getting country name for ip_address '%s': %s.", ip_address, debug_message)
+            name = UNKNOWN_COUNTRY
+
+        if name is None or len(name.strip()) <= 0:
+            if debug_message:
+                log.error("No country name found for ip_address '%s': %s.", ip_address, debug_message)
+            name = UNKNOWN_COUNTRY
+
+        return name
+
+    def get_country_code(self, ip_address, debug_message=None):
+        """
+        Find country code for a given IP address.
+
+        The ip address might not provide a country code, so return
+        UNKNOWN_CODE in those cases.
+
+        """
+        try:
+            code = self.geoip.country_code_by_addr(ip_address)
+        except Exception:
+            if debug_message:
+                log.exception("Encountered exception getting country code for ip_address '%s': %s.", ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        if code is None or len(code.strip()) <= 0:
+            if debug_message:
+                log.error("No country code found for ip_address '%s': %s.", ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        return code

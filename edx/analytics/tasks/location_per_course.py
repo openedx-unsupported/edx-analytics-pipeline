@@ -328,38 +328,11 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
             return
 
         debug_message = u"user '{}' on '{}'".format(username.decode('utf8'), last_timestamp)
-        country, code = self.get_country_and_code(last_ip, debug_message)
+        country = self.get_country_name(last_ip, debug_message)
+        code = self.get_country_code(last_ip, debug_message)
 
         # Add the username for debugging purposes.  (Not needed for counts.)
         yield (country.encode('utf8'), code.encode('utf8')), username
-
-    def get_country_and_code(self, ip_address, debug_message):
-        """
-        Find country name and country code for a given IP address.
-
-        The ip address might not provide a country name, so return
-        UNKNOWN_COUNTRY and UNKNOWN_CODE in those cases.
-
-        """
-        try:
-            country = self.geoip.country_name_by_addr(ip_address)
-            code = self.geoip.country_code_by_addr(ip_address)
-        except Exception:
-            log.exception("Encountered exception getting country for ip_address '%s': %s.", ip_address, debug_message)
-            country = UNKNOWN_COUNTRY
-            code = UNKNOWN_CODE
-
-        if country is None or len(country.strip()) <= 0:
-            log.error("No country found for ip_address '%s': %s.", ip_address, debug_message)
-            # TODO: try earlier IP addresses, if we find this happens much.
-            country = UNKNOWN_COUNTRY
-
-        if code is None or len(code.strip()) <= 0:
-            log.error("No country code found for ip_address '%s': %s.", ip_address, debug_message)
-            # TODO: try earlier IP addresses, if we find this happens much.
-            code = UNKNOWN_CODE
-
-        return (country, code)
 
 
 class ImportLastCountryOfUserToHiveTask(LastCountryOfUserDownstreamMixin, ImportIntoHiveTableTask):
