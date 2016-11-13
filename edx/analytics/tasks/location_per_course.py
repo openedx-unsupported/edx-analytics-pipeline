@@ -537,7 +537,7 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
                 overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-            )
+            ),
             InsertToMysqlLastCountryPerCourseTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
