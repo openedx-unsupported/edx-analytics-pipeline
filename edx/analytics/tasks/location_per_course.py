@@ -21,7 +21,7 @@ from edx.analytics.tasks.util.geolocation import (
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name
+from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name, BareHiveTableTask, HivePartitionTask, HiveQueryToMysqlTask
 from edx.analytics.tasks.decorators import workflow_entry_point
 
 log = logging.getLogger(__name__)
