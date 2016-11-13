@@ -158,7 +158,7 @@ class LastCountryOfUserDownstreamMixin(
         GeolocationDownstreamMixin):
 
     """
-    Defines parameters for LastCountryOfUser task and downstream tasks that require it.
+    Defines parameters for LastCountryOfUserDataTask task and downstream tasks that require it.
 
     """
 
@@ -185,7 +185,7 @@ class LastCountryOfUserDownstreamMixin(
     overwrite_n_days = luigi.IntParameter(
         config_path={'section': 'location-per-course', 'name': 'overwrite_n_days'},
         significant=False,
-        description='This parameter is used by LastCountryOfUser which will overwrite ip address per user'
+        description='This parameter is used by LastCountryOfUserDataTask which will overwrite ip address per user'
                     ' for the most recent n days.'
     )
 
@@ -214,13 +214,13 @@ class LastCountryOfUserDataTask(LastCountryOfUserDownstreamMixin, GeolocationMix
     cached_hadoop_requirements = None
 
     def __init__(self, *args, **kwargs):
-        super(LastCountryOfUser, self).__init__(*args, **kwargs)
+        super(LastCountryOfUserDataTask, self).__init__(*args, **kwargs)
 
         self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
 
     def requires_local(self):
         if not self.cached_local_requirements:
-            requirements = super(LastCountryOfUser, self).requires_local()
+            requirements = super(LastCountryOfUserDataTask, self).requires_local()
             # Default is an empty list, but assume that any real data added is done
             # so as a dict.
             if not requirements:
@@ -285,13 +285,13 @@ class LastCountryOfUserDataTask(LastCountryOfUserDownstreamMixin, GeolocationMix
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
-        super(LastCountryOfUser, self).run()
+        super(LastCountryOfUserDataTask, self).run()
 
     def init_local(self):
         # TODO: this was not defined in the enrollment code.  Is it really needed here, or is it handled
         # now in the run() method?  (If not in the enrollment code, where did it come from?  From the previous
         # geolocation code, I'm guessing, but confirm.)
-        super(LastCountryOfUser, self).init_local()
+        super(LastCountryOfUserDataTask, self).init_local()
         self.remove_output_on_overwrite()
 
     def mapper(self, line):
