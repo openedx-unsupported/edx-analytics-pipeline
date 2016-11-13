@@ -1,5 +1,6 @@
 """Utility classes for providing geolocation functionality."""
 
+import logging
 import tempfile
 
 import luigi
@@ -14,6 +15,8 @@ from edx.analytics.tasks.url import ExternalURL
 
 UNKNOWN_COUNTRY = "UNKNOWN"
 UNKNOWN_CODE = "UNKNOWN"
+
+log = logging.getLogger(__name__)
 
 
 class GeolocationDownstreamMixin(object):
