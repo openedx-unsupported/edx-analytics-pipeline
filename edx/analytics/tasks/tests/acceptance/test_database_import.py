@@ -44,7 +44,4 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
             response = cursor.fetchall()
             certificates_generatedcertificate = pandas.DataFrame(response, columns=list(expected.columns))
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(certificates_generatedcertificate == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            self.assert_data_frames_equal(certificates_generatedcertificate, expected)
