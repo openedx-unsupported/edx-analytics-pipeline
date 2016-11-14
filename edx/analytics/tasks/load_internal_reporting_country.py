@@ -87,7 +87,6 @@ class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask)
                 overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                course_country_output=self.course_country_output,
             ),
         )
 
