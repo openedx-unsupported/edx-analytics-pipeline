@@ -123,13 +123,13 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
     def test_country_name_exception(self):
         self.task.geoip.country_name_by_addr = Mock(side_effect=Exception)
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((UNKNOWN_COUNTRY, UNKNOWN_CODE), self.username),)
+        expected = (((UNKNOWN_COUNTRY, FakeGeoLocation.country_code_1), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_country_code_exception(self):
         self.task.geoip.country_code_by_addr = Mock(side_effect=Exception)
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((UNKNOWN_COUNTRY, UNKNOWN_CODE), self.username),)
+        expected = (((FakeGeoLocation.country_name_1, UNKNOWN_CODE), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_missing_country_name(self):
@@ -164,10 +164,10 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_unicode_username(self):
-        self.username = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3\xef\xbd\x94\xc3\xac\xc3\xb2\xef\xbd\x8e\xc3\xa5\xc9\xad\xc3\xaf\xc8\xa5\xef\xbd\x81\xef\xbd\x94\xc3\xad\xdf\x80\xef\xbd\x8e'.decode('utf8')
+        self.username = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3\xef\xbd\x94\xc3\xac\xc3\xb2\xef\xbd\x8e\xc3\xa5\xc9\xad\xc3\xaf\xc8\xa5\xef\xbd\x81\xef\xbd\x94\xc3\xad\xdf\x80\xef\xbd\x8e'
         self.reduce_key = self.username
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((FakeGeoLocation.country_name_1, FakeGeoLocation.country_code_1), self.username.encode('utf8')),)
+        expected = (((FakeGeoLocation.country_name_1, FakeGeoLocation.country_code_1), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
 

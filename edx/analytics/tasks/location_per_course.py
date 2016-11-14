@@ -17,7 +17,7 @@ from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join, UncheckedExternalURL
 from edx.analytics.tasks.util.geolocation import (
-    GeolocationMixin, GeolocationDownstreamMixin, UNKNOWN_COUNTRY, UNKNOWN_CODE,
+    GeolocationMixin, GeolocationDownstreamMixin
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
@@ -539,7 +539,7 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             'geolocation_data': self.geolocation_data,
             'overwrite': self.overwrite,
         }
-        
+
         yield (
             InsertToMysqlLastCountryOfUserTask(**kwargs),
             InsertToMysqlLastCountryPerCourseTask(**kwargs),
