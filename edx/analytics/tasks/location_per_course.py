@@ -30,6 +30,47 @@ from edx.analytics.tasks.decorators import workflow_entry_point
 log = logging.getLogger(__name__)
 
 
+# Add debugging here:
+@luigi.Task.event_handler(luigi.Event.SUCCESS)
+def celebrate_success(task):
+    log.debug("Encountered success event for %s", task)
+
+
+@luigi.Task.event_handler(luigi.Event.FAILURE)
+def mourn_failure(task, exception):
+    log.debug("Encountered failure event for %s:  %s", task, exception)
+
+
+@luigi.Task.event_handler(luigi.Event.START)
+def report_start(task):
+    log.debug("Encountered start event for %s", task)
+
+
+@luigi.Task.event_handler(luigi.Event.DEPENDENCY_DISCOVERED)
+def report_dependency_discovered(task, exception):
+    log.debug("Encountered dependency-discovered event for %s", task)
+
+
+@luigi.Task.event_handler(luigi.Event.DEPENDENCY_MISSING)
+def report_dependency_missing(task):
+    log.debug("Encountered dependency-missing event for %s", task)
+
+
+@luigi.Task.event_handler(luigi.Event.DEPENDENCY_PRESENT)
+def report_dependency_present(task):
+    log.debug("Encountered discovery-present event for %s", task)
+
+
+@luigi.Task.event_handler(luigi.Event.BROKEN_TASK)
+def report_broken_task(task, exception):
+    log.debug("Encountered broken-task event for %s:  %s", task, exception)
+
+
+@luigi.Task.event_handler(luigi.Event.PROCESSING_TIME)
+def report_broken_task(task, time):
+    log.debug("Encountered processing-time event for %s:  %s", task, time)
+
+
 class LastDailyAddressOfUserTask(
         WarehouseMixin,
         OverwriteOutputMixin,
