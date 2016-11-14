@@ -36,19 +36,15 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
         self.validate_output()
 
     def validate_output(self):
-        pass
-        # with self.vertica.cursor() as cursor:
-        #     expected_output_csv = os.path.join(self.data_dir, 'output', 'acceptance_expected_d_user_course_certificate.csv')
-        #     expected = pandas.read_csv(expected_output_csv, parse_dates=True)
-        #
-        #     cursor.execute("SELECT * FROM {schema}.d_user_course_certificate".format(schema=self.vertica.schema_name))
-        #     response = cursor.fetchall()
-        #     d_user_course_certificate = pandas.DataFrame(response, columns=[
-        #         'user_id', 'course_id', 'is_certified', 'certificate_mode',
-        #         'final_grade', 'has_passed', 'created_date', 'modified_date',
-        #     ])
-        #
-        #     try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-        #         self.assertTrue(all(d_user_course_certificate == expected))
-        #     except ValueError:
-        #         self.fail("Expected and returned data frames have different shapes or labels.")
+        with self.vertica.cursor() as cursor:
+            expected_output_csv = os.path.join(self.data_dir, 'output', 'database_import', 'expected_certificates_generatedcertificate.csv')
+            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+
+            cursor.execute("SELECT * FROM {schema}.certificates_generatedcertificate".format(schema=self.vertica.schema_name))
+            response = cursor.fetchall()
+            certificates_generatedcertificate = pandas.DataFrame(response, columns=list(expected.columns))
+
+            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
+                self.assertTrue(all(certificates_generatedcertificate == expected))
+            except ValueError:
+                self.fail("Expected and returned data frames have different shapes or labels.")
