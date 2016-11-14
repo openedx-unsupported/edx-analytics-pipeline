@@ -272,7 +272,7 @@ class MysqlTableSchemaTask(MysqlQueryTaskBase):
             connection.close()
 
 
-class GetTablesFromMysqlTask(OverwriteOutputMixin, MysqlQueryTaskMixin, luigi.Task):
+class GetTablesFromMysqlTask(MysqlQueryTaskBase):
 
     def output(self):
         url_with_filename = url_path_join(self.warehouse_path, "sql_schema", "table_list")
