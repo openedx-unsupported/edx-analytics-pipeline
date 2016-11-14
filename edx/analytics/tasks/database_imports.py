@@ -314,7 +314,9 @@ class LoadMysqlToVerticaTableTask(MysqlQueryTaskMixin, VerticaCopyTask):
         default=datetime.datetime.utcnow().date(),
     )
 
-    table_schema = []
+    def __init__(self, *args, **kwargs):
+        super(LoadMysqlToVerticaTableTask, self).__init__(*args, **kwargs)
+        self.table_schema = []
 
     def requires(self):
         if self.required_tasks is None:
