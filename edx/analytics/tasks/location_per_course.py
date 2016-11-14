@@ -238,6 +238,7 @@ class LastCountryOfUserDownstreamMixin(
 
         if not self.interval:
             self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+            log.debug("Setting interval for LastCountryOfUserDownstreamMixin class %s to %s", self.__class__.__name__, self.interval)
 
 
 class LastCountryOfUserDataTask(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapReduceJobTask):
@@ -286,7 +287,9 @@ class LastCountryOfUserDataTask(LastCountryOfUserDownstreamMixin, GeolocationMix
                     overwrite=True,
                 )
             self.cached_local_requirements = requirements
+            log.debug("Setting local requirements for class %s to %s", self.__class__.__name__, self.cached_local_requirements)
 
+        log.debug("Returning local requirements for class %s = %s", self.__class__.__name__, self.cached_hadoop_requirements)
         return self.cached_local_requirements
 
     def requires_hadoop(self):
@@ -316,27 +319,37 @@ class LastCountryOfUserDataTask(LastCountryOfUserDownstreamMixin, GeolocationMix
                 requirements['downstream_input_tasks'] = self.requires_local()['user_addresses_task'].downstream_input_tasks()
 
             self.cached_hadoop_requirements = requirements
+            log.debug("Setting hadoop requirements for class %s to %s", self.__class__.__name__, self.cached_hadoop_requirements)
 
+        log.debug("Returning hadoop requirements for class %s = %s", self.__class__.__name__, self.cached_hadoop_requirements)
         return self.cached_hadoop_requirements
 
     def output(self):
-        return get_target_from_url(self.hive_partition_path('last_country_of_user', self.interval.date_b))  # pylint: disable=no-member
+        target = get_target_from_url(self.hive_partition_path('last_country_of_user', self.interval.date_b))  # pylint: disable=no-member
+        log.debug("Getting output() for class %s = %s", self.__class__.__name__, target)
+        return target
 
     def complete(self):
-        return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+        is_complete = get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+        log.debug("Checking complete() for class %s = %s", self.__class__.__name__, is_complete)        
+        return is_complete
 
     def run(self):
+        log.debug("Entering run() for class %s", self.__class__.__name__)
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
         super(LastCountryOfUserDataTask, self).run()
+        log.debug("Exiting run() for class %s", self.__class__.__name__)
 
     def init_local(self):
         # TODO: this was not defined in the enrollment code.  Is it really needed here, or is it handled
         # now in the run() method?  (If not in the enrollment code, where did it come from?  From the previous
         # geolocation code, I'm guessing, but confirm.)
+        log.debug("Entering init_local() for class %s", self.__class__.__name__)
         super(LastCountryOfUserDataTask, self).init_local()
         self.remove_output_on_overwrite()
+        log.debug("Just called remove_output_on_overwrite() for class %s", self.__class__.__name__)
 
     def mapper(self, line):
         (
@@ -517,6 +530,8 @@ class InsertToMysqlLastCountryPerCourseTask(
 
     @property
     def required_table_tasks(self):
+        log.debug("Calling required_table_tasks() for class %s", self.__class__.__name__)
+        
         # TODO: should DB imports be overridden this way?
         kwargs_for_db_import = {
             'overwrite': self.overwrite,
@@ -541,6 +556,7 @@ class InsertToMysqlLastCountryPerCourseTask(
             ImportStudentCourseEnrollmentTask(**kwargs_for_db_import),
             ImportAuthUserTask(**kwargs_for_db_import),
         )
+        log.debug("Called required_table_tasks() for class %s", self.__class__.__name__)
 
     @property
     def indexes(self):
@@ -568,6 +584,8 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
     """
 
     def requires(self):
+        log.debug("Calling requires() for class %s", self.__class__.__name__)
+        
         kwargs = {
             'warehouse_path': self.warehouse_path,
             'n_reduce_tasks': self.n_reduce_tasks,
@@ -585,3 +603,4 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             InsertToMysqlLastCountryOfUserTask(**kwargs),
             InsertToMysqlLastCountryPerCourseTask(**kwargs),
         )
+        log.debug("Called requires() for class %s", self.__class__.__name__)

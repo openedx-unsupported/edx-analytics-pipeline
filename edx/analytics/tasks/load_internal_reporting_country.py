@@ -21,6 +21,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
     """Loads internal_reporting_d_country Hive table from last_country_of_user Hive table."""
 
     def requires(self):
+        log.debug("Calling requires() for class %s", self.__class__.__name__)        
         return LastCountryOfUserPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -63,6 +64,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
 class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask):
 
     def requires(self):
+        log.debug("Calling requires() for class %s", self.__class__.__name__)        
         kwargs = {
             'warehouse_path': self.warehouse_path,
             'n_reduce_tasks': self.n_reduce_tasks,
@@ -79,6 +81,7 @@ class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask)
             LoadInternalReportingCountryTableHive(**kwargs),
             InsertToMysqlCourseEnrollByCountryWorkflow(**kwargs),
         )
+        log.debug("Called requires() for class %s", self.__class__.__name__)        
 
 
 class LoadInternalReportingCountryToWarehouse(WarehouseMixin, VerticaCopyTask):
