@@ -1,0 +1,5 @@
+id,user_id,download_url,grade,course_id,key,distinction,status,verify_uuid,download_uuid,name,created_date,modified_date,error_reason,mode
+1,1,example.com,0.27,course-v1:edX+DemoX+Demo_Course,319a92979a02e7fede3a83f9c1c020c0,0,downloadable,a6c04f14d61d49f7981d004ff9433eea,ec411520403d4db5acf5add7b9eb8d11,John Doe,2012-11-09 23:13:21,2012-11-10 00:10:14,,honor
+2,2,example.com,0.58,course-v1:edX+DemoX+Demo_Course,0ca7774b84d513fca3e77f66d4015c17,0,downloadable,079d741605944779921bd8d435e8b82a,67973c34c2eb43909fb4983f850f3d9d,John Doe,2012-11-09 23:31:34,2012-11-10 00:05:46,,honor
+3,3,example.com,0.0,course-v1:edX+DemoX+Demo_Course,,0,notpassing,,,Jane Doe,2012-11-10 00:12:10,2012-11-26 19:03:01,,honor
+4,4,,0.0,course-v1:edX+DemoX+Demo_Course,,0,notpassing,,,John Doe,2012-11-10 00:12:10,2012-11-26 19:00:59,,honor
