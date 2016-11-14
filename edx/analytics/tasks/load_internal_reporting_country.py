@@ -63,31 +63,21 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
 class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask):
 
     def requires(self):
+        kwargs = {
+            'warehouse_path': self.warehouse_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'pattern': self.pattern,
+            'interval': self.interval,
+            'interval_start': self.interval_start,
+            'interval_end': self.interval_end,
+            'overwrite_n_days': self.overwrite_n_days,
+            'geolocation_data': self.geolocation_data,
+            'overwrite': self.overwrite,
+        }
         yield (
-            LoadInternalReportingCountryTableHive(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                pattern=self.pattern,
-                interval=self.interval,
-                interval_start=self.interval_start,
-                interval_end=self.interval_end,
-                overwrite_n_days=self.overwrite_n_days,
-                geolocation_data=self.geolocation_data,
-                overwrite=self.overwrite,
-            ),
-            InsertToMysqlCourseEnrollByCountryWorkflow(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                pattern=self.pattern,
-                interval=self.interval,
-                interval_start=self.interval_start,
-                interval_end=self.interval_end,
-                overwrite_n_days=self.overwrite_n_days,
-                geolocation_data=self.geolocation_data,
-                overwrite=self.overwrite,
-            ),
+            LoadInternalReportingCountryTableHive(**kwargs),
+            InsertToMysqlCourseEnrollByCountryWorkflow(**kwargs),
         )
 
 
