@@ -526,7 +526,6 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
     Includes LastCountryOfUser and LastCountryPerCourse.
     """
 
-    @property
     def requires(self):
         kwargs = {
             'warehouse_path': self.warehouse_path,
