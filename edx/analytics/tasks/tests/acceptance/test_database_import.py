@@ -21,9 +21,9 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
         self.execute_sql_fixture_file('load_auth_user_for_internal_reporting_user.sql')
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
         self.execute_sql_fixture_file('load_certificates_generatedcertificate.sql')
-        self.execute_sql_fixture_file('load_course_groups_courseusergroup.sql')
-        self.execute_sql_fixture_file('load_course_groups_courseusergroup_users.sql')
-        self.execute_sql_fixture_file('load_student_courseenrollment.sql')
+        # self.execute_sql_fixture_file('load_course_groups_courseusergroup.sql')
+        # self.execute_sql_fixture_file('load_course_groups_courseusergroup_users.sql')
+        # self.execute_sql_fixture_file('load_student_courseenrollment.sql')
 
     @when_vertica_available
     def test_database_import(self):
