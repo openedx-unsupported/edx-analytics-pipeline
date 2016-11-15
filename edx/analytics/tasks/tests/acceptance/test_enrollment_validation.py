@@ -121,12 +121,13 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
                     reason = event.get('synthesized', {}).get('reason')
                     key = (event_type, reason)
                     histogram[key] += 1
-        expected_histogram = {
-            ("edx.course.enrollment.activated", "start => validate(active)"): 4,
-            ("edx.course.enrollment.mode_changed", "activate => deactivate (audit=>honor)"): 1,
-            ("edx.course.enrollment.deactivated", "activate => missing"): 2,
-            ("edx.course.enrollment.activated", "deactivate => validate(active)"): 2,
+        expected_histogram =  {
+            ("edx.course.enrollment.activated", "start => deactivate"): 1,
             ("edx.course.enrollment.mode_changed", "deactivate => validate(active) (honor=>verified)"): 1,
+            ("edx.course.enrollment.activated", "start => validate(active)"): 3,
+            ("edx.course.enrollment.deactivated", "activate => missing"): 2,
+            ("edx.course.enrollment.mode_changed", "activate => deactivate (audit=>honor)"): 1,
+            ("edx.course.enrollment.activated", "deactivate => validate(active)"): 3,
         }
         self.assertEquals(histogram, expected_histogram)
 
