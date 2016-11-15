@@ -22,7 +22,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
     CATALOG_DATE = '2016-09-08'
 
     def setUp(self):
-        ''' Loads enrollment and course catalog fixtures. '''
+        """Loads enrollment and course catalog fixtures."""
         super(CourseEnrollmentSummaryAcceptanceTest, self).setUp()
 
         self.upload_tracking_log('enrollment_trends_tracking.log', datetime.date(2014, 7, 30))
@@ -40,7 +40,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         self.validate_table(disable_course_catalog)
 
     def launch_task(self, disable_course_catalog):
-        ''' Kicks off the summary task. '''
+        """Kicks off the summary task."""
         task_params = [
             'CourseSummaryEnrollmentWrapperTask',
             '--interval', '2014-07-30-2014-08-06',
