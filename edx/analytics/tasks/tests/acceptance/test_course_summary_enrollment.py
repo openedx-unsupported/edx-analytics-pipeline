@@ -78,7 +78,7 @@ class CourseEnrollmentSummaryAcceptanceTest(AcceptanceTestCase):
         return [tuple(row) for row in expected]
 
     def validate_table(self, disable_course_catalog):
-        ''' Assert the summary table is as expected. '''
+        """Assert the summary table is as expected."""
         columns = ['course_id', 'catalog_course_title', 'program_id', 'program_title', 'catalog_course',
                    'start_time', 'end_time', 'pacing_type', 'availability', 'enrollment_mode', 'count',
                    'count_change_7_days', 'cumulative_count', ]

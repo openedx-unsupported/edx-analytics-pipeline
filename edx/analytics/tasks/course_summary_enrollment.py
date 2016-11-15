@@ -141,8 +141,10 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                 api_page_size=self.api_page_size,
                 overwrite=self.overwrite,
             ),
+
         ]
 
+        # if disable_course_catalog is set, create the hive tables w/o loading data
         if self.disable_course_catalog:
             catalog_tasks = [task.hive_table_task for task in catalog_tasks]
 
