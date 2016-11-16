@@ -71,7 +71,7 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
             ]
 
             cursor.execute(
-                "SELECT {columns} FROM {schema}.d_course_seat ORDER BY course_id ASC".format(
+                "SELECT {columns} FROM {schema}.d_course_seat ORDER BY course_id ASC, course_seat_type ASC".format(
                     columns=",".join(columns),
                     schema=self.vertica.schema_name
                 )
