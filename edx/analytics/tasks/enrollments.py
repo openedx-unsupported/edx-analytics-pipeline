@@ -981,7 +981,7 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
     """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
-        kwargs = {
+        enrollment_kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
             'source': self.source,
             'interval': self.interval,
@@ -989,18 +989,20 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'warehouse_path': self.warehouse_path,
             'overwrite_n_days': self.overwrite_n_days,
             'date': self.date,
+        }
+        course_summary_kwargs = {
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
             'overwrite': self.overwrite,  # for enrollment
-            'overwrite_n_days': self.overwrite_n_days,  # for course catalog
             'disable_course_catalog': self.disable_course_catalog,
-        }
+        }.update(enrollment_kwargs)
+
         yield (
-            CourseEnrollmentSummaryTableTask(**kwargs),
-            EnrollmentByGenderTask(**kwargs),
-            EnrollmentByBirthYearTask(**kwargs),
-            EnrollmentByEducationLevelTask(**kwargs),
-            EnrollmentByModeTask(**kwargs),
-            EnrollmentDailyTask(**kwargs),
-            ImportCourseSummaryEnrollmentsIntoMysql(**kwargs),
+            CourseEnrollmentSummaryTableTask(**enrollment_kwargs),
+            EnrollmentByGenderTask(**enrollment_kwargs),
+            EnrollmentByBirthYearTask(**enrollment_kwargs),
+            EnrollmentByEducationLevelTask(**enrollment_kwargs),
+            EnrollmentByModeTask(**enrollment_kwargs),
+            EnrollmentDailyTask(**enrollment_kwargs),
+            ImportCourseSummaryEnrollmentsIntoMysql(**course_summary_kwargs),
         )
