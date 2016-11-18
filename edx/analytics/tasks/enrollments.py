@@ -990,12 +990,13 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'overwrite_n_days': self.overwrite_n_days,
             'date': self.date,
         }
-        course_summary_kwargs = {
+
+        course_summary_kwargs = dict({
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
             'overwrite': self.overwrite,  # for enrollment
             'disable_course_catalog': self.disable_course_catalog,
-        }.update(enrollment_kwargs)
+        }, **enrollment_kwargs)
 
         yield (
             CourseEnrollmentSummaryTableTask(**enrollment_kwargs),
