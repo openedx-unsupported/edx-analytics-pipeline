@@ -1005,7 +1005,8 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             EnrollmentByGenderTask(**enrollment_kwargs),
             EnrollmentByBirthYearTask(**enrollment_kwargs),
             EnrollmentByEducationLevelTask(**enrollment_kwargs),
-            EnrollmentByModeTask(**enrollment_kwargs),
+            # TODO: DJ -- is there some sort of dependency thing I'm not getting here?!?  Removing and running
+            # EnrollmentByModeTask(**enrollment_kwargs),
             EnrollmentDailyTask(**enrollment_kwargs),
             ImportCourseSummaryEnrollmentsIntoMysql(**course_summary_kwargs),
         )
