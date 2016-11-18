@@ -55,7 +55,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             '--interval', '2014-07-30-2014-08-07',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--date', self.CATALOG_DATE,
-            '--overwrite-n-days', '7',
+            '--overwrite-n-days', '8',
         ]
 
         if disable_course_catalog:

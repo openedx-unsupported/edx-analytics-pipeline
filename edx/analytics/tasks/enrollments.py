@@ -13,8 +13,11 @@ from edx.analytics.tasks.load_internal_reporting_course_catalog import (
     LoadInternalReportingCourseCatalogMixin,
 )
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, \
-    EventLogSelectionMixin
+from edx.analytics.tasks.pathutil import (
+    PathSelectionByDateIntervalTask,
+    EventLogSelectionDownstreamMixin,
+    EventLogSelectionMixin,
+)
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
