@@ -988,10 +988,10 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
             'overwrite_n_days': self.overwrite_n_days,
-            'date': self.date,
         }
 
         course_summary_kwargs = dict({
+            'date': self.date,
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
             'overwrite': self.overwrite,  # for enrollment
