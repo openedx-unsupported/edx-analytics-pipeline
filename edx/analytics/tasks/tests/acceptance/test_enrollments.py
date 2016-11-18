@@ -8,6 +8,7 @@ import os
 
 from cStringIO import StringIO
 
+from ddt import ddt, data
 import pandas
 
 from edx.analytics.tasks.enrollments import EnrollmentSummaryRecord
@@ -17,24 +18,92 @@ from edx.analytics.tasks.url import url_path_join
 log = logging.getLogger(__name__)
 
 
+@ddt
 class EnrollmentAcceptanceTest(AcceptanceTestCase):
     """End to end test of demographic trends."""
 
+    CATALOG_DATE = '2016-09-08'
     INPUT_FILE = 'enrollment_trends_tracking.log'
 
-    def test_demographic_trends(self):
-        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 8, 1))
+
+    def setUp(self):
+        """Loads enrollment and course catalog fixtures."""
+        super(EnrollmentAcceptanceTest, self).setUp()
+
+        self.upload_tracking_log('enrollment_trends_tracking.log', datetime.date(2014, 7, 30))
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
 
-        self.task.launch([
-            'ImportEnrollmentsIntoMysql',
-            '--interval', '2014-08-01-2014-08-06',
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--overwrite-n-days', '5',
-        ])
+        self.upload_file(
+            os.path.join(self.data_dir, 'input', 'course_catalog.json'),
+            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE),
+                          'course_catalog.json')
+        )
 
         self.maxDiff = None
 
+    @data(True, False)
+    def test_table_generation(self, disable_course_catalog):
+        self.launch_task(disable_course_catalog)
+        self.validate_enrollment_summary_table(disable_course_catalog)
+        self.validate_demographic_trends()
+
+    def launch_task(self, disable_course_catalog):
+        """Kicks off the summary task."""
+        task_params = [
+            'ImportEnrollmentsIntoMysql',
+            '--interval', '2014-07-30-2014-08-06',
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--date', self.CATALOG_DATE,
+            '--overwrite-n-days', '5',
+        ]
+
+        if disable_course_catalog:
+            task_params.append('--disable-course-catalog')
+
+        self.task.launch(task_params)
+
+    def expected_enrollment_summary_results(self, disable_course_catalog):
+        """Returns expected results with course catalog data removed if disable_course_catalog is True."""
+        expected = [
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+             datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
+             'honor', 1, 1, 1],
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+             datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
+             'verified', 1, 1, 1],
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
+             'honor', 2, 1, 4],
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
+             'verified', 0, -1, 2],
+        ]
+        if disable_course_catalog:
+            # remove catalog data
+            catalog_indices = range(1, 9)
+            for row in expected:
+                for catalog_index in catalog_indices:
+                    row[catalog_index] = None
+
+        return [tuple(row) for row in expected]
+
+    def validate_enrollment_summary_table(self, disable_course_catalog):
+        """Assert the summary table is as expected."""
+        columns = ['course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time', 'pacing_type',
+                   'availability', 'enrollment_mode', 'count', 'count_change_7_days', 'cumulative_count', ]
+        with self.export_db.cursor() as cursor:
+            cursor.execute(
+                '''
+                  SELECT {columns}
+                  FROM course_meta_summary_enrollment
+                '''.format(columns=','.join(columns))
+            )
+            results = cursor.fetchall()
+
+        expected = self.expected_enrollment_summary_results(disable_course_catalog)
+        self.assertItemsEqual(expected, results)
+
+    def validate_demographic_trends(self):
         self.validate_summary()
         self.validate_base()
         self.validate_gender()
@@ -52,18 +121,19 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
+            (datetime.date(2014, 7, 30), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
+            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', None, 4, 4),
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'm', 1, 2),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
             (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
+            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', None, 4, 4),
             (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'm', 1, 2),
             (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 2, 2),
+            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', None, 4, 4),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 2, 2),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 3),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 3, 5),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
         ]
         self.assertItemsEqual(expected, results)
@@ -83,7 +153,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1975, 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 1984, 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 2000, 1, 2),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 0, 1),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 3),
         ]
         self.assertItemsEqual(expected, results)
 
@@ -99,7 +169,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         expected = [
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'associates', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'bachelors', 1, 1),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 2),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 2, 4),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'associates', 0, 1),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'bachelors', 0, 2),
         ]
@@ -115,22 +185,24 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = [
+            (datetime.date(2014, 7, 30), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 1),
+            (datetime.date(2014, 7, 30), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
-            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
+            (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'honor', 2, 2),
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'audit', 0, 1),
-            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
+            (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'honor', 2, 2),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
             (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'audit', 1, 1),
-            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 2),
+            (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'honor', 2, 2),
             (datetime.date(2014, 8, 3), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 4), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
-            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 3),
+            (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'honor', 2, 3),
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'verified', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'honor', 1, 1),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'verified', 1, 1),
-            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'honor', 1, 3),
+            (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'honor', 2, 3),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'verified', 0, 2),
         ]
         self.assertItemsEqual(expected, results)
@@ -141,6 +213,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         self.assertItemsEqual(results, [
+            (datetime.date(2014, 7, 30), 'edX/Open_DemoX/edx_demo_course', 2, 2),
             (datetime.date(2014, 8, 1), 'edX/Open_DemoX/edx_demo_course', 3, 4),
             (datetime.date(2014, 8, 2), 'edX/Open_DemoX/edx_demo_course', 2, 4),
             (datetime.date(2014, 8, 3), 'course-v1:edX+Open_DemoX+edx_demo_course2', 1, 1),
