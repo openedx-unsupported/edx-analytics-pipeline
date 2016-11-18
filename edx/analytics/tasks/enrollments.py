@@ -976,8 +976,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
 
 @workflow_entry_point
-class ImportEnrollmentsIntoMysql(CourseEnrollmentDownstreamMixin,
-                                 CourseSummaryEnrollmentDownstreamMixin,
+class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
                                  luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
