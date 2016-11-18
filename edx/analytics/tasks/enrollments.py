@@ -963,7 +963,6 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
                 api_page_size=self.api_page_size,
                 overwrite=self.overwrite,
             ),
-
         ]
 
         if self.disable_course_catalog:

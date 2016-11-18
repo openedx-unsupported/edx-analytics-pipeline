@@ -25,12 +25,15 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
     CATALOG_DATE = '2016-09-08'
     INPUT_FILE = 'enrollment_trends_tracking.log'
 
+    @classmethod
+    def setUpClass(cls):
+        cls.maxDiff = None
 
     def setUp(self):
         """Loads enrollment and course catalog fixtures."""
         super(EnrollmentAcceptanceTest, self).setUp()
 
-        self.upload_tracking_log('enrollment_trends_tracking.log', datetime.date(2014, 7, 30))
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 7, 30))
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
 
         self.upload_file(
@@ -38,8 +41,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE),
                           'course_catalog.json')
         )
-
-        self.maxDiff = None
 
     @data(True, False)
     def test_table_generation(self, disable_course_catalog):
@@ -51,10 +52,10 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         """Kicks off the summary task."""
         task_params = [
             'ImportEnrollmentsIntoMysql',
-            '--interval', '2014-07-30-2014-08-06',
+            '--interval', '2014-07-30-2014-08-07',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--date', self.CATALOG_DATE,
-            '--overwrite-n-days', '5',
+            '--overwrite-n-days', '7',
         ]
 
         if disable_course_catalog:
