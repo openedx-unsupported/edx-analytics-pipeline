@@ -308,7 +308,10 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         return get_target_from_url(url)
 
     def complete(self):
-        return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+        if self.overwrite and not self.attempted_removal:
+            return False
+        else:
+            return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -349,12 +352,12 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         if not last_ip:
             return
 
-        debug_message = u"user '{}' on '{}'".format(username.decode('utf8'), last_timestamp)
+        debug_message = u"user '{}' on '{}'".format(username, last_timestamp)
         country = self.get_country_name(last_ip, debug_message)
         code = self.get_country_code(last_ip, debug_message)
 
         # Add the username for debugging purposes.  (Not needed for counts.)
-        yield (country.encode('utf8'), code.encode('utf8')), username
+        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
 
 
 class ImportLastCountryOfUserToHiveTask(LastCountryOfUserDownstreamMixin, ImportIntoHiveTableTask):
