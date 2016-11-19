@@ -9,7 +9,7 @@ from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 from edx.analytics.tasks.url import url_path_join, ExternalURL
 from edx.analytics.tasks.location_per_course import (
-    LastCountryOfUserMixin,
+    LastCountryOfUserDownstreamMixin,
     QueryLastCountryPerCourseMixin,
     ImportLastCountryOfUserToHiveTask,
     InsertToMysqlCourseEnrollByCountryWorkflow,
@@ -18,7 +18,7 @@ from edx.analytics.tasks.location_per_course import (
 log = logging.getLogger(__name__)
 
 
-class LoadInternalReportingCountryTableHive(LastCountryOfUserMixin, HiveTableFromQueryTask):
+class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, HiveTableFromQueryTask):
     """Loads internal_reporting_d_country Hive table from last_country_of_user Hive table."""
 
     def requires(self):
@@ -26,8 +26,11 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserMixin, HiveTableFro
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
@@ -58,7 +61,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserMixin, HiveTableFro
             """
 
 
-class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserMixin, luigi.WrapperTask):
+class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserDownstreamMixin, luigi.WrapperTask):
 
     def requires(self):
         yield (
@@ -66,8 +69,11 @@ class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserMix
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
@@ -75,8 +81,11 @@ class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserMix
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
                 course_country_output=self.course_country_output,

@@ -1,93 +1,334 @@
 """
 Determine the number of users in each country are enrolled in each course.
 """
+import datetime
 import logging
 import textwrap
+from collections import defaultdict
 
 import luigi
 from luigi.hive import HiveQueryTask, ExternalHiveTask
+from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
 from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.decorators import workflow_entry_point
+from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.pathutil import (
+    PathSelectionByDateIntervalTask,
+    EventLogSelectionMixin,
+    EventLogSelectionDownstreamMixin,
+)
+from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join, UncheckedExternalURL
 from edx.analytics.tasks.util.geolocation import (
     GeolocationMixin, GeolocationDownstreamMixin, UNKNOWN_COUNTRY, UNKNOWN_CODE,
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, hive_database_name
-from edx.analytics.tasks.decorators import workflow_entry_point
+from edx.analytics.tasks.util.record import Record, StringField
 
 log = logging.getLogger(__name__)
 
 
-class LastCountryOfUserMixin(
+class LastIpAddressRecord(Record):
+    """
+    Store information about last IP address observed for a given user in a given course.
+
+    Values are not written to a database, so string lengths are not specified.
+    """
+    timestamp = StringField(description='Timestamp of last event by user in a course.')
+    ip_address = StringField(description='IP address recorded on last event by user in a course.')
+    username = StringField(description='Username recorded on last event by user in a course.')
+    course_id = StringField(description='Course ID recorded on last event by user in a course.')
+
+
+class LastDailyIpAddressOfUserTask(
         WarehouseMixin,
-        MapReduceJobTaskMixin,
-        EventLogSelectionDownstreamMixin,
-        GeolocationDownstreamMixin,
-        OverwriteOutputMixin):
+        OverwriteOutputMixin,
+        EventLogSelectionMixin,
+        MultiOutputMapReduceJobTask):
     """
-    Defines parameters for LastCountryOfUser task and downstream tasks that require it.
+    Task to extract IP address information from eventlogs over a given interval.
 
-    """
-    pass
-
-
-class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, GeolocationMixin, MapReduceJobTask):
-    """
-    Identifies the country of the last IP address associated with each user.
-
-    Uses :py:class:`LastCountryOfUserMixin` to define parameters, :py:class:`EventLogSelectionMixin`
-    to define required input log files, and :py:class:`GeolocationMixin` to provide geolocation setup.
-
+    This would produce a different output file for each day within the interval
+    containing that day's last IP address for each user only.  If there are no
+    events on a given day, an empty output file is produced for that day.
     """
 
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.warehouse_path,
-                'last_country_of_user',
-                'dt={0}/'.format(self.interval.date_b.strftime('%Y-%m-%d'))  # pylint: disable=no-member
-            )
-        )
+    # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
+    FILEPATH_PATTERN = '.*?last_ip_of_user_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
-    def init_local(self):
-        super(LastCountryOfUser, self).init_local()
-        self.remove_output_on_overwrite()
+    # We use warehouse_path to generate the output path, so we make this a non-param.
+    output_root = None
 
     def mapper(self, line):
-        # Get events prefiltered by interval:
         value = self.get_event_and_date_string(line)
         if value is None:
             return
-        event, _date_string = value
+        event, date_string = value
 
-        username = event.get('username')
+        username = eventlog.get_event_username(event)
         if not username:
             return
-        username = username.strip()
 
         # Get timestamp instead of date string, so we get the latest ip
         # address for events on the same day.
-        # TODO: simplify the round-trip conversion, so that we don't have to wait for the slow parse.
-        # The parse provides error checking, allowing bad dates to be skipped.
-        # But we may now have enough confidence in the data that this is rare (if ever).
-        # Or we could implement a faster check, e.g. reject any that are "greater" than now.
-        timestamp_as_datetime = eventlog.get_event_time(event)
-        if timestamp_as_datetime is None:
+        timestamp = eventlog.get_event_time_string(event)
+        if not timestamp:
             return
-        timestamp = eventlog.datetime_to_timestamp(timestamp_as_datetime)
 
         ip_address = event.get('ip')
         if not ip_address:
             log.warning("No ip_address found for user '%s' on '%s'.", username, timestamp)
             return
 
-        yield username, (timestamp, ip_address)
+        # Get the course_id from context, if it happens to be present.
+        # It's okay if it isn't.
+
+        # (Not sure if there are particular types of course
+        # interaction we care about, but we might want to only collect
+        # the course_id off of explicit events, and ignore implicit
+        # events as not being "real" interactions with course content.
+        # Or maybe we add a flag indicating explicit vs. implicit, so
+        # that this can be better teased apart.  For example, we could
+        # use the latest explicit event for a course, but if there are
+        # none, then use the latest implicit event for the course, and
+        # if there are none, then use the latest overall event.)
+        course_id = eventlog.get_course_id(event)
+
+        # For multi-output, we will generate a single file for each key value.
+        # When looking at location for user in a course, we don't want to have
+        # an output file per course per date, so just use date as the key,
+        # and have a single file representing all events on the date.
+        yield date_string, (timestamp, ip_address, course_id, username)
+
+    def multi_output_reducer(self, _date_string, values, output_file):
+        # All values are for a given date, but we want to find the last ip_address
+        # for each user (and eventually in each course).
+        last_ip = defaultdict()
+        last_timestamp = defaultdict()
+        for value in values:
+            (timestamp, ip_address, course_id, username) = value
+
+            # We are storing different IP addresses depending on the username
+            # *and* the course.  This anticipates a future requirement to provide
+            # different countries depending on which course.
+            last_key = (username, course_id)
+
+            last_time = last_timestamp.get(last_key, '')
+            if timestamp > last_time:
+                last_ip[last_key] = ip_address
+                last_timestamp[last_key] = timestamp
+
+        # Now output the resulting "last" values for each key.
+        for last_key, ip_address in last_ip.iteritems():
+            timestamp = last_timestamp[last_key]
+            username, course_id = last_key
+            value = [timestamp, ip_address, username, course_id]
+            record = LastIpAddressRecord(*value)
+            output_file.write(record.to_separated_values())
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('last_ip_of_user', date_string),
+            'last_ip_of_user_{date}'.format(date=date_string),
+        )
+
+    def downstream_input_tasks(self):
+        """
+        Provide a list of tasks that a downstream task would use as input.
+
+        This is necessary because a MultiOutputMapReduceJobTask returns a marker as output.
+        Note that this method does not verify the existence of the underlying urls. It assumes that
+        there is an output file for every date within the interval. Any MapReduce job
+        which uses this as input would fail if there is missing data for any date within the interval,
+        so this task will create empty output files for dates with no data.
+        """
+        tasks = []
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            tasks.append(UncheckedExternalURL(url))
+
+        return tasks
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(LastDailyIpAddressOfUserTask, self).run()
+
+        # This makes sure that a output file exists for each date in the interval
+        # as downstream tasks require that they exist (as provided by downstream_input_tasks()).
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
+
+
+class LastCountryOfUserDownstreamMixin(
+        WarehouseMixin,
+        OverwriteOutputMixin,
+        MapReduceJobTaskMixin,
+        EventLogSelectionDownstreamMixin,
+        GeolocationDownstreamMixin):
+
+    """
+    Defines parameters for LastCountryOfUser task and downstream tasks that require it.
+
+    """
+
+    # Make the interval be optional:
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to extract ip addresses for. '
+        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
+    )
+
+    # Define optional parameters, to be used if 'interval' is not defined.
+    interval_start = luigi.DateParameter(
+        config_path={'section': 'location-per-course', 'name': 'interval_start'},
+        significant=False,
+        description='The start date to extract ip addresses for.  Ignored if `interval` is provided.',
+    )
+    interval_end = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        significant=False,
+        description='The end date to extract ip addresses for.  Ignored if `interval` is provided. '
+        'Default is today, UTC.',
+    )
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'location-per-course', 'name': 'overwrite_n_days'},
+        significant=False,
+        description='This parameter is used by LastCountryOfUser which will overwrite ip address per user'
+                    ' for the most recent n days.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(LastCountryOfUserDownstreamMixin, self).__init__(*args, **kwargs)
+
+        if not self.interval:
+            self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
+
+
+class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapReduceJobTask):
+    """
+    Identifies the country of the last IP address associated with each user.
+
+    Uses :py:class:`LastCountryOfUserDownstreamMixin` to define parameters, :py:class:`EventLogSelectionMixin`
+    to define required input log files, and :py:class:`GeolocationMixin` to provide geolocation setup.
+
+    """
+    # This is a special Luigi override that instructs the output to be written directly to output,
+    # rather than being written to a temp directory that is later renamed.  Renaming in S3 is actually
+    # a copy-and-delete, which can be expensive for large datasets.
+    enable_direct_output = True
+
+    # Calculate requirements once.
+    cached_local_requirements = None
+    cached_hadoop_requirements = None
+
+    def __init__(self, *args, **kwargs):
+        super(LastCountryOfUser, self).__init__(*args, **kwargs)
+
+        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+
+    def requires_local(self):
+        if not self.cached_local_requirements:
+            requirements = super(LastCountryOfUser, self).requires_local()
+            # Default is an empty list, but assume that any real data added is done
+            # so as a dict.
+            if not requirements:
+                requirements = {}
+
+            if self.overwrite_n_days > 0:
+                # This calculates IP addresses for user and course for a recent period of time,
+                # which allows for late-arriving events to be eventually included (as well as the
+                # latest day).  Because LastDailyIpAddressOfUserTask returns a marker file as output,
+                # we need to include the calls to the actual task here to have them included as
+                # dependencies but *not* be included as Hadoop input to this job.  We will use
+                # the downstream_input_tasks() method on the LastDailyIpAddressOfUserTask task to
+                # actually get pointers to inputs.
+                overwrite_interval = luigi.date_interval.Custom(self.overwrite_from_date, self.interval.date_b)
+                requirements['user_addresses_task'] = LastDailyIpAddressOfUserTask(
+                    interval=overwrite_interval,
+                    source=self.source,
+                    pattern=self.pattern,
+                    warehouse_path=self.warehouse_path,
+                    mapreduce_engine=self.mapreduce_engine,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                    overwrite=True,
+                )
+            self.cached_local_requirements = requirements
+
+        return self.cached_local_requirements
+
+    def requires_hadoop(self):
+        # This defines the data that is treated as input to the Hadoop job.
+
+        if not self.cached_hadoop_requirements:
+            # We want to pass in the historical data as well as the overwritten output
+            # of LastDailyIpAddressOfUserTask to the hadoop job.
+            # So go find whatever is there in the historical date range.
+            # This allows us in future to collapse historical data into fewer files,
+            # if we felt that was worth the effort.  For example, a month's worth
+            # of daily files could be cooked down into a single file representing the
+            # last IP address for users per course in that month.  This code wouldn't
+            # care.
+            path_selection_interval = luigi.date_interval.Custom(self.interval.date_a, self.overwrite_from_date)
+            last_ip_of_user_root = url_path_join(self.warehouse_path, 'last_ip_of_user')
+            path_selection_task = PathSelectionByDateIntervalTask(
+                source=[last_ip_of_user_root],
+                pattern=[LastDailyIpAddressOfUserTask.FILEPATH_PATTERN],
+                interval=path_selection_interval,
+                expand_interval=datetime.timedelta(0),
+                date_pattern='%Y-%m-%d',
+            )
+
+            requirements = {
+                'path_selection_task': path_selection_task,
+            }
+
+            if self.overwrite_n_days > 0:
+                # LastDailyIpAddressOfUserTask returns the marker as output,
+                # so we need custom logic to pass the output of
+                # LastDailyIpAddressOfUserTask as actual hadoop input to this job.
+                downstream_input_tasks = self.requires_local()['user_addresses_task'].downstream_input_tasks()
+                requirements['downstream_input_tasks'] = downstream_input_tasks
+
+            self.cached_hadoop_requirements = requirements
+
+        return self.cached_hadoop_requirements
+
+    def output(self):
+        url = self.hive_partition_path('last_country_of_user', self.interval.date_b)  # pylint: disable=no-member
+        return get_target_from_url(url)
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        output_target = self.output()
+        # This is different from remove_output_on_overwrite()
+        # in that it also removes the target directory if
+        # the success marker file is missing.
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+        super(LastCountryOfUser, self).run()
+
+
+    def mapper(self, line):
+        record = LastIpAddressRecord.from_tsv(line)
+
+        # Output all events for a username, regardless of course (for now).
+        # (When including course_id, it should be included in the value, not the key.
+        # That way we can provide an appropriate default value for the user for
+        # their latest ip_address in any (or in no) course.)
+        yield record.username, (record.timestamp, record.ip_address)
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""
@@ -108,32 +349,15 @@ class LastCountryOfUser(LastCountryOfUserMixin, EventLogSelectionMixin, Geolocat
         if not last_ip:
             return
 
-        # This ip address might not provide a country name.
-        try:
-            country = self.geoip.country_name_by_addr(last_ip)
-            code = self.geoip.country_code_by_addr(last_ip)
-        except Exception:
-            log.exception("Encountered exception getting country:  user '%s', last_ip '%s' on '%s'.",
-                          username, last_ip, last_timestamp)
-            country = UNKNOWN_COUNTRY
-            code = UNKNOWN_CODE
-
-        if country is None or len(country.strip()) <= 0:
-            log.error("No country found for user '%s', last_ip '%s' on '%s'.", username, last_ip, last_timestamp)
-            # TODO: try earlier IP addresses, if we find this happens much.
-            country = UNKNOWN_COUNTRY
-
-        if code is None or len(code.strip()) <= 0:
-            log.error("No code found for user '%s', last_ip '%s', country '%s' on '%s'.",
-                      username, last_ip, country, last_timestamp)
-            # TODO: try earlier IP addresses, if we find this happens much.
-            code = UNKNOWN_CODE
+        debug_message = u"user '{}' on '{}'".format(username.decode('utf8'), last_timestamp)
+        country = self.get_country_name(last_ip, debug_message)
+        code = self.get_country_code(last_ip, debug_message)
 
         # Add the username for debugging purposes.  (Not needed for counts.)
-        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
+        yield (country.encode('utf8'), code.encode('utf8')), username
 
 
-class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTableTask):
+class ImportLastCountryOfUserToHiveTask(LastCountryOfUserDownstreamMixin, ImportIntoHiveTableTask):
     """
     Creates a Hive Table that points to Hadoop output of LastCountryOfUser task.
 
@@ -172,8 +396,11 @@ class ImportLastCountryOfUserToHiveTask(LastCountryOfUserMixin, ImportIntoHiveTa
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
@@ -200,7 +427,7 @@ class ExternalLastCountryOfUserToHiveTask(ImportLastCountryOfUserToHiveTask):
         )
 
 
-class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask):
+class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserDownstreamMixin, MysqlInsertTask):
     """
     Copy the last_country_of_user table from Hive into MySQL.
     """
@@ -222,8 +449,11 @@ class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserMixin, MysqlInsertTask
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
@@ -298,7 +528,7 @@ class QueryLastCountryPerCourseTask(
         )
 
 
-class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountryPerCourseTask):
+class QueryLastCountryPerCourseWorkflow(LastCountryOfUserDownstreamMixin, QueryLastCountryPerCourseTask):
 
     """Defines dependencies for performing join in Hive to find course enrollment per-country counts."""
     def requires(self):
@@ -312,8 +542,11 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
@@ -321,8 +554,11 @@ class QueryLastCountryPerCourseWorkflow(LastCountryOfUserMixin, QueryLastCountry
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,
-                interval=self.interval,
                 pattern=self.pattern,
+                interval=self.interval,
+                interval_start=self.interval_start,
+                interval_end=self.interval_end,
+                overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
@@ -376,7 +612,7 @@ class InsertToMysqlCourseEnrollByCountryTask(InsertToMysqlCourseEnrollByCountryT
 @workflow_entry_point
 class InsertToMysqlCourseEnrollByCountryWorkflow(
         QueryLastCountryPerCourseMixin,
-        LastCountryOfUserMixin,
+        LastCountryOfUserDownstreamMixin,
         InsertToMysqlCourseEnrollByCountryTaskBase):
     """
     Write to course_enrollment_location_current table from CountUserActivityPerInterval.
@@ -388,8 +624,11 @@ class InsertToMysqlCourseEnrollByCountryWorkflow(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
             course_country_output=self.course_country_output,

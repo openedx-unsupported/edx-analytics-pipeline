@@ -1,35 +1,38 @@
 """
 Tests for geolocation-per-course tasks.
 """
+
 import json
 import textwrap
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
-from mock import Mock, patch
+from mock import Mock, patch, call
 
 from luigi.date_interval import Year
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.location_per_course import (
+    LastDailyIpAddressOfUserTask,
     ImportLastCountryOfUserToHiveTask,
     LastCountryOfUser, QueryLastCountryPerCourseTask,
     QueryLastCountryPerCourseWorkflow,
     InsertToMysqlCourseEnrollByCountryWorkflow,
 )
+from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask
+from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.geolocation import UNKNOWN_COUNTRY, UNKNOWN_CODE
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
-class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
-    """Tests of LastCountryOfUser.mapper()"""
+class LastDailyIpAddressOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
+    """Tests of LastDailyIpAddressOfUserTask.mapper()"""
 
     username = 'test_user'
     timestamp = "2013-12-17T15:38:32.805444"
     ip_address = FakeGeoLocation.ip_address_1
 
     def setUp(self):
-        self.task_class = LastCountryOfUser
-        super(LastCountryOfUserMapperTestCase, self).setUp()
+        self.task_class = LastDailyIpAddressOfUserTask
+        super(LastDailyIpAddressOfUserMapperTestCase, self).setUp()
 
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""
@@ -72,11 +75,77 @@ class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
 
     def test_good_event(self):
         line = self._create_event_log_line()
-        self.assert_single_map_output(line, self.username, (self.timestamp, self.ip_address))
+        self.assert_single_map_output(line, "2013-12-17", (self.timestamp, self.ip_address, None, self.username))
 
     def test_username_with_newline(self):
         line = self._create_event_log_line(username="baduser\n")
-        self.assert_single_map_output(line, "baduser", (self.timestamp, self.ip_address))
+        self.assert_single_map_output(line, "2013-12-17", (self.timestamp, self.ip_address, None, "baduser"))
+
+
+class LastDailyIpAddressOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
+    """Tests of LastDailyIpAddressOfUserTask.reducer()"""
+
+    # Username is unicode here, not utf8
+    username = u'test_user\u2603'
+    timestamp = '2013-12-17T15:38:32.805444'
+    earlier_timestamp = '2013-12-15T15:38:32.805444'
+    ip_address = FakeGeoLocation.ip_address_1
+    earlier_ip_address = FakeGeoLocation.ip_address_2
+    course_id = 'DummyX/Course/ID'
+
+    def setUp(self):
+        self.task_class = LastDailyIpAddressOfUserTask
+        super(LastDailyIpAddressOfUserReducerTestCase, self).setUp()
+
+    def test_multi_output_reducer(self):
+        # To test sorting, the first sample is made to sort after the
+        # second sample.
+        input_1 = (self.timestamp, self.ip_address, self.course_id, self.username)
+        input_2 = (self.earlier_timestamp, self.earlier_ip_address, self.course_id, self.username)
+
+        mock_output_file = Mock()
+        self.task.multi_output_reducer('random_date', [input_1, input_2], mock_output_file)
+        self.assertEquals(len(mock_output_file.write.mock_calls), 2)
+        expected_string = '\t'.join([self.timestamp, self.ip_address, self.username.encode('utf8'), self.course_id])
+        self.assertEquals(mock_output_file.write.mock_calls[0], call(expected_string))
+        self.assertEquals(mock_output_file.write.mock_calls[1], call('\n'))
+
+    def test_output_path(self):
+        output_path = self.task.output_path_for_key(self.DATE)
+        expected_output_path = 's3://fake/warehouse/last_ip_of_user/dt={0}/last_ip_of_user_{0}'.format(self.DATE)
+        self.assertEquals(output_path, expected_output_path)
+        tasks = self.task.downstream_input_tasks()
+        self.assertEquals(len(tasks), 1)
+        self.assertEquals(tasks[0].url, expected_output_path)
+
+
+class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
+    """Tests of LastCountryOfUser.mapper()"""
+
+    username = 'test_user'
+    timestamp = '2013-12-17T15:38:32.805444'
+    ip_address = FakeGeoLocation.ip_address_1
+    course_id = 'DummyX/Course/ID'
+
+    def setUp(self):
+        self.task_class = LastCountryOfUser
+        super(LastCountryOfUserMapperTestCase, self).setUp()
+
+    def test_mapper(self):
+        line = '\t'.join([self.timestamp, self.ip_address, self.username, self.course_id])
+        self.assert_single_map_output(line, self.username, (self.timestamp, self.ip_address))
+
+    def test_requires_local(self):
+        tasks = self.task.requires_local()
+        self.assertEquals(len(tasks), 2)
+        self.assertEquals(tasks['geolocation_data'].url, 'test://data/data.file')
+        self.assertTrue(isinstance(tasks['user_addresses_task'], LastDailyIpAddressOfUserTask))
+
+    def test_requires_hadoop(self):
+        tasks = self.task.requires_hadoop()
+        self.assertEquals(len(tasks), 2)
+        self.assertTrue(isinstance(tasks['path_selection_task'], PathSelectionByDateIntervalTask))
+        self.assertEquals(len(tasks['downstream_input_tasks']), 14)
 
 
 class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
@@ -119,13 +188,13 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
     def test_country_name_exception(self):
         self.task.geoip.country_name_by_addr = Mock(side_effect=Exception)
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((UNKNOWN_COUNTRY, UNKNOWN_CODE), self.username),)
+        expected = (((UNKNOWN_COUNTRY, FakeGeoLocation.country_code_1), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_country_code_exception(self):
         self.task.geoip.country_code_by_addr = Mock(side_effect=Exception)
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((UNKNOWN_COUNTRY, UNKNOWN_CODE), self.username),)
+        expected = (((FakeGeoLocation.country_name_1, UNKNOWN_CODE), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_missing_country_name(self):
@@ -160,10 +229,10 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
     def test_unicode_username(self):
-        self.username = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3\xef\xbd\x94\xc3\xac\xc3\xb2\xef\xbd\x8e\xc3\xa5\xc9\xad\xc3\xaf\xc8\xa5\xef\xbd\x81\xef\xbd\x94\xc3\xad\xdf\x80\xef\xbd\x8e'.decode('utf8')
+        self.username = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3\xef\xbd\x94\xc3\xac\xc3\xb2\xef\xbd\x8e\xc3\xa5\xc9\xad\xc3\xaf\xc8\xa5\xef\xbd\x81\xef\xbd\x94\xc3\xad\xdf\x80\xef\xbd\x8e'
         self.reduce_key = self.username
         inputs = [(self.timestamp, FakeGeoLocation.ip_address_1)]
-        expected = (((FakeGeoLocation.country_name_1, FakeGeoLocation.country_code_1), self.username.encode('utf8')),)
+        expected = (((FakeGeoLocation.country_name_1, FakeGeoLocation.country_code_1), self.username),)
         self._check_output_complete_tuple(inputs, expected)
 
 
