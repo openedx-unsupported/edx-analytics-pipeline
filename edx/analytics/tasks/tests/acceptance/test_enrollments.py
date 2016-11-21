@@ -237,7 +237,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
 
     def validate_summary(self):
         """Ensure the summary is correct."""
-        data_path = url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt=2014-08-06')
+        data_path = url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt=2014-08-07')
         raw_output = self.read_dfs_directory(data_path)
         output = StringIO(raw_output.replace('\t\\N', '\t'))
         columns = EnrollmentSummaryRecord.get_fields().keys()
