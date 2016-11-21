@@ -66,18 +66,18 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
     def expected_enrollment_summary_results(self, disable_course_catalog):
         """Returns expected results with course catalog data removed if disable_course_catalog is True."""
         expected = [
-            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
              'honor', 1, 1, 1],
-            ['course-v1:edX+Open_DemoX+edx_demo_course2', None, None,
+            ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
              'verified', 1, 1, 1],
-            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
-             'honor', 2, 1, 4],
-            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'acb243a0-1234-5abe-099e-ffcae2a340d4',
+             'honor', 0, 0, 3],
+            ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
-             'verified', 0, -1, 2],
+             'verified', 0, 0, 2],
         ]
         if disable_course_catalog:
             # remove catalog data
