@@ -121,7 +121,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
                     reason = event.get('synthesized', {}).get('reason')
                     key = (event_type, reason)
                     histogram[key] += 1
-        expected_histogram =  {
+        expected_histogram = {
             ("edx.course.enrollment.activated", "start => deactivate"): 1,
             ("edx.course.enrollment.mode_changed", "deactivate => validate(active) (honor=>verified)"): 1,
             ("edx.course.enrollment.activated", "start => validate(active)"): 3,

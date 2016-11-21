@@ -105,6 +105,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         self.assertItemsEqual(expected, results)
 
     def validate_demographic_trends(self):
+        """Assert all tables are as expected."""
         self.validate_summary()
         self.validate_base()
         self.validate_gender()
