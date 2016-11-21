@@ -12,10 +12,10 @@ from luigi.date_interval import Year
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.location_per_course import (
     LastDailyIpAddressOfUserTask,
-    ImportLastCountryOfUserToHiveTask,
-    LastCountryOfUser, QueryLastCountryPerCourseTask,
-    QueryLastCountryPerCourseWorkflow,
-    InsertToMysqlCourseEnrollByCountryWorkflow,
+    LastCountryOfUserPartitionTask,
+    LastCountryOfUser,
+    QueryLastCountryPerCourseTask,
+    InsertToMysqlLastCountryPerCourseTask,
 )
 from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask
 from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -236,29 +236,23 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
 
-class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
-    """Tests to validate ImportLastCountryOfUserToHiveTask."""
+class LastCountryOfUserPartitionTestCase(unittest.TestCase):
+    """Tests to validate LastCountryOfUserPartitionTask."""
 
     def _get_kwargs(self):
-        """Provides minimum args for instantiating ImportLastCountryOfUserToHiveTask."""
+        """Provides minimum args for instantiating LastCountryOfUserPartitionTask."""
         return {
             'interval': Year.parse('2013'),
         }
 
     def test_query_with_date_interval(self):
-        task = ImportLastCountryOfUserToHiveTask(**self._get_kwargs())
+        task = LastCountryOfUserPartitionTask(**self._get_kwargs())
         query = task.query()
         expected_query = textwrap.dedent(
             """
             USE default;
-            DROP TABLE IF EXISTS last_country_of_user;
-            CREATE EXTERNAL TABLE last_country_of_user (
-                country_name STRING,country_code STRING,username STRING
-            )
-            PARTITIONED BY (dt STRING)
-            ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-            LOCATION 's3://fake/warehouse/last_country_of_user';
-            ALTER TABLE last_country_of_user ADD PARTITION (dt = '2014-01-01');
+
+            ALTER TABLE last_country_of_user ADD IF NOT EXISTS PARTITION (dt='2014-01-01');
             """
         )
         self.assertEquals(query, expected_query)
@@ -266,26 +260,12 @@ class ImportLastCountryOfUserToHiveTestCase(unittest.TestCase):
     def test_overwrite(self):
         kwargs = self._get_kwargs()
         kwargs['overwrite'] = True
-        task = ImportLastCountryOfUserToHiveTask(**kwargs)
+        task = LastCountryOfUserPartitionTask(**kwargs)
         self.assertFalse(task.complete())
 
-    def test_no_overwrite(self):
-        task = ImportLastCountryOfUserToHiveTask(**self._get_kwargs())
-        with patch('edx.analytics.tasks.database_imports.HivePartitionTarget') as mock_target:
-            output = mock_target()
-            # Make MagicMock act more like a regular mock, so that flatten() does the right thing.
-            del output.__iter__
-            del output.__getitem__
-            output.exists = Mock(return_value=False)
-            self.assertFalse(task.complete())
-            self.assertTrue(output.exists.called)
-            output.exists = Mock(return_value=True)
-            self.assertTrue(task.complete())
-            self.assertTrue(output.exists.called)
-
     def test_requires(self):
-        task = ImportLastCountryOfUserToHiveTask(**self._get_kwargs())
-        required_task = task.requires()
+        task = LastCountryOfUserPartitionTask(**self._get_kwargs())
+        required_task = list(task.requires())[0]
         self.assertEquals(required_task.output().path, 's3://fake/warehouse/last_country_of_user/dt=2014-01-01')
 
 
@@ -293,9 +273,9 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
     """Tests to validate QueryLastCountryPerCourseTask."""
 
     def _get_kwargs(self):
-        """Provides minimum args for instantiating QueryLastCountryPerCourseTask."""
+        """Provides minimum args for instantiating LastCountryOfUserPartitionTask."""
         return {
-            'course_country_output': 's3://output/path',
+            'interval': Year.parse('2013'),
         }
 
     def test_query(self):
@@ -313,7 +293,7 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
                 cumulative_count INT
             )
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-            LOCATION 's3://output/path';
+            LOCATION 's3://fake/warehouse/course_enrollment_location_current';
 
             INSERT OVERWRITE TABLE course_enrollment_location_current
             SELECT
@@ -332,7 +312,7 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
 
     def test_output(self):
         task = QueryLastCountryPerCourseTask(**self._get_kwargs())
-        self.assertEquals(task.output().path, 's3://output/path')
+        self.assertEquals(task.output().path, 's3://fake/warehouse/course_enrollment_location_current')
 
     def test_requires(self):
         task = QueryLastCountryPerCourseTask(**self._get_kwargs())
@@ -341,50 +321,27 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
         self.assertEquals(len(required_tasks[0]), 3)
 
 
-class QueryLastCountryPerCourseWorkflowTestCase(unittest.TestCase):
-    """Tests to validate QueryLastCountryPerCourseWorkflow."""
+class InsertToMysqlLastCountryPerCourseTaskTestCase(unittest.TestCase):
+    """Tests to validate InsertToMysqlLastCountryPerCourseTask."""
 
     def _get_kwargs(self):
-        """Provides minimum args for instantiating QueryLastCountryPerCourseWorkflow."""
+        """Provides minimum args for instantiating InsertToMysqlLastCountryPerCourseTask."""
         return {
             'interval': Year.parse('2013'),
-            'course_country_output': 's3://output/course_country/path',
-        }
-
-    def test_output(self):
-        task = QueryLastCountryPerCourseWorkflow(**self._get_kwargs())
-        self.assertEquals(task.output().path, 's3://output/course_country/path')
-
-    def test_requires(self):
-        task = QueryLastCountryPerCourseWorkflow(**self._get_kwargs())
-        required_tasks = list(task.requires())
-        self.assertEquals(len(required_tasks), 1)
-        self.assertEquals(len(required_tasks[0]), 4)
-
-
-class InsertToMysqlCourseEnrollByCountryWorkflowTestCase(unittest.TestCase):
-    """Tests to validate InsertToMysqlCourseEnrollByCountryWorkflow."""
-
-    def _get_kwargs(self):
-        """Provides minimum args for instantiating InsertToMysqlCourseEnrollByCountryWorkflow."""
-        return {
-            'interval': Year.parse('2013'),
-            'course_country_output': 's3://output/course_country/path',
-            'credentials': 's3://config/credentials/output-database.json',
         }
 
     def test_requires(self):
-        task = InsertToMysqlCourseEnrollByCountryWorkflow(**self._get_kwargs())
-        required_tasks = task.requires()
+        task = InsertToMysqlLastCountryPerCourseTask(**self._get_kwargs())
+        required_tasks = dict(task.requires())
         self.assertEquals(len(required_tasks), 2)
-        self.assertEquals(required_tasks['credentials'].output().path, 's3://config/credentials/output-database.json')
-        self.assertEquals(required_tasks['insert_source'].output().path, 's3://output/course_country/path')
+        self.assertEquals(required_tasks['credentials'].output().path, 's3://fake/credentials.json')
+        self.assertEquals(required_tasks['insert_source'].output().path, 's3://fake/warehouse/course_enrollment_location_current')
 
     def test_requires_with_overwrite(self):
         kwargs = self._get_kwargs()
         kwargs['overwrite'] = True
         print kwargs
-        task = InsertToMysqlCourseEnrollByCountryWorkflow(**kwargs)
+        task = InsertToMysqlLastCountryPerCourseTask(**kwargs)
         required_tasks = task.requires()
         print required_tasks
         query_task = required_tasks['insert_source']
