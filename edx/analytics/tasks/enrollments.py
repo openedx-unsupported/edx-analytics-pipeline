@@ -869,16 +869,16 @@ class EnrollmentDailyTask(EnrollmentTask):
 class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
 
-    disable_course_catalog = luigi.BooleanParameter(
-        config_path={'section': 'course-summary-enrollment', 'name': 'disable_course_catalog'},
+    enable_course_catalog = luigi.BooleanParameter(
+        config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
         default=False,
-        description="Disables course catalog data jobs and only creates empty tables for them."
+        description="Enables course catalog data jobs."
     )
 
 
 class CourseSummaryEnrollmentRecord(Record):
     """Recent enrollment summary and metadata for a course."""
-    course_id = StringField(length=255, nullable=False, description='A unique identifier of the course')
+    course_id = StringField(nullable=False, length=255, description='A unique identifier of the course')
     catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True,
                                        description='The name of the course')
     catalog_course = StringField(nullable=True, length=255, description='Course identifier without run')
@@ -968,13 +968,13 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             ),
         ]
 
-        if self.disable_course_catalog:
+        if self.enable_course_catalog:
+            # create the hive tables and populate them with data
+            yield catalog_tasks
+        else:
             # the Open edX installation isn't running a catalog service, so just create empty hive tables without
             # loading any data into them
             yield [task.hive_table_task for task in catalog_tasks]
-        else:
-            # create the hive tables and populate them with data
-            yield catalog_tasks
 
 
 @workflow_entry_point
@@ -997,7 +997,7 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
             'overwrite': self.overwrite,  # for enrollment
-            'disable_course_catalog': self.disable_course_catalog,
+            'enable_course_catalog': self.enable_course_catalog,
         }, **enrollment_kwargs)
 
         yield (

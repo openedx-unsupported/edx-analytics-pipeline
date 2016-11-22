@@ -43,12 +43,12 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         )
 
     @data(True, False)
-    def test_table_generation(self, disable_course_catalog):
-        self.launch_task(disable_course_catalog)
-        self.validate_enrollment_summary_table(disable_course_catalog)
+    def test_table_generation(self, enable_course_catalog):
+        self.launch_task(enable_course_catalog)
+        self.validate_enrollment_summary_table(enable_course_catalog)
         self.validate_demographic_trends()
 
-    def launch_task(self, disable_course_catalog):
+    def launch_task(self, enable_course_catalog):
         """Kicks off the summary task."""
         task_params = [
             'ImportEnrollmentsIntoMysql',
@@ -58,13 +58,13 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             '--overwrite-n-days', '7',
         ]
 
-        if disable_course_catalog:
-            task_params.append('--disable-course-catalog')
+        if enable_course_catalog:
+            task_params.append('--enable-course-catalog')
 
         self.task.launch(task_params)
 
-    def expected_enrollment_summary_results(self, disable_course_catalog):
-        """Returns expected results with course catalog data removed if disable_course_catalog is True."""
+    def expected_enrollment_summary_results(self, enable_course_catalog):
+        """Returns expected results with course catalog data removed if enable_course_catalog is False."""
         expected = [
             ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
@@ -79,7 +79,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
              'verified', 0, 0, 2],
         ]
-        if disable_course_catalog:
+        if not enable_course_catalog:
             # remove catalog data
             catalog_indices = range(1, 7)
             for row in expected:
@@ -88,7 +88,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
 
         return [tuple(row) for row in expected]
 
-    def validate_enrollment_summary_table(self, disable_course_catalog):
+    def validate_enrollment_summary_table(self, enable_course_catalog):
         """Assert the summary table is as expected."""
         columns = ['course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time', 'pacing_type',
                    'availability', 'enrollment_mode', 'count', 'count_change_7_days', 'cumulative_count', ]
@@ -101,7 +101,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             )
             results = cursor.fetchall()
 
-        expected = self.expected_enrollment_summary_results(disable_course_catalog)
+        expected = self.expected_enrollment_summary_results(enable_course_catalog)
         self.assertItemsEqual(expected, results)
 
     def validate_gender(self):
