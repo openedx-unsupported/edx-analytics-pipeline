@@ -4,14 +4,19 @@ Import data from external RDBMS databases into Hive.
 import datetime
 import logging
 import textwrap
+import re
 
 import luigi
 from luigi.hive import HiveQueryTask, HivePartitionTarget
 
 from edx.analytics.tasks.sqoop import SqoopImportFromMysql
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type
+from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type, WarehouseMixin
+from edx.analytics.tasks.mysql_load import MysqlInsertTaskMixin, CredentialFileMysqlTarget
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField, BooleanField
+from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+
 
 log = logging.getLogger(__name__)
 
@@ -213,6 +218,131 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             delimiter_replacement=' ',
         )
 
+    def output(self):
+        return get_target_from_url(self.partition_location.rstrip('/') + '/')
+
+
+class TestTask(WarehouseMixin, DatabaseImportMixin, luigi.Task):
+
+    import_table = luigi.Parameter()
+    overwrite = luigi.BooleanParameter()
+    
+    def __init__(self, *args, **kwargs):
+        super(TestTask, self).__init__(*args, **kwargs)
+        self.record = type(self.import_table, (Record,), {})
+
+    def requires(self):
+        return {
+            'credentials': ExternalURL(self.credentials),
+            'import_task': self.import_task,
+        }
+
+    @property
+    def import_task(self):
+        return SqoopImportFromMysql(
+            table_name=self.import_table,
+            # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
+            # Make sure delimiters and nulls etc. still work after removal.
+            destination=self.hive_partition_path(self.import_table, self.import_date.isoformat()),
+            credentials=self.credentials,
+            num_mappers=self.num_mappers,
+            verbose=self.verbose,
+            overwrite=self.overwrite,
+            database=self.database,
+            # Hive expects NULL to be represented by the string "\N" in the data. You have to pass in "\\N" to sqoop
+            # since it uses that string directly in the generated Java code, so "\\N" actually looks like "\N" to the
+            # Java code. In order to get "\\N" onto the command line we have to use another set of escapes to tell the
+            # python code to pass through the "\" character.
+            null_string='\\\\N',
+            # It's unclear why, but this setting prevents us from correctly substituting nulls with \N.
+            mysql_delimiters=False,
+            # This is a string that is interpreted as an octal number, so it is equivalent to the character Ctrl-A
+            # (0x01). This is the default separator for fields in Hive.
+            fields_terminated_by='\x2C',
+            # Replace delimiters with a single space if they appear in the data. This prevents the import of malformed
+            # records. Hive does not support escape characters or other reasonable workarounds to this problem.
+            delimiter_replacement=' ',
+        )
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.import_table, self.import_date.isoformat()))
+
+
+    def run(self):
+        mysql_target = CredentialFileMysqlTarget(
+            credentials_target=self.input()['credentials'],
+            database_name=self.database,
+            table=self.import_table,
+            update_id=self.task_id
+        )
+        connection = mysql_target.connect()
+
+        try:
+            cursor = connection.cursor()
+            cursor.execute("describe {0}".format(self.import_table))
+            column_info = cursor.fetchall()
+            for column in column_info:
+                column_name = column[0]
+                column_type_info = column[1]
+                column_nullable = column[2]
+                nullable = True if column_nullable == 'YES' else False
+
+                match = re.search("(.*)\((\d*)\)", column_type_info)
+                if match:
+                    column_type = match.group(1)
+                    column_length = match.group(2)
+                else:
+                    column_type = column_type_info
+
+                if column_type == 'int' or column_type == 'smallint':
+                    setattr(self.record, column_name, IntegerField(nullable=nullable))
+                elif column_type == 'tinyint':
+                    setattr(self.record, column_name, BooleanField(nullable=nullable))
+                elif column_type == 'varchar':
+                    setattr(self.record, column_name, StringField(nullable=nullable, length=column_length))
+                elif column_type == 'datetime' or column_type == 'date':
+                    setattr(self.record, column_name, DateTimeField(nullable=nullable))
+                elif column_type == 'longtext':
+                    setattr(self.record, column_name, StringField(nullable=nullable, length=65000))
+        except:
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+
+class LoadMysqlToVerticaTableTask(WarehouseMixin, VerticaCopyTask):
+
+    import_table = luigi.Parameter()
+
+    @property
+    def copy_delimiter(self):
+        """The delimiter in the data to be copied.  Default is tab (\t)"""
+        return "','"
+
+    @property
+    def insert_source_task(self):
+        return TestTask(
+            warehouse_path=self.warehouse_path,
+            import_table=self.import_table,
+            overwrite=True,
+        )
+
+    @property
+    def default_columns(self):
+        return []
+
+    @property
+    def table(self):
+        return self.import_table
+
+    @property
+    def columns(self):
+        return self.insert_source_task.record.get_sql_schema()
+
+    @property
+    def auto_primary_key(self):
+        return None
 
 class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
     """Imports course enrollment information from an external LMS DB to a destination directory."""
