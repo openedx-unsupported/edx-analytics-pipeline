@@ -104,15 +104,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         expected = self.expected_enrollment_summary_results(disable_course_catalog)
         self.assertItemsEqual(expected, results)
 
-    def validate_demographic_trends(self):
-        """Assert all tables are as expected."""
-        self.validate_summary()
-        self.validate_base()
-        self.validate_gender()
-        self.validate_birth_year()
-        self.validate_education_level()
-        self.validate_mode()
-
     def validate_gender(self):
         """Ensure the gender breakdown is correct."""
         with self.export_db.cursor() as cursor:
@@ -135,6 +126,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             (datetime.date(2014, 8, 4), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
             (datetime.date(2014, 8, 5), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 2, 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', None, 1, 3),
+            (datetime.date(2014, 8, 6), 'course-v1:edX+Open_DemoX+edx_demo_course2', 'm', 2, 2),
             (datetime.date(2014, 8, 5), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
             (datetime.date(2014, 8, 6), 'edX/Open_DemoX/edx_demo_course', None, 0, 3),
             (datetime.date(2014, 8, 6), 'edX/Open_DemoX/edx_demo_course', 'm', 0, 2),
@@ -246,3 +238,12 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             frame.reset_index(drop=True, inplace=True)
 
         self.assert_data_frames_equal(data, expected)
+
+    def validate_demographic_trends(self):
+        """Assert all tables are as expected."""
+        self.validate_summary()
+        self.validate_base()
+        self.validate_gender()
+        self.validate_birth_year()
+        self.validate_education_level()
+        self.validate_mode()
