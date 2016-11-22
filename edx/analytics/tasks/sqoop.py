@@ -17,6 +17,7 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
+METADATA_FILENAME = '_metadata'
 
 def load_sqoop_cmd():
     """Get path to sqoop command from Luigi configuration."""
@@ -103,7 +104,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
 
     def metadata_output(self):
         """Return target to which metadata about the task execution can be written."""
-        return get_target_from_url(url_path_join(self.destination, '.metadata'))
+        return get_target_from_url(url_path_join(self.destination, METADATA_FILENAME))
 
     def job_runner(self):
         """Use simple runner that gets args from the job and passes through."""

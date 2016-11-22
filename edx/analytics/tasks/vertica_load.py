@@ -387,6 +387,11 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """The null sequence in the data to be copied.  Default is Hive NULL (\\N)"""
         return "'\\N'"
 
+    @property
+    def enclosed_by(self):
+        """The field's enclosing character. Default is empty string."""
+        return "''"
+
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
         if isinstance(self.columns[0], basestring):
@@ -401,12 +406,13 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         with self.input()['insert_source'].open('r') as insert_source_file:
             log.debug("Running stream copy from source file")
             cursor.copy(
-                "COPY {schema}.{table} ({cols}) FROM STDIN DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
+                "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
                     schema=self.schema,
                     table=self.table,
                     cols=column_names,
                     delim=self.copy_delimiter,
-                    null=self.copy_null_sequence
+                    null=self.copy_null_sequence,
+                    enclosed_by=self.enclosed_by,
                 ),
                 insert_source_file
             )

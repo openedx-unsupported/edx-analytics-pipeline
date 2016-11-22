@@ -17,6 +17,7 @@ from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.datetime_util import add_microseconds, mysql_datetime_to_isoformat, ensure_microseconds
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 from edx.analytics.tasks.util.hive import WarehouseMixin
+from edx.analytics.tasks.sqoop import METADATA_FILENAME
 
 
 log = logging.getLogger(__name__)
@@ -728,7 +729,7 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
     def _get_metadata_target(self):
         """Returns target for metadata file from the given dump."""
         # find the .metadata file in the source directory.
-        metadata_path = url_path_join(self.source_dir, ".metadata")
+        metadata_path = url_path_join(self.source_dir, METADATA_FILENAME)
         return get_target_from_url(metadata_path)
 
     def mapper(self, line):

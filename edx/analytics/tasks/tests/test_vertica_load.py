@@ -212,7 +212,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
     def _get_expected_query(self):
         """Returns query that should be generated for copying into the table."""
         query = ("COPY {schema}.dummy_table (course_id,interval_start,interval_end,label,count) "
-                 "FROM STDIN DELIMITER AS E'\t' NULL AS '\\N' DIRECT ABORT ON ERROR NO COMMIT;"
+                 "FROM STDIN ENCLOSED BY '' DELIMITER AS E'\t' NULL AS '\\N' DIRECT ABORT ON ERROR NO COMMIT;"
                  .format(schema=self.create_task().schema))
         return query
 
