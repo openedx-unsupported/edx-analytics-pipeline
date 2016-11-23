@@ -19,7 +19,7 @@ log = logging.getLogger(__name__)
 class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     """Test enrollment validation."""
 
-    INPUT_FILE = 'enrollment_trends_tracking.log'
+    INPUT_FILE = 'enrollment_validation_trends_tracking.log'
     END_DATE = datetime.datetime.utcnow().date()
     START_DATE = datetime.date(2014, 8, 1)
     # Define an interval that ends with today, so that a dump is triggered.
@@ -122,12 +122,11 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
                     key = (event_type, reason)
                     histogram[key] += 1
         expected_histogram = {
-            ("edx.course.enrollment.activated", "start => deactivate"): 1,
-            ("edx.course.enrollment.mode_changed", "deactivate => validate(active) (honor=>verified)"): 1,
-            ("edx.course.enrollment.activated", "start => validate(active)"): 3,
-            ("edx.course.enrollment.deactivated", "activate => missing"): 2,
+            ("edx.course.enrollment.activated", "start => validate(active)"): 4,
             ("edx.course.enrollment.mode_changed", "activate => deactivate (audit=>honor)"): 1,
-            ("edx.course.enrollment.activated", "deactivate => validate(active)"): 3,
+            ("edx.course.enrollment.deactivated", "activate => missing"): 2,
+            ("edx.course.enrollment.activated", "deactivate => validate(active)"): 2,
+            ("edx.course.enrollment.mode_changed", "deactivate => validate(active) (honor=>verified)"): 1,
         }
         self.assertEquals(histogram, expected_histogram)
 
