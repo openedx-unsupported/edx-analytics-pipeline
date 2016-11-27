@@ -78,7 +78,9 @@ class VerticaTarget(luigi.Target):
         assert self.exists(connection)
 
     def exists(self, connection=None):  # pylint: disable-msg=W0221
+        close_connection = False
         if connection is None:
+            close_connection = True
             connection = self.connect()
             connection.autocommit = True
         cursor = connection.cursor()
@@ -95,6 +97,9 @@ class VerticaTarget(luigi.Target):
                 row = None
             else:
                 raise
+        finally:
+            if close_connection:
+                connection.close()
         return row is not None
 
     def connect(self, autocommit=False):
