@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     """Test enrollment validation."""
 
-    INPUT_FILE = 'enrollment_trends_tracking.log'
+    INPUT_FILE = 'enrollment_validation_trends_tracking.log'
     END_DATE = datetime.datetime.utcnow().date()
     START_DATE = datetime.date(2014, 8, 1)
     # Define an interval that ends with today, so that a dump is triggered.

@@ -8,9 +8,16 @@ import luigi.task
 from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
+from edx.analytics.tasks.load_internal_reporting_course_catalog import (
+    CoursePartitionTask,
+    LoadInternalReportingCourseCatalogMixin,
+)
 from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, \
-    EventLogSelectionMixin
+from edx.analytics.tasks.pathutil import (
+    PathSelectionByDateIntervalTask,
+    EventLogSelectionDownstreamMixin,
+    EventLogSelectionMixin,
+)
 from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
@@ -859,12 +866,124 @@ class EnrollmentDailyTask(EnrollmentTask):
         ]
 
 
+class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
+    """Combines course enrollment and catalog parameters."""
+
+    enable_course_catalog = luigi.BooleanParameter(
+        config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
+        default=False,
+        description="Enables course catalog data jobs."
+    )
+
+
+class CourseSummaryEnrollmentRecord(Record):
+    """Recent enrollment summary and metadata for a course."""
+    course_id = StringField(nullable=False, length=255, description='A unique identifier of the course')
+    catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True,
+                                       description='The name of the course')
+    catalog_course = StringField(nullable=True, length=255, description='Course identifier without run')
+    start_time = DateTimeField(nullable=True, description='The date and time that the course begins')
+    end_time = DateTimeField(nullable=True, description='The date and time that the course ends')
+    pacing_type = StringField(nullable=True, length=255, description='The type of pacing for this course')
+    availability = StringField(nullable=True, length=255, description='Availability status of the course')
+    enrollment_mode = StringField(length=100, nullable=False, description='Enrollment mode for the enrollment counts')
+    count = IntegerField(nullable=True, description='The count of currently enrolled learners')
+    count_change_7_days = IntegerField(nullable=True,
+                                       description='Difference in enrollment counts over the past 7 days')
+    cumulative_count = IntegerField(nullable=True, description='The cumulative total of all users ever enrolled')
+
+
+class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
+                                              HiveQueryToMysqlTask):
+    """Creates the course summary enrollment sql table."""
+
+    @property
+    def indexes(self):
+        return [('course_id',)]
+
+    @property
+    def query(self):
+        end_date = self.interval.date_b - datetime.timedelta(days=1)
+        start_date = end_date - datetime.timedelta(days=7)
+
+        query = """
+            SELECT
+                enrollment_end.course_id,
+                course.catalog_course_title,
+                course.catalog_course,
+                course.start_time,
+                course.end_time,
+                course.pacing_type,
+                course.availability,
+                enrollment_end.mode,
+                enrollment_end.count,
+                (enrollment_end.count - COALESCE(enrollment_start.count, 0)) AS count_change_7_days,
+                enrollment_end.cumulative_count
+            FROM course_enrollment_mode_daily enrollment_end
+            LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
+                ON enrollment_start.course_id = enrollment_end.course_id
+                AND enrollment_start.mode = enrollment_end.mode
+                AND enrollment_start.date = '{start_date}'
+            LEFT OUTER JOIN course_catalog course
+                ON course.course_id = enrollment_end.course_id
+            WHERE enrollment_end.date = '{end_date}'
+        """.format(
+            start_date=start_date.isoformat(),
+            end_date=end_date.isoformat(),
+        )
+        return query
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def table(self):
+        return 'course_meta_summary_enrollment'
+
+    @property
+    def columns(self):
+        return CourseSummaryEnrollmentRecord.get_sql_schema()
+
+    @property
+    def required_table_tasks(self):
+        yield EnrollmentByModeTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
+
+        catalog_tasks = [
+            CoursePartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path,
+                api_root_url=self.api_root_url,
+                api_page_size=self.api_page_size,
+                overwrite=self.overwrite,
+            ),
+        ]
+
+        if self.enable_course_catalog:
+            # create the hive tables and populate them with data
+            yield catalog_tasks
+        else:
+            # the Open edX installation isn't running a catalog service, so just create empty hive tables without
+            # loading any data into them
+            yield [task.hive_table_task for task in catalog_tasks]
+
+
 @workflow_entry_point
-class ImportEnrollmentsIntoMysql(CourseEnrollmentDownstreamMixin, luigi.WrapperTask):
+class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
+                                 luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
-        kwargs = {
+        enrollment_kwargs = {
             'n_reduce_tasks': self.n_reduce_tasks,
             'source': self.source,
             'interval': self.interval,
@@ -872,11 +991,20 @@ class ImportEnrollmentsIntoMysql(CourseEnrollmentDownstreamMixin, luigi.WrapperT
             'warehouse_path': self.warehouse_path,
             'overwrite_n_days': self.overwrite_n_days,
         }
+
+        course_summary_kwargs = dict({
+            'date': self.date,
+            'api_root_url': self.api_root_url,
+            'api_page_size': self.api_page_size,
+            'overwrite': self.overwrite,  # for enrollment
+            'enable_course_catalog': self.enable_course_catalog,
+        }, **enrollment_kwargs)
+
         yield (
-            CourseEnrollmentSummaryTableTask(**kwargs),
-            EnrollmentByGenderTask(**kwargs),
-            EnrollmentByBirthYearTask(**kwargs),
-            EnrollmentByEducationLevelTask(**kwargs),
-            EnrollmentByModeTask(**kwargs),
-            EnrollmentDailyTask(**kwargs),
+            CourseEnrollmentSummaryTableTask(**enrollment_kwargs),
+            EnrollmentByGenderTask(**enrollment_kwargs),
+            EnrollmentByBirthYearTask(**enrollment_kwargs),
+            EnrollmentByEducationLevelTask(**enrollment_kwargs),
+            EnrollmentDailyTask(**enrollment_kwargs),
+            ImportCourseSummaryEnrollmentsIntoMysql(**course_summary_kwargs),
         )

@@ -8,14 +8,14 @@ import logging
 
 import luigi
 
-from edx.analytics.tasks.util.edx_api_client import EdxApiClient
-from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.edx_api_client import EdxApiClient
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
+from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
-from edx.analytics.tasks.util.hive import WarehouseMixin
-from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
 
 
 # pylint: disable=anomalous-unicode-escape-in-string
@@ -136,7 +136,48 @@ class BaseCourseMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task
         )
 
 
-class ExtractProgramCourseTask(BaseCourseMetadataTask):
+class ProgramCourseTableTask(BareHiveTableTask):
+    """Hive table for program course."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'program_course'
+
+    @property
+    def columns(self):
+        return ProgramCourseRecord.get_hive_schema()
+
+
+class ProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
+    """The hive table partition for the program course catalog data."""
+
+    @property
+    def partition_value(self):
+        """Use a dynamic partition value based on the date parameter."""
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return ProgramCourseTableTask(
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def data_task(self):
+        return ProgramCourseDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+
+class ProgramCourseDataTask(BaseCourseMetadataTask):
     """Process the information from the course structure API and write it to a tsv."""
 
     table_name = 'program_course'
@@ -162,13 +203,13 @@ class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseC
 
     @property
     def insert_source_task(self):
-        return ExtractProgramCourseTask(
+        return ProgramCoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
             overwrite=self.overwrite,
-        )
+        ).data_task
 
     @property
     def table(self):
@@ -190,7 +231,7 @@ class CourseSeatRecord(Record):
     course_seat_credit_hours = IntegerField(nullable=True)
 
 
-class ExtractCourseSeatTask(BaseCourseMetadataTask):
+class CourseSeatTask(BaseCourseMetadataTask):
     """Process course seat information from the course structure API and write it to a tsv."""
 
     table_name = 'course_seat'
@@ -215,7 +256,7 @@ class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCata
 
     @property
     def insert_source_task(self):
-        return ExtractCourseSeatTask(
+        return CourseSeatTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -252,7 +293,48 @@ class CourseRecord(Record):
     max_effort = IntegerField(nullable=True)
 
 
-class ExtractCourseTask(BaseCourseMetadataTask):
+class CourseTableTask(BareHiveTableTask):
+    """Hive table for course catalog."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_catalog'
+
+    @property
+    def columns(self):
+        return CourseRecord.get_hive_schema()
+
+
+class CoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
+    """The hive table partition for this course catalog data."""
+
+    @property
+    def partition_value(self):
+        """Use a dynamic partition value based on the date parameter."""
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return CourseTableTask(
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def data_task(self):
+        return CourseDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+
+class CourseDataTask(BaseCourseMetadataTask):
     """Process course information from the course structure API and write it to a tsv."""
 
     table_name = 'course_catalog'
@@ -285,13 +367,13 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogM
 
     @property
     def insert_source_task(self):
-        return ExtractCourseTask(
+        return CoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
             overwrite=self.overwrite,
-        )
+        ).data_task
 
     @property
     def default_columns(self):
