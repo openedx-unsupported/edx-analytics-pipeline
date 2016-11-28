@@ -366,6 +366,32 @@ def coerce_for_mysql_connect(input):
     return input
 
 
+def get_mysql_query_results(credentials, database, query):
+    """
+    Executes a mysql query on the provided database and returns the results.
+    """
+
+    credentials_target = ExternalURL(url=credentials).output()
+    cred = None
+    with credentials_target.open('r') as credentials_file:
+        cred = json.load(credentials_file)
+
+    connection = mysql.connector.connect(user=cred.get('username'),
+                                         password=cred.get('password'),
+                                         host=cred.get('host'),
+                                         port=cred.get('port'),
+                                         database=database)
+
+    try:
+        cursor = connection.cursor()
+        cursor.execute(query)
+        results = cursor.fetchall()
+    finally:
+        connection.close()
+
+    return results
+
+
 class CredentialFileMysqlTarget(MySqlTarget):
     """
     Represents a table in MySQL, is complete when the update_id is the same as a previous successful execution.
