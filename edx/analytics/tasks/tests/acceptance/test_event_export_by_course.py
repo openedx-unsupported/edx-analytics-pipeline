@@ -31,7 +31,33 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
-        self.output_files = [
+        self.output_files = self.get_non_ccx_output_files()
+        self.download_output_files()
+        self.validate_output()
+
+    def test_events_export_by_course_with_ccx(self):
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 15))
+
+        self.task.launch(
+            [
+                'EventExportByCourseTask',
+                '--output-root', self.test_out,
+                '--interval', '2014',
+                '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            ],
+            config_override={
+                'ccx': {
+                    'enabled': True
+                }
+            }
+        )
+
+        self.output_files = self.get_ccx_output_files()
+        self.download_output_files()
+        self.validate_output()
+
+    def get_non_ccx_output_files(self):
+        return [
             {
                 'date': '2014-05-15',
                 'course_id': 'AcceptanceX_A101_T12014'
@@ -57,8 +83,20 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
                 'course_id': 'edX_Open_DemoX_edx_demo_course'
             },
         ]
-        self.download_output_files()
-        self.validate_output()
+
+    def get_ccx_output_files(self):
+        output_files = self.get_non_ccx_output_files()
+        output_files.extend([
+            {
+                'date': '2014-05-27',
+                'course_id': 'AcceptanceX_Demo_ccx_T2_2014_ccx_101'
+            },
+            {
+                'date': '2014-05-27',
+                'course_id': 'AcceptanceX_Demo_ccx_T2_2014_ccx_102'
+            },
+        ])
+        return output_files
 
     def download_output_files(self):
         output_targets = self.get_targets_from_remote_path(self.test_out)
