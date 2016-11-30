@@ -12,6 +12,7 @@ from edx.analytics.tasks.url import url_path_join, ExternalURL
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.mysql_load import get_mysql_query_results
+from edx.analytics.tasks.load_warehouse import SchemaManagementTask
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +133,56 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
         return None
 
 
+class PreImportDatabaseTask(SchemaManagementTask):
+    """
+    Task needed to run before importing database into warehouse.
+    """
+    priority = 100
+
+    @property
+    def queries(self):
+        return [
+            "DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=self.schema_loading),
+            "CREATE SCHEMA IF NOT EXISTS {schema}".format(schema=self.schema_loading),
+        ]
+
+    @property
+    def marker_name(self):
+        return 'pre_database_import_{schema}_{date}'.format(
+            schema=self.schema,
+            date=self.date.strftime('%Y-%m-%d')
+        )
+
+
+class PostImportDatabaseTask(SchemaManagementTask):
+    """
+    Task needed to run after importing database into warehouse.
+    """
+    priority = -100
+
+    @property
+    def queries(self):
+        return [
+            "DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=self.schema),
+            "ALTER SCHEMA {schema_loading} RENAME TO {schema};".format(
+                schema_loading=self.schema_loading,
+                schema=self.schema
+            ),
+            "GRANT USAGE ON SCHEMA {schema} TO {roles};".format(schema=self.schema, roles=self.vertica_roles),
+            "GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {roles};".format(
+                schema=self.schema,
+                roles=self.vertica_roles
+            ),
+        ]
+
+    @property
+    def marker_name(self):
+        return 'post_database_import_{schema}_{date}'.format(
+            schema=self.schema,
+            date=self.date.strftime('%Y-%m-%d')
+        )
+
+
 class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
     """Provides entry point for importing a mysql database into Vertica."""
 
@@ -156,6 +207,10 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
         default=(),
     )
 
+    marker_schema = luigi.Parameter(
+        description='The marker schema to which to write the marker table.'
+    )
+
     def __init__(self, *args, **kwargs):
         super(ImportMysqlToVerticaTask, self).__init__(*args, **kwargs)
         self.table_list = []
@@ -171,15 +226,33 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
             results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
             self.table_list = [result[0].strip() for result in results]
 
+        pre_import_task = PreImportDatabaseTask(
+            date=self.date,
+            schema=self.schema,
+            credentials=self.credentials,
+            marker_schema=self.marker_schema,
+            overwrite=self.overwrite
+        )
+        yield pre_import_task
+
         for table_name in self.table_list:
             if not self.should_exclude_table(table_name):
                 yield LoadMysqlToVerticaTableTask(
                     credentials=self.credentials,
-                    schema=self.schema,
+                    schema=pre_import_task.schema_loading,
                     db_credentials=self.db_credentials,
                     database=self.database,
                     warehouse_path=self.warehouse_path,
                     table_name=table_name,
                     overwrite=self.overwrite,
                     date=self.date,
+                    marker_schema=self.marker_schema,
                 )
+
+        yield PostImportDatabaseTask(
+            date=self.date,
+            schema=self.schema,
+            credentials=self.credentials,
+            marker_schema=self.marker_schema,
+            overwrite=self.overwrite
+        )

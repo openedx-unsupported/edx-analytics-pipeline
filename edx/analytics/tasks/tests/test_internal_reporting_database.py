@@ -13,7 +13,10 @@ class ImportMysqlToVerticaTaskTest(unittest.TestCase):
     """Test for ImportMysqlToVerticaTask."""
 
     def setUp(self):
-        self.task = ImportMysqlToVerticaTask(exclude=('auth_user$', 'courseware_studentmodule*', 'oauth*'))
+        self.task = ImportMysqlToVerticaTask(
+            exclude=('auth_user$', 'courseware_studentmodule*', 'oauth*'),
+            marker_schema=None
+        )
 
     @data(
         ('auth_user', True),

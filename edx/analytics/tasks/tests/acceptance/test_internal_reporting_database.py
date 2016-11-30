@@ -28,6 +28,7 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
         self.task.launch([
             'ImportMysqlToVerticaTask',
             '--date', self.DATE,
+            '--marker-schema', 'acceptance_marker',
             '--overwrite'
         ])
 

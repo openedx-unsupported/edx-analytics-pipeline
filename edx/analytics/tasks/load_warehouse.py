@@ -60,10 +60,16 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
     date = luigi.DateParameter()
 
+    roles = luigi.Parameter(
+        is_list=True,
+        config_path={'section': 'vertica-export', 'name': 'roles'},
+    )
+
     def __init__(self, *args, **kwargs):
         super(SchemaManagementTask, self).__init__(*args, **kwargs)
         self.schema_last = self.schema + '_last'
         self.schema_loading = self.schema + '_loading'
+        self.vertica_roles = ','.join(self.roles)
 
     @property
     def queries(self):
@@ -108,8 +114,11 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
                 log.debug(query)
                 connection.cursor().execute(query)
             except vertica_python.errors.Error as err:
-                if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
-                    # If so, then our query error failed because the table doesn't exist.
+                is_missing_relation = type(err) is vertica_python.errors.MissingRelation
+                is_missing_table = 'Sqlstate: 42V01' in err.args[0]
+                is_missing_schema = 'Sqlstate: 3F000' in err.args[0]
+                if is_missing_relation or is_missing_table or is_missing_schema:
+                    # If so, then our query error failed because the schema or table doesn't exist.
                     pass
                 else:
                     raise
@@ -251,8 +260,11 @@ class PostLoadWarehouseTask(SchemaManagementTask):
                 schema_loading=self.schema_loading,
                 schema=self.schema
             ),
-            "GRANT USAGE ON SCHEMA {schema} TO analyst;".format(schema=self.schema),
-            "GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO analyst;".format(schema=self.schema),
+            "GRANT USAGE ON SCHEMA {schema} TO {roles};".format(schema=self.schema, roles=self.vertica_roles),
+            "GRANT SELECT ON ALL TABLES IN SCHEMA {schema} TO {roles};".format(
+                schema=self.schema,
+                roles=self.vertica_roles
+            ),
         ]
 
     @property
