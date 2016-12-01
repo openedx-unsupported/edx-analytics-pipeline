@@ -76,7 +76,8 @@ def get_filename_safe_course_id(course_id, replacement_char='_'):
     """
     try:
         course_key = CourseKey.from_string(course_id)
-        filename = unicode(replacement_char).join([course_key.org, course_key.course, course_key.run])
+        # Ignore the namespace of the course_id altogether, for backwards compatibility.
+        filename = course_key._to_string()  # pylint: disable=protected-access
     except InvalidKeyError:
         # If the course_id doesn't parse, we will still return a value here.
         filename = course_id
