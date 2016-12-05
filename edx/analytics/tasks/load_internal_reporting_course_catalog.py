@@ -35,10 +35,12 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
     partner_short_codes = luigi.Parameter(
         default_from_config={'section': 'course-catalog-api', 'name': 'partner_short_codes'},
         is_list=True,
+        default=None,
         description="A list of partner short codes that we should fetch data for."
     )
     api_root_url = luigi.Parameter(
         config_path={'section': 'course-catalog-api', 'name': 'api_root_url'},
+        default=None,
         description="The base URL for the course catalog API. This URL should look like"
                     "https://catalog-service.example.com/api/v1/"
     )
@@ -57,12 +59,15 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
         self.remove_output_on_overwrite()
         client = EdxApiClient()
         with self.output().open('w') as output_file:
-            for partner_short_code in self.partner_short_codes:  # pylint: disable=not-an-iterable
+            short_codes = self.partner_short_codes if self.partner_short_codes else []
+            for partner_short_code in short_codes:
                 params = {
                     'limit': self.api_page_size,
                     'partner': partner_short_code,
                     'exclude_utm': 1,
                 }
+                if not self.api_root_url:
+                    raise luigi.parameter.MissingParameterException("Missing api_root_url.")
                 url = url_path_join(self.api_root_url, 'course_runs') + '/'
                 for response in client.paginated_get(url, params=params):
                     parsed_response = response.json()
