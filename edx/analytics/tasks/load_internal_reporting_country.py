@@ -10,8 +10,7 @@ from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL
 from edx.analytics.tasks.location_per_course import (
     LastCountryOfUserDownstreamMixin,
-    QueryLastCountryPerCourseMixin,
-    ImportLastCountryOfUserToHiveTask,
+    LastCountryOfUserPartitionTask,
     InsertToMysqlCourseEnrollByCountryWorkflow,
 )
 
@@ -22,7 +21,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
     """Loads internal_reporting_d_country Hive table from last_country_of_user Hive table."""
 
     def requires(self):
-        return ImportLastCountryOfUserToHiveTask(
+        return LastCountryOfUserPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -61,7 +60,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
             """
 
 
-class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserDownstreamMixin, luigi.WrapperTask):
+class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask):
 
     def requires(self):
         yield (
@@ -88,7 +87,6 @@ class ImportCountryWorkflow(QueryLastCountryPerCourseMixin, LastCountryOfUserDow
                 overwrite_n_days=self.overwrite_n_days,
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
-                course_country_output=self.course_country_output,
             ),
         )
 
