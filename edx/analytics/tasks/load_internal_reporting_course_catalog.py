@@ -136,7 +136,7 @@ class CourseSubjectTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
                     course = json.loads(course_str)
                     for subject in course.get('subjects', []):
                         record = CourseSubjectRecord(
-                            course_id=course['key']
+                            course_id=course['key'],
                             date=self.date,
                             subject_title=subject.get('name')
                         )
