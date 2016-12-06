@@ -12,7 +12,7 @@ from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin
-from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField, DateField
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
@@ -50,6 +50,31 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
     )
 
 
+class PullCoursesAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        client = EdxApiClient()
+        with self.output().open('w') as output_file:
+            params = {
+                'limit': self.api_page_size,
+                'exclude_utm': 1,
+            }
+            url = url_path_join(self.api_root_url, 'courses') + '/'
+            for response in client.paginated_get(url, params=params):
+                parsed_response = response.json()
+                for course in parsed_response.get('results', []):
+                    output_file.write(json.dumps(course))
+                    output_file.write('\n')
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('course_catalog_raw', partition_value=self.date), 'courses.json'
+            )
+        )
+
+
 class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
     """Call the course catalog API and place the resulting JSON into the output file."""
 
@@ -82,6 +107,79 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
                 self.hive_partition_path('course_catalog_raw', partition_value=self.date), 'course_catalog.json'
             )
         )
+
+
+class CourseSubjectRecord(Record):
+    course_id = StringField(nullable=False, length=255)
+    date = DateField(nullable=False)
+    subject_title = StringField(nullable=False, length=200)
+
+
+class CourseSubjectTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+
+    table_name = 'course_subjects'
+
+    def requires(self):
+        return PullCoursesAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for course_str in input_file:
+                    course = json.loads(course_str)
+                    for subject in course.get('subjects', []):
+                        record = CourseSubjectRecord(
+                            course_id=course['key']
+                            date=self.date,
+                            subject_title=subject.get('name')
+                        )
+                        output_file.write(record.to_separated_values(sep=u'\t'))
+                        output_file.write('\n')
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path(self.table_name, partition_value=self.date), '{0}.tsv'.format(self.table_name)
+            )
+        )
+
+
+class LoadInternalReportingCourseSubjectToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
+
+    @property
+    def insert_source_task(self):
+        return CourseSubjectTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def table(self):
+        return "d_course_subjects"
+
+    @property
+    def auto_primary_key(self):
+        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
+        return ('row_number', 'AUTO_INCREMENT')
+
+    @property
+    def default_columns(self):
+        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
+        return None
+
+    @property
+    def columns(self):
+        return CourseSubjectRecord.get_sql_schema()
 
 
 class ProgramCourseRecord(Record):
