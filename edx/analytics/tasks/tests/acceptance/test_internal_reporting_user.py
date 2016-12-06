@@ -40,7 +40,7 @@ class InternalReportingUserLoadAcceptanceTest(AcceptanceTestCase):
         """Tests the workflow for the internal reporting user table, end to end."""
 
         self.task.launch([
-            'ImportLastCountryOfUserToHiveTask',
+            'LastCountryOfUserPartitionTask',
             '--interval', self.INTERVAL,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
