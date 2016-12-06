@@ -134,14 +134,15 @@ class CourseSubjectTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
             with self.output().open('w') as output_file:
                 for course_str in input_file:
                     course = json.loads(course_str)
-                    for subject in course.get('subjects', []):
-                        record = CourseSubjectRecord(
-                            course_id=course['key'],
-                            date=self.date,
-                            subject_title=subject.get('name')
-                        )
-                        output_file.write(record.to_separated_values(sep=u'\t'))
-                        output_file.write('\n')
+                    for course_run in course.get('course_runs', []):
+                        for subject in course.get('subjects', []):
+                            record = CourseSubjectRecord(
+                                course_id=course_run['key'],
+                                date=self.date,
+                                subject_title=subject.get('name')
+                            )
+                            output_file.write(record.to_separated_values(sep=u'\t'))
+                            output_file.write('\n')
 
     def output(self):
         return get_target_from_url(
