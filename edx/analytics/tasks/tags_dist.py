@@ -7,6 +7,7 @@ import luigi.hdfs
 import luigi.s3
 
 import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
@@ -42,7 +43,7 @@ class TagsDistributionPerCourse(
         Args:
             line: text line from a tracking event log.
 
-        Yields:  (course_id, problem_id), (timestamp, saved_tags, is_correct)
+        Yields:  (course_id, org_id, problem_id), (timestamp, saved_tags, is_correct)
 
         """
         value = self.get_event_and_date_string(line)
@@ -61,6 +62,8 @@ class TagsDistributionPerCourse(
         if not course_id:
             return
 
+        org_id = opaque_key_util.get_org_id_for_course(course_id)
+
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             return
@@ -73,19 +76,18 @@ class TagsDistributionPerCourse(
 
         saved_tags = event.get('context').get('asides', {}).get('tagging_aside', {}).get('saved_tags', {})
 
-        yield (course_id, problem_id), (timestamp, saved_tags, is_correct)
+        yield (course_id, org_id, problem_id), (timestamp, saved_tags, is_correct)
 
     def reducer(self, key, values):
         """
         Calculate the count of total/correct submissions for each pair: problem + related tag
 
         Args:
-            key:  (course_id, problem_id)
+            key:  (course_id, org_id, problem_id)
             values:  iterator of (timestamp, saved_tags, is_correct)
 
         """
-
-        course_id, problem_id = key
+        course_id, org_id, problem_id = key
 
         num_correct = 0
         num_total = 0
@@ -109,6 +111,7 @@ class TagsDistributionPerCourse(
             for tag_key, tag_val in latest_tags.iteritems():
                 yield TagsDistributionRecord(
                     course_id=course_id,
+                    org_id=org_id,
                     module_id=problem_id,
                     tag_name=tag_key,
                     tag_value=tag_val,
@@ -120,6 +123,7 @@ class TagsDistributionRecord(Record):
     """Represents a count of total/correct submissions for the particular bunch (problem_id, tag_key, tag_value)."""
 
     course_id = StringField(length=255, nullable=False, description='Course id')
+    org_id = StringField(length=255, nullable=False, description='Org id')
     module_id = StringField(length=255, nullable=False, description='Problem id')
     tag_name = StringField(length=255, nullable=False, description='Tag key')
     tag_value = StringField(length=255, nullable=False, description='Tag value')
