@@ -5,6 +5,8 @@ source = edx/analytics
 
 [report]
 ignore_errors = True
+omit =
+    */tests/*
 
 [html]
 title = EdX Analytics Platform Python Test Coverage Report

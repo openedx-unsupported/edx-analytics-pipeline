@@ -2,7 +2,22 @@
 # http://open-edx-proposals.readthedocs.io/en/latest/oeps/oep-0002.html#specification
 
 nick: pipe
-oeps: {}
+oeps:
+  oep-2: True
+  oep-3:
+    state: False
+    reason: edx-analytics-pipeline does not process requests from users and has no secondary asynchronous task management
+  oep-4:
+    state: False
+    reason: edx-analytics-pipeline is not end-user facing so it does not handle authorization
+  oep-5: True
+  oep-6:
+    state: False
+    reason: edx-analytics-pipeline does not currently instantiate or run XBlocks
+  oep-9:
+    state: False
+    reason: edx-analytics-pipeline is not end-user facing so it does not handle authorization
+  oep-10: True
 openedx-release: {ref: release}
 owner: edx/analytics
 tags: [analytics]

@@ -55,10 +55,10 @@ test-acceptance: test-requirements
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
 test-acceptance-local:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
 
 test-acceptance-local-all:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 coverage-local: test-local
 	python -m coverage html
@@ -89,3 +89,27 @@ docs: docs-requirements docs-local
 
 todo:
 	pylint --disable=all --enable=W0511 edx
+
+dev.watch:
+	docker-compose up
+
+dev.shell:
+	docker-compose run --rm --entrypoint /bin/bash analyticspipeline
+
+dev.start:
+	docker-compose up -d
+
+dev.stop:
+	docker-compose stop
+
+dev.clean:
+	docker-compose down
+	sudo rm -rf .dev/
+
+dev.test-acceptance:
+	docker-compose run --rm -e ONLY_TESTS=$(ONLY_TESTS) analyticspipeline make test-acceptance-local
+
+dev.%:
+	docker-compose run --rm --entrypoint /bin/bash analyticspipeline -l -c "make $*"
+
+

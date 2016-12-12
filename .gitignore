@@ -69,5 +69,10 @@ docs/source/workflow_entry_point.rst
 !docs/source/_themes/*
 
 *.java
-TempStatsStore/
 derby.log
+job-instance.pickle
+mrrunner.py
+packages.tar
+TempStatsStore
+
+.dev

@@ -109,7 +109,7 @@ class SqoopImportFromMysqlTestCase(unittest.TestCase):
             'sqoop',
             'import',
             '--connect',
-            'jdbc:mysql://db.example.com/exampledata',
+            'jdbc:mysql://db.example.com:3306/exampledata',
             '--username',
             'exampleuser',
             '--password-file',

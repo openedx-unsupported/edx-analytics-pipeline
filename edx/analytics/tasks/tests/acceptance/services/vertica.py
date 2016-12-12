@@ -62,7 +62,7 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
-        return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
+        return vertica_python.connect(user=self.credentials.get('username'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 
     def reset(self):
@@ -71,5 +71,5 @@ class VerticaService(object):
             return
 
         with self.cursor() as cur:
-            reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}'.format(self.schema_name)
+            reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}; SELECT MAKE_AHM_NOW();'.format(self.schema_name)
             cur.execute(reset_query)

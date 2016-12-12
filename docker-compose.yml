@@ -1,0 +1,187 @@
+version: '2'
+services:
+
+  # Storage engines
+  resultstore:
+    image: mysql:5.6
+    command: mysqld --character-set-server=utf8 --collation-server=utf8_bin
+    environment:
+      MYSQL_ROOT_PASSWORD: ""
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    volumes:
+      - ./.dev/volumes/resultstore:/var/lib/mysql
+  
+  fulltextindex:
+    image: elasticsearch:1.5
+    volumes:
+      - ./.dev/volumes/fulltextindex/data:/usr/share/elasticsearch/data
+      - ./.dev/volumes/fulltextindex/logs:/usr/share/elasticsearch/logs
+      - ./.dev/volumes/fulltextindex/plugins:/usr/share/elasticsearch/plugins
+
+  memcache:
+    image: memcached:1.4.24
+
+  vertica:
+    image: sumitchawla/vertica:latest
+    volumes:
+      - ./.dev/volumes/vertica:/home/dbadmin/docker
+
+  namenode:
+    image: uhopper/hadoop-namenode:2.7.2
+    hostname: namenode
+    environment:
+      - CLUSTER_NAME=devstack
+    ports:
+      - "50070:50070" # expose webhdfs for namenode to Vagrant images
+    command: ["/docker-command.sh"]
+    volumes:
+      - ./scripts/hadoop-docker-command.sh:/docker-command.sh
+      - ./.dev/volumes/namenode:/hadoop/dfs/name
+
+  datanode:
+    image: uhopper/hadoop-datanode:2.7.2
+    hostname: datanode
+    environment:
+      CORE_CONF_fs_defaultFS: "hdfs://namenode:8020"
+    links:
+      - namenode
+    ports:
+      - "50075:50075" # expose webhdfs for datenode to Vagrant images
+    command: ["/docker-command.sh"]
+    volumes:
+      - ./scripts/hadoop-docker-command.sh:/docker-command.sh
+      - ./.dev/volumes/datanode:/hadoop/dfs/data
+
+  # Services
+  resourcemanager:
+    image: uhopper/hadoop-resourcemanager:2.7.2
+    hostname: resourcemanager
+    environment:
+      CORE_CONF_fs_defaultFS: "hdfs://namenode:8020"
+      YARN_CONF_yarn_log___aggregation___enable: 'true'
+      YARN_CONF_yarn_nodemanager_aux___services: mapreduce_shuffle
+      YARN_CONF_yarn_nodemanager_aux___services_mapreduce_shuffle_class: 'org.apache.hadoop.mapred.ShuffleHandler'
+      MAPRED_CONF_mapreduce_framework_name: yarn
+    links:
+      - namenode
+      - datanode
+    extra_hosts:
+      # Note that we force the host IP using the gateway config in the IPAM config.
+      # We can't modify /etc/hosts in the container since it is often in use by docker itself, we get "device or
+      # resource busy" errors if we try to programmatically set this using ansible.
+      - "open.edx:172.19.0.1"
+    ports:
+      - "127.0.0.1:8088:8088"      # resource manager web ui
+    command: ["/docker-command.sh"]
+    volumes:
+      - ./scripts/hadoop-docker-command.sh:/docker-command.sh
+
+  nodemanager:
+    image: uhopper/hadoop-nodemanager:2.7.2
+    hostname: nodemanager
+    environment:
+      CORE_CONF_fs_defaultFS: "hdfs://namenode:8020"
+      YARN_CONF_yarn_resourcemanager_hostname: resourcemanager
+      YARN_CONF_yarn_log___aggregation___enable: 'true'
+      YARN_CONF_yarn_nodemanager_aux___services: mapreduce_shuffle
+      YARN_CONF_yarn_nodemanager_aux___services_mapreduce_shuffle_class: 'org.apache.hadoop.mapred.ShuffleHandler'
+      YARN_CONF_yarn_nodemanager_vmem___check___enabled: 'false'
+      MAPRED_CONF_mapreduce_framework_name: yarn
+    links:
+      - resourcemanager
+      - namenode
+      - datanode
+    extra_hosts:
+      # Note that we force the host IP using the gateway config in the IPAM config.
+      # We can't modify /etc/hosts in the container since it is often in use by docker itself, we get "device or
+      # resource busy" errors if we try to programmatically set this using ansible.
+      - "open.edx:172.19.0.1"
+    ports:
+      - "127.0.0.1:8042:8042"      # node manager web ui
+      - "127.0.0.1:19888:19888"    # node manager job history server ui
+    command: ["/docker-command.sh"]
+    volumes:
+      - ./scripts/hadoop-docker-command.sh:/docker-command.sh
+
+  luigid:
+    image: edxops/luigid:latest
+    hostname: luigid
+    ports:
+      - "127.0.0.1:9100:9100"
+
+  analyticsapi:
+    image: edxops/analytics_api:latest
+#    volumes:
+#      - ../edx-analytics-data-api/:/edx/app/analytics_api/analytics_api/
+    links:
+      - resultstore
+      - fulltextindex
+    extra_hosts:
+      # Note that we force the host IP using the gateway config in the IPAM config.
+      # We can't modify /etc/hosts in the container since it is often in use by docker itself, we get "device or
+      # resource busy" errors if we try to programmatically set this using ansible.
+      - "open.edx:172.19.0.1"
+    ports:
+      - "127.0.0.1:8100:8100"
+    environment:
+      DEVSTACK_HOST: "open.edx"
+      ANALYTICS_API_ELASTICSEARCH_LEARNERS_HOST: fulltextindex
+      ANALYTICS_API_DATABASE_HOST: resultstore
+      COMMON_MYSQL_MIGRATE_USER: root
+      COMMON_MYSQL_MIGRATE_PASS: ""
+
+  # Applications
+  insights:
+    image: edxops/insights:latest
+#    volumes:
+#      - ../edx-analytics-dashboard/:/edx/app/insights/edx_analytics_dashboard/
+    links:
+      - resultstore
+      - analyticsapi
+    extra_hosts:
+      # Note that we force the host IP using the gateway config in the IPAM config.
+      # We can't modify /etc/hosts in the container since it is often in use by docker itself, we get "device or
+      # resource busy" errors if we try to programmatically set this using ansible.
+      - "open.edx:172.19.0.1"
+    ports:
+      - "127.0.0.1:8110:8110"
+    environment:
+      DEVSTACK_HOST: "open.edx"
+      INSIGHTS_MEMCACHE: "memcache:11211"
+      INSIGHTS_DATABASE_HOST: resultstore
+      ANALYTICS_API_ENDPOINT: "http://analyticsapi:8100/api/v0"
+      COMMON_MYSQL_MIGRATE_USER: root
+      COMMON_MYSQL_MIGRATE_PASS: ""
+
+  analyticspipeline:
+    image: edxops/analytics_pipeline:latest
+    volumes:
+      - .:/edx/app/analytics_pipeline/analytics_pipeline/
+    command: ["/bin/echo", "OK"]
+    links:
+      - resultstore
+      - fulltextindex
+      - vertica
+      - luigid
+      - namenode
+      - resourcemanager
+      - nodemanager
+      - datanode
+    extra_hosts:
+      # Note that we force the host IP using the gateway config in the IPAM config.
+      # We can't modify /etc/hosts in the container since it is often in use by docker itself, we get "device or
+      # resource busy" errors if we try to programmatically set this using ansible.
+      - "open.edx:172.19.0.1"
+    environment:
+      DEVSTACK_HOST: "open.edx"
+      HADOOP_COMMON_RESOURCE_MANAGER_HOST: "resourcemanager"
+      HADOOP_DEFAULT_FS: "hdfs://namenode:8020"
+      COMMON_MYSQL_MIGRATE_USER: root
+      COMMON_MYSQL_MIGRATE_PASS: ""
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.19.0.0/16
+          gateway: 172.19.0.1

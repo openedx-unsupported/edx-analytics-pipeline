@@ -199,7 +199,8 @@ class SqoopImportFromMysql(SqoopImportTask):
 
     def connection_url(self, cred):
         """Construct connection URL from provided credentials."""
-        return 'jdbc:mysql://{host}/{database}'.format(host=cred['host'], database=self.database)
+        return 'jdbc:mysql://{host}:{port}/{database}'.format(
+            host=cred['host'], port=cred['port'], database=self.database)
 
     def import_args(self):
         """Returns list of arguments specific to Sqoop import from a Mysql database."""
