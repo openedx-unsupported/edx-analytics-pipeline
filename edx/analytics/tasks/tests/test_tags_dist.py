@@ -57,7 +57,7 @@ class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixi
         }
         self.default_event_template = 'tags_distribution_event'
 
-        self.expected_key = (self.course_id, self.problem_id)
+        self.expected_key = (self.course_id, self.org_id, self.problem_id)
 
     def test_non_problem_check_event(self):
         line = 'this is garbage'
@@ -142,7 +142,8 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, unittest.TestCase):
         self.create_task_distribution_task()
         self.problem_id = 'problem_id'
         self.course_id = 'foo/bar/baz'
-        self.reduce_key = (self.course_id, self.problem_id)
+        self.org_id = 'foo'
+        self.reduce_key = (self.course_id, self.org_id, self.problem_id)
         self.saved_tags = {'difficulty': 'Hard', 'learning_outcome': 'Learned everything'}
 
     def create_task_distribution_task(self, interval='2013-01-01'):
@@ -158,21 +159,21 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, unittest.TestCase):
 
     def test_single_simple_event(self):
         inputs = [('2013-01-01T00:00:01', self.saved_tags, 1), ]
-        expected = ((self.course_id, self.problem_id, 'difficulty', 'Hard', '1', '1'),
-                    (self.course_id, self.problem_id, 'learning_outcome', 'Learned everything', '1', '1'),)
+        expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Hard', '1', '1'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '1', '1'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_many_events(self):
         inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), self.saved_tags,
                    1 if k != 1 else 0) for k in xrange(4)]
-        expected = ((self.course_id, self.problem_id, 'difficulty', 'Hard', '4', '3'),
-                    (self.course_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '3'),)
+        expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Hard', '4', '3'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '3'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_many_events_but_all_incorrect(self):
         inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), self.saved_tags, 0) for k in xrange(4)]
-        expected = ((self.course_id, self.problem_id, 'difficulty', 'Hard', '4', '0'),
-                    (self.course_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '0'),)
+        expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Hard', '4', '0'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '0'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_the_last_tag_and_problem_name_should_be_taken(self):
@@ -185,8 +186,8 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, unittest.TestCase):
                   ('2013-01-01T00:00:02', {'difficulty': 'Hard',
                                            'learning_outcome': 'Learned nothing'}, 1), ]
 
-        expected = ((self.course_id, self.problem_id, 'difficulty', 'Easy', '4', '3'),
-                    (self.course_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '3'),)
+        expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Easy', '4', '3'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '3'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_one_tag_was_removed_in_the_last_event(self):
@@ -198,7 +199,7 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, unittest.TestCase):
                   ('2013-01-01T00:00:02', {'difficulty': 'Hard',
                                            'learning_outcome': 'Learned nothing'}, 1), ]
 
-        expected = ((self.course_id, self.problem_id, 'difficulty', 'Easy', '4', '3'),)
+        expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Easy', '4', '3'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_all_tags_were_removed_in_the_last_event(self):
