@@ -67,3 +67,7 @@ docs/source/toctree.rst
 docs/source/workflow_entry_point.rst
 !docs/source/
 !docs/source/_themes/*
+
+*.java
+TempStatsStore/
+derby.log
