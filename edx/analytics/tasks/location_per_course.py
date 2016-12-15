@@ -316,7 +316,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         if self.overwrite and not self.attempted_removal:
             return False
         else:
-            return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+            return get_target_from_url(self.hive_partition_path('last_country_of_user', self.interval.date_b) + '_SUCCESS')).exists()
 
     def run(self):
         self.remove_output_on_overwrite()
