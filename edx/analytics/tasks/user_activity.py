@@ -128,7 +128,7 @@ class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMix
     pass
 
 
-class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
+class UserActivityTableTask(BareHiveTableTask):
 
     @property
     def table(self):
