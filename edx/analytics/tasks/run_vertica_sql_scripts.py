@@ -40,11 +40,7 @@ class RunVerticaSqlScriptsTask(RunVerticaSqlScriptsTaskMixin, luigi.WrapperTask)
     downstream_task = None
 
     def requires(self):
-        if self.downstream_task is None:
-            self.downstream_task = self.get_downstream_task()
-
-        if self.downstream_task is not None:
-            yield self.downstream_task
+        return self.get_downstream_task()
 
     def validate_script_entry(self, script):
       # It has to be a dictionary.
