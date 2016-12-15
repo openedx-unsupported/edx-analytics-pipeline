@@ -12,7 +12,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixi
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 import edx.analytics.tasks.util.eventlog as eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, BareHiveTableTask, HivePartitionTask, HiveQueryTask
+from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, BareHiveTableTask, HivePartitionTask, HiveQueryTask, hive_database_name
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
