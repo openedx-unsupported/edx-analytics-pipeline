@@ -15,6 +15,7 @@ from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePar
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
@@ -172,16 +173,13 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
         )
 
 
-class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryTask):
+class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, HiveQueryTask):
 
     def run(self):
         self.remove_output_on_overwrite()
         super(CourseActivityTask, self).run()
 
     def requires(self):
-        kwargs_for_db_import = {
-            'overwrite': self.overwrite,
-        }
         yield (
             UserActivityPartitionTask(
                 mapreduce_engine=self.mapreduce_engine,
