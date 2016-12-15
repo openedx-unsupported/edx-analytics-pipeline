@@ -2,7 +2,6 @@
 Support for loading data into an HP Vertica database.
 """
 from collections import namedtuple
-import json
 import logging
 
 import luigi
@@ -10,7 +9,7 @@ import luigi.configuration
 from edx.analytics.tasks.url import ExternalURL
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.vertica_target import VerticaTarget
+from edx.analytics.tasks.util.vertica_target import VerticaTarget, CredentialFileVerticaTarget
 
 log = logging.getLogger(__name__)
 

@@ -1,0 +1,5 @@
+scripts:
+  - name: script one
+    location: script_one.sql
+  - name: script two
+    location: script_two.sql

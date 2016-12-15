@@ -1,6 +1,6 @@
 """luigi target for writing data into an HP Vertica database"""
 import logging
-
+import json
 import luigi
 
 logger = logging.getLogger('luigi-interface')  # pylint: disable-msg=C0103
@@ -148,3 +148,40 @@ class VerticaTarget(luigi.Target):
         """
         query = "CREATE SCHEMA IF NOT EXISTS {marker_schema}".format(marker_schema=self.marker_schema)
         connection.cursor().execute(query)
+
+class CredentialFileVerticaTarget(VerticaTarget):
+    """
+    Represents a table in Vertica, is complete when the update_id is the same as a previous successful execution.
+
+    Arguments:
+
+        credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
+            that will be used to connect to the database.
+        database_name (str): The name of the database that the table exists in. Note this database need not exist.
+        schema (str): The name of the schema in which the table being modified lies.
+        table (str): The name of the table in the schema that is being modified.
+        update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
+            values will not be executed.
+    """
+
+    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None, marker_schema=None):
+        with credentials_target.open('r') as credentials_file:
+            cred = json.load(credentials_file)
+            super(CredentialFileVerticaTarget, self).__init__(
+                # Annoying, but the port must be passed in with the host string...
+                host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 5433)),
+                user=cred.get('username'),
+                password=cred.get('password'),
+                schema=schema,
+                table=table,
+                update_id=update_id,
+                read_timeout=read_timeout,
+                marker_schema=marker_schema,
+            )
+
+    def exists(self, connection=None):
+        # The parent class fails if the database does not exist. This override tolerates that error.
+        try:
+            return super(CredentialFileVerticaTarget, self).exists(connection=connection)
+        except vertica_python.errors.ProgrammingError:
+            return False
