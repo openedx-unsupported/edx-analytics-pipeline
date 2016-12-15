@@ -192,7 +192,7 @@ class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, Hive
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
-                overwrite=self.hive_overwrite,
+                overwrite=self.overwrite,
             )
         )
 
