@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import textwrap
 
 import luigi
 import luigi.date_interval
