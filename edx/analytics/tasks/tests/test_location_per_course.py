@@ -293,7 +293,7 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
                 cumulative_count INT
             )
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
-            LOCATION 's3://fake/warehouse/course_enrollment_location_current';
+            LOCATION 's3://fake/warehouse/course_enrollment_location_current/';
 
             INSERT OVERWRITE TABLE course_enrollment_location_current
             SELECT
