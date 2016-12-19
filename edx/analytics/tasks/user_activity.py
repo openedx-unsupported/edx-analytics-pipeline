@@ -198,7 +198,7 @@ class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, Hive
         super(CourseActivityTask, self).run()
 
     def requires(self):
-        overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
+        overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
         yield UserActivityIntervalTask(
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
