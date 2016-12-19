@@ -187,6 +187,11 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
         significant=False,
     )
 
+    def __init__(self, *args, **kwargs):
+        super(UserActivityPartitionTask, self).__init__(*args, **kwargs)
+
+        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+
     def requires_local(self):
         if self.overwrite_n_days == 0:
             return []
