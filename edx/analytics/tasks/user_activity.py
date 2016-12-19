@@ -11,7 +11,7 @@ from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin, PathSelectionByDateIntervalTask
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, BareHiveTableTask, HivePartitionTask, HiveQueryTask, hive_database_name
