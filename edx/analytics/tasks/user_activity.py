@@ -207,6 +207,7 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
             pattern=self.pattern,
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
+            output_root=self.partition_location,
             overwrite=True,
         )
 
