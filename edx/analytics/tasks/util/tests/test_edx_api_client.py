@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 import httpretty
 import requests
 from mock import patch
+from ddt import ddt, data, unpack
 
 from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.config import with_luigi_config
@@ -19,6 +20,7 @@ FAKE_ACCESS_TOKEN = 'notasecrettoken'
 FAKE_RESOURCE_URL = 'http://example.com/resource/'
 
 
+@ddt
 @httpretty.activate
 class EdxApiClientTestCase(unittest.TestCase):
     """Test the client"""
@@ -59,17 +61,33 @@ class EdxApiClientTestCase(unittest.TestCase):
 
         self.assert_token_request_body(FAKE_CLIENT_ID, FAKE_CLIENT_SECRET)
 
-    def assert_token_request_body(self, client_id, client_secret):
+    def assert_token_request_body(self, client_id, client_secret, token_type='jwt'):
         """Look at the most recent request and make sure it contained the provided credentials."""
         token_request = httpretty.last_request()
         self.assertEqual(token_request.method, 'POST')
         self.assertEqual(
             token_request.parsed_body,
             {
-                'token_type': ['jwt'],
+                'token_type': [token_type],
                 'client_secret': [client_secret],
                 'client_id': [client_id],
                 'grant_type': ['client_credentials']
+            }
+        )
+
+    def assert_dogwood_token_request_body(self, client_id, client_secret, oauth_username, oauth_password):
+        """Look at the most recent request and make sure it contained the provided credentials."""
+        token_request = httpretty.last_request()
+        self.assertEqual(token_request.method, 'POST')
+        self.assertEqual(
+            token_request.parsed_body,
+            {
+                'grant_type': ['password'],
+                'token_type': ['jwt'],
+                'client_secret': [client_secret],
+                'client_id': [client_id],
+                'username': [oauth_username],
+                'password': [oauth_password],
             }
         )
 
@@ -96,6 +114,36 @@ class EdxApiClientTestCase(unittest.TestCase):
         self.assert_token_request_body('cidfromcfg', 'secfromcfg')
         self.assertEqual(client.authenticated_session.auth.token, FAKE_ACCESS_TOKEN)
 
+    @with_luigi_config(
+        ('edx-rest-api', 'client_id', 'cidfromcfg'),
+        ('edx-rest-api', 'client_secret', 'secfromcfg'),
+        ('edx-rest-api', 'auth_url', FAKE_AUTH_URL)
+    )
+    def test_token_type(self):
+        self.prepare_for_token_request()
+
+        client = EdxApiClient(token_type='bearer')
+        client.ensure_oauth_access_token()
+
+        self.assert_token_request_body('cidfromcfg', 'secfromcfg', token_type='bearer')
+        self.assertEqual(client.authenticated_session.auth.token, FAKE_ACCESS_TOKEN)
+
+    @with_luigi_config(
+        ('edx-rest-api', 'client_id', 'cidfromcfg'),
+        ('edx-rest-api', 'client_secret', 'secfromcfg'),
+        ('edx-rest-api', 'oauth_username', 'unamefromcfg'),
+        ('edx-rest-api', 'oauth_password', 'pwdfromcfg'),
+        ('edx-rest-api', 'auth_url', FAKE_AUTH_URL)
+    )
+    def test_oauth_dogwood_from_config(self):
+        self.prepare_for_token_request()
+
+        client = EdxApiClient()
+        client.ensure_oauth_access_token()
+
+        self.assert_dogwood_token_request_body('cidfromcfg', 'secfromcfg', 'unamefromcfg', 'pwdfromcfg')
+        self.assertEqual(client.authenticated_session.auth.token, FAKE_ACCESS_TOKEN)
+
     def test_expiration(self):
         expires_in = 10
         self.prepare_for_token_request(expires_in=expires_in, access_token='token1')
@@ -119,11 +167,14 @@ class EdxApiClientTestCase(unittest.TestCase):
         }
         httpretty.register_uri('GET', FAKE_RESOURCE_URL, body=json.dumps(response_body))
 
-        responses = list(self.client.paginated_get(FAKE_RESOURCE_URL))
-        self.assertEqual(len(responses), 1)
-        response = responses[0]
+        response = self.client.get(FAKE_RESOURCE_URL)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), response_body)
+
+        responses = list(self.client.paginated_get(FAKE_RESOURCE_URL))
+        self.assertEqual(len(responses), 1)
+        self.assertEqual(response.status_code, responses[0].status_code)
+        self.assertEqual(response.json(), responses[0].json())
 
     def test_get_internal_server_error(self):
         self.prepare_for_token_request()
@@ -153,9 +204,8 @@ class EdxApiClientTestCase(unittest.TestCase):
         total_expected_requests = num_auth_token_requests + num_failed_requests + num_successful_requests
         self.assertEqual(len(httpretty.httpretty.latest_requests), total_expected_requests)
 
-    def test_paginated_get(self):
-        self.prepare_for_token_request()
-        response_bodies = [
+    @data(
+        ([
             {
                 'next': FAKE_RESOURCE_URL + '?offset=2&limit=2&foo=bar',
                 'results': [{'a': 1}, {'a': 2}]
@@ -168,7 +218,24 @@ class EdxApiClientTestCase(unittest.TestCase):
                 'next': None,
                 'results': [{'a': 5}, {'a': 6}]
             }
-        ]
+        ], 'next'),
+        ([
+            {
+                'pagination': {'next': FAKE_RESOURCE_URL + '?offset=2&limit=2&foo=bar'},
+                'results': [{'a': 1}, {'a': 2}]
+            },
+            {
+                'pagination': {'next': FAKE_RESOURCE_URL + '?offset=4&limit=2&foo=bar'},
+                'results': [{'a': 3}, {'a': 4}]
+            },
+            {
+                'results': [{'a': 5}, {'a': 6}]
+            }
+        ], lambda r: r.get('pagination', {}).get('next'))
+    )
+    @unpack
+    def test_paginated_get(self, response_bodies, pagination_key):
+        self.prepare_for_token_request()
         httpretty.register_uri('GET', FAKE_RESOURCE_URL,
                                responses=[
                                    httpretty.Response(body=json.dumps(response_bodies[0])),
@@ -178,7 +245,8 @@ class EdxApiClientTestCase(unittest.TestCase):
                                    httpretty.Response(body=json.dumps(response_bodies[2])),
                                ])
 
-        responses = list(self.client.paginated_get(FAKE_RESOURCE_URL, params={'limit': 2, 'foo': 'bar'}))
+        responses = list(self.client.paginated_get(FAKE_RESOURCE_URL, params={'limit': 2, 'foo': 'bar'},
+                                                   pagination_key=pagination_key))
         self.assertEqual([response.json() for response in responses], response_bodies)
 
         self.assertEqual(len(httpretty.httpretty.latest_requests), 6)

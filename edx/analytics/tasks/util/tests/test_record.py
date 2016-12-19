@@ -479,6 +479,26 @@ class StringFieldTest(unittest.TestCase):
         test_record = StringField(length=3)
         self.assertEqual(len(test_record.validate(value)), 1)
 
+    @data(
+        '',
+        'a',
+        'bc',
+        'def'
+    )
+    def test_no_truncate(self, value):
+        test_record = StringField(length=3, truncate=True)
+        self.assertEqual(len(test_record.validate(value)), 0)
+        self.assertEqual(test_record.serialize_to_string(value), value)
+
+    @data(
+        'abcd',
+        'abcde'
+    )
+    def test_truncate(self, value):
+        test_record = StringField(length=3, truncate=True)
+        self.assertEqual(len(test_record.validate(value)), 0)
+        self.assertEqual(test_record.serialize_to_string(value), 'abc')
+
     def test_sql_type(self):
         test_record = StringField()
         self.assertEqual(test_record.sql_type, 'VARCHAR')

@@ -166,6 +166,10 @@ class AcceptanceTestCase(unittest.TestCase):
         self.test_src = url_path_join(self.test_root, 'src')
         self.test_out = url_path_join(self.test_root, 'out')
 
+        # Use a local dir for devstack testing, or s3 for production testing.
+        self.report_output_root = self.config.get('report_output_root',
+                                                  url_path_join(self.test_out, 'reports'))
+
         self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
         schema = 'test_' + self.identifier
@@ -174,6 +178,7 @@ class AcceptanceTestCase(unittest.TestCase):
         otto_database_name = 'acceptance_otto_' + database_name
         elasticsearch_alias = 'alias_test_' + self.identifier
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
+        self.edx_rest_api_cache_root = url_path_join(self.test_src, 'edx-rest-api-cache')
         task_config_override = {
             'hive': {
                 'database': database_name,
@@ -215,7 +220,28 @@ class AcceptanceTestCase(unittest.TestCase):
             'module-engagement': {
                 'alias': elasticsearch_alias
             },
-            'elasticsearch': {}
+            'elasticsearch': {},
+            'problem-response': {
+                'report_fields': '["username","problem_id","answer_id","location","question","score","max_score",'
+                                 '"correct","answer","total_attempts","first_attempt_date","last_attempt_date"]',
+                'report_field_list_delimiter': '"|"',
+                'report_field_datetime_format': '%Y-%m-%dT%H:%M:%SZ',
+                'report_output_root': self.report_output_root,
+                'partition_format': '%Y-%m-%dT%H',
+            },
+            'edx-rest-api': {
+                'client_id': 'oauth_id',
+                'client_secret': 'oauth_secret',
+                'oauth_username': 'test_user',
+                'oauth_password': 'password',
+                'auth_url': 'http://acceptance.test',
+            },
+            'course-blocks': {
+                'api_root_url': 'http://acceptance.test/api/courses/v1/blocks/',
+            },
+            'course-list': {
+                'api_root_url': 'http://acceptance.test/api/courses/v1/courses/',
+            },
         }
         if 'vertica_creds_url' in self.config:
             task_config_override['vertica-export'] = {
