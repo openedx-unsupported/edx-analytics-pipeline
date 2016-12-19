@@ -129,7 +129,7 @@ class UserActivityIntervalTask(
     def output_path_for_key(self, key):
         date_string = key
         return url_path_join(
-            self.hive_partition_path('user_activity', date_string),
+            self.hive_partition_path('user_activity_daily', date_string),
             'user_activity_{date}'.format(
                 date=date_string,
             ),
@@ -216,7 +216,7 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
             self.interval.date_a,
             self.overwrite_from_date,
         ))
-        user_activity_root = url_path_join(self.warehouse_path, 'user_activity')
+        user_activity_root = url_path_join(self.warehouse_path, 'user_activity_daily')
         path_selection_task = PathSelectionByDateIntervalTask(
             source=[user_activity_root],
             interval=path_selection_interval,
