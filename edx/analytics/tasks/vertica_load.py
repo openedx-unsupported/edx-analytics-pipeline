@@ -2,6 +2,7 @@
 Support for loading data into an HP Vertica database.
 """
 from collections import namedtuple
+import json
 import logging
 
 import luigi
