@@ -38,9 +38,7 @@ class UserActivityIntervalTask(
     # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
     FILEPATH_PATTERN = '.*?user_activity_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
-    output_root = luigi.Parameter(
-        description='String path to store the output in.',
-    )
+    output_root = None
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -129,7 +127,7 @@ class UserActivityIntervalTask(
     def output_path_for_key(self, key):
         date_string = key
         return url_path_join(
-            self.hive_partition_path('user_activity_daily', date_string),
+            self.hive_partition_path('user_activity', date_string),
             'user_activity_{date}'.format(
                 date=date_string,
             ),
@@ -157,6 +155,101 @@ class UserActivityIntervalTask(
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
     pass
+
+
+class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
+
+    output_root = luigi.Parameter()
+
+    enable_direct_output = True
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(UserActivityTask, self).__init__(*args, **kwargs)
+
+        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+
+
+    def requires_local(self):
+        if self.overwrite_n_days == 0:
+            return []
+
+        overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.overwrite_from_date,
+            self.interval.date_b
+        ))
+
+        return UserActivityIntervalTask(
+            interval=overwrite_interval,
+            source=self.source,
+            pattern=self.pattern,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=True,
+        )
+
+    def requires_hadoop(self):
+        path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.interval.date_a,
+            self.overwrite_from_date,
+        ))
+        user_activity_root = url_path_join(self.warehouse_path, 'user_activity')
+        path_selection_task = PathSelectionByDateIntervalTask(
+            source=[user_activity_root],
+            interval=path_selection_interval,
+            pattern=[UserActivityIntervalTask.FILEPATH_PATTERN],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        requirements = {
+            'path_selection_task': path_selection_task,
+        }
+
+        if self.overwrite_n_days > 0:
+            requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
+
+        return requirements
+
+    def mapper(self, line):
+        (
+            course_id,
+            username,
+            date_string,
+            label,
+            num_events
+        ) = line.split('\t')
+        yield date_string, (course_id, username, date_string, label, num_events)
+
+    def reducer(self, key, values):
+        for value in values:
+            yield value
+
+    def output_url(self):
+        return self.hive_partition_path('user_activity_daily', self.interval.date_b)
+
+    def output(self):
+        return get_target_from_url(self.output_url())
+
+    def complete(self):
+        if self.overwrite and not self.attempted_removal:
+            return False
+        else:
+            return get_target_from_url(url_path_join(self.output_url(), '_SUCCESS')).exists()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        output_target = self.output()
+        # This is different from remove_output_on_overwrite()
+        # in that it also removes the target directory if
+        # the success marker file is missing.
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+        super(UserActivityTask, self).run()
 
 
 class UserActivityTableTask(BareHiveTableTask):
@@ -187,55 +280,6 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
         significant=False,
     )
 
-    def __init__(self, *args, **kwargs):
-        super(UserActivityPartitionTask, self).__init__(*args, **kwargs)
-
-        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
-
-    def requires_local(self):
-        if self.overwrite_n_days == 0:
-            return []
-
-        overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
-            self.overwrite_from_date,
-            self.interval.date_b
-        ))
-
-        return UserActivityIntervalTask(
-            interval=overwrite_interval,
-            source=self.source,
-            pattern=self.pattern,
-            n_reduce_tasks=self.n_reduce_tasks,
-            warehouse_path=self.warehouse_path,
-            output_root=self.partition_location,
-            overwrite=True,
-        )
-
-    def requires_hadoop(self):
-        path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
-            self.interval.date_a,
-            self.overwrite_from_date,
-        ))
-        user_activity_root = url_path_join(self.warehouse_path, 'user_activity_daily')
-        path_selection_task = PathSelectionByDateIntervalTask(
-            source=[user_activity_root],
-            interval=path_selection_interval,
-            pattern=[UserActivityIntervalTask.FILEPATH_PATTERN],
-            expand_interval=datetime.timedelta(0),
-            date_pattern='%Y-%m-%d',
-        )
-
-        requirements = {
-            'path_selection_task': path_selection_task,
-        }
-
-        if self.overwrite_n_days > 0:
-            requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
-
-        requirements['hive_table_task'] = self.hive_table_task
-
-        return requirements
-
     @property
     def partition_value(self):
         return self.interval.date_b.isoformat()  # pylint: disable=no-member
@@ -246,16 +290,16 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
             warehouse_path=self.warehouse_path,
         )
 
-    # @property
-    # def data_task(self):
-    #     return UserActivityTask(
-    #         mapreduce_engine=self.mapreduce_engine,
-    #         n_reduce_tasks=self.n_reduce_tasks,
-    #         source=self.source,
-    #         interval=self.interval,
-    #         pattern=self.pattern,
-    #         output_root=self.partition_location,
-    #     )
+    @property
+    def data_task(self):
+        return UserActivityTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            overwrite_n_days=self.overwrite_n_days
+        )
 
 
 class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, HiveQueryTask):
