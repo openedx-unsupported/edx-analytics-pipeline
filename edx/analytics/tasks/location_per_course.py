@@ -308,15 +308,18 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
 
         return self.cached_hadoop_requirements
 
+    def output_url(self):
+        """Return URL for output."""
+        return self.hive_partition_path('last_country_of_user', self.interval.date_b)  # pylint: disable=no-member
+
     def output(self):
-        url = self.hive_partition_path('last_country_of_user', self.interval.date_b)  # pylint: disable=no-member
-        return get_target_from_url(url)
+        return get_target_from_url(self.output_url())
 
     def complete(self):
         if self.overwrite and not self.attempted_removal:
             return False
         else:
-            return get_target_from_url(url_path_join(self.output().path, '_SUCCESS')).exists()
+            return get_target_from_url(url_path_join(self.output_url(), '_SUCCESS')).exists()
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -442,7 +445,7 @@ class ExternalLastCountryOfUserToHiveTask(LastCountryOfUserPartitionTask):
 
     @property
     def data_task(self):
-        url = super(ExternalLastCountryOfUserToHiveTask, self).data_task.output().path
+        url = super(ExternalLastCountryOfUserToHiveTask, self).data_task.output_url()
         return ExternalURL(url.rstrip('/') + '/')
 
 
@@ -506,7 +509,7 @@ class QueryLastCountryPerCourseTask(
             ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
             LOCATION '{location}';
 
-            INSERT OVERWRITE TABLE course_enrollment_location_current
+            INSERT OVERWRITE TABLE {table_name}
             SELECT
                 sce.dt,
                 sce.course_id,
@@ -521,8 +524,8 @@ class QueryLastCountryPerCourseTask(
 
         query = query_format.format(
             database_name=hive_database_name(),
-            location=self.output().path,
-            table_name='course_enrollment_location_current',
+            location=self.table_location,
+            table_name=self.table,
         )
         log.debug('Executing hive query: %s', query)
         return query
@@ -531,10 +534,18 @@ class QueryLastCountryPerCourseTask(
         self.remove_output_on_overwrite()
         super(QueryLastCountryPerCourseTask, self).run()
 
+    @property
+    def table(self):
+        """Provides name of Hive database table."""
+        return 'course_enrollment_location_current'
+
+    @property
+    def table_location(self):
+        """Provides root location of Hive database table's data."""
+        return url_path_join(self.warehouse_path, self.table) + '/'
+
     def output(self):
-        return get_target_from_url(
-            url_path_join(self.warehouse_path, 'course_enrollment_location_current/')
-        )
+        return get_target_from_url(self.table_location)
 
     def requires(self):
         # Note that import parameters not included are 'destination', 'num_mappers', 'verbose',
