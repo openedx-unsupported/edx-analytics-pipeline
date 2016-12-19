@@ -26,6 +26,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
             '--weeks', str(self.NUM_WEEKS),
             '--credentials', self.export_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--overwrite-n-days', '42'
         ])
 
         with self.export_db.cursor() as cursor:

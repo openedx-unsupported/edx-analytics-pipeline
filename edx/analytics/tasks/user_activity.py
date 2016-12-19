@@ -3,12 +3,13 @@
 import datetime
 import logging
 import textwrap
+from collections import defaultdict
 
 import luigi
 import luigi.date_interval
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
 import edx.analytics.tasks.util.eventlog as eventlog
@@ -26,19 +27,15 @@ PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
 POST_FORUM_LABEL = "POSTED_FORUM"
 
 
-class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
-    """
-    Categorize activity of users.
+class UserActivityIntervalTask(
+    OverwriteOutputMixin,
+    WarehouseMixin,
+    EventLogSelectionMixin,
+    MultiOutputMapReduceJobTask):
 
-    Analyze the history of user actions and categorize their activity. Note that categories are not mutually exclusive.
-    A single event may belong to multiple categories. For example, we define a generic "ACTIVE" category that refers
-    to any event that has a course_id associated with it, but is not an enrollment event. Other events, such as a
-    video play event, will also belong to other categories.
 
-    The output from this job is a table that represents the number of events seen for each user in each course in each
-    category on each day.
-
-    """
+    # FILEPATH_PATTERN should match the output files defined by output_path_for_key().
+    FILEPATH_PATTERN = '.*?user_activity_(?P<date>\\d{4}-\\d{2}-\\d{2})'
 
     output_root = luigi.Parameter(
         description='String path to store the output in.',
@@ -59,7 +56,7 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
             return
 
         for label in self.get_predicate_labels(event):
-            yield self._encode_tuple((course_id, username, date_string, label)), 1
+            yield date_string, self._encode_tuple((course_id, username, date_string, label))
 
     def get_predicate_labels(self, event):
         """Creates labels by applying hardcoded predicates to a single event."""
@@ -114,14 +111,46 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
         else:
             return values[0].encode('utf8')
 
-    def reducer(self, key, values):
-        """Cumulate number of events per key."""
-        num_events = sum(values)
-        if num_events > 0:
-            yield key, num_events
 
-    def output(self):
-        return get_target_from_url(self.output_root)
+    def multi_output_reducer(self, _date_string, values, output_file):
+        frequency = defaultdict(int)
+
+        for value in values:
+            frequency[value] += 1
+
+        for key in frequency.keys():
+            num_events = frequency[key]
+            course_id, username, date_string, label = key
+            value = [course_id, username, date_string, label, num_events]
+            output_file.write('\t'.join([str(field) for field in value]))
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('user_activity', date_string),
+            'user_activity_{date}'.format(
+                date=date_string,
+            ),
+        )
+
+    def downstream_input_tasks(self):
+        tasks = []
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            tasks.append(UncheckedExternalURL(url))
+
+        return tasks
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(UserActivityIntervalTask, self).run()
+
+        for date in self.interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -152,6 +181,54 @@ class UserActivityTableTask(BareHiveTableTask):
 
 class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
 
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
+
+    def requires_local(self):
+        if self.overwrite_n_days == 0:
+            return []
+
+        overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.overwrite_from_date,
+            self.interval.date_b
+        ))
+
+        return UserActivityIntervalTask(
+            interval=overwrite_interval,
+            source=self.source,
+            pattern=self.pattern,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=True,
+        )
+
+    def requires_hadoop(self):
+        path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
+            self.interval.date_a,
+            self.overwrite_from_date,
+        ))
+        user_activity_root = url_path_join(self.warehouse_path, 'user_activity')
+        path_selection_task = PathSelectionByDateIntervalTask(
+            source=[user_activity_root],
+            interval=path_selection_interval,
+            pattern=[UserActivityIntervalTask.FILEPATH_PATTERN],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        requirements = {
+            'path_selection_task': path_selection_task,
+        }
+
+        if self.overwrite_n_days > 0:
+            requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
+
+        requirements['hive_table_task'] = self.hive_table_task
+
+        return requirements
+
     @property
     def partition_value(self):
         return self.interval.date_b.isoformat()  # pylint: disable=no-member
@@ -162,19 +239,24 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
             warehouse_path=self.warehouse_path,
         )
 
-    @property
-    def data_task(self):
-        return UserActivityTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            output_root=self.partition_location,
-        )
+    # @property
+    # def data_task(self):
+    #     return UserActivityTask(
+    #         mapreduce_engine=self.mapreduce_engine,
+    #         n_reduce_tasks=self.n_reduce_tasks,
+    #         source=self.source,
+    #         interval=self.interval,
+    #         pattern=self.pattern,
+    #         output_root=self.partition_location,
+    #     )
 
 
 class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, HiveQueryTask):
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
 
     def run(self):
         self.remove_output_on_overwrite()
@@ -190,6 +272,7 @@ class CourseActivityTask(OverwriteOutputMixin, UserActivityDownstreamMixin, Hive
                 warehouse_path=self.warehouse_path,
                 interval=self.interval,
                 overwrite=self.overwrite,
+                overwrite_n_days=self.overwrite_n_days,
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
@@ -374,6 +457,11 @@ class CourseActivityMonthlyTask(CourseActivityTask):
 
 class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, MysqlInsertTask):
 
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
+
     @property
     def table(self):
         return "course_activity"
@@ -405,6 +493,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
             warehouse_path=self.warehouse_path,
             interval=self.interval,
             overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
 
