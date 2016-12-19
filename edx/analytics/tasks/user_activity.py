@@ -159,7 +159,7 @@ class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMix
 
 class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
 
-    output_root = luigi.Parameter()
+    output_root = None
 
     enable_direct_output = True
 
