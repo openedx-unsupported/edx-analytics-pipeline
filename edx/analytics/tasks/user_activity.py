@@ -7,6 +7,7 @@ from collections import defaultdict
 
 import luigi
 import luigi.date_interval
+from luigi.parameter import DateIntervalParameter
 
 from edx.analytics.tasks.calendar_task import CalendarTableTask
 from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
