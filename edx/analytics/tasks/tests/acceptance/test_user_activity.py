@@ -11,30 +11,21 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
     EMPTY_INPUT_FILE = 'module_engagement_acceptance_empty.log'
     INPUT_FILE = 'user_activity_tracking.log'
     END_DATE = datetime.date(2014, 7, 1)
-    NUM_WEEKS = 6
+    NUM_WEEKS = 2
     COURSE_ID = u'edX/Open_DemoX/edx_demo_course'
     COURSE_ID2 = u'course-v1:edX+DemoX+Test_2014'
     NUM_REDUCERS = 1
 
     def test_user_activity(self):
         self.maxDiff = None
-        2014-05-19-2014-06-30
-        for day in range(20, 32):
-            fake_date = datetime.date(2014, 5, day)
-            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
-        for day in range(1, 9):
+        for day in range(16, 19):
             fake_date = datetime.date(2014, 6, day)
             self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
-        for day in range(10, 16):
-            fake_date = datetime.date(2014, 6, day)
-            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
-        for day in range(17, 30):
+        for day in range(20, 31):
             fake_date = datetime.date(2014, 6, day)
             self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
 
-        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 19))
-        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 6, 9))
-        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 6, 16))
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 6, 19))
 
         self.task.launch([
             'InsertToMysqlCourseActivityTask',
@@ -43,7 +34,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
             '--weeks', str(self.NUM_WEEKS),
             '--credentials', self.export_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--overwrite-n-days', '42'
+            '--overwrite-n-days', '14'
         ])
 
         with self.export_db.cursor() as cursor:
