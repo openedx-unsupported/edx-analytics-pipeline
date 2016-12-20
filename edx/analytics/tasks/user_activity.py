@@ -175,6 +175,10 @@ class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
 
 class UserActivityIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
 
+    overwrite_from_date = luigi.DateParameter(
+        default=None,
+        significant=False
+    )
     def requires(self):
         for date in reversed([d for d in self.interval]):
             should_overwrite = date >= self.overwrite_from_date
