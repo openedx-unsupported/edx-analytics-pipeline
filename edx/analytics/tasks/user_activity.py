@@ -151,11 +151,11 @@ class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMix
     pass
 
 
-class UserActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
+class UserActivityPartitionTask(WarehouseMixin, MapReduceJobTaskMixin, HivePartitionTask):
 
     @property
     def partition_value(self):
-        return self.interval.date_b.isoformat()  # pylint: disable=no-member
+        return self.date.isoformat()  # pylint: disable=no-member
 
     @property
     def hive_table_task(self):
