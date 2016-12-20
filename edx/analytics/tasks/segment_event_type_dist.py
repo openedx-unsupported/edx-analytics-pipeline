@@ -53,7 +53,7 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
         with self.input_local().open() as f_in:
             lines = f_in.readlines()
             for line in lines:
-                if (not line.startswith('#') and len(line.split("\t")) is 3):
+                if not line.startswith('#') and len(line.split("\t")) is 3:
                     parts = line.rstrip('\n').split("\t")
                     parsed_events[(parts[1], parts[2])] = parts[0]
         return parsed_events
@@ -71,7 +71,7 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
 
         channel = event.get('channel')
         self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
-        
+
         exported = False
 
         if segment_type == 'track':

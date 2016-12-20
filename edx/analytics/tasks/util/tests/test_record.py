@@ -653,6 +653,12 @@ class BooleanFieldTest(unittest.TestCase):
         for test_record in (BooleanField(), BooleanField(nullable=True)):
             self.assertEquals(test_record.deserialize_from_string(value), expected_value)
 
+    def test_sql_type(self):
+        self.assertEqual(BooleanField().sql_type, 'BOOLEAN')
+
+    def test_hive_type(self):
+        self.assertEqual(BooleanField().hive_type, 'TINYINT')
+
 
 @ddt
 class IntegerFieldTest(unittest.TestCase):
@@ -683,35 +689,6 @@ class IntegerFieldTest(unittest.TestCase):
     def test_hive_type(self):
         self.assertEqual(IntegerField().hive_type, 'INT')
 
-
-@ddt
-class BooleanFieldTest(unittest.TestCase):
-    """Tests for BooleanField"""
-
-    @data(
-        False,
-        True,
-        None,
-    )
-    def test_validate_success(self, value):
-        test_record = BooleanField()
-        self.assertEqual(len(test_record.validate(value)), 0)
-
-    @data(
-        1,
-        1.0,
-        'foo',
-        object()
-    )
-    def test_validate_error(self, value):
-        test_record = BooleanField()
-        self.assertEqual(len(test_record.validate(value)), 1)
-
-    def test_sql_type(self):
-        self.assertEqual(BooleanField().sql_type, 'BOOLEAN')
-
-    def test_hive_type(self):
-        self.assertEqual(BooleanField().hive_type, 'BOOLEAN')
 
 
 @ddt

@@ -100,6 +100,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
         expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
         expected_dict = {
             'version': VERSION,
+            'input_file': '',
             'project': self.task.PROJECT_NAME,
             'event_type': 'problem_check',
             'event_source': 'server',
@@ -130,6 +131,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
         expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
         expected_dict = {
             'version': VERSION,
+            'input_file': '',
             'project': self.task.PROJECT_NAME,
             'event_type': 'play_video',
             'event_source': 'browser',
@@ -165,6 +167,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             expected_value
         )
 
+
 @ddt
 class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Base class for test analysis of detailed student engagement"""
@@ -174,6 +177,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
     DEFAULT_DATE = "2013-12-17"
     DEFAULT_ANONYMOUS_ID = "abcdef12-3456-789a-bcde-f0123456789a"
     DEFAULT_PROJECT = "segment_test"
+
     def setUp(self):
         super(SegmentEventRecordTaskMapTest, self).setUp()
 
@@ -309,6 +313,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         expected_key = (self.DEFAULT_DATE, self.DEFAULT_PROJECT)
         expected_dict = {
             'version': VERSION,
+            'input_file': '',
             'project': self.DEFAULT_PROJECT,
             'event_type': 'screen',
             'event_source': 'server',

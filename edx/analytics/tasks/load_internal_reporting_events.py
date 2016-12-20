@@ -6,7 +6,6 @@ Need to define a Record, that will also provide mapping of types.
 """
 
 import logging
-import os
 import pytz
 
 import ciso8601
@@ -416,17 +415,6 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                     parts = line.rstrip('\n').split("\t")
                     parsed_events[(parts[1], parts[2])] = parts[0]
         return parsed_events
-
-    def get_map_input_file(self):
-        """Returns path to input file from which event is being read, if available."""
-        # TODO: decide if this is useful information.  (Share across all logs.  Add to a common base class?)
-        try:
-            # Hadoop sets an environment variable with the full URL of the input file. This url will be something like:
-            # s3://bucket/root/host1/tracking.log.gz. In this example, assume self.source is "s3://bucket/root".
-            return os.environ['map_input_file']
-        except KeyError:
-            log.warn('map_input_file not defined in os.environ, unable to determine input file path')
-            return None
 
     def multi_output_reducer(self, _key, values, output_file):
         """
