@@ -214,7 +214,7 @@ class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, luigi.
             self.requires()['user_activity_interval_task'].downstream_input_tasks()
         ]
         
-        return [task.output() for task tasks]
+        return [task.output() for task in tasks]
 
 
 # class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
