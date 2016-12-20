@@ -157,11 +157,8 @@ class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMix
     pass
 
 
-class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
 
-    output_root = None
-
-    enable_direct_output = True
+class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, luigi.WrapperTask):
 
     overwrite_n_days = luigi.IntParameter(
         config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
@@ -173,17 +170,13 @@ class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapRed
 
         self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
 
-
-    def requires_local(self):
-        if self.overwrite_n_days == 0:
-            return []
-
+    def requires(self):
         overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
             self.overwrite_from_date,
             self.interval.date_b
         ))
 
-        return UserActivityIntervalTask(
+        user_activity_interval_task =  UserActivityIntervalTask(
             interval=overwrite_interval,
             source=self.source,
             pattern=self.pattern,
@@ -192,7 +185,6 @@ class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapRed
             overwrite=True,
         )
 
-    def requires_hadoop(self):
         path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
             self.interval.date_a,
             self.overwrite_from_date,
@@ -208,48 +200,116 @@ class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapRed
 
         requirements = {
             'path_selection_task': path_selection_task,
+            'user_activity_interval_task': user_activity_interval_task
         }
 
-        if self.overwrite_n_days > 0:
-            requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
+        #if self.overwrite_n_days > 0:
+        #    requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
 
         return requirements
 
-    def mapper(self, line):
-        (
-            course_id,
-            username,
-            date_string,
-            label,
-            num_events
-        ) = line.split('\t')
-        yield date_string, (course_id, username, date_string, label, num_events)
-
-    def reducer(self, key, values):
-        for value in values:
-            yield value
-
-    def output_url(self):
-        return self.hive_partition_path('user_activity_daily', self.interval.date_b)
-
     def output(self):
-        return get_target_from_url(self.output_url())
+        tasks = [
+            self.requires()['path_selection_task'],
+            self.requires()['user_activity_interval_task'].downstream_input_tasks()
+        ]
+        
+        return [task.output() for task tasks]
 
-    def complete(self):
-        if self.overwrite and not self.attempted_removal:
-            return False
-        else:
-            return get_target_from_url(url_path_join(self.output_url(), '_SUCCESS')).exists()
 
-    def run(self):
-        self.remove_output_on_overwrite()
-        output_target = self.output()
-        # This is different from remove_output_on_overwrite()
-        # in that it also removes the target directory if
-        # the success marker file is missing.
-        if not self.complete() and output_target.exists():
-            output_target.remove()
-        super(UserActivityTask, self).run()
+# class UserActivityTask(UserActivityDownstreamMixin, OverwriteOutputMixin, MapReduceJobTask):
+#
+#     output_root = None
+#
+#     enable_direct_output = True
+#
+#     overwrite_n_days = luigi.IntParameter(
+#         config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+#         significant=False,
+#     )
+#
+#     def __init__(self, *args, **kwargs):
+#         super(UserActivityTask, self).__init__(*args, **kwargs)
+#
+#         self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+#
+#
+#     def requires_local(self):
+#         if self.overwrite_n_days == 0:
+#             return []
+#
+#         overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+#             self.overwrite_from_date,
+#             self.interval.date_b
+#         ))
+#
+#         return UserActivityIntervalTask(
+#             interval=overwrite_interval,
+#             source=self.source,
+#             pattern=self.pattern,
+#             n_reduce_tasks=self.n_reduce_tasks,
+#             warehouse_path=self.warehouse_path,
+#             overwrite=True,
+#         )
+#
+#     def requires_hadoop(self):
+#         path_selection_interval = DateIntervalParameter().parse('{}-{}'.format(
+#             self.interval.date_a,
+#             self.overwrite_from_date,
+#         ))
+#         user_activity_root = url_path_join(self.warehouse_path, 'user_activity')
+#         path_selection_task = PathSelectionByDateIntervalTask(
+#             source=[user_activity_root],
+#             interval=path_selection_interval,
+#             pattern=[UserActivityIntervalTask.FILEPATH_PATTERN],
+#             expand_interval=datetime.timedelta(0),
+#             date_pattern='%Y-%m-%d',
+#         )
+#
+#         requirements = {
+#             'path_selection_task': path_selection_task,
+#         }
+#
+#         if self.overwrite_n_days > 0:
+#             requirements['downstream_input_tasks'] = self.requires_local().downstream_input_tasks()
+#
+#         return requirements
+#
+#     def mapper(self, line):
+#         (
+#             course_id,
+#             username,
+#             date_string,
+#             label,
+#             num_events
+#         ) = line.split('\t')
+#         yield date_string, (course_id, username, date_string, label, num_events)
+#
+#     def reducer(self, key, values):
+#         for value in values:
+#             yield value
+#
+#     def output_url(self):
+#         return self.hive_partition_path('user_activity_daily', self.interval.date_b)
+#
+#     def output(self):
+#         return get_target_from_url(self.output_url())
+#
+#     def complete(self):
+#         if self.overwrite and not self.attempted_removal:
+#             return False
+#         else:
+#             return get_target_from_url(url_path_join(self.output_url(), '_SUCCESS')).exists()
+#
+#     def run(self):
+#         self.remove_output_on_overwrite()
+#         output_target = self.output()
+#         # This is different from remove_output_on_overwrite()
+#         # in that it also removes the target directory if
+#         # the success marker file is missing.
+#         if not self.complete() and output_target.exists():
+#             output_target.remove()
+#         super(UserActivityTask, self).run()
 
 
 class UserActivityTableTask(BareHiveTableTask):
