@@ -151,7 +151,9 @@ class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMix
     pass
 
 
-class UserActivityPartitionTask(WarehouseMixin, MapReduceJobTaskMixin, HivePartitionTask):
+class UserActivityPartitionTask(MapReduceJobTaskMixin, HivePartitionTask):
+
+    date = luigi.DateParameter()
 
     @property
     def partition_value(self):
