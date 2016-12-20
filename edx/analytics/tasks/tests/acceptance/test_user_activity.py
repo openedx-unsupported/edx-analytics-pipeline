@@ -8,6 +8,7 @@ from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 class UserActivityAcceptanceTest(AcceptanceTestCase):
     """Ensure we can compute activity for a set of events"""
 
+    EMPTY_INPUT_FILE = 'module_engagement_acceptance_empty.log'
     INPUT_FILE = 'user_activity_tracking.log'
     END_DATE = datetime.date(2014, 7, 1)
     NUM_WEEKS = 6
@@ -17,7 +18,23 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
 
     def test_user_activity(self):
         self.maxDiff = None
-        self.upload_tracking_log(self.INPUT_FILE, self.END_DATE)
+        2014-05-19-2014-06-30
+        for day in range(20, 32):
+            fake_date = datetime.date(2014, 5, day)
+            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
+        for day in range(1, 9):
+            fake_date = datetime.date(2014, 6, day)
+            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
+        for day in range(10, 16):
+            fake_date = datetime.date(2014, 6, day)
+            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
+        for day in range(17, 30):
+            fake_date = datetime.date(2014, 6, day)
+            self.upload_tracking_log(self.EMPTY_INPUT_FILE, fake_date)
+
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 19))
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 6, 9))
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 6, 16))
 
         self.task.launch([
             'InsertToMysqlCourseActivityTask',
