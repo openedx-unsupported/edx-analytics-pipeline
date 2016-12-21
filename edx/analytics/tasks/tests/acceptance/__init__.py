@@ -12,7 +12,6 @@ import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.s3_util import S3HdfsTarget
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch_service
 from edx.analytics.tasks.url import url_path_join, get_target_from_url
 
@@ -296,15 +295,18 @@ class AcceptanceTestCase(unittest.TestCase):
         self.vertica.reset()
         self.elasticsearch.reset()
 
-    def upload_tracking_log(self, input_file_name, file_date):
+    def upload_tracking_log(self, input_file_name, file_date, template_context=None):
         # Define a tracking log path on S3 that will be matched by the standard event-log pattern."
         input_file_path = url_path_join(
             self.test_src,
             'FakeServerGroup',
             'tracking.log-{0}.gz'.format(file_date.strftime('%Y%m%d'))
         )
-        with fs.gzipped_file(os.path.join(self.data_dir, 'input', input_file_name)) as compressed_file_name:
-            self.upload_file(compressed_file_name, input_file_path)
+
+        raw_file_path = os.path.join(self.data_dir, 'input', input_file_name)
+        with fs.template_rendered_file(raw_file_path, template_context) as rendered_file_name:
+            with fs.gzipped_file(rendered_file_name) as compressed_file_name:
+                self.upload_file(compressed_file_name, input_file_path)
 
     def upload_file(self, local_file_name, remote_file_path):
         log.debug('Uploading %s to %s', local_file_name, remote_file_path)
