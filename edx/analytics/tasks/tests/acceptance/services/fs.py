@@ -25,10 +25,12 @@ def gzipped_file(file_path):
 
 
 @contextmanager
-def template_rendered_file(file_path, context):
+def template_rendered_file(file_path, context=None):
     with tempfile.NamedTemporaryFile() as temp_file:
         with open(file_path, 'r') as input_file:
             template = Template(input_file.read())
+            if context is None:
+                context = {}
             temp_file.write(template.render(**context))
 
         temp_file.flush()
