@@ -10,8 +10,8 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
 
     EMPTY_INPUT_FILE = 'module_engagement_acceptance_empty.log'
     INPUT_FILE = 'user_activity_tracking.log'
-    END_DATE = datetime.date(2014, 7, 1)
-    NUM_WEEKS = 2
+    END_DATE = datetime.date(2014, 6, 27)
+    NUM_WEEKS = 1
     COURSE_ID = u'edX/Open_DemoX/edx_demo_course'
     COURSE_ID2 = u'course-v1:edX+DemoX+Test_2014'
     NUM_REDUCERS = 1
