@@ -1133,6 +1133,10 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
     def columns(self):
         return EventRecord.get_sql_schema()
 
+    @property
+    def table_partition_key(self):
+        return 'date'
+
 
 class LoadEventRecordIntervalToVertica(EventRecordDownstreamMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
     """
