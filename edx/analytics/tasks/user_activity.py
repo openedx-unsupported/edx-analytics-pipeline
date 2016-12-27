@@ -336,7 +336,8 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
     @property
     def insert_source_task(self):
         return CourseActivityDataTask(
-            interval=self.interval,
+            end_date=self.end_date,
+            weeks=self.weeks,
             table='course_activity',
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
