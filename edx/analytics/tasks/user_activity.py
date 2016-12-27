@@ -305,7 +305,7 @@ class CourseActivityPartitionTask(WeeklyIntervalMixin, MapReduceJobTaskMixin, Hi
             table=self.hive_table_task.table,
         )
 
-class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, MysqlInsertTask):
+class InsertToMysqlCourseActivityTask(EventLogSelectionDownstreamMixin, UserActivityDownstreamMixin, MysqlInsertTask):
 
     overwrite_n_days = luigi.IntParameter(
         config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
