@@ -216,6 +216,8 @@ class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOut
 
     table = luigi.Parameter()
 
+    FILEPATH_PATTERN = '.*?course_activity/dt=(?P<date>\\d{4}-\\d{2}-\\d{2})'
+
     def query(self):
         query = """
         USE {database_name};
@@ -290,6 +292,27 @@ class CourseActivityPartitionTask(WeeklyIntervalMixin, MapReduceJobTaskMixin, Hi
             table=self.hive_table_task.table,
         )
 
+
+class AggregateCourseActivityDataTask(UserActivityDownstreamMixin, luigi.WrapperTask):
+
+    def requires(self):
+        return {
+            'data_task' :CourseActivityDataTask(
+                end_date=self.interval.date_b,
+                weeks=1,
+                warehouse_path=self.warehouse_path,
+                overwrite=True,
+            ),
+            'path_task': PathSelectionByDateIntervalTask(
+                    source=[url_path_join(self.warehouse_path, 'course_activity')],
+                    interval=self.interval,
+                    pattern=[CourseActivityDataTask.FILEPATH_PATTERN],
+                    expand_interval=datetime.timedelta(0),
+                    date_pattern='%Y-%m-%d',
+            ),
+        }
+
+
 class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, MysqlInsertTask):
 
     overwrite_n_days = luigi.IntParameter(
@@ -320,12 +343,9 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def insert_source_task(self):
-        partition_task = CourseActivityPartitionTask(
-            end_date=self.interval.date_b,
-            weeks=1,
-            n_reduce_tasks=self.n_reduce_tasks,
+        return AggregateCourseActivityDataTask(
+            interval=self.interval,
             warehouse_path=self.warehouse_path,
-            overwrite=True,
+            n_reduce_tasks=self.n_reduce_tasks,
         )
-        return partition_task.data_task
 
