@@ -281,7 +281,6 @@ class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOut
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
             )
         )
 
