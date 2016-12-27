@@ -213,7 +213,7 @@ class CourseActivityTableTask(BareHiveTableTask):
         ]
 
 
-class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOutputMixin, WeeklyIntervalMixin, HiveQueryTask):
+class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOutputMixin,EventLogSelectionDownstreamMixin, HiveQueryTask):
 
     overwrite_n_days = luigi.IntParameter(
         significant=False,
@@ -336,8 +336,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
     @property
     def insert_source_task(self):
         return CourseActivityDataTask(
-            end_date=self.end_date,
-            weeks=self.weeks,
+            interval=self.interval,
             table='course_activity',
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
