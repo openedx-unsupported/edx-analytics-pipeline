@@ -8,13 +8,14 @@ import os
 import logging
 import luigi
 from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import ExternalURL, url_path_join
-from edx.analytics.tasks.user_activity import UserActivityTableTask
+from edx.analytics.tasks.url import ExternalURL, url_path_join, get_target_from_url
+from edx.analytics.tasks.user_activity import UserActivityTableTask, UserActivityPartitionTask
 from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, CredentialFileVerticaTarget
 from edx.analytics.tasks.database_imports import ImportAuthUserTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition, hive_database_name, BareHiveTableTask, HiveQueryTask
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
+#from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +65,70 @@ class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
             JOIN user_activity_daily uad ON au.username = uad.username
             """
 
+class InternalReportingUserActivityTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'internal_reporting_user_activity'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('user_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('date', 'STRING'),
+            ('activity_type', 'STRING'),
+            ('number_of_activities', 'INT'),
+        ]
+
+class InternalReportingUserActivityDataTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+
+    date = luigi.DateParameter()
+    table = luigi.Parameter()
+
+    def query(self):
+        query = """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+        SELECT
+            au.id,
+            uad.course_id,
+            uad.date,
+            uad.category,
+            uad.count
+        FROM auth_user au
+        JOIN user_activity_daily uad
+            ON au.username = uad.username and uad.date = "{date}";
+        """.format(
+            database_name=hive_database_name(),
+            table=self.table,
+            partition=HivePartition('dt', self.date.isoformat()),
+            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
+            date=self.date.isoformat(),
+        )
+        return query
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(InternalReportingUserActivityDataTask, self).run()
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.table, self.date.isoformat()))
+
+    def requires(self):
+        yield (
+            InternalReportingUserActivityTableTask(warehouse_path=self.warehouse_path),
+            ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
+            UserActivityPartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path,
+            )
+        )
+
 
 class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
@@ -75,16 +140,20 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         description='Number of reduce tasks',
     )
 
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingUserActivityToWarehouse, self).__init__(*args, **kwargs)
+    # def __init__(self, *args, **kwargs):
+    #     super(LoadInternalReportingUserActivityToWarehouse, self).__init__(*args, **kwargs)
+    #
+    #     path = url_path_join(self.warehouse_path, 'internal_reporting_user_activity')
+    #     path_targets = PathSetTask([path]).output()
+    #     paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+    #     dates = [path.rsplit('/', 2)[-1] for path in paths]
+    #     latest_date = sorted(dates)[-1]
+    #
+    #     self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
 
-        path = url_path_join(self.warehouse_path, 'internal_reporting_user_activity')
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+    @property
+    def table_partition_key(self):
+        return 'date'
 
     @property
     def partition(self):
@@ -93,9 +162,15 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def insert_source_task(self):
-        hive_table = "internal_reporting_user_activity"
-        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
-        return ExternalURL(url=partition_location)
+        return InternalReportingUserActivityDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+            table='internal_reporting_user_activity'
+        )
+        # hive_table = "internal_reporting_user_activity"
+        # partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
+        # return ExternalURL(url=partition_location)
 
     @property
     def table(self):
@@ -121,7 +196,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         return [
             ('user_id', 'INTEGER NOT NULL'),
             ('course_id', 'VARCHAR(256) NOT NULL'),
-            ('date', 'DATE'),
+            ('date', 'DATE NOT NULL'),
             ('activity_type', 'VARCHAR(200)'),
             ('number_of_activities', 'INTEGER')
         ]
