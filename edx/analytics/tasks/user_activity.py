@@ -177,13 +177,14 @@ class UserActivityPartitionTask(MapReduceJobTaskMixin, HivePartitionTask):
 
 class UserActivityIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
 
-    overwrite_from_date = luigi.DateParameter(
-        default=None,
-        significant=False
+    overwrite_n_days = luigi.IntParameter(
+        significant=False,
     )
+
     def requires(self):
+        overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
         for date in reversed([d for d in self.interval]):
-            should_overwrite = date >= self.overwrite_from_date
+            should_overwrite = date >= overwrite_from_date
             yield UserActivityPartitionTask(
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -214,12 +215,27 @@ class CourseActivityTableTask(BareHiveTableTask):
 
 class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOutputMixin, WeeklyIntervalMixin, HiveQueryTask):
 
+    overwrite_n_days = luigi.IntParameter(
+        significant=False,
+    )
+
     table = luigi.Parameter()
 
     def query(self):
         query = """
         USE {database_name};
-        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec}) {if_not_exists}
+        DROP TABLE IF EXISTS {table_name};
+        CREATE EXTERNAL TABLE {table_name} (
+            course_id STRING,
+            interval_start TIMESTAMP,
+            interval_end TIMESTAMP,
+            label STRING,
+            count INT
+        )
+        ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+        LOCATION '{location}';
+
+        INSERT OVERWRITE TABLE {table_name}
         SELECT
             act.course_id as course_id,
             CONCAT(cal.iso_week_start, ' 00:00:00') as interval_start,
@@ -238,11 +254,10 @@ class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOut
             act.category;
         """.format(
             database_name=hive_database_name(),
-            table=self.table,
-            partition=HivePartition('dt', self.interval.date_b.isoformat()),
-            if_not_exists='' if self.overwrite else 'IF NOT EXISTS',
+            table_name=self.table,
             interval_start=self.interval.date_a.isoformat(),
-            interval_end=self.interval.date_b.isoformat()
+            interval_end=self.interval.date_b.isoformat(),
+            location=self.hive_partition_path(self.table, self.interval.date_b.isoformat()),
         )
         return query
 
@@ -262,7 +277,7 @@ class CourseActivityDataTask(MapReduceJobTaskMixin, WarehouseMixin, OverwriteOut
                 interval=self.interval,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite_from_date=self.interval.date_a,
+                overwrite_n_days=self.overwrite_n_days,
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
@@ -320,12 +335,12 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def insert_source_task(self):
-        partition_task = CourseActivityPartitionTask(
-            end_date=self.interval.date_b,
-            weeks=1,
+        return CourseActivityDataTask(
+            interval=self.interval,
+            table='course_activity',
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
-            overwrite=True,
+            overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days,
         )
-        return partition_task.data_task
 
