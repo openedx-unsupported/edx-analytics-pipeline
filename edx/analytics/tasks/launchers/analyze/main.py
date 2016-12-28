@@ -181,7 +181,7 @@ def analyze_overall_execution(parser):
 
 
 def analyze_hadoop_job(starting_message, parser):
-    match = re.match(r'.*?(?P<job_id>job_\d{12}_\d{4})', starting_message.content)
+    match = re.match(r'.*?(?P<job_id>job_\d{13}_\d{4})', starting_message.content)
     job_id = match.group('job_id')
     start_timestamp = starting_message.timestamp
 
@@ -189,7 +189,7 @@ def analyze_hadoop_job(starting_message, parser):
     while message:
         message = parser.next_message()
 
-        if 'Job complete:' in message.content or 'Ended Job = ' in message.content:
+        if 'completed successfully' in message.content or 'Ended Job = ' in message.content:
             if 'Job complete:' in message.content:
                 move_measure = analyze_output_move(parser)
                 if move_measure:
