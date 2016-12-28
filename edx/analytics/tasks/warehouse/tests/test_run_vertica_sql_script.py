@@ -21,7 +21,7 @@ class RunVerticaSqlScriptTaskTest(TestCase):
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.warehouse.run_vertica_sql_script.vertica_python.vertica')
+        patcher = patch('edx.analytics.tasks.util.vertica_target.vertica_python.vertica')
         self.mock_vertica_connector = patcher.start()
         self.addCleanup(patcher.stop)
 

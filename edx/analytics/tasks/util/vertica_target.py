@@ -3,13 +3,17 @@ import logging
 import json
 import luigi
 
-logger = logging.getLogger('luigi-interface')  # pylint: disable-msg=C0103
+logger = logging.getLogger('luigi-interface')  # pylint: disable=invalid-name
 
 try:
     import vertica_python
+    vertica_client_available = True  # pylint: disable=invalid-name
 except ImportError:
     logger.warning("Attempted to load Vertica interface tools without the vertica_python package; will crash if \
                    Vertica functionality is used.")
+    # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
+    # them, instead just fail noisily if we attempt to use these libraries.
+    vertica_client_available = False  # pylint: disable=invalid-name
 
 
 class VerticaTarget(luigi.Target):
@@ -35,6 +39,9 @@ class VerticaTarget(luigi.Target):
         :param update_id: an identifier for this data set.
         :type update_id: str
         """
+        # Make sure we can connect to Vertica.
+        self.check_vertica_availability()
+
         if ':' in host:
             self.host, self.port = host.split(':')
             self.port = int(self.port)
@@ -77,7 +84,7 @@ class VerticaTarget(luigi.Target):
         # make sure update is properly marked
         assert self.exists(connection)
 
-    def exists(self, connection=None):  # pylint: disable-msg=W0221
+    def exists(self, connection=None):  # pylint: disable=arguments-differ
         close_connection = False
         if connection is None:
             close_connection = True
@@ -89,7 +96,7 @@ class VerticaTarget(luigi.Target):
                 WHERE update_id = %s
                 LIMIT 1""".format(marker_schema=self.marker_schema, marker_table=self.marker_table),
                            (self.update_id,)
-                           )
+                          )
             row = cursor.fetchone()
         except vertica_python.errors.Error as err:
             if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
@@ -148,6 +155,11 @@ class VerticaTarget(luigi.Target):
         """
         query = "CREATE SCHEMA IF NOT EXISTS {marker_schema}".format(marker_schema=self.marker_schema)
         connection.cursor().execute(query)
+
+    def check_vertica_availability(self):
+        """Call to ensure fast failure if this machine doesn't have the Vertica client library available."""
+        if not vertica_client_available:
+            raise ImportError('Vertica client library not available')
 
 
 class CredentialFileVerticaTarget(VerticaTarget):

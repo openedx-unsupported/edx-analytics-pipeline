@@ -109,8 +109,6 @@ class RunVerticaSqlScriptTask(RunVerticaSqlScriptTaskMixin, luigi.Task):
         """
         Runs the given SQL script against the Vertica target.
         """
-        # Make sure we can connect to Vertica.
-        self.check_vertica_availability()
         connection = self.output().connect()
 
         try:
@@ -134,8 +132,3 @@ class RunVerticaSqlScriptTask(RunVerticaSqlScriptTaskMixin, luigi.Task):
             raise
         finally:
             connection.close()
-
-    def check_vertica_availability(self):
-        """Call to ensure fast failure if this machine doesn't have the Vertica client library available."""
-        if not vertica_client_available:
-            raise ImportError('Vertica client library not available')
