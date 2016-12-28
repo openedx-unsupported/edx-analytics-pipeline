@@ -819,6 +819,28 @@ class ImportEcommercePartner(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportInvoices(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Invoices: Imports invoices from an external ecommerce table to both a
+    destination directory and a HIVE metastore.
+    """
+    @property
+    def table_name(self):
+        return 'invoice_invoice'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+            ('state', 'STRING'),
+            ('basket_id', 'INT'),
+            ('business_client_id', 'INT'),
+            ('order_id', 'INT'),
+        ]
+
+
 class ImportCourseModeTask(ImportMysqlToHiveTableTask):
     """
     Course Information: Imports course_modes table to both a destination directory and a HIVE metastore.
