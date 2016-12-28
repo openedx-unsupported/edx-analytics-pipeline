@@ -51,7 +51,6 @@ test-local:
 
 test: test-requirements develop test-local
 
-
 test-acceptance: test-requirements
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
