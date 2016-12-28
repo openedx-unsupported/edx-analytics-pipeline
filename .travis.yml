@@ -1,8 +1,0 @@
-language: python
-python:
-  - "2.7"
-  - "3.3"
-  - "pypy-5.6.0" # PyPy for 2.7
-  - "pypy3-5.5.0" # PyPy for 3.3
-script:
-  - make test
