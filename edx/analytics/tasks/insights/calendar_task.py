@@ -7,10 +7,10 @@ import logging
 import luigi
 import luigi.configuration
 
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

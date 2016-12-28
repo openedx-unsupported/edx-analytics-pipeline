@@ -19,7 +19,7 @@ import luigi.format
 import luigi.hdfs
 import luigi.s3
 
-from edx.analytics.tasks.s3_util import ScalableS3Client, S3HdfsTarget
+from edx.analytics.tasks.util.s3_util import ScalableS3Client, S3HdfsTarget
 
 
 class ExternalURL(luigi.ExternalTask):

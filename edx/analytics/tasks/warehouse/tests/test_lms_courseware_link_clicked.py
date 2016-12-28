@@ -1,17 +1,17 @@
 """Test enrollment computations"""
+from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.lms_courseware_link_clicked import (
+from edx.analytics.tasks.warehouse.lms_courseware_link_clicked import (
     LMSCoursewareLinkClickedTask,
     LINK_CLICKED
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, unittest.TestCase):
+class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -71,16 +71,18 @@ class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysM
         line = self.create_event_log_line(context={"course_id": "garbage course key"})
         self.assert_no_map_output_for(line)
 
-        line = self.create_event_log_line(event={
-            "current_url": "",
-            "target_url": "https://courses.example.com/blargh"
+        line = self.create_event_log_line(
+            event={
+                "current_url": "",
+                "target_url": "https://courses.example.com/blargh"
             }
         )
         self.assert_no_map_output_for(line)
 
-        line = self.create_event_log_line(event={
-            "current_url": "http://courses.example.com/blah",
-            "target_url": ""
+        line = self.create_event_log_line(
+            event={
+                "current_url": "http://courses.example.com/blah",
+                "target_url": ""
             }
         )
         self.assert_no_map_output_for(line)
@@ -97,40 +99,47 @@ class LMSCoursewareLinkClickedTaskMapTest(MapperTestMixin, InitializeOpaqueKeysM
             * Links to a different protocol (http vs https)
             * Links with no explicit protocol
         """
-        line = self.create_event_log_line(event={
-            "current_url": "http://courses.example.com/blah",
-            "target_url": "https://courses.example.com/blargh"
+        line = self.create_event_log_line(
+            event={
+                "current_url": "http://courses.example.com/blah",
+                "target_url": "https://courses.example.com/blargh"
             }
         )
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 0)
 
-        line = self.create_event_log_line(event={
-            "current_url": "http://courses.example.com/blah",
-            "target_url": "/internal/example"
-        })
+        line = self.create_event_log_line(
+            event={
+                "current_url": "http://courses.example.com/blah",
+                "target_url": "/internal/example"
+            }
+        )
 
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 0)
 
-        line = self.create_event_log_line(event={
-            "current_url": "http://courses.example.com/blah",
-            "target_url": "courses.example.com"
-        })
+        line = self.create_event_log_line(
+            event={
+                "current_url": "http://courses.example.com/blah",
+                "target_url": "courses.example.com"
+            }
+        )
 
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 0)
 
-        line = self.create_event_log_line(event={
-            "current_url": "http://courses.example.com/blah",
-            "target_url": "/"
-        })
+        line = self.create_event_log_line(
+            event={
+                "current_url": "http://courses.example.com/blah",
+                "target_url": "/"
+            }
+        )
 
         self.assert_single_map_output(line, (self.course_id, self.datestamp), 0)
 
 
-class LinkClickedEventMapTask(InitializeLegacyKeysMixin, unittest.TestCase):
+class LinkClickedEventMapTask(InitializeLegacyKeysMixin, TestCase):
     pass
 
 
-class LinkClickedTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class LinkClickedTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """

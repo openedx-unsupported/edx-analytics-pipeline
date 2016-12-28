@@ -2,14 +2,14 @@
 Test for tasks extensions using entry points
 
 """
+from unittest import TestCase
 
 from stevedore.extension import ExtensionManager
 
 from edx.analytics.tasks import EXTENSION_NAMESPACE
-from edx.analytics.tasks.tests import unittest
 
 
-class TestExtensions(unittest.TestCase):
+class TestExtensions(TestCase):
     def test_extensions_config(self):
         """
         Test if the edx.analytics.tasks entry_points are configured properly.

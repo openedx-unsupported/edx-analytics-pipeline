@@ -6,14 +6,14 @@ import logging
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.calendar_task import CalendarTableTask
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
+from edx.analytics.tasks.util.decorators import workflow_entry_point
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-from edx.analytics.tasks.decorators import workflow_entry_point
+from edx.analytics.tasks.util.url import get_target_from_url
 
 log = logging.getLogger(__name__)
 

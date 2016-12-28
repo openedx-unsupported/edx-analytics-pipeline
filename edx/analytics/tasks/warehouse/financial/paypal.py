@@ -19,10 +19,9 @@ from luigi import date_interval
 from luigi.configuration import get_config
 import requests
 
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

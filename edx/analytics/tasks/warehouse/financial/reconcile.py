@@ -10,14 +10,14 @@ from operator import attrgetter
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
-from edx.analytics.tasks.reports.orders_import import OrderTableTask
-from edx.analytics.tasks.reports.payment import PaymentTask
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.warehouse.financial.orders_import import OrderTableTask
+from edx.analytics.tasks.warehouse.financial.payment import PaymentTask
 
 log = logging.getLogger(__name__)
 
@@ -112,10 +112,11 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     import_date = luigi.DateParameter()
 
-    def extra_modules(self):
-        """edx.analytics.tasks is required by all tasks that load this file."""
-        import edx.analytics.tasks.mapreduce
-        return [edx.analytics.tasks.mapreduce]
+    # TODO: determine if this is still needed, if we start always exporting everything all the time.
+    # def extra_modules(self):
+    #    """edx.analytics.tasks is required by all tasks that load this file."""
+    # import edx.analytics.tasks.common.mapreduce
+    # return [edx.analytics.tasks.common.mapreduce]
 
 
 class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstreamMixin, MapReduceJobTask):

@@ -1,13 +1,13 @@
 """
 Loads the d_user_course_certificate table into the warehouse through the pipeline via Hive.
 """
-
-import luigi
 import logging
 
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+import luigi
+
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.insights.database_imports import ImportGeneratedCertificatesTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.database_imports import ImportGeneratedCertificatesTask
 
 log = logging.getLogger(__name__)
 

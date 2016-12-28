@@ -4,21 +4,18 @@ Ensure we can write to Vertica data sources.
 from __future__ import absolute_import
 
 import textwrap
+import unittest
 
 import luigi
 import luigi.task
 
-from mock import call
-from mock import MagicMock
-from mock import patch
-from mock import sentinel
+from mock import call, MagicMock, patch, sentinel
 
-from edx.analytics.tasks.vertica_load import (
+from edx.analytics.tasks.common.vertica_load import (
     VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
 class CopyToVerticaDummyTable(VerticaCopyTask):
@@ -86,7 +83,7 @@ class VerticaCopyTaskTest(unittest.TestCase):
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.vertica_load.vertica_python.vertica')
+        patcher = patch('edx.analytics.tasks.common.vertica_load.vertica_python.vertica')
         self.mock_vertica_connector = patcher.start()
         self.addCleanup(patcher.stop)
 

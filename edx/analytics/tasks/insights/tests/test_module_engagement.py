@@ -2,24 +2,24 @@
 
 import json
 import datetime
+from unittest import TestCase
 
 import luigi
 from luigi import date_interval
 from ddt import ddt, data, unpack
 from mock import MagicMock
 
-from edx.analytics.tasks.module_engagement import ModuleEngagementDataTask, ModuleEngagementSummaryDataTask, \
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.module_engagement import ModuleEngagementDataTask, ModuleEngagementSummaryDataTask, \
     ModuleEngagementRecord, ModuleEngagementSummaryRecord, ModuleEngagementSummaryMetricRangesDataTask, \
     ModuleEngagementSummaryMetricRangeRecord, ModuleEngagementUserSegmentDataTask, ModuleEngagementUserSegmentRecord, \
     ModuleEngagementRosterIndexTask, ModuleEngagementRosterRecord, ModuleEngagementRosterPartitionTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
 @ddt
-class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Base class for test analysis of detailed student engagement"""
 
     DEFAULT_USER_ID = 10
@@ -182,7 +182,7 @@ class ModuleEngagementTaskMapLegacyKeysTest(InitializeLegacyKeysMixin, ModuleEng
 
 
 @ddt
-class ModuleEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that engagement data is reduced properly
     """
@@ -203,7 +203,7 @@ class ModuleEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
 
 @ddt
-class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, unittest.TestCase):
+class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, TestCase):
     """Base class for test analysis of student engagement summaries"""
 
     task_class = ModuleEngagementSummaryDataTask
@@ -239,7 +239,7 @@ class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, unittest.TestCase)
 
 
 @ddt
-class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
     """Base class for test analysis of student engagement summaries"""
 
     task_class = ModuleEngagementSummaryDataTask
@@ -409,7 +409,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, unittest.Test
 
 
 @ddt
-class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, TestCase):
     """Base class for test analysis of student engagement summaries"""
 
     task_class = ModuleEngagementSummaryMetricRangesDataTask
@@ -511,12 +511,12 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, u
         self.assert_ranges(values, [('normal', 0, 0.55), ('high', 0.55, 'inf')])
 
     def test_zeroes_are_low(self):
-        values = [0, 0, 0] + ([1] * 10) + ([2]*4)
+        values = [0, 0, 0] + ([1] * 10) + ([2] * 4)
         self.assert_ranges(values, [('low', 0, 0.4), ('normal', 0.4, 2.0), ('high', 2.0, 'inf')])
 
 
 @ddt
-class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, TestCase):
     """Base class for test analysis of student engagement summaries"""
 
     task_class = ModuleEngagementUserSegmentDataTask
@@ -861,7 +861,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, unittest.
 
 
 @ddt
-class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, TestCase):
     """Ensure roster records are indexed properly."""
 
     task_class = ModuleEngagementRosterIndexTask
@@ -1006,7 +1006,7 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, unittest.TestCase):
         self.assertEqual(documents[1]['_id'], 'foo/bar/baz|test_user|1')
 
 
-class ModuleEngagementRosterPartitionTaskTest(ReducerTestMixin, unittest.TestCase):
+class ModuleEngagementRosterPartitionTaskTest(ReducerTestMixin, TestCase):
     """Test the logic that maps end dates to complete weeks."""
     task_class = ModuleEngagementRosterPartitionTask
 

@@ -6,19 +6,19 @@ import datetime
 import json
 from collections import defaultdict
 from itertools import chain
+from unittest import TestCase
 
 from luigi.date_interval import Year
 import luigi.task
 from mock import MagicMock, patch
 import yaml
 
-from edx.analytics.tasks.event_exports import EventExportTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.export.event_exports import EventExportTask
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
-class EventExportTestCaseBase(InitializeOpaqueKeysMixin, unittest.TestCase):
+class EventExportTestCaseBase(InitializeOpaqueKeysMixin, TestCase):
     """Base for Tests of EventExportTask."""
 
     SERVER_NAME_1 = 'FakeServerGroup'

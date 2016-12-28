@@ -3,8 +3,7 @@
 import luigi
 import luigi.hdfs
 
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, hive_decimal_type
-from edx.analytics.tasks.database_imports import (
+from edx.analytics.tasks.insights.database_imports import (
     DatabaseImportMixin,
     ImportShoppingCartCertificateItem,
     ImportShoppingCartCourseRegistrationCodeItem,
@@ -28,6 +27,7 @@ from edx.analytics.tasks.database_imports import (
     ImportCurrentRefundRefundLineState,
     ImportAuthUserTask,
 )
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, hive_decimal_type
 
 
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):

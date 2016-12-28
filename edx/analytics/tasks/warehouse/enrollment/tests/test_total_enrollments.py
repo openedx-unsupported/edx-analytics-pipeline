@@ -3,6 +3,7 @@
 import datetime
 import textwrap
 from StringIO import StringIO
+from unittest import TestCase
 
 import luigi
 import luigi.hdfs
@@ -10,13 +11,12 @@ from mock import MagicMock
 from numpy import isnan
 import pandas
 
-from edx.analytics.tasks.user_registrations import UserRegistrationsPerDay
-from edx.analytics.tasks.reports.total_enrollments import WeeklyAllUsersAndEnrollments
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.enrollment.user_registrations import UserRegistrationsPerDay
+from edx.analytics.tasks.warehouse.enrollment.total_enrollments import WeeklyAllUsersAndEnrollments
 
 
-class TestWeeklyAllUsersAndEnrollments(unittest.TestCase):
+class TestWeeklyAllUsersAndEnrollments(TestCase):
     """Tests for WeeklyAllUsersAndEnrollments class."""
 
     @staticmethod

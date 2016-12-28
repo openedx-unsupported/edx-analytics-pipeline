@@ -3,10 +3,11 @@
 """
 
 import os
-import platform
 import logging
+import platform
 
 log = logging.getLogger(__name__)
+
 
 def is_mac():
     """

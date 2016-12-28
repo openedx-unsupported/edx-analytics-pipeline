@@ -2,17 +2,13 @@
 End to end test of the internal reporting user table loading task.
 """
 
-import os
-import logging
 import datetime
-import unittest
+import logging
+import os
 
 import pandas
 
-from luigi.date_interval import Date
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
-from edx.analytics.tasks.url import url_path_join
 
 
 log = logging.getLogger(__name__)

@@ -12,21 +12,21 @@ Testing strategy:
     Catalog with a malformed course (like a list) inside
 """
 
-import tempfile
+import datetime
+import json
 import os
 import shutil
-import datetime
-import pandas
-import json
-from edx.analytics.tasks.course_catalog import DailyProcessFromCatalogSubjectTask
-
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
+import tempfile
+from unittest import TestCase
 
 from mock import MagicMock
+import pandas
+
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.course_catalog import DailyProcessFromCatalogSubjectTask
 
 
-class TestCourseSubjects(unittest.TestCase):
+class TestCourseSubjects(TestCase):
     """Tests for the task parsing the catalog into rows of course ids and subjects"""
 
     TEST_DATE = '2015-06-25'

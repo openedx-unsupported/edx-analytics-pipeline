@@ -2,22 +2,20 @@
 
 import csv
 from datetime import timedelta, date
+import logging
 
 import luigi
 import luigi.hdfs
-
 from luigi.date_interval import Custom
-
 import numpy
 import pandas
 
 from edx.analytics.tasks.util.tsv import read_tsv
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.user_registrations import UserRegistrationsPerDay
-from edx.analytics.tasks.reports.enrollments import CourseEnrollmentCountMixin
-from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.warehouse.enrollment.course_enroll import CourseEnrollmentChangesPerDay
+from edx.analytics.tasks.warehouse.enrollment.enrollments import CourseEnrollmentCountMixin
+from edx.analytics.tasks.warehouse.enrollment.user_registrations import UserRegistrationsPerDay
 
-import logging
 log = logging.getLogger(__name__)
 
 MINIMUM_DATE = date(1900, 1, 1)

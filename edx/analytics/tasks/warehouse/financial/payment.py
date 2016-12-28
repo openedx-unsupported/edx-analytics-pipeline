@@ -1,8 +1,8 @@
 
 import luigi
 
-from edx.analytics.tasks.reports.cybersource import IntervalPullFromCybersourceTask
-from edx.analytics.tasks.reports.paypal import PaypalTransactionsIntervalTask
+from edx.analytics.tasks.warehouse.financial.cybersource import IntervalPullFromCybersourceTask
+from edx.analytics.tasks.warehouse.financial.paypal import PaypalTransactionsIntervalTask
 
 
 class PaymentTask(luigi.WrapperTask):

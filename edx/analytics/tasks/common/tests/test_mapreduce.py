@@ -2,16 +2,16 @@
 
 from __future__ import absolute_import
 
-from mock import patch, call
 import os
-import tempfile
 import shutil
+import tempfile
+import unittest
 
 import luigi
 import luigi.hdfs
+from mock import patch, call
 
-from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
 
 
 class MapReduceJobTaskTest(unittest.TestCase):
@@ -88,7 +88,7 @@ class MultiOutputMapReduceJobTaskTest(unittest.TestCase):
     """Tests for MultiOutputMapReduceJobTask."""
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.mapreduce.get_target_from_url')
+        patcher = patch('edx.analytics.tasks.common.mapreduce.get_target_from_url')
         self.mock_get_target = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -131,7 +131,7 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
         self.output_root = tempfile.mkdtemp()
         self.addCleanup(cleanup, self.output_root)
 
-        patcher = patch('edx.analytics.tasks.mapreduce.luigi.configuration.get_config')
+        patcher = patch('edx.analytics.tasks.common.mapreduce.luigi.configuration.get_config')
         self.mock_get_config = patcher.start()
         self.addCleanup(patcher.stop)
 

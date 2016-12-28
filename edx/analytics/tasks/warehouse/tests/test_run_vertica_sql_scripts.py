@@ -3,19 +3,17 @@ Ensure we can write to Vertica data sources.
 """
 from __future__ import absolute_import
 
-import textwrap
 from os import path
+from unittest import TestCase
 
 import luigi
 import luigi.task
-
 from mock import sentinel
 
-from edx.analytics.tasks.run_vertica_sql_scripts import RunVerticaSqlScriptsTask
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.warehouse.run_vertica_sql_scripts import RunVerticaSqlScriptsTask
 
 
-class RunVerticaSqlScriptsTaskTest(unittest.TestCase):
+class RunVerticaSqlScriptsTaskTest(TestCase):
     """
     Ensure we can run SQL scripts that read and write data to Vertica data sources.
     """
@@ -38,7 +36,8 @@ class RunVerticaSqlScriptsTaskTest(unittest.TestCase):
         """
         Creates the task based on a given YAML configuration file.
         """
-        return self.create_task(script_config=path.join('edx/analytics/tasks/tests/fixtures/sql_scripts', config_path)).get_downstream_task()
+        script_config = path.join('edx/analytics/tasks/warehouse/tests/fixtures/sql_scripts', config_path)
+        return self.create_task(script_config=script_config).get_downstream_task()
 
     def get_tasks_in_chain(self, chain):
         # Enumerate the chain, revealing whether or not anything was actually generated.
@@ -46,7 +45,7 @@ class RunVerticaSqlScriptsTaskTest(unittest.TestCase):
 
         items = []
         if len(chain_items) == 0:
-          return items
+            return items
 
         # If we're returning more than one item from the requirements, that means we're risking concurrent
         # task execution, which breaks our desire to serially execute tasks one after the other.
@@ -55,8 +54,8 @@ class RunVerticaSqlScriptsTaskTest(unittest.TestCase):
         # Pull out the chain of dependent tasks.
         current_item = chain_items[0]
         while current_item is not None:
-          items.append(current_item)
-          current_item = current_item.depends_on
+            items.append(current_item)
+            current_item = current_item.depends_on
 
         return list(reversed(items))
 

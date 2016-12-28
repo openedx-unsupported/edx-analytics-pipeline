@@ -4,26 +4,25 @@ Tests for geolocation-per-course tasks.
 
 import json
 import textwrap
-
-from mock import Mock, patch, call
+from unittest import TestCase
 
 from luigi.date_interval import Year
+from mock import Mock, call
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.location_per_course import (
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.location_per_course import (
     LastDailyIpAddressOfUserTask,
     LastCountryOfUserPartitionTask,
     LastCountryOfUser,
     QueryLastCountryPerCourseTask,
     InsertToMysqlLastCountryPerCourseTask,
 )
-from edx.analytics.tasks.pathutil import PathSelectionByDateIntervalTask
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.geolocation import UNKNOWN_COUNTRY, UNKNOWN_CODE
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
-class LastDailyIpAddressOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
+class LastDailyIpAddressOfUserMapperTestCase(MapperTestMixin, TestCase):
     """Tests of LastDailyIpAddressOfUserTask.mapper()"""
 
     username = 'test_user'
@@ -82,7 +81,7 @@ class LastDailyIpAddressOfUserMapperTestCase(MapperTestMixin, unittest.TestCase)
         self.assert_single_map_output(line, "2013-12-17", (self.timestamp, self.ip_address, None, "baduser"))
 
 
-class LastDailyIpAddressOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
+class LastDailyIpAddressOfUserReducerTestCase(ReducerTestMixin, TestCase):
     """Tests of LastDailyIpAddressOfUserTask.reducer()"""
 
     # Username is unicode here, not utf8
@@ -119,7 +118,7 @@ class LastDailyIpAddressOfUserReducerTestCase(ReducerTestMixin, unittest.TestCas
         self.assertEquals(tasks[0].url, expected_output_path)
 
 
-class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
+class LastCountryOfUserMapperTestCase(MapperTestMixin, TestCase):
     """Tests of LastCountryOfUser.mapper()"""
 
     username = 'test_user'
@@ -148,7 +147,7 @@ class LastCountryOfUserMapperTestCase(MapperTestMixin, unittest.TestCase):
         self.assertEquals(len(tasks['downstream_input_tasks']), 14)
 
 
-class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
+class LastCountryOfUserReducerTestCase(ReducerTestMixin, TestCase):
     """Tests of LastCountryOfUser.reducer()"""
 
     def setUp(self):
@@ -236,7 +235,7 @@ class LastCountryOfUserReducerTestCase(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
 
-class LastCountryOfUserPartitionTestCase(unittest.TestCase):
+class LastCountryOfUserPartitionTestCase(TestCase):
     """Tests to validate LastCountryOfUserPartitionTask."""
 
     def _get_kwargs(self):
@@ -269,7 +268,7 @@ class LastCountryOfUserPartitionTestCase(unittest.TestCase):
         self.assertEquals(required_task.output().path, 's3://fake/warehouse/last_country_of_user/dt=2014-01-01')
 
 
-class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
+class QueryLastCountryPerCourseTaskTestCase(TestCase):
     """Tests to validate QueryLastCountryPerCourseTask."""
 
     def _get_kwargs(self):
@@ -321,7 +320,7 @@ class QueryLastCountryPerCourseTaskTestCase(unittest.TestCase):
         self.assertEquals(len(required_tasks[0]), 3)
 
 
-class InsertToMysqlLastCountryPerCourseTaskTestCase(unittest.TestCase):
+class InsertToMysqlLastCountryPerCourseTaskTestCase(TestCase):
     """Tests to validate InsertToMysqlLastCountryPerCourseTask."""
 
     def _get_kwargs(self):

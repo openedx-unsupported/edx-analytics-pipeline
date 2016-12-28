@@ -2,15 +2,15 @@
 End to end test of event exports.
 """
 
-import os
 import logging
+import os
+import shutil
 import tempfile
 import textwrap
-import shutil
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 
 log = logging.getLogger(__name__)

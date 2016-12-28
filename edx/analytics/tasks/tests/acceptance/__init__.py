@@ -2,18 +2,17 @@ import boto
 import hashlib
 import json
 import logging
-
-from luigi.s3 import S3Client
 import os
 import shutil
 import unittest
 
+from luigi.s3 import S3Client
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
-from edx.analytics.tasks.pathutil import PathSetTask
+from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch_service
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
 
 
 log = logging.getLogger(__name__)
@@ -377,8 +376,7 @@ class AcceptanceTestCase(unittest.TestCase):
         """Given the URL to a directory, read all of the files from it and concatenate them."""
         output_targets = AcceptanceTestCase.get_targets_from_remote_path(url)
         raw_output = []
-        for output_target in output_targets:        
+        for output_target in output_targets:
             raw_output.append(output_target.open('r').read())
 
         return ''.join(raw_output)
-

@@ -4,9 +4,9 @@ import logging
 
 import luigi
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.util.url import get_target_from_url
 
 log = logging.getLogger(__name__)
 

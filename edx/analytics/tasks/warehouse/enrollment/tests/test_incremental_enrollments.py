@@ -3,17 +3,18 @@
 import datetime
 import textwrap
 from StringIO import StringIO
+from unittest import TestCase
+
 from mock import MagicMock
 from numpy import isnan  # pylint: disable=no-name-in-module
 import pandas
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.reports.incremental_enrollments import WeeklyIncrementalUsersAndEnrollments
-from edx.analytics.tasks.reports.incremental_enrollments import DailyRegistrationsEnrollmentsAndCourses
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.enrollment.incremental_enrollments import WeeklyIncrementalUsersAndEnrollments
+from edx.analytics.tasks.warehouse.enrollment.incremental_enrollments import DailyRegistrationsEnrollmentsAndCourses
 
 
-class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
+class TestWeeklyIncrementalUsersAndEnrollments(TestCase):
     """Tests for WeeklyIncrementalUsersAndEnrollments class."""
 
     @staticmethod
@@ -276,7 +277,7 @@ class TestWeeklyIncrementalUsersAndEnrollments(unittest.TestCase):
         self.assertEqual(res.loc[self.row_label('enrollment_change')]['2013-01-15'], 2)
 
 
-class TestDailyRegistrationsEnrollmentsAndCourses(unittest.TestCase):
+class TestDailyRegistrationsEnrollmentsAndCourses(TestCase):
     """Tests for DailyRegistrationsEnrollmentsAndCourses class."""
 
     @staticmethod

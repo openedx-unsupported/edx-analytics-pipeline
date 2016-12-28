@@ -1,18 +1,19 @@
 """
 Luigi tasks for extracting course enrollment statistics from tracking log files.
 """
+import datetime
+import logging
+
 import luigi
 import luigi.s3
-import datetime
 
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import PathSetTask
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
-import logging
 log = logging.getLogger(__name__)
 
 UNENROLLED = -1

@@ -6,13 +6,13 @@ Supports outputs to HDFS, S3, and local FS.
 
 """
 
-import boto
 import datetime
 import fnmatch
 import logging
 import os
 import re
 
+import boto
 import luigi
 import luigi.hdfs
 import luigi.format
@@ -20,9 +20,9 @@ import luigi.task
 
 from luigi.date_interval import DateInterval
 
-from edx.analytics.tasks.s3_util import generate_s3_sources, get_s3_bucket_key_names
-from edx.analytics.tasks.url import ExternalURL, UncheckedExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.s3_util import generate_s3_sources, get_s3_bucket_key_names
+from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, url_path_join, get_target_from_url
 
 
 log = logging.getLogger(__name__)

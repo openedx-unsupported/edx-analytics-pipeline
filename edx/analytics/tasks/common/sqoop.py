@@ -10,14 +10,13 @@ import luigi.hadoop
 import luigi.hdfs
 import luigi.configuration
 
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
 METADATA_FILENAME = '_metadata'
+
 
 def load_sqoop_cmd():
     """Get path to sqoop command from Luigi configuration."""

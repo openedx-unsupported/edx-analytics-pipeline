@@ -7,19 +7,18 @@ validate user visible outputs.
 import datetime
 import logging
 import os
+import shutil
 import tempfile
 import textwrap
-import shutil
 import urlparse
 
 import boto
 import gnupg
 
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available
 from edx.analytics.tasks.tests.acceptance.services import shell
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id, get_org_id_for_course
+from edx.analytics.tasks.util.url import url_path_join
 
 
 log = logging.getLogger(__name__)

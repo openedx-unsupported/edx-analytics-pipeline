@@ -6,19 +6,11 @@ import logging
 
 import luigi
 import luigi.configuration
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.util.vertica_target import VerticaTarget, CredentialFileVerticaTarget
+
+from edx.analytics.tasks.util.url import ExternalURL
+from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
 
 log = logging.getLogger(__name__)
-
-try:
-    import vertica_python
-    vertica_client_available = True  # pylint: disable-msg=C0103
-except ImportError:
-    log.warn('Unable to import Vertica client libraries')
-    # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
-    # them, instead just fail noisily if we attempt to use these libraries.
-    vertica_client_available = False  # pylint: disable-msg=C0103
 
 
 class BaseVerticaSqlScriptTaskMixin(object):
@@ -76,14 +68,14 @@ class RunVerticaSqlScriptTask(RunVerticaSqlScriptTaskMixin, luigi.Task):
     depends_on = None
 
     def add_dependency(self, dependency):
-      """
-      Adds a custom dependency/requirement for this task.
+        """
+        Adds a custom dependency/requirement for this task.
 
-      Note: this currently *sets* a single, custom dependency.  You cannot add multiple dependencies to this task.
-      The last dependency to be added is the only one that will stick.  It will, however, not be the only dependency,
-      as this task has a "base" set of dependencies.
-      """
-      self.depends_on = dependency
+        Note: this currently *sets* a single, custom dependency.  You cannot add multiple dependencies to this task.
+        The last dependency to be added is the only one that will stick.  It will, however, not be the only dependency,
+        as this task has a "base" set of dependencies.
+        """
+        self.depends_on = dependency
 
     def requires(self):
         if self.required_tasks is None:
@@ -93,7 +85,7 @@ class RunVerticaSqlScriptTask(RunVerticaSqlScriptTaskMixin, luigi.Task):
             }
 
             if self.depends_on is not None:
-              self.required_tasks['depends_on'] = self.depends_on
+                self.required_tasks['depends_on'] = self.depends_on
 
         return self.required_tasks
 

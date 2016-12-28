@@ -2,15 +2,15 @@
 Ensure the user registrations task is setup properly.
 """
 from __future__ import absolute_import
+from unittest import TestCase
 
 from luigi import date_interval
 from mock import sentinel
 
-from edx.analytics.tasks.user_registrations import UserRegistrationsPerDay
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.warehouse.enrollment.user_registrations import UserRegistrationsPerDay
 
 
-class UserRegistrationsPerDayTestCase(unittest.TestCase):  # pylint: disable=missing-docstring
+class UserRegistrationsPerDayTestCase(TestCase):  # pylint: disable=missing-docstring
 
     def test_day(self):
         task = self.create_task(date_interval.Date.parse('2014-01-01'))

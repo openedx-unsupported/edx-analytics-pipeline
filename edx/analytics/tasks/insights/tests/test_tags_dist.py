@@ -1,14 +1,14 @@
 """Test tags distribution"""
+from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.tags_dist import TagsDistributionPerCourse
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.insights.tags_dist import TagsDistributionPerCourse
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, unittest.TestCase):
+class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -130,7 +130,7 @@ class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixi
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
-class TagsDistributionPerCourseReducerTest(ReducerTestMixin, unittest.TestCase):
+class TagsDistributionPerCourseReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """

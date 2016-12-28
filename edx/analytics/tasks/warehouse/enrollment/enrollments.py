@@ -5,15 +5,14 @@ from datetime import timedelta, date
 
 import luigi
 import luigi.hdfs
-
 import numpy
 import pandas
 
-from edx.analytics.tasks.util.tsv import read_tsv
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
+from edx.analytics.tasks.util.tsv import read_tsv
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.warehouse.enrollment.course_enroll import CourseEnrollmentChangesPerDay
 
 DEFAULT_NUM_WEEKS = 52
 DEFAULT_NUM_DAYS = 28

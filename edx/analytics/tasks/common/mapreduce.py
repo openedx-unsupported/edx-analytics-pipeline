@@ -16,8 +16,8 @@ import luigi.hadoop
 import luigi.task
 from luigi import configuration
 
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 
 log = logging.getLogger(__name__)

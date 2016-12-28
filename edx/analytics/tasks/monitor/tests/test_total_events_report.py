@@ -2,21 +2,21 @@
 Test total events daily report
 """
 
-import textwrap
-import tempfile
 import os
 import shutil
-import pandas
 from StringIO import StringIO
-
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.reports.total_events_report import TotalEventsReport
+import tempfile
+import textwrap
+from unittest import TestCase
 
 from mock import MagicMock
+import pandas
+
+from edx.analytics.tasks.monitor.total_events_report import TotalEventsReport
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
-class TestTotalEventsReport(unittest.TestCase):
+class TestTotalEventsReport(TestCase):
     """Tests for TotalEventsReport report task."""
 
     def setUp(self):

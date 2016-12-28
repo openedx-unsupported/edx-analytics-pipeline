@@ -9,15 +9,15 @@ import json
 import luigi
 from requests.exceptions import HTTPError
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask,
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, BooleanField, StringField, IntegerField
-from edx.analytics.tasks.course_list import TimestampPartitionMixin, CourseRecord, CourseListApiDataTask
+from edx.analytics.tasks.insights.course_list import TimestampPartitionMixin, CourseRecord, CourseListApiDataTask
 
 
 log = logging.getLogger(__name__)

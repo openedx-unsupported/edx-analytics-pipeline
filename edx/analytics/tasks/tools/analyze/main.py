@@ -6,9 +6,9 @@ import datetime
 import re
 import sys
 
-from edx.analytics.tasks.launchers.analyze.parser import LogFileParser
-from edx.analytics.tasks.launchers.analyze.measure import Measurement
-from edx.analytics.tasks.launchers.analyze.report import text_report, json_report, html_report
+from edx.analytics.tasks.tools.analyze.parser import LogFileParser
+from edx.analytics.tasks.tools.analyze.measure import Measurement
+from edx.analytics.tasks.tools.analyze.report import text_report, json_report, html_report
 
 
 MESSAGE_START_PATTERN = r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) (?P<level>\w+) (?P<pid>\d+) \[(?P<module>.*?)\] (?P<filename>.*?):(?P<line_no>\d+) - (?P<content>.*)'

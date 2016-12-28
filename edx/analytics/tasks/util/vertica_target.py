@@ -149,6 +149,7 @@ class VerticaTarget(luigi.Target):
         query = "CREATE SCHEMA IF NOT EXISTS {marker_schema}".format(marker_schema=self.marker_schema)
         connection.cursor().execute(query)
 
+
 class CredentialFileVerticaTarget(VerticaTarget):
     """
     Represents a table in Vertica, is complete when the update_id is the same as a previous successful execution.

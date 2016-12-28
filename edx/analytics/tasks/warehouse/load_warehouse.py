@@ -2,21 +2,21 @@
 Workflow to load the warehouse, this serves as a replacement for pentaho loading.
 """
 import logging
+
 import luigi
 
-from edx.analytics.tasks.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
-from edx.analytics.tasks.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
-from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingCourseCatalogToWarehouse
-from edx.analytics.tasks.load_internal_reporting_course_catalog import LoadInternalReportingProgramCourseToWarehouse
-from edx.analytics.tasks.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
-from edx.analytics.tasks.load_internal_reporting_user_course import LoadUserCourseSummary
-from edx.analytics.tasks.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
-from edx.analytics.tasks.course_catalog import DailyLoadSubjectsToVerticaTask
-from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin
-
-from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
-from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.util.url import ExternalURL
+from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
+from edx.analytics.tasks.warehouse.course_catalog import DailyLoadSubjectsToVerticaTask
+from edx.analytics.tasks.warehouse.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
+from edx.analytics.tasks.warehouse.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import LoadInternalReportingCourseCatalogToWarehouse
+from edx.analytics.tasks.warehouse.load_internal_reporting_user_activity import LoadInternalReportingUserActivityToWarehouse
+from edx.analytics.tasks.warehouse.load_internal_reporting_user_course import LoadUserCourseSummary
+from edx.analytics.tasks.warehouse.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
+
 
 log = logging.getLogger(__name__)
 

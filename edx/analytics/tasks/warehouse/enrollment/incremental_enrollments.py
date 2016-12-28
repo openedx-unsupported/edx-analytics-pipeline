@@ -6,10 +6,10 @@ import luigi
 import luigi.hdfs
 from luigi.date_interval import Custom
 import pandas
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.reports.total_enrollments import AllCourseEnrollmentCountMixin
-from edx.analytics.tasks.course_enroll import CourseEnrollmentChangesPerDay
-from edx.analytics.tasks.user_registrations import UserRegistrationsPerDay
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.warehouse.enrollment.total_enrollments import AllCourseEnrollmentCountMixin
+from edx.analytics.tasks.warehouse.enrollment.course_enroll import CourseEnrollmentChangesPerDay
+from edx.analytics.tasks.warehouse.enrollment.user_registrations import UserRegistrationsPerDay
 
 MINIMUM_DATE = date(1900, 1, 1)
 

@@ -7,23 +7,23 @@ import luigi
 import luigi.task
 from luigi.parameter import DateIntervalParameter
 
-from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask
-from edx.analytics.tasks.load_internal_reporting_course_catalog import (
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
 )
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import (
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import (
     PathSelectionByDateIntervalTask,
     EventLogSelectionDownstreamMixin,
     EventLogSelectionMixin,
 )
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
+from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.decorators import workflow_entry_point
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, BooleanField, DateTimeField
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'

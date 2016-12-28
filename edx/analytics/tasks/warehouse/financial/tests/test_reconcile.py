@@ -1,11 +1,11 @@
 """Tests for Order-transaction reconciliation and reporting."""
 
 from ddt import ddt, data, unpack
+from unittest import TestCase
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.config import with_luigi_config
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.reports.reconcile import (
+from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.warehouse.financial.reconcile import (
     ReconcileOrdersAndTransactionsTask,
     BaseOrderItemRecord,
     OrderItemRecord,
@@ -99,7 +99,7 @@ class ReconciliationTaskMixin(object):
 
 
 @ddt
-class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, unittest.TestCase):
+class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, TestCase):
     """Test financial order-transaction mapper"""
 
     def _convert_record_to_line(self, record):
@@ -182,7 +182,7 @@ class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, unitte
 
 
 @ddt
-class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, unittest.TestCase):
+class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, TestCase):
     """Test financial order-transaction reducer"""
 
     def _check_output(self, inputs, column_values, **extra_values):

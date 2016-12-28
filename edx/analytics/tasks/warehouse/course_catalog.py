@@ -1,15 +1,14 @@
 """Collect the course catalog from the course catalog API for processing of course metadata like subjects or types."""
-import requests
 import datetime
-
 import json
+import requests
+
 import luigi
 
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # See https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl.

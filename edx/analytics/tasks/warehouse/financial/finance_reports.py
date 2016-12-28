@@ -1,14 +1,14 @@
 """Provide entry-point for generating finance reports."""
 import luigi
 
-from edx.analytics.tasks.reports.reconcile import (
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
+from edx.analytics.tasks.warehouse.financial.reconcile import (
     TransactionReportTask, LoadInternalReportingOrderTransactionsToWarehouse
 )
-from edx.analytics.tasks.reports.ed_services_financial_report import (
+from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import (
     LoadInternalReportingEdServicesReportToWarehouse
 )
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
-from edx.analytics.tasks.vertica_load import VerticaCopyTaskMixin
 
 
 class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, luigi.WrapperTask):

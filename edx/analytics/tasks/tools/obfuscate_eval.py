@@ -29,7 +29,7 @@ import sys
 from pyinstrument import Profiler
 import cjson
 
-from edx.analytics.tasks.pathutil import PathSetTask
+from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.obfuscate_util import (
     backslash_encode_value,

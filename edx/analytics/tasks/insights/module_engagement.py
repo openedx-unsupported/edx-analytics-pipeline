@@ -9,36 +9,32 @@ import datetime
 import logging
 import random
 
-log = logging.getLogger(__name__)
-
-# pylint: disable=wrong-import-position
 import luigi
 import luigi.task
 from luigi import date_interval
 try:
     import numpy
 except ImportError:
-    log.warn('Unable to import numpy')
     numpy = None  # pylint: disable=invalid-name
 
-from edx.analytics.tasks.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
-    ImportAuthUserProfileTask
-from edx.analytics.tasks.database_imports import ImportCourseUserGroupTask
-from edx.analytics.tasks.decorators import workflow_entry_point
-from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask
-from edx.analytics.tasks.enrollments import ExternalCourseEnrollmentTableTask
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
+    ImportAuthUserProfileTask, ImportCourseUserGroupTask
+from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentTableTask
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
-
 from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask,
-    hive_database_name)
+    WarehouseMixin, BareHiveTableTask, HivePartitionTask, hive_database_name
+)
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+
+log = logging.getLogger(__name__)
 
 
 class ModuleEngagementRecord(Record):

@@ -3,10 +3,8 @@
 End to end test of the per-module engagement workflow.
 """
 
-import logging
 import datetime
-import luigi
-
+import logging
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_elasticsearch_available
 

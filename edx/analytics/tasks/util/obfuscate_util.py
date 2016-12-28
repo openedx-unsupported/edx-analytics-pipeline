@@ -5,8 +5,8 @@ import logging
 
 import luigi
 
-from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
+from edx.analytics.tasks.util.url import ExternalURL
 
 
 log = logging.getLogger(__name__)

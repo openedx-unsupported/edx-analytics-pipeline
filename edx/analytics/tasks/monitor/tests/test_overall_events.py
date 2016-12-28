@@ -2,16 +2,16 @@
 
 import sys
 import json
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.overall_events import TotalEventsDailyTask
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from unittest import TestCase
 
 from StringIO import StringIO
 
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
-class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+
+class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Ensure events of various flavors are counted"""
 
     DATE = '2013-12-17'
@@ -111,7 +111,7 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittes
         self.assertEquals(test_stderr, 'reporter:counter:Event,Missing Time Field,1')
 
 
-class TotalEventsTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class TotalEventsTaskReducerTest(ReducerTestMixin, TestCase):
     """Ensure counts are aggregated"""
 
     def setUp(self):

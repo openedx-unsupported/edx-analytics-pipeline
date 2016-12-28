@@ -8,11 +8,10 @@ import textwrap
 import luigi
 from luigi.hive import HiveQueryTask, HivePartitionTarget
 
-from edx.analytics.tasks.sqoop import SqoopImportFromMysql
-from edx.analytics.tasks.url import url_path_join, ExternalURL
+from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
+from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type, WarehouseMixin, HivePartition
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 

@@ -1,12 +1,14 @@
 """event_type and event_source values being encountered on each day in a given time interval"""
 
 import logging
+
 import luigi
 import luigi.task
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

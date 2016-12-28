@@ -1,17 +1,17 @@
 """Test student engagement metrics"""
 
 import json
+from unittest import TestCase
 
 import luigi
 from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.student_engagement import StudentEngagementTask, SUBSECTION_VIEWED_MARKER
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.data_api.student_engagement import StudentEngagementTask, SUBSECTION_VIEWED_MARKER
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Base class for test analysis of detailed student engagement"""
 
     DEFAULT_USER_ID = 10
@@ -234,7 +234,7 @@ class StudentEngagementTaskLegacyMapTest(InitializeLegacyKeysMixin, StudentEngag
 
 
 @ddt
-class StudentEngagementTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class StudentEngagementTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that engagement data is reduced properly
     """

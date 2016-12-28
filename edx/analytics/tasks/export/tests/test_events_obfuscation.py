@@ -1,20 +1,21 @@
 """Tests for events obfuscation tasks."""
 
 import textwrap
+from unittest import TestCase
+
 from ddt import ddt, data, unpack
 from mock import MagicMock
 
-from edx.analytics.tasks.events_obfuscation import ObfuscateCourseEventsTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.export.events_obfuscation import ObfuscateCourseEventsTask
 import edx.analytics.tasks.util.eventlog as eventlog
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 
-class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, unittest.TestCase):
+class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, TestCase):
     """Base class for testing event obfuscation."""
 
     DATE = '2013-12-17'

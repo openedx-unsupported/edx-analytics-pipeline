@@ -1,21 +1,22 @@
 """Test course blocks tasks."""
 
-import os
 import json
+import logging
+import os
 import shutil
 import tempfile
-import logging
+from unittest import TestCase
 from urllib import urlencode
-from requests.exceptions import HTTPError
-import httpretty
-from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.course_blocks import (
+from ddt import ddt, data, unpack
+import httpretty
+from requests.exceptions import HTTPError
+
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.course_blocks import (
     CourseBlocksApiDataTask, PullCourseBlocksApiData,
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.fixtures.helpers import load_fixture
+from edx.analytics.tasks.util.tests.helpers import load_fixture
 
 
 log = logging.getLogger(__name__)
@@ -65,7 +66,7 @@ class CourseBlocksTestMixin(object):
 
 
 @ddt
-class CourseBlocksApiDataTaskTest(CourseBlocksTestMixin, unittest.TestCase):
+class CourseBlocksApiDataTaskTest(CourseBlocksTestMixin, TestCase):
     """Tests the CourseBlocksApiDataTask basic functions. """
 
     def test_complete(self):
@@ -80,7 +81,7 @@ class CourseBlocksApiDataTaskTest(CourseBlocksTestMixin, unittest.TestCase):
 
 
 @ddt
-class CourseBlocksApiDataMapperTaskTest(CourseBlocksTestMixin, MapperTestMixin, unittest.TestCase):
+class CourseBlocksApiDataMapperTaskTest(CourseBlocksTestMixin, MapperTestMixin, TestCase):
     """Tests the CourseBlocksApiDataTask mapper output"""
 
     @data(
@@ -107,7 +108,7 @@ class CourseBlocksApiDataMapperTaskTest(CourseBlocksTestMixin, MapperTestMixin, 
 
 
 @ddt
-class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin, unittest.TestCase):
+class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin, TestCase):
     """Tests the CourseBlocksApiDataTask reducer output"""
 
     # single, root-only block
@@ -198,7 +199,7 @@ class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin
     )
     @unpack
     def test_map_output(self, expected_tuples, sort_orphan_blocks_up):
-        # Use single or multiple block input data
+        # Use single or multiple block input data.
         input_data = json.loads(
             self.single_block_input_data if len(expected_tuples) == 1 else self.multiple_block_input_data
         )
@@ -213,9 +214,9 @@ class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin
         )
 
     def test_edx_demo_blocks(self):
-        # Use a "real" input example, taken from the edX Demo course
-        input_data = [json.loads(load_fixture('demo_course_blocks.json'))]
-        expected_tuples = eval(load_fixture('demo_course_blocks_reduced.tuples'))  # pylint: disable=eval-used
+        # Use a "real" input example, taken from the edX Demo course.
+        input_data = [json.loads(load_fixture('../../insights/tests/fixtures/demo_course_blocks.json'))]
+        expected_tuples = eval(load_fixture('../../insights/tests/fixtures/demo_course_blocks_reduced.tuples'))  # pylint: disable=eval-used
         self._check_output_complete_tuple(
             input_data,
             expected_tuples,
@@ -223,7 +224,7 @@ class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin
 
 
 @ddt
-class PullCourseBlocksApiDataTest(CourseBlocksTestMixin, unittest.TestCase):
+class PullCourseBlocksApiDataTest(CourseBlocksTestMixin, TestCase):
     """Tests the PullCourseBlocksApiData task."""
 
     task_class = PullCourseBlocksApiData

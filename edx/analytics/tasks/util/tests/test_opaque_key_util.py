@@ -1,13 +1,13 @@
 """
 Tests for utilities that parse event logs.
 """
+from unittest import TestCase
 
 from ccx_keys.locator import CCXLocator
 from ddt import data, ddt, unpack
 from opaque_keys.edx.locator import CourseLocator
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.tests import unittest
 
 
 VALID_COURSE_ID = unicode(CourseLocator(org='org', course='course_id', run='course_run'))
@@ -20,7 +20,7 @@ COURSE_ID_WITH_COLONS = unicode(CourseLocator(org='org', course='course:id', run
 
 
 @ddt
-class CourseIdTest(unittest.TestCase):
+class CourseIdTest(TestCase):
     """
     Verify that course_id filtering works correctly.
     """

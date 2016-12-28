@@ -4,28 +4,24 @@ Ensure we can write to Vertica data sources.
 from __future__ import absolute_import
 
 import textwrap
+from unittest import TestCase
 
 import luigi
 import luigi.task
 
-from mock import call
-from mock import MagicMock
-from mock import patch
-from mock import sentinel
+from mock import MagicMock, patch, sentinel
 
-from edx.analytics.tasks.run_vertica_sql_script import RunVerticaSqlScriptTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.run_vertica_sql_script import RunVerticaSqlScriptTask
 
 
-class RunVerticaSqlScriptTaskTest(unittest.TestCase):
+class RunVerticaSqlScriptTaskTest(TestCase):
     """
     Ensure we can connect to and write data to Vertica data sources.
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.run_vertica_sql_script.vertica_python.vertica')
+        patcher = patch('edx.analytics.tasks.warehouse.run_vertica_sql_script.vertica_python.vertica')
         self.mock_vertica_connector = patcher.start()
         self.addCleanup(patcher.stop)
 

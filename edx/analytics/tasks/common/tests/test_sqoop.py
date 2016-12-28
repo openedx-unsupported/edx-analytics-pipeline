@@ -2,12 +2,12 @@
 
 import textwrap
 import json
+import unittest
 
 from mock import MagicMock, patch, sentinel, Mock
 
-from edx.analytics.tasks.sqoop import SqoopImportFromMysql
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
 class SqoopImportFromMysqlTestCase(unittest.TestCase):
@@ -16,7 +16,7 @@ class SqoopImportFromMysqlTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.sqoop.SqoopPasswordTarget')
+        patcher = patch('edx.analytics.tasks.common.sqoop.SqoopPasswordTarget')
         self.mock_sqoop_password_target = patcher.start()
         self.addCleanup(patcher.stop)
         self.mock_sqoop_password_target().path = "/temp/password_file"

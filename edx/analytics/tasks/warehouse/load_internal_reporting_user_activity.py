@@ -7,15 +7,15 @@ import datetime
 import os
 import logging
 import luigi
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import ExternalURL, url_path_join
-from edx.analytics.tasks.user_activity import UserActivityTableTask
-from edx.analytics.tasks.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
-from edx.analytics.tasks.database_imports import ImportAuthUserTask
+
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask
+from edx.analytics.tasks.insights.user_activity import CourseActivityWeeklyTask, UserActivityTableTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
-from edx.analytics.tasks.user_activity import CourseActivityWeeklyTask
+from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
 

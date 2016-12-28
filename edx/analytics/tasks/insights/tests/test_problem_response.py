@@ -1,24 +1,25 @@
 """Test problem response data tasks."""
 
+from collections import namedtuple
+from datetime import datetime
 import os
-import re
 import json
 import random
+import re
 import shutil
 import tempfile
-from datetime import datetime
-from collections import namedtuple
-import luigi
-from ddt import ddt, data, unpack
+from unittest import TestCase
 
-from edx.analytics.tasks.problem_response import (
+from ddt import ddt, data, unpack
+import luigi
+
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.problem_response import (
     ProblemResponseRecord, LatestProblemResponseDataTask, LatestProblemResponseTableTask,
     ProblemResponseReportTask, LatestProblemResponsePartitionTask,
 )
 from edx.analytics.tasks.util.record import DateTimeField
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
 class ProblemResponseTestMixin(InitializeOpaqueKeysMixin):
@@ -47,7 +48,7 @@ class ProblemResponseTestMixin(InitializeOpaqueKeysMixin):
 
 
 @ddt
-class LatestProblemResponseTaskMapTest(ProblemResponseTestMixin, MapperTestMixin, unittest.TestCase):
+class LatestProblemResponseTaskMapTest(ProblemResponseTestMixin, MapperTestMixin, TestCase):
     """Tests the latest problem response mapper."""
 
     DEFAULT_USER_ID = 10
@@ -175,7 +176,7 @@ class LatestProblemResponseTaskMapLegacyKeysTest(InitializeLegacyKeysMixin, Late
 
 
 @ddt
-class LatestProblemResponseTaskReducerTest(ProblemResponseTestMixin, ReducerTestMixin, unittest.TestCase):
+class LatestProblemResponseTaskReducerTest(ProblemResponseTestMixin, ReducerTestMixin, TestCase):
     """
     Tests the latest problem response reducer.
     """
@@ -328,7 +329,7 @@ class LatestProblemResponseTaskReducerLegacyKeysTest(InitializeLegacyKeysMixin, 
 
 
 @ddt
-class LatestProblemResponseDataTaskTest(ProblemResponseTestMixin, ReducerTestMixin, unittest.TestCase):
+class LatestProblemResponseDataTaskTest(ProblemResponseTestMixin, ReducerTestMixin, TestCase):
     """Test the properties of the LatestProblemResponseDataTask."""
     task_class = LatestProblemResponseDataTask
     DATE = '2013-12-17'
@@ -383,7 +384,7 @@ class LatestProblemResponseDataTaskTest(ProblemResponseTestMixin, ReducerTestMix
             (expected_str,))
 
 
-class LatestProblemResponseTableTaskTest(ReducerTestMixin, unittest.TestCase):
+class LatestProblemResponseTableTaskTest(ReducerTestMixin, TestCase):
     """Test the properties of the LatestProblemResponseTableTask."""
     task_class = LatestProblemResponseTableTask
 
@@ -409,7 +410,7 @@ class ProblemResponseReportInputTask(luigi.Task):
 
 
 @ddt
-class ProblemResponseReportTaskMapTest(MapperTestMixin, unittest.TestCase):
+class ProblemResponseReportTaskMapTest(MapperTestMixin, TestCase):
     """Test the properties of the ProblemResponseReportTask."""
     task_class = ProblemResponseReportTask
     DEFAULT_ARGS = dict(
@@ -441,7 +442,7 @@ class ProblemResponseReportTaskMapTest(MapperTestMixin, unittest.TestCase):
         self.assertEquals(filename, '/tmp/output/my_course_id_problem_response.csv')
 
 
-class ProblemResponseReportTestMixin(ProblemResponseTestMixin, unittest.TestCase):
+class ProblemResponseReportTestMixin(ProblemResponseTestMixin, TestCase):
     """
     Helper methods for testing the problem response report tasks.
     """
@@ -587,7 +588,7 @@ class ProblemResponseReportTaskReducerTest(ReducerTestMixin, ProblemResponseRepo
                           dict(list_field="['a', 'b']"))
 
 
-class LatestProblemResponsePartitionTaskTest(ProblemResponseTestMixin, unittest.TestCase):
+class LatestProblemResponsePartitionTaskTest(ProblemResponseTestMixin, TestCase):
     """Tests the LatestProblemResponsePartitionTask's formatted partition value."""
 
     task_class = LatestProblemResponsePartitionTask

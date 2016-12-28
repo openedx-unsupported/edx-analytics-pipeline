@@ -1,16 +1,17 @@
 """ test event type distribution task """
+import textwrap
+from unittest import TestCase
 
 from ddt import ddt, data, unpack
-from edx.analytics.tasks.event_type_dist import EventTypeDistributionTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
-from edx.analytics.tasks.tests.target import FakeTarget
-import textwrap
 from mock import MagicMock
 
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.event_type_dist import EventTypeDistributionTask
 
-class EventTypeDistributionTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, unittest.TestCase):
+
+class EventTypeDistributionTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
     """Tests to check if event type distribution task mapper works"""
 
     def setUp(self):
@@ -126,7 +127,7 @@ class EventTypeDistributionTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixi
 
 
 @ddt
-class EventTypeDistributionTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class EventTypeDistributionTaskReducerTest(ReducerTestMixin, TestCase):
     """Tests to check if event type distribution reducer works"""
 
     def setUp(self):

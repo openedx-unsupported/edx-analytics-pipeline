@@ -2,11 +2,11 @@
 End to end test of the course list hive partition task.
 """
 
-import logging
 import datetime
+import logging
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, get_target_for_local_server
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 

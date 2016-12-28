@@ -1,13 +1,13 @@
 """Generates a financial report to be delivered to our good friends in Ed Services."""
 import luigi
 
-from edx.analytics.tasks.reports.reconcile import ReconciledOrderTransactionTableTask
-from edx.analytics.tasks.database_imports import (
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.insights.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin, hive_decimal_type
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.warehouse.financial.reconcile import ReconciledOrderTransactionTableTask
 
 
 class BuildEdServicesReportTask(DatabaseImportMixin, MapReduceJobTaskMixin, HiveTableFromQueryTask):

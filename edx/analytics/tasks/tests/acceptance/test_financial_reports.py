@@ -11,8 +11,8 @@ import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.reports.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
+from edx.analytics.tasks.util.url import url_path_join
+from edx.analytics.tasks.warehouse.financial.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
 
 log = logging.getLogger(__name__)
 

@@ -1,33 +1,33 @@
 """
 Support for loading data into an HP Vertica database.
 """
+
 from collections import namedtuple
-import json
 import logging
 
 import luigi
 import luigi.configuration
-from edx.analytics.tasks.url import ExternalURL
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.vertica_target import VerticaTarget, CredentialFileVerticaTarget
+from edx.analytics.tasks.util.url import ExternalURL
+from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
 
 log = logging.getLogger(__name__)
 
 try:
     import vertica_python
-    vertica_client_available = True  # pylint: disable-msg=C0103
+    vertica_client_available = True  # pylint: disable=invalid-name
 except ImportError:
     log.warn('Unable to import Vertica client libraries')
     # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
     # them, instead just fail noisily if we attempt to use these libraries.
-    vertica_client_available = False  # pylint: disable-msg=C0103
+    vertica_client_available = False  # pylint: disable=invalid-name
 
 PROJECTION_TYPE_NORMAL = 'Normal'
 PROJECTION_TYPE_AGGREGATE = 'Aggregate'
 
 VerticaProjection = namedtuple('VerticaProjection',  # pylint: disable=invalid-name
-                               ['name', 'type', 'definition',])
+                               ['name', 'type', 'definition', ])
 
 
 class VerticaCopyTaskMixin(OverwriteOutputMixin):
@@ -56,6 +56,7 @@ class VerticaCopyTaskMixin(OverwriteOutputMixin):
         default='experimental',
         config_path={'section': 'vertica-export', 'name': 'persistent_schema'}
     )
+
 
 class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     """
@@ -471,41 +472,3 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """Call to ensure fast failure if this machine doesn't have the Vertica client library available."""
         if not vertica_client_available:
             raise ImportError('Vertica client library not available')
-
-
-class CredentialFileVerticaTarget(VerticaTarget):
-    """
-    Represents a table in Vertica, is complete when the update_id is the same as a previous successful execution.
-
-    Arguments:
-
-        credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
-            that will be used to connect to the database.
-        database_name (str): The name of the database that the table exists in. Note this database need not exist.
-        schema (str): The name of the schema in which the table being modified lies.
-        table (str): The name of the table in the schema that is being modified.
-        update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
-            values will not be executed.
-    """
-
-    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None, marker_schema=None):
-        with credentials_target.open('r') as credentials_file:
-            cred = json.load(credentials_file)
-            super(CredentialFileVerticaTarget, self).__init__(
-                # Annoying, but the port must be passed in with the host string...
-                host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 5433)),
-                user=cred.get('username'),
-                password=cred.get('password'),
-                schema=schema,
-                table=table,
-                update_id=update_id,
-                read_timeout=read_timeout,
-                marker_schema=marker_schema,
-            )
-
-    def exists(self, connection=None):
-        # The parent class fails if the database does not exist. This override tolerates that error.
-        try:
-            return super(CredentialFileVerticaTarget, self).exists(connection=connection)
-        except vertica_python.errors.ProgrammingError:
-            return False

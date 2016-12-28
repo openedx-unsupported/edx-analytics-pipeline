@@ -14,14 +14,13 @@ import luigi.hdfs
 import luigi.s3
 from luigi.configuration import get_config
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
-from edx.analytics.tasks.decorators import workflow_entry_point
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.util.decorators import workflow_entry_point
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 import logging
 log = logging.getLogger(__name__)

@@ -1,14 +1,15 @@
 """
 Produces report of all events as provided by a total events task
 """
+import logging
+
 import luigi
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, ExternalURL
-from edx.analytics.tasks.overall_events import TotalEventsDailyTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask
+from edx.analytics.tasks.util.url import get_target_from_url, ExternalURL
 
-import logging
 log = logging.getLogger(__name__)
 
 

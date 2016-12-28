@@ -10,9 +10,8 @@ import json
 
 import luigi
 import mysql.connector
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
+
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 
 class MysqlSelectTask(luigi.Task):

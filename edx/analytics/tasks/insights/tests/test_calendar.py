@@ -1,14 +1,15 @@
 """Verify that the calendar table is constructed correctly."""
 
+from unittest import TestCase
+
 from luigi import date_interval
 
-from edx.analytics.tasks.calendar_task import CalendarTask
+from edx.analytics.tasks.insights.calendar_task import CalendarTask
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
-class CalendarTaskTest(unittest.TestCase):
+class CalendarTaskTest(TestCase):
     """Verify that the calendar table is constructed correctly."""
 
     def test_single_day(self):

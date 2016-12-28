@@ -1,11 +1,13 @@
-"""Tests for S3--related utility functionality."""
+"""Tests for S3-related utility functionality."""
+
+from unittest import TestCase
+
 from mock import MagicMock, patch
 
-from edx.analytics.tasks import s3_util
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.util import s3_util
 
 
-class GenerateS3SourcesTestCase(unittest.TestCase):
+class GenerateS3SourcesTestCase(TestCase):
     """Tests for generate_s3_sources()."""
 
     def _make_key(self, keyname, size):
@@ -97,7 +99,7 @@ class GenerateS3SourcesTestCase(unittest.TestCase):
         ]))
 
 
-class ScalableS3ClientTestCase(unittest.TestCase):
+class ScalableS3ClientTestCase(TestCase):
     """Tests for ScalableS3Client class."""
 
     def setUp(self):

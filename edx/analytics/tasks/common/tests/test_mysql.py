@@ -5,20 +5,17 @@ from __future__ import absolute_import
 
 import datetime
 import textwrap
+import unittest
 
 import luigi
 
-from mock import MagicMock
-from mock import patch
-from mock import sentinel
+from mock import MagicMock, patch, sentinel
 from pandas import read_csv
 
-from edx.analytics.tasks.mysql_dump import MysqlSelectTask
-from edx.analytics.tasks.mysql_dump import mysql_datetime
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.config import with_luigi_config
+from edx.analytics.tasks.common.mysql_dump import MysqlSelectTask, mysql_datetime
+from edx.analytics.tasks.util.url import ExternalURL
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 
 
 class ConversionTestCase(unittest.TestCase):
@@ -72,7 +69,7 @@ class MysqlSelectTaskTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.mysql_dump.mysql.connector')
+        patcher = patch('edx.analytics.tasks.common.mysql_dump.mysql.connector')
         self.mock_mysql_connector = patcher.start()
         self.addCleanup(patcher.stop)
 

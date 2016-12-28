@@ -4,7 +4,7 @@ import argparse
 import os
 
 from boto import connect_s3
-from edx.analytics.tasks.s3_util import generate_s3_sources, join_as_s3_url, get_s3_key
+from edx.analytics.tasks.util.s3_util import generate_s3_sources, join_as_s3_url, get_s3_key
 
 
 def list_s3_files(source_url, patterns):

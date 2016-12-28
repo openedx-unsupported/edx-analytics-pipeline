@@ -9,12 +9,12 @@ import luigi
 import luigi.date_interval
 import yaml
 
-from edx.analytics.tasks.encrypt import make_encrypted_file
-from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.util.encrypt import make_encrypted_file
 from edx.analytics.tasks.util import eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.url import url_path_join, ExternalURL, get_target_from_url
 
 log = logging.getLogger(__name__)
 

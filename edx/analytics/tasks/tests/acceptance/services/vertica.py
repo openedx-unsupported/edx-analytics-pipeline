@@ -6,8 +6,7 @@ from contextlib import contextmanager
 
 import vertica_python
 
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.util.url import get_target_from_url
 
 
 class VerticaService(object):

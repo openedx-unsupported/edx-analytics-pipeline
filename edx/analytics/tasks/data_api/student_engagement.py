@@ -11,16 +11,14 @@ import re
 
 import luigi
 
-from edx.analytics.tasks.calendar_task import CalendarTableTask
-from edx.analytics.tasks.database_imports import (
-    ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask)
-from edx.analytics.tasks.enrollments import CourseEnrollmentTableTask
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
+from edx.analytics.tasks.insights.database_imports import (
+    ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
+)
+from edx.analytics.tasks.insights.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
 from edx.analytics.tasks.util.hive import (
     HivePartition,
     HiveQueryToMysqlTask,
@@ -28,6 +26,8 @@ from edx.analytics.tasks.util.hive import (
     HiveTableTask,
     WarehouseMixin,
 )
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

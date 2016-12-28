@@ -25,6 +25,8 @@ import luigi
 import luigi.configuration
 import luigi.hadoop
 
+import edx.analytics.tasks
+
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
 import urllib3.contrib.pyopenssl
@@ -52,12 +54,14 @@ def main():
         log.debug('Configuration file %s does not exist', OVERRIDE_CONFIGURATION_FILE)
 
     # Tell luigi what dependencies to pass to the Hadoop nodes
+    # - edx.analytics.tasks is used to load the pipeline code, since we cannot trust all will be loaded automatically.
     # - boto is used for all direct interactions with s3.
     # - cjson is used for all parsing event logs.
     # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
     #   - opaque_keys extensions:  ccx_keys
     #   - dependencies of opaque_keys:  bson, stevedore
+    luigi.hadoop.attach(edx.analytics.tasks)
     luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, requests)
 
     if configuration.getboolean('ccx', 'enabled', default=False):

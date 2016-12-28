@@ -4,12 +4,12 @@ Tests for tasks that collect enrollment events.
 """
 import datetime
 import json
-from ddt import ddt, data, unpack
-from edx.analytics.tasks.tests.map_reduce_mixins import ReducerTestMixin, MapperTestMixin
+from unittest import TestCase
 
+from ddt import ddt, data, unpack
 from luigi import date_interval
 
-from edx.analytics.tasks.user_activity import (
+from edx.analytics.tasks.insights.user_activity import (
     UserActivityTask,
     CourseActivityWeeklyTask,
     CourseActivityMonthlyTask,
@@ -19,12 +19,12 @@ from edx.analytics.tasks.user_activity import (
     POST_FORUM_LABEL,
 )
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import ReducerTestMixin, MapperTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
 @ddt
-class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -124,7 +124,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unitte
             expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
                         ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
         else:
-	    # The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
+            # The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
             expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
         self.assertEquals(event, expected)
 
@@ -176,7 +176,7 @@ class UserActivityTaskMapLegacyTest(InitializeLegacyKeysMixin, UserActivityTaskM
     pass
 
 
-class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMixin, unittest.TestCase):
+class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMixin, TestCase):
     """
     Tests to verify that UserActivityPerIntervalTask reducer works correctly.
     """
@@ -207,7 +207,7 @@ class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMi
         self._check_output_complete_tuple(values, expected)
 
 
-class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
     """Ensure the date interval is computed correctly for monthly tasks."""
 
     def setUp(self):
@@ -243,7 +243,7 @@ class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, unittest.TestCase)
         self.assertEquals(task.interval, date_interval.Custom.parse('2011-02-28-2012-02-27'))
 
 
-class CourseActivityMonthlyTaskTest(InitializeOpaqueKeysMixin, unittest.TestCase):
+class CourseActivityMonthlyTaskTest(InitializeOpaqueKeysMixin, TestCase):
     """Ensure the date interval is computed correctly for monthly tasks."""
 
     def setUp(self):

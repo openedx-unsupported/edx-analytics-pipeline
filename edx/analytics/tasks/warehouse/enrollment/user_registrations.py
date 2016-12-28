@@ -7,8 +7,8 @@ import datetime
 
 import luigi
 
-from edx.analytics.tasks.mysql_dump import MysqlSelectTask
-from edx.analytics.tasks.mysql_dump import mysql_datetime
+from edx.analytics.tasks.common.mysql_dump import MysqlSelectTask
+from edx.analytics.tasks.common.mysql_dump import mysql_datetime
 
 
 class UserRegistrationsPerDay(MysqlSelectTask):

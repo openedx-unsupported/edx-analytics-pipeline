@@ -3,17 +3,17 @@ Tests for tasks that collect enrollment events.
 
 """
 import json
+from unittest import TestCase
 
-from edx.analytics.tasks.course_enroll import (
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from edx.analytics.tasks.warehouse.enrollment.course_enroll import (
     CourseEnrollmentEventsPerDayMixin,
     CourseEnrollmentChangesPerDayMixin,
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -96,7 +96,7 @@ class CourseEnrollEventMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unitt
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
-class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
+class CourseEnrollEventReduceTest(TestCase, ReducerTestMixin):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """
@@ -205,7 +205,7 @@ class CourseEnrollEventReduceTest(unittest.TestCase, ReducerTestMixin):
         self._check_output_complete_tuple(inputs, expected)
 
 
-class CourseEnrollChangesReduceTest(ReducerTestMixin, unittest.TestCase):
+class CourseEnrollChangesReduceTest(ReducerTestMixin, TestCase):
     """
     Verify that CourseEnrollmentChangesPerDayMixin.reduce() works correctly.
     """

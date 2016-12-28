@@ -12,14 +12,14 @@ import cjson
 import luigi
 import yaml
 
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.util.file_util import read_config_file, copy_file_to_file
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, backslash_encode_value, backslash_decode_value, ObfuscatorDownstreamMixin
 )
-from edx.analytics.tasks.util.file_util import read_config_file, copy_file_to_file
-from edx.analytics.tasks.util.tempdir import make_temp_directory
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.tempdir import make_temp_directory
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 
 
 log = logging.getLogger(__name__)

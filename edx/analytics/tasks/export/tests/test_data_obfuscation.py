@@ -10,23 +10,23 @@ import shutil
 import tarfile
 import tempfile
 import xml.etree.ElementTree as ET
+from unittest import TestCase
 
 from luigi import LocalTarget
 from mock import MagicMock, sentinel
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-import edx.analytics.tasks.data_obfuscation as obfuscate
-from edx.analytics.tasks.url import url_path_join
+import edx.analytics.tasks.export.data_obfuscation as obfuscate
 from edx.analytics.tasks.util.obfuscate_util import reset_user_info_for_testing
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
+from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
+from edx.analytics.tasks.util.url import url_path_join
 
 
 LOG = logging.getLogger(__name__)
 
 
-class TestDataObfuscation(unittest.TestCase):
+class TestDataObfuscation(TestCase):
     """Tests for all data obfuscation tasks."""
 
     def run_task(self, task_cls, source):
@@ -418,7 +418,7 @@ class TestDataObfuscation(unittest.TestCase):
         self.assertDictEqual(json.loads(output), expected)
 
 
-class TestObfuscateCourseDumpTask(unittest.TestCase):
+class TestObfuscateCourseDumpTask(TestCase):
     """Test for ObfuscateCourseDumpTask."""
 
     def create_paths(self, course, dates):
@@ -448,7 +448,7 @@ class TestObfuscateCourseDumpTask(unittest.TestCase):
         self.assertEquals(task.data_directory, url_path_join(self.dump_root, coursename, 'state', '2015-12-06'))
 
 
-class TestCourseContentTask(unittest.TestCase):
+class TestCourseContentTask(TestCase):
     """Ensure sensitive fields are removed from the course content export"""
 
     COURSE_ID = 'course-v1:edX+DemoX+Test_2014'

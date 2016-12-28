@@ -3,29 +3,29 @@ Tests for tasks that calculate answer distributions.
 
 """
 import json
-import StringIO
 import hashlib
-import os
-import tempfile
-import shutil
 import math
+import os
+import shutil
+import StringIO
+import tempfile
+from unittest import TestCase
 
 from mock import Mock, call
 from opaque_keys.edx.locator import CourseLocator
 
-from edx.analytics.tasks.answer_dist import (
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.answer_dist import (
     ProblemCheckEventMixin,
     AnswerDistributionPerCourseMixin,
     AnswerDistributionOneFilePerCourseTask,
     try_str_to_float,
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.config import with_luigi_config, OPTION_REMOVED
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, unittest.TestCase):
+class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):
     """Base test class for testing ProblemCheckEventMixin."""
 
     def initialize_ids(self):
@@ -505,7 +505,7 @@ class ProblemCheckEventLegacyReduceTest(ProblemCheckEventReduceTest, InitializeL
     pass
 
 
-class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, unittest.TestCase, ReducerTestMixin):
+class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, TestCase, ReducerTestMixin):
     """
     Verify that AnswerDistributionPerCourseMixin.reduce() works correctly.
     """
@@ -918,7 +918,7 @@ class AnswerDistributionPerCourseLegacyReduceTest(InitializeLegacyKeysMixin, Ans
     pass
 
 
-class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMixin, unittest.TestCase):
+class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMixin, TestCase):
     """Tests for AnswerDistributionOneFilePerCourseTask class."""
 
     def setUp(self):
@@ -992,7 +992,7 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
         self.assertEquals(output_path, expected_output_path)
 
 
-class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
+class AnswerDistributionOneFilePerCourseTaskOutputRootTest(TestCase):
     """Tests for output_root behavior of AnswerDistributionOneFilePerCourseTask."""
 
     def setUp(self):
@@ -1037,7 +1037,7 @@ class AnswerDistributionOneFilePerCourseTaskOutputRootTest(unittest.TestCase):
         self.assertFalse(os.path.exists(self.output_root))
 
 
-class TestHelperFunctions(unittest.TestCase):
+class TestHelperFunctions(TestCase):
     """
     Test cases for helper functions
     """

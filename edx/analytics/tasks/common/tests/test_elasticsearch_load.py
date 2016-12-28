@@ -1,28 +1,28 @@
 """Tests for elasticsearch loading."""
 
 import datetime
-import luigi.hdfs
+import unittest
+
+import ddt
 from elasticsearch import TransportError
+import luigi.hdfs
 from mock import patch, call
 from freezegun import freeze_time
-import ddt
 
-from edx.analytics.tasks.elasticsearch_load import ElasticsearchIndexTask, AwsHttpConnection, IndexingError
-
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask, AwsHttpConnection, IndexingError
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
 
 class BaseIndexTest(object):
     """A base class for indexing tests."""
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.elasticsearch_load.elasticsearch.Elasticsearch')
+        patcher = patch('edx.analytics.tasks.common.elasticsearch_load.elasticsearch.Elasticsearch')
         self.elasticsearch_mock = patcher.start()
         self.addCleanup(patcher.stop)
         self.mock_es = self.elasticsearch_mock.return_value
 
-        sleep_patcher = patch('edx.analytics.tasks.elasticsearch_load.time.sleep', return_value=None)
+        sleep_patcher = patch('edx.analytics.tasks.common.elasticsearch_load.time.sleep', return_value=None)
         self.mock_sleep = sleep_patcher.start()
         self.addCleanup(sleep_patcher.stop)
 
@@ -165,7 +165,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(kwargs['connection_class'], AwsHttpConnection)
 
     def test_mapper(self):
-        with patch('edx.analytics.tasks.elasticsearch_load.random') as mock_random:
+        with patch('edx.analytics.tasks.common.elasticsearch_load.random') as mock_random:
             mock_random.randrange.return_value = 3
             self.assert_single_map_output('foo bar baz\r\n', 3, 'foo bar baz')
 

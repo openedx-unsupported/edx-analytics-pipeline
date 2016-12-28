@@ -1,15 +1,15 @@
 """Test the AWS-specific elasticsearch connection."""
 import socket
+from unittest import TestCase
 
 from boto.exception import BotoServerError
 from elasticsearch.exceptions import ElasticsearchException, TransportError
 from mock import patch
 
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsElasticsearchConnection, AwsHttpConnection
-from edx.analytics.tasks.tests import unittest
 
 
-class AwsElasticsearchConnectionTests(unittest.TestCase):
+class AwsElasticsearchConnectionTests(TestCase):
     """Test the generic connection."""
 
     def test_constructor_params(self):
@@ -49,7 +49,7 @@ class AwsElasticsearchConnectionTests(unittest.TestCase):
             connection.make_request('GET', 'https://example.com')
 
 
-class AwsHttpConnectionTests(unittest.TestCase):
+class AwsHttpConnectionTests(TestCase):
     """Mock out the request making part and test the connection."""
 
     @patch('edx.analytics.tasks.util.aws_elasticsearch_connection.AwsElasticsearchConnection.make_request')

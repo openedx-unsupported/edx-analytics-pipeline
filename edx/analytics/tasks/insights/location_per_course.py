@@ -1,38 +1,36 @@
 """
 Determine the number of users in each country are enrolled in each course.
 """
+from collections import defaultdict
 import datetime
 import logging
 import textwrap
-from collections import defaultdict
 
 import luigi
-from luigi.hive import HiveQueryTask, ExternalHiveTask
-from luigi.parameter import DateIntervalParameter
+from luigi.hive import HiveQueryTask
 
-from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
-from edx.analytics.tasks.database_imports import ImportIntoHiveTableTask
-from edx.analytics.tasks.decorators import workflow_entry_point
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.pathutil import (
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import (
     PathSelectionByDateIntervalTask,
     EventLogSelectionMixin,
     EventLogSelectionDownstreamMixin,
 )
-from edx.analytics.tasks.url import ExternalURL, get_target_from_url, url_path_join, UncheckedExternalURL
-from edx.analytics.tasks.util.geolocation import (
-    GeolocationMixin, GeolocationDownstreamMixin, UNKNOWN_COUNTRY, UNKNOWN_CODE,
-)
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask, ImportAuthUserTask
+from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.geolocation import (
+    GeolocationMixin, GeolocationDownstreamMixin
+)
 from edx.analytics.tasks.util.hive import (
     WarehouseMixin,
     hive_database_name,
     BareHiveTableTask,
     HivePartitionTask,
 )
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, StringField, DateField, IntegerField
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join, UncheckedExternalURL
 
 log = logging.getLogger(__name__)
 
@@ -330,7 +328,6 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         if not self.complete() and output_target.exists():
             output_target.remove()
         super(LastCountryOfUser, self).run()
-
 
     def mapper(self, line):
         record = LastIpAddressRecord.from_tsv(line)

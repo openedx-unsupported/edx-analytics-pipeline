@@ -8,11 +8,11 @@ import luigi
 import luigi.task
 
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 
 log = logging.getLogger(__name__)

@@ -1,21 +1,20 @@
 """Test student engagement metrics"""
 
 import json
+from unittest import TestCase
 
-from mock import patch, MagicMock
 from ddt import ddt, data, unpack
-from mock import sentinel
+from mock import patch, MagicMock, sentinel
 
-from edx.analytics.tasks.video import (
+from edx.analytics.tasks.insights.video import (
     UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
 @ddt
-class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Test video viewing mapper"""
 
     UTF8_BYTE_STRING = 'I\xd4\x89\xef\xbd\x94\xc3\xa9\xef\xbd\x92\xd0\xbb\xc3\xa3'
@@ -386,7 +385,7 @@ class ViewingColumns(object):
 
 
 @ddt
-class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     """Tests reducer for UserVideoViewingTask."""
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
@@ -396,7 +395,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
     def setUp(self):
         super(UserVideoViewingTaskReducerTest, self).setUp()
         self.reduce_key = (self.USERNAME, self.COURSE_ID, self.VIDEO_MODULE_ID)
-        patcher = patch('edx.analytics.tasks.video.urllib')
+        patcher = patch('edx.analytics.tasks.insights.video.urllib')
         self.mock_urllib = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -713,7 +712,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         })
 
 
-class VideoUsageTaskMapTest(MapperTestMixin, unittest.TestCase):
+class VideoUsageTaskMapTest(MapperTestMixin, TestCase):
     """Test video usage mapper"""
 
     task_class = VideoUsageTask
@@ -752,7 +751,7 @@ class UsageColumns(object):
 
 
 @ddt
-class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     """Test VideoUsageTask reducer."""
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
@@ -1076,7 +1075,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, unittest.TestCase):
 
 
 @ddt
-class GetFinalSegmentTest(unittest.TestCase):
+class GetFinalSegmentTest(TestCase):
     """Test video task's get_final_segment calculation."""
 
     def setUp(self):
@@ -1125,7 +1124,7 @@ class GetFinalSegmentTest(unittest.TestCase):
 
 
 @ddt
-class CompleteEndSegmentTest(unittest.TestCase):
+class CompleteEndSegmentTest(TestCase):
     """Test video task's complete_end_segment calculation."""
 
     def setUp(self):

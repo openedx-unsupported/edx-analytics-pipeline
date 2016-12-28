@@ -1,16 +1,17 @@
 """Test course list tasks."""
-import os
 import json
+import logging
+import os
 import shutil
 import tempfile
-import logging
+from unittest import TestCase
 from urllib import urlencode
-import httpretty
-from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.course_list import CourseListApiDataTask, PullCourseListApiData
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests import unittest
+from ddt import ddt, data, unpack
+import httpretty
+
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.course_list import CourseListApiDataTask, PullCourseListApiData
 
 
 log = logging.getLogger(__name__)
@@ -46,7 +47,7 @@ class CourseListTestMixin(object):
 
 
 @ddt
-class CourseListApiDataMapperTaskTest(CourseListTestMixin, MapperTestMixin, unittest.TestCase):
+class CourseListApiDataMapperTaskTest(CourseListTestMixin, MapperTestMixin, TestCase):
     """Tests the CourseListApiDataTask mapper output"""
 
     @data(
@@ -76,7 +77,7 @@ class CourseListApiDataMapperTaskTest(CourseListTestMixin, MapperTestMixin, unit
 
 
 @ddt
-class CourseListApiDataReducerTaskTest(CourseListTestMixin, ReducerTestMixin, unittest.TestCase):
+class CourseListApiDataReducerTaskTest(CourseListTestMixin, ReducerTestMixin, TestCase):
     """Tests the CourseListApiDataTask reducer output"""
 
     @data(
@@ -132,7 +133,7 @@ class CourseListApiDataReducerTaskTest(CourseListTestMixin, ReducerTestMixin, un
 
 
 @ddt
-class PullCourseListApiDataTest(unittest.TestCase):
+class PullCourseListApiDataTest(TestCase):
     """Tests the PullCourseListApiData task."""
 
     task_class = PullCourseListApiData

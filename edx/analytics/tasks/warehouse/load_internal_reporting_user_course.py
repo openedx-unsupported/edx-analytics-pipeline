@@ -1,13 +1,14 @@
 """
 Loads the user_course table into the warehouse through the pipeline via Hive.
 """
-import luigi
 import logging
 
-from edx.analytics.tasks.enrollments import EnrollmentSummaryRecord
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
+import luigi
+
+from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.hive import WarehouseMixin
-from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.util.url import ExternalURL
 
 log = logging.getLogger(__name__)
 

@@ -1,16 +1,16 @@
 """Tests of utilities to encrypt files."""
 
-import gnupg
 import tempfile
+from unittest import TestCase
 
-from edx.analytics.tasks.encrypt import make_encrypted_file, _import_key_files
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.url import url_path_join
+import gnupg
+
+from edx.analytics.tasks.util.encrypt import make_encrypted_file, _import_key_files
 from edx.analytics.tasks.util.tempdir import make_temp_directory
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 
-class MakeEncryptedFileTest(unittest.TestCase):
+class MakeEncryptedFileTest(TestCase):
     """Test make_encrypted_file context manager."""
 
     def setUp(self):

@@ -1,16 +1,16 @@
 """
 Tests for event export by course tasks
 """
+from unittest import TestCase
 
-from edx.analytics.tasks.event_exports_by_course import EventExportByCourseTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin
+from edx.analytics.tasks.export.event_exports_by_course import EventExportByCourseTask
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 from opaque_keys.edx.locator import CourseLocator
 
 
-class EventExportByCourseBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class EventExportByCourseBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Base class for EventExportByCourse Task test."""
 
     DATE = '2013-12-17'

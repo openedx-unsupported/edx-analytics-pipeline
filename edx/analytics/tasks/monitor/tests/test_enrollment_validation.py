@@ -5,10 +5,11 @@ import json
 import os
 import shutil
 import tempfile
+from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.enrollment_validation import (
+from edx.analytics.tasks.monitor.enrollment_validation import (
     CourseEnrollmentValidationTask,
     DEACTIVATED,
     ACTIVATED,
@@ -17,14 +18,13 @@ from edx.analytics.tasks.enrollment_validation import (
     CreateAllEnrollmentValidationEventsTask,
     CreateEnrollmentValidationEventsForTodayTask,
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.datetime_util import add_microseconds
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -138,7 +138,7 @@ class CourseEnrollmentValidationTaskLegacyMapTest(InitializeLegacyKeysMixin, Cou
     pass
 
 
-class BaseCourseEnrollmentValidationTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class BaseCourseEnrollmentValidationTaskReducerTest(ReducerTestMixin, TestCase):
     """Provide common methods for testing CourseEnrollmentValidationTask reducer."""
 
     def setUp(self):
@@ -850,7 +850,7 @@ class ExcludeNonstateChangesTaskReducerTest(BaseCourseEnrollmentValidationTaskRe
         self.assert_no_output(inputs)
 
 
-class CreateAllEnrollmentValidationEventsTest(unittest.TestCase):
+class CreateAllEnrollmentValidationEventsTest(TestCase):
     """Test that requirements for creating enrollment validation events are generated correctly."""
 
     def setUp(self):

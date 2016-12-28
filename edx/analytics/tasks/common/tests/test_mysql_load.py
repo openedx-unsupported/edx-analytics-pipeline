@@ -4,6 +4,7 @@ Ensure we can write to MySQL data sources.
 from __future__ import absolute_import
 
 import textwrap
+import unittest
 
 import luigi
 import luigi.task
@@ -13,10 +14,9 @@ from mock import MagicMock
 from mock import patch
 from mock import sentinel
 
-from edx.analytics.tasks.mysql_load import MysqlInsertTask, coerce_for_mysql_connect
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.config import with_luigi_config
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, coerce_for_mysql_connect
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 
 
 class InsertToMysqlDummyTable(MysqlInsertTask):
@@ -67,7 +67,7 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
     """
 
     def setUp(self):
-        patcher = patch('edx.analytics.tasks.mysql_load.mysql.connector')
+        patcher = patch('edx.analytics.tasks.common.mysql_load.mysql.connector')
         self.mock_mysql_connector = patcher.start()
         self.addCleanup(patcher.stop)
 

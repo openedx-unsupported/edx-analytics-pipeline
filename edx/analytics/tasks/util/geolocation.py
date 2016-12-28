@@ -11,7 +11,7 @@ except ImportError:
     # The module is hopefully exported for tasks that actually use the module.
     pygeoip = NotImplemented
 
-from edx.analytics.tasks.url import ExternalURL
+from edx.analytics.tasks.util.url import ExternalURL
 
 UNKNOWN_COUNTRY = "UNKNOWN"
 UNKNOWN_CODE = "UNKNOWN"

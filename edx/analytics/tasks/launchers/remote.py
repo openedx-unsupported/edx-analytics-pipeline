@@ -18,6 +18,7 @@ REMOTE_DATA_DIR = '/var/lib/analytics-tasks'
 REMOTE_LOG_DIR = '/var/log/analytics-tasks'
 ANSIBLE_MAX_RETRY = 3
 
+
 def main():
     """Parse arguments and run the remote task."""
     parser = argparse.ArgumentParser()
@@ -84,7 +85,7 @@ def run_task_playbook(inventory, arguments, uid):
         prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
 
         retry = 0
-        while prep_result !=0 and retry < ANSIBLE_MAX_RETRY:
+        while prep_result != 0 and retry < ANSIBLE_MAX_RETRY:
             log('ANSIBLE RUN RETURNED NON-ZERO EXIT STATUS: {0}'.format(prep_result))
             log('RETRYING')
             retry += 1

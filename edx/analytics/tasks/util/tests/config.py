@@ -9,7 +9,7 @@ def with_luigi_config(*decorator_args):
     """
     Decorator constructor that temporarily overrides a config file setting while executing the method.
 
-    Can be passed a special value of edx.analytics.tasks.tests.config.OPTION_REMOVED which will ensure that the given
+    Can be passed a special value of edx.analytics.tasks.util.tests.config.OPTION_REMOVED which will ensure that the given
     option is *not* present in the configuration.
 
     Examples::
@@ -29,7 +29,7 @@ def with_luigi_config(*decorator_args):
             other_value = config.get('x', 'y')
             assert other_value == 'z'
 
-        from edx.analytics.tasks.tests.config import OPTION_REMOVED
+        from edx.analytics.tasks.util.tests.config import OPTION_REMOVED
 
         @with_luigi_config('foo', 'bar', OPTION_REMOVED)
         def test_no_option(self):

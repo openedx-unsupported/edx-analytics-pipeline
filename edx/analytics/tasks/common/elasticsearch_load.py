@@ -13,7 +13,7 @@ except ImportError:
     elasticsearch = None
 import luigi
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 try:
     from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 except ImportError:

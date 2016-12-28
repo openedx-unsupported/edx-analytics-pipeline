@@ -1,10 +1,12 @@
 """Test enrollment computations"""
 
 import json
+from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.enrollments import (
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.enrollments import (
     CourseEnrollmentTask,
     CourseEnrollmentEventsTask,
     DEACTIVATED,
@@ -12,12 +14,10 @@ from edx.analytics.tasks.enrollments import (
     MODE_CHANGED,
     CourseEnrollmentSummaryTask
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
 
-class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, unittest.TestCase):
+class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.
     """
@@ -101,11 +101,11 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, un
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
 
-class CourseEnrollmentTaskLegacyMapTest(InitializeLegacyKeysMixin, CourseEnrollmentTaskMapTest, unittest.TestCase):
+class CourseEnrollmentTaskLegacyMapTest(InitializeLegacyKeysMixin, CourseEnrollmentTaskMapTest, TestCase):
     pass
 
 
-class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class CourseEnrollmentTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """
@@ -383,7 +383,7 @@ class CourseEnrollmentTaskReducerTest(ReducerTestMixin, unittest.TestCase):
         self._check_output_complete_tuple(inputs, expected)
 
 
-class CourseEnrollmentSummaryTaskReducerTest(ReducerTestMixin, unittest.TestCase):
+class CourseEnrollmentSummaryTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that events-per-day-per-user reducer works correctly.
     """

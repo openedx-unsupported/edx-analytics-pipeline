@@ -1,15 +1,16 @@
 """
 Tests for internal reporting database tasks.
 """
+from unittest import TestCase
+
 from mock import patch
 from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.load_internal_reporting_database import LoadMysqlToVerticaTableTask, ImportMysqlToVerticaTask
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.warehouse.load_internal_reporting_database import LoadMysqlToVerticaTableTask, ImportMysqlToVerticaTask
 
 
 @ddt
-class ImportMysqlToVerticaTaskTest(unittest.TestCase):
+class ImportMysqlToVerticaTaskTest(TestCase):
     """Test for ImportMysqlToVerticaTask."""
 
     def setUp(self):
@@ -32,10 +33,10 @@ class ImportMysqlToVerticaTaskTest(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 
-class LoadMysqlToVerticaTableTaskTest(unittest.TestCase):
+class LoadMysqlToVerticaTableTaskTest(TestCase):
     """Test for LoadMysqlToVerticaTableTask."""
 
-    @patch('edx.analytics.tasks.load_internal_reporting_database.get_mysql_query_results')
+    @patch('edx.analytics.tasks.warehouse.load_internal_reporting_database.get_mysql_query_results')
     def test_table_schema(self, mysql_query_results_mock):
         desc_table = [
             ('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment'),

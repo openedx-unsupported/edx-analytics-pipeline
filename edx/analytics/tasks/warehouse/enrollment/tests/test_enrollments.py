@@ -3,6 +3,7 @@
 import datetime
 import textwrap
 from StringIO import StringIO
+from unittest import TestCase
 
 import luigi
 import luigi.hdfs
@@ -10,12 +11,11 @@ from mock import MagicMock
 from numpy import isnan  # pylint: disable=no-name-in-module
 import pandas
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.reports.enrollments import EnrollmentsByWeek
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.enrollment.enrollments import EnrollmentsByWeek
 
 
-class TestEnrollmentsByWeek(unittest.TestCase):
+class TestEnrollmentsByWeek(TestCase):
     """Tests for EnrollmentsByWeek report task."""
 
     def run_task(self, source, date, weeks, offset=None, statuses=None):

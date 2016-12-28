@@ -1,15 +1,17 @@
 """Tests for URL-related functionality."""
+
+from unittest import TestCase
+
 import luigi
 import luigi.format
 import luigi.hdfs
 import luigi.s3
 from mock import patch
 
-from edx.analytics.tasks import url
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.util import url
 
 
-class TargetFromUrlTestCase(unittest.TestCase):
+class TargetFromUrlTestCase(TestCase):
     """Tests for get_target_from_url()."""
 
     def test_s3_scheme(self):
@@ -45,7 +47,7 @@ class TargetFromUrlTestCase(unittest.TestCase):
         self.assertEquals(target.format, luigi.hdfs.PlainDir)
 
 
-class UrlPathJoinTestCase(unittest.TestCase):
+class UrlPathJoinTestCase(TestCase):
     """Tests for url_path_join()."""
 
     def test_relative(self):

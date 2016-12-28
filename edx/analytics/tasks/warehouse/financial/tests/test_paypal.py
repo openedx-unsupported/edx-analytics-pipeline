@@ -1,13 +1,16 @@
 
 from collections import OrderedDict
 from cStringIO import StringIO
+from ddt import ddt, data, unpack
 import xml.etree.cElementTree as ET
 import httpretty
-from ddt import ddt, data, unpack
 import luigi
 from mock import MagicMock, patch, call
+from unittest import TestCase
 
-from edx.analytics.tasks.reports.paypal import (
+from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.warehouse.financial.paypal import (
     PaypalReportRequest,
     PaypalMalformedResponseError,
     PaypalApiRequestFailedError,
@@ -19,9 +22,6 @@ from edx.analytics.tasks.reports.paypal import (
     PaypalTransactionsByDayTask,
     PaypalTimeoutError
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.target import FakeTarget
-from edx.analytics.tasks.tests.config import with_luigi_config
 
 TEST_URL = 'http://test.api/endpoint'
 
@@ -90,7 +90,7 @@ class XmlRequestMixin(object):
 
 @ddt
 @httpretty.activate
-class TestReportRequest(XmlRequestMixin, unittest.TestCase):
+class TestReportRequest(XmlRequestMixin, TestCase):
 
     SAMPLE_RESPONSE = """\
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -245,7 +245,7 @@ class TestReportRequest(XmlRequestMixin, unittest.TestCase):
 
 @ddt
 @httpretty.activate
-class TestReportMetadataRequest(XmlRequestMixin, unittest.TestCase):
+class TestReportMetadataRequest(XmlRequestMixin, TestCase):
 
     SAMPLE_RESPONSE = """\
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -327,7 +327,7 @@ class TestReportMetadataRequest(XmlRequestMixin, unittest.TestCase):
 
 @ddt
 @httpretty.activate
-class TestReportDataRequest(XmlRequestMixin, unittest.TestCase):
+class TestReportDataRequest(XmlRequestMixin, TestCase):
 
     SAMPLE_RESPONSE = """\
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -405,7 +405,7 @@ class TestReportDataRequest(XmlRequestMixin, unittest.TestCase):
 
 @ddt
 @httpretty.activate
-class TestReportResultsRequest(XmlRequestMixin, unittest.TestCase):
+class TestReportResultsRequest(XmlRequestMixin, TestCase):
 
     SAMPLE_RESPONSE = """\
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -490,7 +490,7 @@ SAMPLE_TRANSACTION = OrderedDict([
 
 
 @ddt
-class TestSettlementReportRecord(unittest.TestCase):
+class TestSettlementReportRecord(TestCase):
 
     @data(
         ('Sale', 'sale'),
@@ -531,7 +531,7 @@ class TestSettlementReportRecord(unittest.TestCase):
 
 @ddt
 @httpretty.activate
-class TestPaypalTransactionsByDayTask(unittest.TestCase):
+class TestPaypalTransactionsByDayTask(TestCase):
 
     DEFAULT_DATE = "2015-08-28"
 
@@ -802,7 +802,7 @@ class TestPaypalTransactionsByDayTask(unittest.TestCase):
 </reportingEngineResponse>
 """.format(status_code=status_code, status_message=status_message)
 
-    @patch('edx.analytics.tasks.reports.paypal.time')
+    @patch('edx.analytics.tasks.warehouse.financial.paypal.time')
     def test_delayed_report(self, mock_time):
         responses = list(self.RESPONSES)
 
@@ -847,7 +847,7 @@ class TestPaypalTransactionsByDayTask(unittest.TestCase):
 </reportingEngineResponse>
 """
 
-    @patch('edx.analytics.tasks.reports.paypal.time')
+    @patch('edx.analytics.tasks.warehouse.financial.paypal.time')
     def test_delayed_report(self, mock_time):
         responses = list(self.RESPONSES)
 
@@ -875,7 +875,7 @@ class TestPaypalTransactionsByDayTask(unittest.TestCase):
         self.assertEquals(self.output_target.value.strip(), '\t'.join(expected_record))
 
     @with_luigi_config('paypal', 'timeout', '1')
-    @patch('edx.analytics.tasks.reports.paypal.time')
+    @patch('edx.analytics.tasks.warehouse.financial.paypal.time')
     def test_report_timeout(self, mock_time):
         responses = list(self.RESPONSES)
 

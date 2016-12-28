@@ -1,13 +1,12 @@
 """
 Tests for database export tasks
 """
-from mock import Mock
+from unittest import TestCase
 
+from mock import Mock
 from opaque_keys.edx.locator import CourseLocator
 
-from edx.analytics.tasks.database_exports import StudentModulePerCourseTask
-from edx.analytics.tasks.database_exports import STUDENT_MODULE_FIELDS
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.export.database_exports import StudentModulePerCourseTask, STUDENT_MODULE_FIELDS
 
 
 STATE_MYSQLDUMP = '\'{\\"answer\\": {\\"code\\": \\"print(\\\'hello world\\\')\\\\r\\\\n\\\\t\\", \\"score\\": 1.0}} ' \
@@ -31,7 +30,7 @@ STUDENT_MODULE_MYSQLDUMP = {
 }
 
 
-class StudentModulePerCourseTestCase(unittest.TestCase):
+class StudentModulePerCourseTestCase(TestCase):
     """Tests for StudentModulePerCourseTask."""
 
     def setUp(self):

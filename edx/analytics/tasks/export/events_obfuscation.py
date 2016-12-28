@@ -1,26 +1,25 @@
 """Obfuscate course event files by removing/stubbing user information."""
 
+from collections import namedtuple, defaultdict
 import gzip
 import logging
 import os
 import re
-import sys
-from collections import namedtuple, defaultdict
 
 import cjson
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.file_util import read_config_file
 from edx.analytics.tasks.util.geolocation import GeolocationMixin
-from edx.analytics.tasks.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.obfuscate_util import (
     ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
 )
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.file_util import read_config_file
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 

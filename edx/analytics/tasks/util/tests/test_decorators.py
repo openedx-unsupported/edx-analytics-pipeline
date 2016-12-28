@@ -1,12 +1,13 @@
 """
-Test the edx.analytics.tasks.decorators methods
+Test the edx.analytics.tasks.util.decorators methods
 """
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks import decorators
+from unittest import TestCase
+
+from edx.analytics.tasks.util import decorators
 
 
-class TaskCategoryTest(unittest.TestCase):
+class TaskCategoryTest(TestCase):
 
     class NoDecoratorClass(object):
         pass

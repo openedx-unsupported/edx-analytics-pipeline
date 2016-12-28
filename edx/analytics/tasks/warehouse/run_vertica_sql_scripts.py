@@ -1,15 +1,16 @@
 """
 Support for running multiple SQL scripts against an HP Vertica database in a deterministic fashion.
 """
-import yaml
-import datetime
+
 import logging
 from os import path
+import yaml
 
 import luigi
 import luigi.configuration
-from edx.analytics.tasks.url import ExternalURL
-from edx.analytics.tasks.run_vertica_sql_script import BaseVerticaSqlScriptTaskMixin, RunVerticaSqlScriptTask
+
+from edx.analytics.tasks.util.url import ExternalURL
+from edx.analytics.tasks.warehouse.run_vertica_sql_script import BaseVerticaSqlScriptTaskMixin, RunVerticaSqlScriptTask
 
 
 log = logging.getLogger(__name__)
@@ -43,16 +44,16 @@ class RunVerticaSqlScriptsTask(RunVerticaSqlScriptsTaskMixin, luigi.WrapperTask)
         return self.get_downstream_task()
 
     def validate_script_entry(self, script):
-      # It has to be a dictionary.
-      if not isinstance(script, dict):
-        return False
+        # It has to be a dictionary.
+        if not isinstance(script, dict):
+            return False
 
-      # It needs to have a name and a script location.
-      for attr in ['name', 'location']:
-        if attr not in script:
-          return False
+        # It needs to have a name and a script location.
+        for attr in ['name', 'location']:
+            if attr not in script:
+                return False
 
-      return True
+        return True
 
     def get_downstream_task(self):
         # If no downstream task has been set, load our configuration and generate our tasks and dependency chain.

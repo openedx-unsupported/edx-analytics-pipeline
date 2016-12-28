@@ -4,12 +4,12 @@ import luigi
 import luigi.configuration
 import luigi.hdfs
 
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.reports.enrollments import EnrollmentsByWeek
-from edx.analytics.tasks.reports.total_enrollments import AllCourseEnrollmentCountMixin
-from edx.analytics.tasks.reports.total_enrollments import WeeklyAllUsersAndEnrollments
-from edx.analytics.tasks.reports.incremental_enrollments import WeeklyIncrementalUsersAndEnrollments
-from edx.analytics.tasks.reports.incremental_enrollments import DailyRegistrationsEnrollmentsAndCourses
+from edx.analytics.tasks.util.url import url_path_join
+from edx.analytics.tasks.warehouse.enrollment.enrollments import EnrollmentsByWeek
+from edx.analytics.tasks.warehouse.enrollment.incremental_enrollments import WeeklyIncrementalUsersAndEnrollments
+from edx.analytics.tasks.warehouse.enrollment.incremental_enrollments import DailyRegistrationsEnrollmentsAndCourses
+from edx.analytics.tasks.warehouse.enrollment.total_enrollments import AllCourseEnrollmentCountMixin
+from edx.analytics.tasks.warehouse.enrollment.total_enrollments import WeeklyAllUsersAndEnrollments
 
 
 TOTAL_USERS_AND_ENROLLMENTS_NUM_WEEKS = 52

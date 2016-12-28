@@ -1,18 +1,18 @@
 """
 Loads the country table into the warehouse through the pipeline via Hive.
 """
-
-import luigi
 import logging
 
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.url import url_path_join, ExternalURL
-from edx.analytics.tasks.location_per_course import (
+import luigi
+
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.insights.location_per_course import (
     LastCountryOfUserDownstreamMixin,
     LastCountryOfUserPartitionTask,
     InsertToMysqlCourseEnrollByCountryWorkflow,
 )
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.url import url_path_join, ExternalURL
 
 log = logging.getLogger(__name__)
 

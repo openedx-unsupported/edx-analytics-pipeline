@@ -3,10 +3,11 @@ Loads the user table into the warehouse through the pipeline via Hive.
 
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
-from edx.analytics.tasks.vertica_load import VerticaCopyTask
-from edx.analytics.tasks.location_per_course import ExternalLastCountryOfUserToHiveTask
-from edx.analytics.tasks.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
 import luigi
+
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
+from edx.analytics.tasks.insights.location_per_course import ExternalLastCountryOfUserToHiveTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
 
 

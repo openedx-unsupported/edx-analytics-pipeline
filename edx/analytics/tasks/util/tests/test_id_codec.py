@@ -1,10 +1,11 @@
 """
 Tests for encoding/decoding id values.
 """
+from unittest import TestCase
+
 from ddt import ddt, data
 
 import edx.analytics.tasks.util.id_codec as id_codec
-from edx.analytics.tasks.tests import unittest
 
 SCOPE = "Arbitrary Scope"
 TYPE = "Arbitrary Type"
@@ -12,7 +13,7 @@ VALUE = "Arbitrary Value"
 
 
 @ddt
-class EncodeDecodeIdTest(unittest.TestCase):
+class EncodeDecodeIdTest(TestCase):
     """Test that encoding works in round-trip."""
 
     @data(
@@ -27,7 +28,7 @@ class EncodeDecodeIdTest(unittest.TestCase):
         self.assertEquals((SCOPE + suffix, TYPE + suffix, VALUE + suffix), decoded)
 
 
-class PermutationGeneratorTest(unittest.TestCase):
+class PermutationGeneratorTest(TestCase):
     """Test that PermutationGenerator works correctly."""
 
     def test_permute_unpermute(self):

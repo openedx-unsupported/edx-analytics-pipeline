@@ -9,8 +9,8 @@ import luigi
 import luigi.configuration
 from luigi.contrib.mysqldb import MySqlTarget
 
-from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import ExternalURL
 
 log = logging.getLogger(__name__)
 

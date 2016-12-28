@@ -4,15 +4,15 @@ Ensure we can write from MySQL to Hive data sources.
 
 import datetime
 import textwrap
+from unittest import TestCase
 
 from mock import patch, Mock
 
-from edx.analytics.tasks.database_imports import ImportStudentCourseEnrollmentTask, ImportIntoHiveTableTask
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.config import with_luigi_config
+from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask, ImportIntoHiveTableTask
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 
 
-class ImportStudentCourseEnrollmentTestCase(unittest.TestCase):
+class ImportStudentCourseEnrollmentTestCase(TestCase):
     """Tests to validate ImportStudentCourseEnrollmentTask."""
 
     def test_base_class(self):
@@ -49,7 +49,7 @@ class ImportStudentCourseEnrollmentTestCase(unittest.TestCase):
         # kwargs = {'overwrite': False}
         kwargs = {}
         task = ImportStudentCourseEnrollmentTask(**kwargs)
-        with patch('edx.analytics.tasks.database_imports.HivePartitionTarget') as mock_target:
+        with patch('edx.analytics.tasks.insights.database_imports.HivePartitionTarget') as mock_target:
             output = mock_target()
             # Make MagicMock act more like a regular mock, so that flatten() does the right thing.
             del output.__iter__
