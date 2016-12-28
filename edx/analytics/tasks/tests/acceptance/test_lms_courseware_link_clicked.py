@@ -50,7 +50,7 @@ class LmsCoursewareLinkClickedAcceptanceTest(AcceptanceTestCase):
 
             cursor.execute(
                 "SELECT * FROM {schema}.lms_courseware_link_clicked_events ORDER BY course_id, event_date"
-                    .format(schema=self.vertica.schema_name)
+                .format(schema=self.vertica.schema_name)
             )
 
             response = cursor.fetchall()
@@ -60,7 +60,7 @@ class LmsCoursewareLinkClickedAcceptanceTest(AcceptanceTestCase):
                     'record_number',
                     'course_id',
                     'event_date',
-                     'external_link_clicked_events',
+                    'external_link_clicked_events',
                     'link_clicked_events'
                 ]
             )

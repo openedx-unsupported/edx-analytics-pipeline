@@ -2,11 +2,11 @@
 End to end test for importing mysql database into Vertica task.
 """
 
-import os
-import logging
 import datetime
-import pandas
+import logging
+import os
 
+import pandas
 from pandas.util.testing import assert_frame_equal
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available

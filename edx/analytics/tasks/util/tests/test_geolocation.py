@@ -1,10 +1,10 @@
 """
 Tests and test object for geolocation tests.
 """
+from unittest import TestCase
 
 from mock import Mock
 
-from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.util.geolocation import (
     UNKNOWN_COUNTRY,
     UNKNOWN_CODE,
@@ -39,7 +39,7 @@ class FakeGeoLocation(object):
         return country_code_map.get(ip_address)
 
 
-class TestGeolocationTaskTestCase(unittest.TestCase):
+class TestGeolocationTaskTestCase(TestCase):
     """Test GeolocationMixin.get_country_xxx() methods."""
 
     def setUp(self):

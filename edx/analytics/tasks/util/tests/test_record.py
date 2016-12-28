@@ -1,12 +1,12 @@
 """Test the typed record utilities"""
 
 import datetime
-import dateutil
 import pickle
+from unittest import TestCase
 
+import dateutil
 from ddt import data, ddt, unpack
 
-from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.util.record import (
     Record, StringField, IntegerField, DateField, DateTimeField, FloatField, DelimitedStringField, BooleanField,
     HiveTsvEncoder
@@ -16,8 +16,9 @@ UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
 UTC = dateutil.tz.tzutc()
 
+
 @ddt
-class RecordTestCase(unittest.TestCase):
+class RecordTestCase(TestCase):
     """Test core record behavior"""
 
     def test_single_field_pos_arg(self):
@@ -390,6 +391,7 @@ class RecordTestCase(unittest.TestCase):
         self.assertFalse(test_record is new_record)
         self.assertEqual(test_record, new_record)
 
+
 class NoFields(Record):
     """A record without any fields"""
     pass
@@ -434,7 +436,7 @@ class SampleElasticSearchStruct(Record):
 
 
 @ddt
-class StringFieldTest(unittest.TestCase):
+class StringFieldTest(TestCase):
     """Tests for StringField"""
 
     @data(
@@ -524,7 +526,7 @@ class StringFieldTest(unittest.TestCase):
 
 
 @ddt
-class DelimitedStringFieldTest(unittest.TestCase):
+class DelimitedStringFieldTest(TestCase):
     """Tests for DelimitedStringField"""
 
     @data(
@@ -579,7 +581,7 @@ class DelimitedStringFieldTest(unittest.TestCase):
 
 
 @ddt
-class BooleanFieldTest(unittest.TestCase):
+class BooleanFieldTest(TestCase):
     """Tests for BooleanField"""
 
     @data(
@@ -629,7 +631,7 @@ class BooleanFieldTest(unittest.TestCase):
 
 
 @ddt
-class IntegerFieldTest(unittest.TestCase):
+class IntegerFieldTest(TestCase):
     """Tests for IntegerField"""
 
     @data(
@@ -659,7 +661,7 @@ class IntegerFieldTest(unittest.TestCase):
 
 
 @ddt
-class DateFieldTest(unittest.TestCase):
+class DateFieldTest(TestCase):
     """Tests for DateField"""
 
     @data(
@@ -692,7 +694,7 @@ class DateFieldTest(unittest.TestCase):
 
 
 @ddt
-class DateTimeFieldTest(unittest.TestCase):
+class DateTimeFieldTest(TestCase):
     """Tests for DateTimeField"""
 
     @data(
@@ -745,7 +747,7 @@ class DateTimeFieldTest(unittest.TestCase):
         self.assertEqual(DateTimeField().serialize_to_string(date), expected)
 
 
-class DateTimeFieldTzUtcTest(unittest.TestCase):
+class DateTimeFieldTzUtcTest(TestCase):
     """Tests for DateTimeField.TzUtc"""
     def setUp(self):
         super(DateTimeFieldTzUtcTest, self).setUp()
@@ -763,7 +765,7 @@ class DateTimeFieldTzUtcTest(unittest.TestCase):
 
 
 @ddt
-class FloatFieldTest(unittest.TestCase):
+class FloatFieldTest(TestCase):
     """Tests for FloatField"""
 
     @data(

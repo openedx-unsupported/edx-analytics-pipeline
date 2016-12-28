@@ -2,13 +2,13 @@
 End to end test of the course catalog tasks.
 """
 
-import os
 import logging
+import os
 
 import pandas
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 
 log = logging.getLogger(__name__)

@@ -3,7 +3,6 @@ from datetime import datetime
 
 from luigi.date_interval import Date
 
-from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
 
 

@@ -1,13 +1,14 @@
 """
 Tests for utilities that parse event logs.
 """
+from unittest import TestCase
+
 from mock import patch
 
 import edx.analytics.tasks.util.eventlog as eventlog
-from edx.analytics.tasks.tests import unittest
 
 
-class ParseEventLogTest(unittest.TestCase):
+class ParseEventLogTest(TestCase):
     """
     Verify that event log parsing works correctly.
     """
@@ -34,7 +35,7 @@ class ParseEventLogTest(unittest.TestCase):
         self.assertEquals(result['username'], u'b\ufffdb')
 
 
-class TimestampTest(unittest.TestCase):
+class TimestampTest(TestCase):
     """Verify timestamp-related functions."""
 
     def test_datestamp_from_timestamp(self):
@@ -74,7 +75,7 @@ class TimestampTest(unittest.TestCase):
         self.assertEquals(eventlog.datetime_to_datestamp(dt_value), "2013-12-17")
 
 
-class GetEventUsernameTest(unittest.TestCase):
+class GetEventUsernameTest(TestCase):
     """Verify that get_event_username works as expected."""
 
     def test_missing_event_username(self):
@@ -90,7 +91,7 @@ class GetEventUsernameTest(unittest.TestCase):
         self.assertEquals(eventlog.get_event_username(item), u'bub')
 
 
-class GetEventDataTest(unittest.TestCase):
+class GetEventDataTest(TestCase):
     """Verify that get_event_data works as expected."""
 
     def setUp(self):
@@ -157,7 +158,7 @@ class GetEventDataTest(unittest.TestCase):
         self.assertIn('unrecognized type', self.mock_log.error.call_args[0][0])
 
 
-class GetCourseIdTest(unittest.TestCase):
+class GetCourseIdTest(TestCase):
     """Verify that get_course_id works as expected."""
 
     def test_course_id_from_server_url(self):

@@ -1,16 +1,16 @@
 """Test the API client"""
 
-import json
 from datetime import datetime, timedelta
+import json
+from unittest import TestCase
 
-import httpretty
-import requests
-from mock import patch
 from ddt import ddt, data, unpack
+import httpretty
+from mock import patch
+import requests
 
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.config import with_luigi_config
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 
 
 FAKE_AUTH_URL = 'http://example.com/oauth2/access_token'
@@ -22,7 +22,7 @@ FAKE_RESOURCE_URL = 'http://example.com/resource/'
 
 @ddt
 @httpretty.activate
-class EdxApiClientTestCase(unittest.TestCase):
+class EdxApiClientTestCase(TestCase):
     """Test the client"""
 
     def setUp(self):

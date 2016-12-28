@@ -11,9 +11,9 @@ from cStringIO import StringIO
 from ddt import ddt, data
 import pandas
 
-from edx.analytics.tasks.enrollments import EnrollmentSummaryRecord
+from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 

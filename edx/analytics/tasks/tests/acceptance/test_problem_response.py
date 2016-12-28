@@ -2,13 +2,13 @@
 End to end test of problem response reporting workflow.
 """
 
+import datetime
 import logging
 import os
 import time
-import datetime
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, get_target_for_local_server
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 

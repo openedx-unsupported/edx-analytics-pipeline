@@ -4,8 +4,8 @@ End to end test of tags distribution.
 
 import datetime
 
-from edx.analytics.tasks.url import url_path_join
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.util.url import url_path_join
 
 
 class TagsDistributionAcceptanceTest(AcceptanceTestCase):

@@ -1,14 +1,14 @@
 """Test the retry decorator"""
 
 from datetime import datetime, timedelta
+from unittest import TestCase
 
 from mock import patch, call, sentinel
 
-from edx.analytics.tasks.tests import unittest
 from edx.analytics.tasks.util.retry import retry, RetryTimeoutError
 
 
-class RetryTestCase(unittest.TestCase):
+class RetryTestCase(TestCase):
     """Test the retry decorator"""
 
     def setUp(self):
