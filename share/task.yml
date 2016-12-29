@@ -143,9 +143,14 @@
       pip: name=virtualenv version=1.10.1
       sudo: True
 
+    - name: check if virtualenv already created
+      stat: path={{ working_venv_dir }}/bin/activate
+      register: virtualenv_created
+
     - name: virtualenv created
       command: >
         virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
+      when: not virtualenv_created.stat.exists
 
     - name: update pip
       command: >
