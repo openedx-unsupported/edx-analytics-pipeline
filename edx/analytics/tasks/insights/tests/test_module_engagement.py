@@ -424,24 +424,24 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
             username='test_user',
             start_date=datetime.date(2014, 3, 25),
             end_date=datetime.date(2014, 4, 1),
-            problem_attempts=0,
-            problems_attempted=0,
+            problem_attempts=1,
+            problems_attempted=1,
             problems_completed=0,
             problem_attempts_per_completed=0.0,
             videos_viewed=0,
             discussion_contributions=0,
-            days_active=0,
+            days_active=1,
         )
 
     def test_simple_distribution(self):
-        # [0, 0, 0, 0] (these values are dropped from the set before analyzing)
         # [4, 13, 13, 13] (3 records are <= 13, this accounts for 15% of the total 20 non-zero values)
         # [15] * 4 (throw in a bunch of data in the "normal" range)
         # [50] * 11 (round out the 20 records with some other arbitrary value, note that this will also contain two
         #    of the three highest values)
         # [154] (throw in an outlier - a very high maximum value, this will show the high end of the range, but the
         #    85th percentile should be at the 50 value)
-        values = [4] + ([13] * 3) + ([0] * 4) + ([15] * 4) + ([50] * 11) + [154]
+        # values = [4] + ([13] * 3) + ([0] * 4) + ([15] * 4) + ([50] * 11) + [154]
+        values = [4] + ([13] * 3) + ([15] * 4) + ([50] * 11) + [154]
 
         self.assert_ranges(
             values,
@@ -460,6 +460,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
 
         output = self._get_reducer_output(records)
         range_value_map = {rv[0]: rv for rv in range_values}
+        tested = False
         for record in output:
             if record[3] == 'problem_attempts_per_completed':
                 range_type, low, high = range_value_map[record[4]]
@@ -475,6 +476,9 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
                         str(high),
                     )
                 )
+                tested = True
+        if not tested and len(values) > 0:
+            self.fail("No records for 'problem_attempts_per_completed' found! Output = {}, Records = {}".format(output, records))
 
     def test_identical_values(self):
         values = [5] * 6
@@ -484,6 +488,11 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
         self.assert_ranges([1], [('low', 0, 1.0), ('normal', 1.0, 'inf')])
 
     def test_single_infinite_value(self):
+        # If num_problems_completed is zero, then problem_attempts_per_completed will be set to 'inf'.
+        values = [float('inf')]
+        self.assert_ranges(values, [('low', 0, 'inf'), ('normal', 'inf', 'inf')])
+
+    def test_multiple_infinite_values(self):
         values = [float('inf')] * 3
         self.assert_ranges(values, [('low', 0, 'inf'), ('normal', 'inf', 'inf')])
 
@@ -503,12 +512,16 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
         self.assert_ranges([], [('normal', 0, 'inf')])
 
     def test_single_zero_value(self):
+        values = [0]
+        self.assert_ranges(values, [('normal', 0.0, 'inf')])
+
+    def test_multiple_zero_values(self):
         values = [0] * 3
-        self.assert_ranges(values, [('normal', 0, 'inf')])
+        self.assert_ranges(values, [('normal', 0.0, 'inf')])
 
     def test_zeroes_are_normal(self):
         values = [1, 0, 0, 0]
-        self.assert_ranges(values, [('normal', 0, 0.55), ('high', 0.55, 'inf')])
+        self.assert_ranges(values, [('normal', 0.0, 0.55), ('high', 0.55, 'inf')])
 
     def test_zeroes_are_low(self):
         values = [0, 0, 0] + ([1] * 10) + ([2] * 4)
