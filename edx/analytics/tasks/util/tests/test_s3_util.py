@@ -120,8 +120,8 @@ class ScalableS3ClientTestCase(TestCase):
         self._assert_get_chunk_specs(s3_util.MINIMUM_BYTES_PER_CHUNK, 1, s3_util.MINIMUM_BYTES_PER_CHUNK)
 
     def test_get_maximum_chunk_specs(self):
-        size = ((s3_util.MULTIPART_UPLOAD_THRESHOLD * s3_util.MULTIPART_UPLOAD_THRESHOLD)
-                / s3_util.MINIMUM_BYTES_PER_CHUNK) + 1000
+        size = ((s3_util.MULTIPART_UPLOAD_THRESHOLD * s3_util.MULTIPART_UPLOAD_THRESHOLD) /
+                s3_util.MINIMUM_BYTES_PER_CHUNK) + 1000
         self._assert_get_chunk_specs(size, 205, s3_util.MULTIPART_UPLOAD_THRESHOLD)
 
         size *= 2

@@ -482,3 +482,109 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         """Call to ensure fast failure if this machine doesn't have the Vertica client library available."""
         if not vertica_client_available:
             raise ImportError('Vertica client library not available')
+
+
+class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
+    """
+    Base class for running schema management commands on warehouse.
+
+    """
+
+    date = luigi.DateParameter()
+
+    roles = luigi.Parameter(
+        is_list=True,
+        config_path={'section': 'vertica-export', 'name': 'roles'},
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(SchemaManagementTask, self).__init__(*args, **kwargs)
+        self.schema_last = self.schema + '_last'
+        self.schema_loading = self.schema + '_loading'
+        self.vertica_roles = ','.join(self.roles)
+
+    @property
+    def queries(self):
+        """
+        Provides queries that are needed to run this task.
+        """
+        raise NotImplementedError
+
+    @property
+    def marker_name(self):
+        """
+        Although we are not writing any data into a table, we still need a marker
+        name for the marker table entry so the task can be checked for completeness.
+        This should be defined in a derived class.
+        """
+        raise NotImplementedError
+
+    def requires(self):
+        return {
+            'credentials': ExternalURL(self.credentials)
+        }
+
+    def init_touch(self, connection):
+        """
+        Clear the relevant rows from the marker table if we are overwriting.
+        """
+        # This method is the same as appears on vertica_load#L339.
+        # However, we do not call cursor.flush_to_query_ready() here as
+        # we are not copying any data after this method.
+        if self.overwrite:
+            # Clear the appropriate rows from the luigi Vertica marker table
+            marker_table = self.output().marker_table
+            try:
+                query = """
+                DELETE FROM {marker_schema}.{marker_table} where target_table='{schema}.{target_table}';
+                """.format(
+                    schema=self.schema,
+                    marker_schema=self.marker_schema,
+                    marker_table=marker_table,
+                    target_table=self.marker_name
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+            except vertica_python.errors.Error as err:
+                is_missing_relation = type(err) is vertica_python.errors.MissingRelation
+                is_missing_table = 'Sqlstate: 42V01' in err.args[0]
+                is_missing_schema = 'Sqlstate: 3F000' in err.args[0]
+                if is_missing_relation or is_missing_table or is_missing_schema:
+                    # If so, then our query error failed because the schema or table doesn't exist.
+                    pass
+                else:
+                    raise
+
+    def run(self):
+        connection = self.output().connect()
+
+        try:
+            self.init_touch(connection)
+            for query in self.queries:
+                log.debug(query)
+                connection.cursor().execute(query)
+
+            self.attempted_removal = True
+            self.output().touch(connection)
+            connection.commit()
+        except Exception as exc:
+            log.exception("Rolled back the transaction; exception raised: %s", str(exc))
+            connection.rollback()
+            raise
+        finally:
+            connection.close()
+
+    def output(self):
+        """
+        Returns a VerticaTarget representing the task ran.
+        """
+        return CredentialFileVerticaTarget(
+            credentials_target=self.input()['credentials'],
+            table=self.marker_name,
+            schema=self.schema,
+            update_id=self.update_id(),
+            marker_schema=self.marker_schema
+        )
+
+    def update_id(self):
+        return str(self)

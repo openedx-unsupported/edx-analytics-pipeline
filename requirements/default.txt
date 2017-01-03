@@ -22,7 +22,9 @@ pytz==2016.10		# ZPL
 requests==2.12.4        # Apache 2.0
 six==1.10.0		# MIT
 stevedore==1.19.1 	# Apache 2.0
+ua-parser==0.3.6 	# Apache
 urllib3==1.19.1         # MIT
+user-agents==0.3.2	# MIT
 vertica-python==0.6.11  # MIT
 
 git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0

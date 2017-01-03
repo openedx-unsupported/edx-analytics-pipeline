@@ -211,6 +211,9 @@ class AcceptanceTestCase(unittest.TestCase):
             'event-logs': {
                 'source': self.test_src
             },
+            'segment-logs': {
+                'source': self.test_src
+            },
             'course-structure': {
                 'api_root_url': 'acceptance.test',
                 'access_token': 'acceptance'
