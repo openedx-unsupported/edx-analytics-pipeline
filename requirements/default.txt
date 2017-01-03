@@ -4,8 +4,8 @@
 
 argparse==1.2.1 	# Python Software Foundation License
 ciso8601==1.0.3         # MIT
-edx-opaque-keys==0.2.1  # AGPL
-edx-ccx-keys==0.1.2     # AGPL
+edx-opaque-keys==0.4    # AGPL
+edx-ccx-keys==0.2.1     # AGPL
 elasticsearch==1.7.0    # Apache
 filechunkio==1.8	# MIT
 html5lib==1.0b3 	# MIT
