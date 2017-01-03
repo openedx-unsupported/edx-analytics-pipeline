@@ -114,6 +114,11 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         return {}
 
     @property
+    def table_partition_key(self):
+        """String defining expression to use for partitioning data in Vertica table, or None."""
+        return None
+
+    @property
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
         return [('created', 'TIMESTAMP DEFAULT NOW()')]
@@ -192,8 +197,13 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 other_col=self.foreign_key_mapping[column][1]
             )
 
-        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs})".format(
-            schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs
+        partition_key_def = ''
+        if self.table_partition_key:
+            partition_key_def = ' PARTITION BY {key}'.format(key=self.table_partition_key)
+
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs}){partition_key_def}".format(
+            schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs,
+            partition_key_def=partition_key_def,
         )
         log.debug(query)
         connection.cursor().execute(query)
