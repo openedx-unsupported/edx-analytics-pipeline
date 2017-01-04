@@ -231,10 +231,16 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
             return False
 
         # If the pattern contains a date group, use that to check if within the requested interval.
-        # If it doesn't contain such a group, then assume that it should be included.
+        # If instead the pattern contains a timestamp group, use that instead to check if within the requested interval.
+        # If it doesn't contain either such group, then assume that it should be included.
         should_include = True
         if 'date' in match.groupdict():
             parsed_datetime = datetime.datetime.strptime(match.group('date'), self.date_pattern)
+            parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
+            should_include = parsed_date in self.interval
+        elif 'timestamp' in match.groupdict():
+            timestamp = int(match.group('timestamp'))
+            parsed_datetime = datetime.datetime.utcfromtimestamp(timestamp)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
 
