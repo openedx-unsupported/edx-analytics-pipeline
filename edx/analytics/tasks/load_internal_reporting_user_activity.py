@@ -153,7 +153,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def table_partition_key(self):
-        return 'date'
+        return 'EXTRACT(year FROM date) * 100 + EXTRACT(week from date)'
 
     @property
     def partition(self):
