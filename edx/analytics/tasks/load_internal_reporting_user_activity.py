@@ -165,7 +165,6 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         return InternalReportingUserActivityDataTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
             table='internal_reporting_user_activity',
             overwrite=True,
         )
