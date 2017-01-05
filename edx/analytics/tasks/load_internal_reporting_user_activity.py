@@ -166,7 +166,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
             date=self.date,
             warehouse_path=self.warehouse_path,
             overwrite=self.overwrite,
-            table='internal_reporting_user_activity'
+            table='internal_reporting_user_activity',
             overwrite=True,
         )
         # hive_table = "internal_reporting_user_activity"
