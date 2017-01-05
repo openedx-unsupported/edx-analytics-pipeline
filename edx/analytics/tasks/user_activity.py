@@ -17,7 +17,7 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask, BareHiveTableTask, HivePartitionTask, HiveQueryTask, hive_database_name
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 from edx.analytics.tasks.decorators import workflow_entry_point
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask, IncrementalMysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
@@ -343,3 +343,44 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, MysqlInsertTa
             overwrite_n_days=self.overwrite_n_days,
         )
 
+
+class CourseActivityMysqlTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, IncrementalMysqlInsertTask)
+
+    @property
+    def table(self):
+        return "course_activity"
+
+    @property
+    def record_filter(self):
+        return "interval_start='{start_date}' and interval_end='{end_date}'".format(
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_a.isoformat()
+        )  # pylint: disable=no-member
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'VARCHAR(255) NOT NULL'),
+            ('interval_start', 'DATETIME NOT NULL'),
+            ('interval_end', 'DATETIME NOT NULL'),
+            ('label', 'VARCHAR(255) NOT NULL'),
+            ('count', 'INT(11) NOT NULL'),
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id', 'label'),
+            ('interval_end',)
+        ]
+
+    @property
+    def insert_source_task(self):
+        return CourseActivityDataTask(
+            interval=self.interval,
+            table='course_activity',
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days,
+        )
