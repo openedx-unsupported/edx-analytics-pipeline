@@ -205,7 +205,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
 class UserActivityToWarehouseIntervalTask(WarehouseMixin, luigi.WrapperTask):
 
     interval = luigi.DateIntervalParameter()
-
+    n_reduce_tasks = luigi.Parameter()
     schema = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'schema'},
         description='The schema to which to write.',
@@ -219,6 +219,7 @@ class UserActivityToWarehouseIntervalTask(WarehouseMixin, luigi.WrapperTask):
         for date in reversed([d for d in self.interval]):
             yield LoadInternalReportingUserActivityToWarehouse(
                 date=date,
+                n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
                 schema=self.schema,
                 credentials=self.credentials,
