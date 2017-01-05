@@ -202,6 +202,28 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
         ]
 
 
+class UserActivityToWarehouseIntervalTask(WarehouseMixin, luigi.WrapperTask):
+
+    interval = luigi.DateIntervalParameter()
+
+    schema = luigi.Parameter(
+        config_path={'section': 'vertica-export', 'name': 'schema'},
+        description='The schema to which to write.',
+    )
+    credentials = luigi.Parameter(
+        config_path={'section': 'vertica-export', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
+    )
+
+    def requires(self):
+        for date in reversed([d for d in self.interval]):
+            yield LoadInternalReportingUserActivityToWarehouse(
+                date=date,
+                warehouse_path=self.warehouse_path,
+                schema=self.schema,
+                credentials=self.credentials,
+            )
+
 class BuildInternalReportingUserActivityCombinedView(VerticaCopyTaskMixin, WarehouseMixin, luigi.Task):
     """luigi task to build the combined view on top of the history and production tables for user activity."""
     date = luigi.DateParameter()

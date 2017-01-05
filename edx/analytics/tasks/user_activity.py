@@ -344,7 +344,12 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, MysqlInsertTa
         )
 
 
-class CourseActivityMysqlTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, IncrementalMysqlInsertTask)
+class CourseActivityMysqlTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, IncrementalMysqlInsertTask):
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
 
     @property
     def table(self):
