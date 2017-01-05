@@ -167,6 +167,7 @@ class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTa
             warehouse_path=self.warehouse_path,
             overwrite=self.overwrite,
             table='internal_reporting_user_activity'
+            overwrite=True,
         )
         # hive_table = "internal_reporting_user_activity"
         # partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
