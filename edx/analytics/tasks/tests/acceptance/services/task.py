@@ -57,9 +57,6 @@ class TaskService(object):
             elif 'host' in self.config:
                 command.extend(['--host', self.config['host']])
 
-            if 'wheel_url' in self.config:
-                command.extend(['--wheel-url', self.config['wheel_url']])
-
             command.extend(task_args)
             command.append('--local-scheduler')
 

@@ -1,11 +1,4 @@
 
-# If a wheel repository is defined, then have pip use that.  But don't require the use of wheel.
-ifneq ($(strip $(WHEEL_URL)),)
-	PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER
-else
-	PIP_INSTALL = pip install
-endif
-
 .PHONY:	requirements test test-requirements .tox
 
 uninstall:
@@ -16,8 +9,8 @@ install: requirements uninstall
 	python setup.py install --force
 
 bootstrap: uninstall
-	$(PIP_INSTALL) -U -r requirements/pre.txt
-	$(PIP_INSTALL) -U -r requirements/base.txt
+	pip install -U -r requirements/pre.txt
+	pip install -U -r requirements/base.txt
 	python setup.py install --force
 
 develop: requirements develop-local
@@ -37,12 +30,12 @@ else
 endif
 
 requirements:
-	$(PIP_INSTALL) -U -r requirements/pre.txt
-	$(PIP_INSTALL) -U -r requirements/default.txt
-	$(PIP_INSTALL) -U -r requirements/extra.txt
+	pip install -U -r requirements/pre.txt
+	pip install -U -r requirements/default.txt
+	pip install -U -r requirements/extra.txt
 
 test-requirements: requirements
-	$(PIP_INSTALL) -U -r requirements/test.txt
+	pip install -U -r requirements/test.txt
 
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
@@ -77,7 +70,7 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	$(PIP_INSTALL) -U -r requirements/docs.txt
+	pip install -U -r requirements/docs.txt
 	python setup.py install --force
 
 docs-local:
