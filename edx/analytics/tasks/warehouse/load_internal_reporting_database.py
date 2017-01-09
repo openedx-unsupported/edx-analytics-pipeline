@@ -9,10 +9,9 @@ import luigi
 
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, SchemaManagementTask
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.util.url import url_path_join, ExternalURL
-from edx.analytics.tasks.warehouse.load_warehouse import SchemaManagementTask
 
 log = logging.getLogger(__name__)
 

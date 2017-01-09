@@ -888,8 +888,8 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
             # Typically a left-closed interval, however, we consider infinite values to be included in the interval
             # if the upper bound is infinite.
             value_less_than_high = (
-                (value < high_metric_range.high_value)
-                or (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
+                (value < high_metric_range.high_value) or
+                (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
             )
             if (high_metric_range.low_value <= value) and value_less_than_high:
                 if metric == 'problem_attempts_per_completed':
