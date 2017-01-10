@@ -168,7 +168,7 @@ def convert_args_to_extra_vars(arguments, uid):
     if arguments.branch:
         repos['pipeline']['branch'] = arguments.branch
     if arguments.wheel_url is not None:
-        extra_vars['wheel_url'] = arguments.wheel_url
+        log('WARNING: wheel_url argument is no longer supported: ignoring {0}'.format(arguments.wheel_url))
     if arguments.vagrant_path or arguments.host:
         extra_vars['write_luigi_config'] = False
     if arguments.virtualenv_extra_args:
