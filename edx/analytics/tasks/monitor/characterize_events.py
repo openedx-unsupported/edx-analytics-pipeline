@@ -2,7 +2,6 @@ import luigi
 import os
 import logging
 import re
-import json
 
 from boto.s3.connection import S3Connection
 
@@ -37,18 +36,7 @@ class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
             for key in bucket.list(prefix=self.key_prefix):
                 key_url = url_path_join('s3:////', bucket.name, key.name)
                 last_modified = key.last_modified
-                metadata = key.metadata
-                values = [key_url, last_modified, json.dumps(metadata)]
-
-                if metadata:
-                    match = re.match('.*?mtime:(?P<mtime>\d{10}).*?ctime:(?P<ctime>\d{10})', metadata.get('s3cmd-attrs', ''))
-                    if match:
-                        mtime = match.group('mtime')
-                        values.append(mtime)
-                        ctime = match.group('ctime')
-                        values.append(ctime)
-
-                output_file.write('\t'.join(values))
+                output_file.write('\t'.join((key_url, last_modified)))
                 output_file.write('\n')
 #
 #
