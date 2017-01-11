@@ -38,8 +38,9 @@ class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
                 last_modified = key.last_modified
                 values = [key_url, last_modified]
                 metadata = key.metadata
+
                 if metadata:
-                    match = re.match('.*?mtime:(?P<mtime>\d{10}).*?ctime:(?P<ctime>\d{10})', metadata)
+                    match = re.match('.*?mtime:(?P<mtime>\d{10}).*?ctime:(?P<ctime>\d{10})', metadata.get('s3cmd-attrs', ''))
                     if match:
                         mtime = match.group('mtime')
                         values.append(mtime)
