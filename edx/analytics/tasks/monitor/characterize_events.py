@@ -5,12 +5,13 @@ import logging
 from boto.s3.connection import S3Connection
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
 
-class ListS3FilesWithDateTask(luigi.Task):
+class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
 
     output_root = luigi.Parameter(
         description='URL of location to write output.',
