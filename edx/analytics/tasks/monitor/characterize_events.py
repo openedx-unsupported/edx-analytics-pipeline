@@ -2,6 +2,7 @@ import luigi
 import os
 import logging
 import re
+import json
 
 from boto.s3.connection import S3Connection
 
