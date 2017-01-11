@@ -39,7 +39,7 @@ class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
                 values = [key_url, last_modified]
                 metadata = key.metadata
                 if metadata:
-                    match = re.match('.*?mtime:(?P<mtime>\d{10}).*?ctime:(?P<ctime>\d{10})', t)
+                    match = re.match('.*?mtime:(?P<mtime>\d{10}).*?ctime:(?P<ctime>\d{10})', metadata)
                     if match:
                         mtime = match.group('mtime')
                         values.append(mtime)
