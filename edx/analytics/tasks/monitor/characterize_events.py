@@ -81,7 +81,7 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
     def reducer(self, key, values):
         date_string = key
         event_date = parser.parse(date_string)
-        event_cutoff_time = (event_date + datetime.timedelta(days=1)).replace(hour=04, minute=0, second=0, microseconds=0)
+        event_cutoff_time = (event_date + datetime.timedelta(days=1)).replace(hour=04, minute=0, second=0, microsecond=0)
         events_before_cutoff = 0
         events_after_cutoff = 0
         for value in values:
