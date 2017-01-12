@@ -77,7 +77,7 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
             return
         event, event_date = value
 
-        yield event_date, self.url_to_timestamp_map.itervalues().next()
+        yield event_date, self.url_to_timestamp_map[input_file]
 
     def reducer(self, key, values):
         date_string = key
