@@ -10,6 +10,7 @@ from dateutil import parser
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 
 log = logging.getLogger(__name__)
 
