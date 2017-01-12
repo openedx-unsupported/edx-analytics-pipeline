@@ -76,7 +76,7 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
         if value is None:
             return
         event, event_date = value
-
+        log.error("Total keys in map: %s", len(self.url_to_timestamp_map.keys()))
         yield event_date, self.url_to_timestamp_map[input_file]
 
     def reducer(self, key, values):
