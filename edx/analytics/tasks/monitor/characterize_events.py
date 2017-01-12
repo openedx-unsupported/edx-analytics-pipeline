@@ -63,11 +63,16 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
 
     def init_local(self):
         super(CharacterizeEventsTask, self).init_local()
+        print("test")
+        log.error("INIT_LOCAL")
         with self.input_local().open() as f_in:
+            log.error("OPENING FILE")
             lines = f_in.readlines()
+            log.error("LINE 1: %s", lines[0])
             for line in lines:
                 file_url, timestamp = line.split()
                 self.url_to_timestamp_map[file_url] = timestamp
+        log.error("KEYS: %s", len(self.url_to_timestamp_map.keys()))
 
     def mapper(self, line):
         input_file = os.environ['mapreduce_map_input_file']
