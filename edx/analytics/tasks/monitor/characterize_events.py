@@ -85,7 +85,7 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
         events_before_cutoff = 0
         events_after_cutoff = 0
         for value in values:
-            event_upload_time = parser.parse(value)
+            event_upload_time = parser.parse(value).replace(tzinfo=None)
             if event_upload_time <= event_cutoff_time:
                 events_before_cutoff += 1
             elif event_upload_time > event_cutoff_time:
