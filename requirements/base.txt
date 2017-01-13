@@ -1,7 +1,7 @@
 # These packages are required for bootstrapping.
 
 ansible==1.4.5 --no-binary ansible         # GPL v3 License
-boto==2.22.1            # MIT
+boto==2.48.0            # MIT
 ecdsa==0.13 		# MIT
 Jinja2==2.8.1		# BSD
 pycrypto==2.6.1 	# public domain

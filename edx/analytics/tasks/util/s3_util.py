@@ -9,6 +9,7 @@ import time
 from fnmatch import fnmatch
 from urlparse import urlparse
 
+from boto import connect_s3
 from boto.s3.key import Key
 from filechunkio import FileChunkIO
 from luigi.s3 import S3Client, AtomicS3File
@@ -135,6 +136,17 @@ class ScalableS3Client(S3Client):
     This client should only require PutObject and PutObjectAcl permissions in order to write to the target bucket.
     """
     # TODO: Make this behavior configurable and submit this change upstream.
+
+    def __init__(self, aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
+        # Note: this deliberately does not call the base class __init__ method,
+        # to avoid the connect_s3 call there without the host argument, which fails.
+        if not aws_access_key_id:
+            aws_access_key_id = self._get_s3_config('aws_access_key_id')
+        if not aws_secret_access_key:
+            aws_secret_access_key = self._get_s3_config('aws_secret_access_key')
+        if 'host' not in kwargs:
+            kwargs['host'] = self._get_s3_config('host') or 's3.amazonaws.com'
+        self.s3 = connect_s3(aws_access_key_id, aws_secret_access_key, is_secure=True, **kwargs)
 
     def put(self, local_path, destination_s3_path):
         """Put an object stored locally to an S3 path."""
