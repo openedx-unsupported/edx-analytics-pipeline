@@ -5,25 +5,22 @@ tracking log files.
 import csv
 import datetime
 import hashlib
-import html5lib
 import json
 from operator import itemgetter
 
+import html5lib
 import luigi
 import luigi.hdfs
 import luigi.s3
 from luigi.configuration import get_config
 
-from edx.analytics.tasks.answer_dist import (
-    get_text_from_html,
-    try_str_to_float,
-)
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
+from edx.analytics.tasks.insights.answer_dist import get_text_from_html, try_str_to_float
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 # TODO: move MultipartitionHiveTableTask to util.hive, and clean these out...
 import textwrap
