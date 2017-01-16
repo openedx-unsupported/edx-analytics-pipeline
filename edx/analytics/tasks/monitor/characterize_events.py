@@ -15,7 +15,7 @@ from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 log = logging.getLogger(__name__)
 
 
-class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
+class CharacterizeEventsMixin(object):
 
     output_root = luigi.Parameter(
         description='URL of location to write output.',
@@ -24,6 +24,9 @@ class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
     bucket = luigi.Parameter()
 
     key_prefix = luigi.Parameter(default='logs/tracking/')
+
+
+class ListS3FilesWithDateTask(OverwriteOutputMixin, CharacterizeEventsMixin, luigi.Task):
 
     def requires(self):
         pass
@@ -43,14 +46,7 @@ class ListS3FilesWithDateTask(OverwriteOutputMixin, luigi.Task):
                 output_file.write('\n')
 
 
-class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJobTask):
-
-    output_root = luigi.Parameter()
-
-    bucket = luigi.Parameter()
-
-    key_prefix = luigi.Parameter(default='logs/tracking/')
-
+class CharacterizeEventsBase(OverwriteOutputMixin, CharacterizeEventsMixin, EventLogSelectionMixin, MapReduceJobTask):
 
     def requires_local(self):
         return ListS3FilesWithDateTask(
@@ -60,17 +56,22 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
         )
 
     def init_local(self):
-        super(CharacterizeEventsTask, self).init_local()
+        super(CharacterizeEventsBase, self).init_local()
 
         self.url_to_timestamp_map = {}
         with self.input_local().open() as f_in:
-            lines = f_in.readlines()
-            for line in lines:
+            for line in f_in:
                 file_url, timestamp = line.split()
                 self.url_to_timestamp_map[file_url] = timestamp
 
+
+class DroppedEventsTask(CharacterizeEventsBase):
+
     def mapper(self, line):
-        input_file = os.environ['mapreduce_map_input_file']
+        input_file = self.get_map_input_file()
+
+        if 'legacy' in input_file:
+            return
 
         value = self.get_event_and_date_string(line)
         if value is None:
@@ -97,33 +98,13 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
         return get_target_from_url(url_path_join(self.output_root, 'characterize_events/'))
 
 
-class EventsHistogramTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJobTask):
-
-    output_root = luigi.Parameter()
-
-    bucket = luigi.Parameter()
-
-    key_prefix = luigi.Parameter(default='logs/tracking/')
-
-    def requires_local(self):
-        return ListS3FilesWithDateTask(
-            bucket=self.bucket,
-            key_prefix=self.key_prefix,
-            output_root=self.output_root,
-        )
-
-    def init_local(self):
-        super(EventsHistogramTask, self).init_local()
-
-        self.url_to_timestamp_map = {}
-        with self.input_local().open() as f_in:
-            lines = f_in.readlines()
-            for line in lines:
-                file_url, timestamp = line.split()
-                self.url_to_timestamp_map[file_url] = timestamp
+class EventsHistogramTask(CharacterizeEventsBase):
 
     def mapper(self, line):
-        input_file = os.environ['mapreduce_map_input_file']
+        input_file = self.get_map_input_file()
+
+        if 'legacy' in input_file:
+            return
 
         value = self.get_event_and_date_string(line)
         if value is None:
