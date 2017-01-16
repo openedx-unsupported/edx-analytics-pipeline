@@ -129,7 +129,7 @@ class EventsHistogramTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduc
         if value is None:
             return
         event, event_date = value
-        event_time = parser.parse(self.get_event_time(event))
+        event_time = parser.parse(self.get_event_time(event)).replace(tzinfo=None)
 
         event_upload_time = parser.parse(self.url_to_timestamp_map[input_file]).replace(tzinfo=None)
 
