@@ -113,7 +113,7 @@ class EventsHistogramTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduc
         )
 
     def init_local(self):
-        super(CharacterizeEventsTask, self).init_local()
+        super(EventsHistogramTask, self).init_local()
 
         self.url_to_timestamp_map = {}
         with self.input_local().open() as f_in:
