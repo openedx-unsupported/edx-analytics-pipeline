@@ -95,3 +95,65 @@ class CharacterizeEventsTask(OverwriteOutputMixin, EventLogSelectionMixin, MapRe
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'characterize_events/'))
+
+
+class EventsHistogramTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJobTask):
+
+    output_root = luigi.Parameter()
+
+    bucket = luigi.Parameter()
+
+    key_prefix = luigi.Parameter(default='logs/tracking/')
+
+    def requires_local(self):
+        return ListS3FilesWithDateTask(
+            bucket=self.bucket,
+            key_prefix=self.key_prefix,
+            output_root=self.output_root,
+        )
+
+    def init_local(self):
+        super(CharacterizeEventsTask, self).init_local()
+
+        self.url_to_timestamp_map = {}
+        with self.input_local().open() as f_in:
+            lines = f_in.readlines()
+            for line in lines:
+                file_url, timestamp = line.split()
+                self.url_to_timestamp_map[file_url] = timestamp
+
+    def mapper(self, line):
+        input_file = os.environ['mapreduce_map_input_file']
+
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, event_date = value
+        event_time = parser.parse(self.get_event_time(event))
+
+        event_upload_time = parser.parse(self.url_to_timestamp_map[input_file]).replace(tzinfo=None)
+
+        delta = event_upload_time - event_time
+
+        if delta <= datetime.timedelta(hours=1):
+            yield ('1_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=2):
+            yield ('1_2_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=3):
+            yield ('2_3_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=4):
+            yield ('3_4_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=5):
+            yield ('4_5_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=10):
+            yield ('5_10_HOUR'), 1
+        elif delta <= datetime.timedelta(hours=24):
+            yield ('10_24_HOUR'), 1
+        elif delta > datetime.timedelta(hours=24):
+            yield ('24_PLUS_HOUR'), 1
+
+    def reducer(self, key, values):
+        yield (key), sum(values)
+
+    def output(self):
+        return get_target_from_url(url_path_join(self.output_root, 'events_histogram/'))
