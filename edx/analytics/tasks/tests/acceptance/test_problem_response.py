@@ -70,10 +70,13 @@ class ProblemResponseReportWorkflowAcceptanceTest(AcceptanceTestCase):
 
     def validate_reports(self):
         """Check the generated reports against the expected output files."""
+        actual_output_targets = self.get_targets_from_remote_path(self.report_output_root)
+        self.assertEqual(len(actual_output_targets), 2)
+
         for course_id in ('OpenCraft_PRDemo1_2016', 'OpenCraft_PRDemo2_2016'):
             report_file_name = '{}_problem_response.csv'.format(course_id)
-            actual_output_targets = self.get_targets_from_remote_path(self.report_output_root, report_file_name)
-            self.assertEqual(len(actual_output_targets), 1, '{} not created'.format(report_file_name))
+            actual_output_targets = self.get_targets_from_remote_path(self.report_output_root, "*{}".format(report_file_name))
+            self.assertEqual(len(actual_output_targets), 1, '{} not created in {}'.format(report_file_name, self.report_output_root))
             actual_output = actual_output_targets[0].open('r').read()
 
             expected_output_file = os.path.join(self.data_dir, 'output', 'problem_response', report_file_name)
