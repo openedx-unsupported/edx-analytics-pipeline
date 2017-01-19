@@ -32,9 +32,8 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
         default=datetime.datetime.utcnow().date(),
         description='Default is today, UTC.',
     )
-    partner_short_codes = luigi.Parameter(
-        default_from_config={'section': 'course-catalog-api', 'name': 'partner_short_codes'},
-        is_list=True,
+    partner_short_codes = luigi.ListParameter(
+        config_path={'section': 'course-catalog-api', 'name': 'partner_short_codes'},
         default=None,
         description="A list of partner short codes that we should fetch data for."
     )

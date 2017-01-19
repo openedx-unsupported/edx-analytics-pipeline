@@ -436,7 +436,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     def create_access_policies(self, connection):
         cursor = connection.cursor()
         for column in self.restricted_columns:
-            restricted_roles_param = luigi.Parameter(is_list=True, config_path={'section': 'vertica-export', 'name': 'restricted_roles'}, default=[])
+            restricted_roles_param = luigi.ListParameter(config_path={'section': 'vertica-export', 'name': 'restricted_roles'}, default=[])
             restricted_roles = ['dbadmin'] + list(restricted_roles_param.value)
             expression = ' OR '.join(["ENABLED_ROLE('{0}')".format(role) for role in restricted_roles])
             statement = """
@@ -591,8 +591,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
     date = luigi.DateParameter()
 
-    roles = luigi.Parameter(
-        is_list=True,
+    roles = luigi.ListParameter(
         config_path={'section': 'vertica-export', 'name': 'standard_roles'},
     )
 

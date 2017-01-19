@@ -934,13 +934,11 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 class SegmentEventLogSelectionDownstreamMixin(EventLogSelectionDownstreamMixin):
     """Defines parameters for passing upstream to tasks that use SegmentEventLogSelectionMixin."""
 
-    source = luigi.Parameter(
-        is_list=True,
+    source = luigi.ListParameter(
         config_path={'section': 'segment-logs', 'name': 'source'},
         description='A URL to a path that contains log files that contain the events. (e.g., s3://my_bucket/foo/).   Segment-logs',
     )
-    pattern = luigi.Parameter(
-        is_list=True,
+    pattern = luigi.ListParameter(
         config_path={'section': 'segment-logs', 'name': 'pattern'},
         description='A regex with a named capture group for the date or timestamp that approximates the date that the events '
         'within were emitted. Note that the search interval is expanded, so events don\'t have to be in exactly '
