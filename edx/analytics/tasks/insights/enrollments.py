@@ -948,6 +948,12 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def required_table_tasks(self):
+        # Note this is not exactly correct, as what we really need is
+        # for enrollment-by-mode data to be in Hive.  If we are rerunning
+        # and enrollment-by-mode data has already been calculated, this
+        # requirement will be met but no data actually exists in Hive.
+        # So when the EnrollmentTask-based tasks is refactored to pull out
+        # the loading into Hive, this dependency should change to reflect that.
         yield EnrollmentByModeTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -958,13 +964,17 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             overwrite_n_days=self.overwrite_n_days,
         )
 
+        # We do not propagate the local overwrite value here.
+        # The local value comes from the default for HiveQueryToMysqlTask,
+        # which is True (so this table is always overwritten in Mysql,
+        # rather than being incrementally updated).  We don't really want
+        # the course's partition data to always be updated.
         catalog_tasks = [
             CoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
                 api_page_size=self.api_page_size,
-                overwrite=self.overwrite,
             ),
         ]
 
@@ -992,11 +1002,12 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'overwrite_n_days': self.overwrite_n_days,
         }
 
+        # We do not override overwrite here for now.
+        # We want course_summary to use its own default value.
         course_summary_kwargs = dict({
             'date': self.date,
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
-            'overwrite': self.overwrite,  # for enrollment
             'enable_course_catalog': self.enable_course_catalog,
         }, **enrollment_kwargs)
 
