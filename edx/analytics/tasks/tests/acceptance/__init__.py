@@ -224,10 +224,12 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': json.dumps([self.test_src,])
+                'source': json.dumps([self.test_src,]),
+                'pattern': json.dumps([".*tracking.log-(?P<date>\\d{8}).*\\.gz",]),
             },
             'segment-logs': {
-                'source': self.test_src
+                'source': json.dumps([self.test_src,]),
+                'pattern': json.dumps([".*segment.log-(?P<date>\\d{8}).*\\.gz",]),
             },
             'course-structure': {
                 'api_root_url': 'acceptance.test',
