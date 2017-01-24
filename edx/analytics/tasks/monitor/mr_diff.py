@@ -2,6 +2,7 @@ import luigi
 import os
 import logging
 import collections
+import json
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url
@@ -35,7 +36,7 @@ class MapReduceDiff(MapReduceJobTask):
         yield key, tuple(values)
 
     def reducer(self, key, values):
-        
+
         rows_in_base = []
         rows_in_target = []
         for value in values:
@@ -48,9 +49,31 @@ class MapReduceDiff(MapReduceJobTask):
 
         compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
 
-        if len(rows_in_target) == len(rows_in_base):
-            if not compare(rows_in_base, rows_in_target):
-                yield key
+        base_values = []
+        target_values = []
+
+        if not compare(rows_in_base, rows_in_target):
+            rows_in_base.subtract(rows_in_target)
+            for k, v in rows_in_base.iteritems():
+                if v < 0:
+                    for _ in range(abs(v)):
+                        target_values.append(k)
+                elif v > 0:
+                    for _ in range(v):
+                        base_values.append(k)
+
+            output_json = {
+                            'key': key,
+                            'data': {
+                                'base': base_values,
+                                'target': target_values
+                            }
+                        }
+
+            yield json.dumps(output_json)
+
+        else:
+            return
 
     def output(self):
         return get_target_from_url(self.output_root)
