@@ -5,7 +5,7 @@ End to end test of answer distribution.
 import logging
 import os
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.util.url import url_path_join
 
 
@@ -43,14 +43,14 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
     def test_answer_distribution(self):
         self.task.launch([
             'AnswerDistributionOneFilePerCourseTask',
-            '--src', self.test_src,
+            '--src', as_list_param(self.test_src),
             '--dest', url_path_join(self.test_root, 'dst'),
             '--name', 'test',
             '--output-root', self.test_out,
-            '--include', '"*"',
+            '--include', as_list_param('"*"'),
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--base-input-format', self.input_format,
-            '--lib-jar', self.oddjob_jar,
+            '--lib-jar', as_list_param(self.oddjob_jar),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
         self.validate_output()
@@ -80,13 +80,13 @@ class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTes
     def test_answer_distribution_mysql(self):
         self.task.launch([
             'AnswerDistributionToMySQLTaskWorkflow',
-            '--src', self.test_src,
+            '--src', as_list_param(self.test_src),
             '--dest', url_path_join(self.test_root, 'dst'),
             '--name', 'test',
-            '--include', '"*"',
+            '--include', as_list_param('"*"'),
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--base-input-format', self.input_format,
-            '--lib-jar', self.oddjob_jar,
+            '--lib-jar', as_list_param(self.oddjob_jar),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--credentials', self.export_db.credentials_file_url,
         ])

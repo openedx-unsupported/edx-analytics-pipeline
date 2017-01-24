@@ -3,7 +3,7 @@ from datetime import datetime
 
 from luigi.date_interval import Date
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available, as_list_param
 
 
 class LocationByCourseAcceptanceTest(AcceptanceTestCase):
@@ -28,7 +28,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'InsertToMysqlCourseEnrollByCountryWorkflow',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--interval', self.DATE_INTERVAL.to_string(),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])

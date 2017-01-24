@@ -37,9 +37,8 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
         default=None,
         description="A list of partner short codes that we should fetch data for."
     )
-    partner_api_urls = luigi.Parameter(
-        default_from_config={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
-        is_list=True,
+    partner_api_urls = luigi.ListParameter(
+        config_path={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
         default=None,
         description="A list of API URLs that are associated with the partner_short_codes.  This list must exactly " +
                     "match the ordering of the partner_short_codes list."

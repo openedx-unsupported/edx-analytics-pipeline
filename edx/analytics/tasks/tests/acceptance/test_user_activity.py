@@ -2,7 +2,7 @@
 
 import datetime
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 
 
 class UserActivityAcceptanceTest(AcceptanceTestCase):
@@ -21,7 +21,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'CourseActivityWeeklyTask',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--end-date', self.END_DATE.isoformat(),
             '--weeks', str(self.NUM_WEEKS),
             '--credentials', self.export_db.credentials_file_url,

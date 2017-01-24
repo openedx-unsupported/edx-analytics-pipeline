@@ -8,7 +8,7 @@ import shutil
 import tempfile
 import textwrap
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
 from edx.analytics.tasks.util.url import url_path_join
 
@@ -85,7 +85,7 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         for environment in ['prod', 'edge']:
             self.task.launch([
                 'EventExportTask',
-                '--source', url_path_join(self.test_src, environment),
+                '--source', as_list_param(url_path_join(self.test_src, environment)),
                 '--output-root', self.test_out,
                 '--config', self.test_config,
                 '--environment', environment,

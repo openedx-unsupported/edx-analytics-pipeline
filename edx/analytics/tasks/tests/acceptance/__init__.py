@@ -112,6 +112,10 @@ def modify_target_for_local_server(target):
     else:
         return target
 
+def as_list_param(value):
+    """Convenience method to convert a single string to a format expected by a Luigi ListParameter."""
+    return json.dumps([value,])
+
 
 def coerce_columns_to_string(row):
     # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
@@ -202,7 +206,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'manifest': {
                 'path': url_path_join(self.test_root, 'manifest'),
-                'lib_jar': json.dumps([self.config['oddjob_jar'],])
+                'lib_jar': as_list_param(self.config['oddjob_jar'])
             },
             'database-import': {
                 'credentials': self.config['credentials_file_url'],
@@ -224,12 +228,12 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': json.dumps([self.test_src,]),
-                'pattern': json.dumps([".*tracking.log-(?P<date>\\d{8}).*\\.gz",]),
+                'source': as_list_param(self.test_src),
+                'pattern': as_list_param(".*tracking.log-(?P<date>\\d{8}).*\\.gz"),
             },
             'segment-logs': {
-                'source': json.dumps([self.test_src,]),
-                'pattern': json.dumps([".*segment.log-(?P<date>\\d{8}).*\\.gz",]),
+                'source': as_list_param(self.test_src),
+                'pattern': as_list_param(".*segment.log-(?P<date>\\d{8}).*\\.gz"),
             },
             'course-structure': {
                 'api_root_url': 'acceptance.test',

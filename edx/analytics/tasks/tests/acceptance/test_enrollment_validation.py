@@ -7,7 +7,7 @@ import json
 import logging
 import StringIO
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.util.url import url_path_join
 
 
@@ -74,15 +74,15 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
             '--validation-pattern', validation_pattern,
             '--credentials', self.import_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--source', self.test_src,
-            '--pattern', source_pattern,
+            '--pattern', as_list_param(source_pattern),
             '--output-root', output_root,
         ]
         # An extra source means we're using synthetic events, so we
         # don't want to generate outside the interval in that case.
         if extra_source:
-            launch_args.extend(['--source', extra_source])
+            launch_args.extend(['--source', json.dumps([self.test_src, extra_source])])
         else:
+            launch_args.extend(['--source', as_list_param(self.test_src)])
             launch_args.extend(['--generate-before'])
         if run_with_validation_events:
             launch_args.extend(['--expected-validation', "{}T00".format(self.END_DATE)])
