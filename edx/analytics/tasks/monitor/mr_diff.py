@@ -47,14 +47,15 @@ class MapReduceDiff(MapReduceJobTask):
             elif dirname == os.path.dirname(self.target_directory):
                 rows_in_target.append(value[:-1])
 
-        compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
-
         base_values = []
         target_values = []
 
-        if not compare(rows_in_base, rows_in_target):
-            rows_in_base.subtract(rows_in_target)
-            for k, v in rows_in_base.iteritems():
+        base_collection = collections.Counter(rows_in_base)
+        target_collection = collections.Counter(rows_in_target)
+
+        if not base_collection == target_collection:
+            base_collection.subtract(target_collection)
+            for k, v in target_collection.iteritems():
                 if v < 0:
                     for _ in range(abs(v)):
                         target_values.append(k)
