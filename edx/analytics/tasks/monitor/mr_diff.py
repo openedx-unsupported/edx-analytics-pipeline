@@ -71,7 +71,7 @@ class MapReduceDiff(MapReduceJobTask):
                             }
                         }
 
-            yield json.dumps(output_json)
+            yield "", json.dumps(output_json)
 
         else:
             return
