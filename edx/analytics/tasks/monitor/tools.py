@@ -7,9 +7,9 @@ import gzip
 import cjson
 import luigi
 
-from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 
 
@@ -174,6 +174,8 @@ class EventCounter(EventLogSelectionMixin, MapReduceJobTask):
         for count, length in values:
             num_events += count
             total_size += length
+        self.incr_counter('Event', 'Count', num_events)
+        self.incr_counter('Event', 'Bytes', total_size)
         yield key, (num_events, total_size)
 
     # combiner = reducer
