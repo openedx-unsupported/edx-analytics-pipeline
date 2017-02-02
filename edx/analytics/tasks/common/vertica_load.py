@@ -477,7 +477,6 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             self.create_schema(connection)
             self.create_table(connection)
             self.create_nonaggregate_projections(connection)
-            self.create_access_policies(connection)
 
             # we should do nothing between initialization and copying
             # that would commit the transaction.
@@ -503,6 +502,11 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             # and make sure that aggregate projections are also added.
             # This may be slow, but they would cause commits anyway.
             self.create_aggregate_projections(connection)
+
+            # For some reason we don't fully understand we can't create the access policy before running the COPY.
+            # This only works in our crazy schema-swapping mode where we create a fresh schema for loading purposes and
+            # then later swap it in.
+            self.create_access_policies(connection)
 
         except Exception as exc:
             log.exception("Rolled back the transaction; exception raised: %s", str(exc))
