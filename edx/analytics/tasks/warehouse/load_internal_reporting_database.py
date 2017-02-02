@@ -159,13 +159,6 @@ class PostImportDatabaseTask(SchemaManagementTask):
     """
     priority = -100
 
-    # Override the standard roles here since these tables will be rather raw. We may want to restrict access to a
-    # subset of users.
-    roles = luigi.Parameter(
-        is_list=True,
-        config_path={'section': 'vertica-export', 'name': 'business_intelligence_team_roles'},
-    )
-
     @property
     def queries(self):
         return [

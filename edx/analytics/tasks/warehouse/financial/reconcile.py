@@ -971,9 +971,3 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('order_org_id', 'VARCHAR(128)'),  # pulled from course_id
             ('order_processor', 'VARCHAR(32)'),
         ]
-
-    @property
-    def restricted_columns(self):
-        return [
-            'order_user_email'
-        ]
