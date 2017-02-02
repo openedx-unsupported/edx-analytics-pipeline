@@ -1,0 +1,9 @@
+input:
+  hs_address: localhost
+  templates:
+    - "{cluster_name}.{job_flow_id}.{job_name}.{job_index}.{metric}"
+output:
+  statsd:
+    host: localhost
+    port: 8125
+    prefix: edx.analytics.emr

@@ -3,6 +3,7 @@
 # These dependencies are explicitly included in code.
 
 argparse==1.2.1 	# Python Software Foundation License
+boto3==1.4.4 # Apache 2.0
 ciso8601==1.0.3         # MIT
 edx-opaque-keys==0.4    # AGPL
 edx-ccx-keys==0.2.1     # AGPL
@@ -21,11 +22,13 @@ python-gnupg==0.3.9	# BSD
 pytz==2016.10		# ZPL
 requests==2.12.4        # Apache 2.0
 six==1.10.0		# MIT
+statsd==3.2.1  # MIT
 stevedore==1.19.1 	# Apache 2.0
 ua-parser==0.3.6 	# Apache
 urllib3==1.19.1         # MIT
 user-agents==0.3.2	# MIT
 vertica-python==0.6.11  # MIT
+yarn-api-client==0.2.3 # BSD
 
 git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
