@@ -123,3 +123,9 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
             ('user_account_creation_time', 'TIMESTAMP'),
             ('user_last_location_country_code', 'VARCHAR(45)')
         ]
+
+    @property
+    def restricted_columns(self):
+        return [
+            'user_email'
+        ]

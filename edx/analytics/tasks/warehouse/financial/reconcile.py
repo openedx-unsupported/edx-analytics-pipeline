@@ -675,7 +675,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             orderitem.refunded_quantity if orderitem else None,
             orderitem.user_id if orderitem else None,
             orderitem.username if orderitem else None,
-            orderitem.user_email if orderitem else None,
+            None,  # TODO: remove this column from the table
             orderitem.product_class if orderitem else None,
             orderitem.product_detail if orderitem else None,
             orderitem.course_id if orderitem else None,
