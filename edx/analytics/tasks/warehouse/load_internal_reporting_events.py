@@ -1219,13 +1219,6 @@ class PruneEventPartitionsInVertica(EventRecordLoadDownstreamMixin, SchemaManage
     # create queries to delete the excess partitions.
     earliest_date = None
 
-    # Override the standard roles here since these tables will be rather raw. We may want to restrict access to a
-    # subset of users.
-    roles = luigi.Parameter(
-        is_list=True,
-        config_path={'section': 'vertica-export', 'name': 'restricted_roles'},
-    )
-
     def requires(self):
         return {
             'source': LoadEventRecordIntervalToVertica(
