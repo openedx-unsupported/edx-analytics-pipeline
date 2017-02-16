@@ -2,9 +2,9 @@ import json
 import sys
 import boto3
 import requests
-import retrying
 import statsd
 import yaml
+from retrying import retry
 from yarn_api_client import HistoryServer
 
 
