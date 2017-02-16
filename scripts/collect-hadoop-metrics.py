@@ -4,7 +4,7 @@ import boto3
 import requests
 import statsd
 import yaml
-from retrying import retry
+from edx.analytics.tasks.util.retry import retry
 from yarn_api_client import HistoryServer
 
 
@@ -187,11 +187,14 @@ def facet_metrics(metrics, templates, context={}):
     return output_metrics
 
 
-@retry(stop_max_attempt_number=6, wait_exponential_multipler=1000, wait_exponential_max=10000)
+@retry(timeout=300)
 def collect_metrics(hs_address, metric_templates):
     """
     Collects Hadoop counters from all jobs on the local HistoryServer, transforming them for forwarding
     to Graphite, along with any configured faceting.
+
+    This method will automatically retry (retry decorator), spending up to 300 seconds retrying.  This doesn't technically
+    account for time spent sleeping which goes over the timeout, but is a close approximation.
     """
     # Load up the context for where we're running.
     context = get_context()
