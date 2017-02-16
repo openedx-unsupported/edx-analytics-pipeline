@@ -2,6 +2,7 @@ import json
 import sys
 import boto3
 import requests
+import retrying
 import statsd
 import yaml
 from yarn_api_client import HistoryServer
@@ -186,6 +187,7 @@ def facet_metrics(metrics, templates, context={}):
     return output_metrics
 
 
+@retry(stop_max_attempt_number=6, wait_exponential_multipler=1000, wait_exponential_max=10000)
 def collect_metrics(hs_address, metric_templates):
     """
     Collects Hadoop counters from all jobs on the local HistoryServer, transforming them for forwarding
@@ -197,6 +199,8 @@ def collect_metrics(hs_address, metric_templates):
     print "[collect-hadoop-metrics] Context for this run:"
     for (k,v) in context.iteritems():
         print "                 {} => {}".format(k, v)
+
+    formatted_metrics = {}
 
     # Grab all jobs from the history server.
     hs = HistoryServer(hs_address)
@@ -224,7 +228,6 @@ def collect_metrics(hs_address, metric_templates):
 
         job_counters = hs.job_counters(job['id']).data['jobCounters']
 
-        formatted_metrics = {}
         for counter_group in job_counters.get('counterGroup', []):
             metric_prefix = get_prefix_from_counter_group_name(counter_group['counterGroupName'])
 
