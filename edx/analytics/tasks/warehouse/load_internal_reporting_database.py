@@ -28,6 +28,10 @@ class MysqlToVerticaTaskMixin(WarehouseMixin):
     database = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'database'}
     )
+    num_mappers = luigi.Parameter(
+        default=None,
+        description='The number of map tasks to ask Sqoop to use.',
+    )
 
 
 class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
@@ -113,6 +117,7 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
             destination=destination,
             overwrite=self.overwrite,
             mysql_delimiters=True,
+            num_mappers=self.num_mappers
         )
 
     @property
@@ -253,6 +258,7 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
                     overwrite=self.overwrite,
                     date=self.date,
                     marker_schema=self.marker_schema,
+                    num_mappers=self.num_mappers,
                 )
 
         yield PostImportDatabaseTask(
