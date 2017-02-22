@@ -7,8 +7,8 @@ from ddt import ddt, data, unpack
 from mock import patch, MagicMock, sentinel
 
 from edx.analytics.tasks.insights.video import (
-    UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION
-)
+    UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION,
+    VideoSegmentDetailRecord)
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
@@ -755,6 +755,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     """Test VideoUsageTask reducer."""
 
     VIDEO_MODULE_ID = 'i4x-foo-bar-baz'
+    output_record_type = VideoSegmentDetailRecord
 
     task_class = VideoUsageTask
 
@@ -766,17 +767,17 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
         inputs = [
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, {
-            UsageColumns.PIPELINE_VIDEO_ID: self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
-            UsageColumns.COURSE_ID: self.COURSE_ID,
-            UsageColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
-            UsageColumns.VIDEO_DURATION: 4,
-            UsageColumns.SECONDS_PER_SEGMENT: VIDEO_VIEWING_SECONDS_PER_SEGMENT,
-            UsageColumns.USERS_AT_START: 1,
-            UsageColumns.USERS_AT_END: 1,
-            UsageColumns.SEGMENT: 0,
-            UsageColumns.USERS_VIEWED: 1,
-            UsageColumns.NUM_VIEWS: 1,
+        self._check_output_by_record_field(inputs, {
+            "pipeline_video_id": self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
+            "course_id": self.COURSE_ID,
+            "encoded_module_id": self.VIDEO_MODULE_ID,
+            "duration": "4",
+            "segment_length": str(VIDEO_VIEWING_SECONDS_PER_SEGMENT),
+            "users_at_start": "1",
+            "users_at_end": "1",
+            "segment": "0",
+            "num_users": "1",
+            "num_views": "1"
         })
 
     def test_adjacent_viewings(self):
@@ -784,16 +785,16 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
             ('foo', 5, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "0",
+                "num_users": "1",
+                "num_views": "1",
             },
             {
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "1",
+                "num_users": "1",
+                "num_views": "1",
             },
         ])
 
@@ -806,11 +807,11 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 0, 4.6, VIDEO_UNKNOWN_DURATION),
             ('foo', 4.6, 4.9, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 2,
+                "segment": "0",
+                "num_users": "1",
+                "num_views": "2",
             }
         ])
 
@@ -819,16 +820,16 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
             ('foo', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 2,
+                "segment": "0",
+                "num_users": "1",
+                "num_views": "2",
             },
             {
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "1",
+                "num_users": "1",
+                "num_views": "1",
             },
         ])
 
@@ -836,21 +837,21 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
         inputs = [
             ('foo', 0, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "0",
+                "num_users": "1",
+                "num_views": "1",
             },
             {
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "1",
+                "num_users": "1",
+                "num_views": "1",
             },
             {
-                UsageColumns.SEGMENT: 2,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "2",
+                "num_users": "1",
+                "num_views": "1",
             },
         ])
 
@@ -860,21 +861,21 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo2', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
             ('foo2', 4.2, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 3,
+                "segment": "0",
+                "num_users": "2",
+                "num_views": "3",
             },
             {
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 2,
+                "segment": "1",
+                "num_users": "1",
+                "num_views": "2",
             },
             {
-                UsageColumns.SEGMENT: 2,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "2",
+                "num_users": "1",
+                "num_views": "1",
             },
         ])
 
@@ -896,30 +897,30 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
         # Note that the start and end counts are denormalized into all results, so they should have an
         # identical value in every record. Also note that the middle records are ignored here.
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: 14,
-                UsageColumns.USERS_AT_START: 2,
-                UsageColumns.USERS_AT_END: 2,
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 3,
+                "duration": "14",
+                "users_at_start": "2",
+                "users_at_end": "2",
+                "segment": "0",
+                "num_users": "2",
+                "num_views": "3",
             },
             {
-                UsageColumns.VIDEO_DURATION: 14,
-                UsageColumns.USERS_AT_START: 2,
-                UsageColumns.USERS_AT_END: 2,
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 2,
+                "duration": "14",
+                "users_at_start": "2",
+                "users_at_end": "2",
+                "segment": "1",
+                "num_users": "2",
+                "num_views": "2",
             },
             {
-                UsageColumns.VIDEO_DURATION: 14,
-                UsageColumns.USERS_AT_START: 2,
-                UsageColumns.USERS_AT_END: 2,
-                UsageColumns.SEGMENT: 2,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 2,
+                "duration": "14",
+                "users_at_start": "2",
+                "users_at_end": "2",
+                "segment": "2",
+                "num_users": "2",
+                "num_views": "2",
             },
         ])
 
@@ -939,20 +940,20 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
         # Note that the start and end counts are denormalized into all results, so they should have an
         # identical value in every record.
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.USERS_AT_START: 2,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.USERS_VIEWED: 2,
-                UsageColumns.NUM_VIEWS: 3,
+                "users_at_start": "2",
+                "users_at_end": "3",
+                "segment": "0",
+                "num_users": "2",
+                "num_views": "3",
             },
             {
-                UsageColumns.USERS_AT_START: 2,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 3,
-                UsageColumns.NUM_VIEWS: 4,
+                "users_at_start": "2",
+                "users_at_end": "3",
+                "segment": "1",
+                "num_users": "3",
+                "num_views": "4",
             },
         ])
 
@@ -963,18 +964,18 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 16, 19, 40),
         ]
 
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             # Note that segment 0 is omitted since we didn't see any activity there
             {
-                UsageColumns.SEGMENT: 1,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "1",
+                "num_users": "1",
+                "num_views": "1",
             },
             # Note that segment 2 is omitted since we didn't see any activity there
             {
-                UsageColumns.SEGMENT: 3,
-                UsageColumns.USERS_VIEWED: 1,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "3",
+                "num_users": "1",
+                "num_views": "1",
             },
             # Note all segments up to the end of the video are omitted, again due to a lack of activity
         ])
@@ -984,10 +985,10 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 0, 1, 10),
             ('foo', 0, 1, 50),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: 50,
-                UsageColumns.USERS_AT_END: 0,
+                "duration": "50",
+                "users_at_end": "0",
             }
         ])
 
@@ -998,22 +999,22 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
             ('foo', 5, 9, VIDEO_UNKNOWN_DURATION),
             ('foo', 12, 16, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: 19,
-                UsageColumns.USERS_AT_END: 1,
+                "duration": "19",
+                "users_at_end": "1",
             },
             {
-                UsageColumns.VIDEO_DURATION: 19,
-                UsageColumns.USERS_AT_END: 1,
+                "duration": "19",
+                "users_at_end": "1",
             },
             {
-                UsageColumns.VIDEO_DURATION: 19,
-                UsageColumns.USERS_AT_END: 1,
+                "duration": "19",
+                "users_at_end": "1",
             },
             {
-                UsageColumns.VIDEO_DURATION: 19,
-                UsageColumns.USERS_AT_END: 1,
+                "duration": "19",
+                "users_at_end": "1",
             }
         ])
 
@@ -1021,10 +1022,10 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
         inputs = [
             ('foo', 6, 8, 9.2),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.VIDEO_DURATION: 9,
-                UsageColumns.USERS_AT_END: 1,
+                "duration": "9",
+                "users_at_end": "1",
             }
         ])
 
@@ -1040,36 +1041,36 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
             ('foo1', 100, 103, VIDEO_UNKNOWN_DURATION),
         ]
-        self._check_output_by_key(inputs, [
+        self._check_output_by_record_field(inputs, [
             {
-                UsageColumns.SEGMENT: 0,
-                UsageColumns.VIDEO_DURATION: 104,
-                UsageColumns.USERS_AT_START: 3,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.NUM_VIEWS: 3,
+                "segment": "0",
+                "duration": "104",
+                "users_at_start": "3",
+                "users_at_end": "3",
+                "num_views": "3",
             },
             {
-                UsageColumns.SEGMENT: 18,
-                UsageColumns.VIDEO_DURATION: 104,
-                UsageColumns.USERS_AT_START: 3,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.NUM_VIEWS: 3,
+                "segment": "18",
+                "duration": "104",
+                "users_at_start": "3",
+                "users_at_end": "3",
+                "num_views": "3",
             },
             {
-                UsageColumns.SEGMENT: 19,
-                UsageColumns.VIDEO_DURATION: 104,
-                UsageColumns.USERS_AT_START: 3,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.NUM_VIEWS: 3,
+                "segment": "19",
+                "duration": "104",
+                "users_at_start": "3",
+                "users_at_end": "3",
+                "num_views": "3",
             },
             # Even though segment 20 is viewed by one user, users_at_end would still be 3 as we consider
             # end time to be before the very end
             {
-                UsageColumns.SEGMENT: 20,
-                UsageColumns.VIDEO_DURATION: 104,
-                UsageColumns.USERS_AT_START: 3,
-                UsageColumns.USERS_AT_END: 3,
-                UsageColumns.NUM_VIEWS: 1,
+                "segment": "20",
+                "duration": "104",
+                "users_at_start": "3",
+                "users_at_end": "3",
+                "num_views": "1",
             },
         ])
 
