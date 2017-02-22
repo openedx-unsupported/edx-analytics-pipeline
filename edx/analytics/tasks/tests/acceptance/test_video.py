@@ -70,7 +70,6 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 15,
             ),
         ]
-
         self.assertItemsEqual(expected, results)
 
     def validate_video_timeline(self):
