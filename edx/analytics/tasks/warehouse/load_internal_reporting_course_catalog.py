@@ -295,6 +295,8 @@ class CourseRecord(Record):
     marketing_url = StringField(nullable=True, length=1024)
     min_effort = IntegerField(nullable=True)
     max_effort = IntegerField(nullable=True)
+    announcement_time = DateTimeField(nullable=True)
+    reporting_type = StringField(nullable=True, length=20)
 
 
 class CourseTableTask(BareHiveTableTask):
@@ -361,6 +363,8 @@ class CourseDataTask(BaseCourseMetadataTask):
             marketing_url=course_run.get('marketing_url'),
             min_effort=course_run.get('min_effort'),
             max_effort=course_run.get('max_effort'),
+            announcement_time = DateTimeField().deserialize_from_string(course_run.get('announcement')),
+            reporting_type = course_run.get('reporting_type'),
         )
         output_file.write(record.to_separated_values(sep=u'\t'))
         output_file.write('\n')
