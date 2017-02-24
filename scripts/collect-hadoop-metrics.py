@@ -285,7 +285,11 @@ if __name__ == "__main__":
     statsd_prefix = statsd_config.get('prefix', 'edx.analytics.emr')
 
     # Actually collect the metrics.
-    metrics = collect_metrics(hs_address, metric_templates)
+    metrics = []
+    try:
+      metrics = collect_metrics(hs_address, metric_templates)
+    except Exception as ex:
+      print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
 
     # Ship them to the local statsd endpoint.
     statsd_client = statsd.StatsClient(statsd_host, statsd_port, prefix=statsd_prefix)
