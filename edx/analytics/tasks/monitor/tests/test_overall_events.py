@@ -108,7 +108,7 @@ class TotalEventsTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCas
         sys.stderr = test_stderr
         self.assert_no_map_output_for(line)
         test_stderr = test_stderr.getvalue().strip()
-        self.assertEquals(test_stderr, 'reporter:counter:Event,Missing Time Field,1')
+        self.assertEquals(test_stderr, 'reporter:counter:Event,Discard Missing Time Field,1')
 
 
 class TotalEventsTaskReducerTest(ReducerTestMixin, TestCase):
