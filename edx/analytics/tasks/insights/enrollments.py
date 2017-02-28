@@ -50,47 +50,64 @@ class CourseEnrollmentEventsTask(
     # We use warehouse_path to generate the output path, so we make this a non-param.
     output_root = None
 
+    counter_category_name = 'Enrollment Events'
+
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:
             return
         event, date_string = value
+        self.incr_counter(self.counter_category_name, 'Inputs with Dates', 1)
 
         event_type = event.get('event_type')
         if event_type is None:
             log.error("encountered event with no event_type: %s", event)
+            self.incr_counter(self.counter_category_name, 'Discard Missing Event Type', 1)
             return
 
         if event_type not in (DEACTIVATED, ACTIVATED, MODE_CHANGED):
+            self.incr_counter(self.counter_category_name, 'Discard Non-Enrollment Event Type', 1)
             return
 
         timestamp = eventlog.get_event_time_string(event)
         if timestamp is None:
             log.error("encountered event with bad timestamp: %s", event)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Timestamp', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
             return
 
         event_data = eventlog.get_event_data(event)
         if event_data is None:
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Event Data', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
             return
 
         course_id = opaque_key_util.normalize_course_id(event_data.get('course_id'))
         if course_id is None or not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered explicit enrollment event with invalid course_id: %s", event)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing course_id', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
             return
 
         user_id = event_data.get('user_id')
         if user_id is None:
             log.error("encountered explicit enrollment event with no user_id: %s", event)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing user_id', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
             return
 
         mode = event_data.get('mode')
         if mode is None:
             log.error("encountered explicit enrollment event with no mode: %s", event)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing mode', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
             return
 
+        self.incr_counter(self.counter_category_name, 'Output From Mapper', 1)
         yield date_string, (course_id, user_id, timestamp, event_type, mode)
 
     def multi_output_reducer(self, _date_string, values, output_file):
+        self.incr_counter(self.counter_category_name, 'Output Dates with Events', 1)
         for value in values:
             output_file.write('\t'.join([str(field) for field in value]))
             output_file.write('\n')
@@ -177,6 +194,8 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
 
     enable_direct_output = True
 
+    counter_category_name = 'Course Enrollment'
+
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentTask, self).__init__(*args, **kwargs)
 
@@ -236,15 +255,20 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
             event_type,
             mode
         ) = line.split('\t')
+        self.incr_counter(self.counter_category_name, 'Total Events Input', 1)
         yield ((course_id, user_id), (timestamp, event_type, mode))
 
     def reducer(self, key, values):
         """Emit records for each day the user was enrolled in the course."""
         course_id, user_id = key
 
-        event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values)
+        increment_counter = lambda counter_name: self.incr_counter(self.counter_category_name, counter_name, 1)
+        increment_counter("Total Users_Courses")
+
+        event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values, increment_counter)
         for day_enrolled_record in event_stream_processor.days_enrolled():
             yield day_enrolled_record
+            self.incr_counter(self.counter_category_name, 'Total Days Output', 1)
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -329,10 +353,11 @@ class DaysEnrolledForEvents(object):
 
     MODE_UNKNOWN = 'unknown'
 
-    def __init__(self, course_id, user_id, interval, events):
+    def __init__(self, course_id, user_id, interval, events, increment_counter=None):
         self.course_id = course_id
         self.user_id = user_id
         self.interval = interval
+        self.increment_counter = increment_counter
 
         self.sorted_events = sorted(events)
         # After sorting, we can discard time information since we only care about date transitions.
@@ -350,9 +375,11 @@ class DaysEnrolledForEvents(object):
         # track the previous state in order to easily detect state changes between days.
         if self.first_event.event_type == DEACTIVATED:
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
+            self.increment_counter("Quality First Event Is Unenrollment")
             log.warning('First event is an unenrollment for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
         elif self.first_event.event_type == MODE_CHANGED:
+            self.increment_counter("Quality First Event Is Mode Change")
             log.warning('First event is a mode change for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
 
@@ -424,19 +451,27 @@ class DaysEnrolledForEvents(object):
 
         Note that in spite of our best efforts some events might be lost, causing invalid state transitions.
         """
-        self.mode = self.event.mode
-
         if self.state == ENROLLED and self.event.event_type == DEACTIVATED:
             self.state = UNENROLLED
+            self.increment_counter("Subset Unenrollment")
         elif self.state == UNENROLLED and self.event.event_type == ACTIVATED:
             self.state = ENROLLED
+            self.increment_counter("Subset Enrollment")
         elif self.event.event_type == MODE_CHANGED:
-            pass
+            if self.mode == self.event.mode:
+                self.increment_counter("Subset Unchanged")
+                self.increment_counter("Subset Unchanged Mode")
+            else:
+                self.increment_counter("Subset Mode Change")
         else:
             log.warning(
                 'No state change for %s event. User %d is already in the requested state for course %s on %s.',
                 self.event.event_type, self.user_id, self.course_id, self.event.datestamp
             )
+            self.increment_counter("Subset Unchanged")
+            self.increment_counter("Subset Unchanged Already {}".format("Enrolled" if self.state == ENROLLED else "Unenrolled"))
+
+        self.mode = self.event.mode
 
 
 class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
@@ -513,6 +548,8 @@ class EnrollmentSummaryRecord(Record):
 class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
     """Produce a data set that captures critical details about a user's enrollment history in each course."""
 
+    counter_category_name = 'Enrollment Summary'
+
     def reducer(self, key, values):
         """Emit one record per user course enrollment, summarizing their enrollment activity."""
         course_id, user_id = key
@@ -527,19 +564,24 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
         most_recent_mode = None
         state = UNENROLLED
 
+        self.incr_counter(self.counter_category_name, 'Total Users_Courses', 1)
         for event in sorted_events:
+            self.incr_counter(self.counter_category_name, 'Total Events', 1)
+
             is_enrolled_mode_change = (state == ENROLLED and event.event_type == MODE_CHANGED)
             is_enrolled_deactivate = (state == ENROLLED and event.event_type == DEACTIVATED)
             is_unenrolled_activate = (state == UNENROLLED and event.event_type == ACTIVATED)
 
             if is_enrolled_deactivate:
+                self.incr_counter(self.counter_category_name, 'Subset Unenrollment', 1)
                 state = UNENROLLED
                 last_unenroll_event = event
                 # If we see more than one deactivate in a row, we only consider the first one as the last unenrollment.
                 if event.mode != most_recent_mode:
-                    self.incr_counter('Enrollment State', 'Deactivation Mode Changed', 1)
+                    self.incr_counter(self.counter_category_name, 'Deactivation Mode Changed', 1)
             elif is_unenrolled_activate or is_enrolled_mode_change:
                 if event.event_type == ACTIVATED:
+                    self.incr_counter(self.counter_category_name, 'Subset Enrollment', 1)
                     # If we see multiple activation events in a row, consider the first one to be the first enrollment.
                     state = ENROLLED
                     if first_enroll_event is None:
@@ -547,7 +589,10 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
 
                 if event.event_type == MODE_CHANGED:
                     if event.mode == most_recent_mode:
-                        self.incr_counter('Enrollment State', 'Redundant Mode Change', 1)
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged', 1)
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged Mode', 1)
+                    else:
+                        self.incr_counter(self.counter_category_name, 'Subset Mode Change', 1)
 
                 # The most recent mode is computed from the activation and mode changes. If we see a different mode
                 # on the deactivation event, it is ignored. It's unclear in many of these cases which event to trust,
@@ -557,20 +602,23 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
                     first_event_by_mode[event.mode] = event
             else:
                 # increment counters for invalid events
+                self.incr_counter(self.counter_category_name, 'Subset Unchanged', 1)
                 if state == ENROLLED and event.event_type == ACTIVATED:
                     if event.mode == most_recent_mode:
-                        self.incr_counter('Enrollment State', 'Enrolled Activation', 1)
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged Already Enrolled', 1)
                     else:
-                        self.incr_counter('Enrollment State', 'Enrolled Activation Mode Changed', 1)
+                        # We do not consider an activation with a different mode to actually change the mode,
+                        # if the user is already enrolled.
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged Enrolled Activation Mode Change', 1)
                 elif state == UNENROLLED:
                     if event.event_type == DEACTIVATED:
-                        self.incr_counter('Enrollment State', 'Unenrolled Deactivation', 1)
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged Already Unenrolled', 1)
                     elif event.event_type == MODE_CHANGED:
-                        self.incr_counter('Enrollment State', 'Unenrolled Mode Change', 1)
+                        self.incr_counter(self.counter_category_name, 'Subset Unchanged Unenrolled Mode Change', 1)
 
         if first_enroll_event is None:
             # The user only has deactivate and mode change events... that's odd, just throw away the record.
-            self.incr_counter('Enrollment State', 'Missing Enrollment Event', 1)
+            self.incr_counter(self.counter_category_name, 'Discard User_Course With Missing Enrollment Event', 1)
             return
 
         record = EnrollmentSummaryRecord(
@@ -585,6 +633,7 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
             first_credit_enrollment_time=self.format_timestamp(first_event_by_mode.get('credit')),
             end_time=DateTimeField().deserialize_from_string(self.interval.date_b.isoformat())
         )
+        self.incr_counter(self.counter_category_name, 'Enrollment Summary Output', 1)
         yield record.to_string_tuple()
 
     @staticmethod
