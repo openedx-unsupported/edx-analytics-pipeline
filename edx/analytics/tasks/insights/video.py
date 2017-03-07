@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import urllib
+import textwrap
 
 import ciso8601
 import luigi
@@ -17,13 +18,12 @@ from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask, \
-    HivePartitionTask
+from edx.analytics.tasks.util.hive import (WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask,
+                                           HivePartitionTask, hive_database_name)
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField
 
 log = logging.getLogger(__name__)
-
 
 VIDEO_PLAYED = 'play_video'
 VIDEO_PAUSED = 'pause_video'
@@ -47,9 +47,9 @@ VideoViewing = namedtuple('VideoViewing', [   # pylint: disable=invalid-name
     'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
 
 
-class VideoSegmentSummaryRecord(Record):
+class VideoTimelineRecord(Record):
     """
-    Video Segment Information
+    Video Segment Information used to populate the video_timeline table
     """
 
     pipeline_video_id = StringField(length=255, nullable=False, description='Pipeline Video Id.')
@@ -58,9 +58,9 @@ class VideoSegmentSummaryRecord(Record):
     num_views = IntegerField(description='Number of Views.')
 
 
-class VideoNonsegmentSummaryRecord(Record):
+class VideoSegmentSummaryRecord(Record):
     """
-    Video Nonsegment Summary Information
+    Video Segment Summary Information used to populate the video table
     """
 
     pipeline_video_id = StringField(length=255, nullable=False, description='Pipeline Video Id.')
@@ -218,6 +218,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
     def reducer(self, key, events):
         """
         Constructs "viewing" records for each user in a course video module.
+
         Puts the user's video events in chronological order, and identifies pairs of
         play_video/non-play_video events.
         """
@@ -256,7 +257,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 else:
                     start_offset = current_time
 
-                return VideoViewing( #TODO Should I promote this into a first class object?
+                return VideoViewing(
                     start_timestamp=parsed_timestamp,
                     course_id=course_id,
                     encoded_module_id=encoded_module_id,
@@ -285,7 +286,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                               viewing, event, key)
                     return None
 
-                return ( #TODO Is this a new object?
+                return (
                     username,
                     viewing.course_id,
                     viewing.encoded_module_id,
@@ -330,10 +331,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
     def output(self):
         return get_target_from_url(self.output_root)
 
-
     def get_video_duration(self, youtube_id):
         """
         For youtube videos, queries Google API for video duration information.
+
         This returns an "unknown" duration flag if no API key has been defined, or if the query fails.
         """
         duration = VIDEO_UNKNOWN_DURATION
@@ -474,7 +475,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
                     segment=segment,
                     num_users=len(stats.get('users', [])),
                     num_views=stats.get('views', 0)
-                ).to_string_tuple()   # TODO This is a signature change!  Instead of being mixes of types now they are all strings!
+                ).to_string_tuple()
             )
             if segment == final_segment:
                 break
@@ -543,7 +544,9 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
         return self.requires().output()
 
 
-class VideoTimelineCreateTableTask(BareHiveTableTask):
+class VideoTimelineTableTask(BareHiveTableTask):
+    """Creates the Hive storage table used to hold video_timeline data"""
+
     @property
     def partition_by(self):
         return 'dt'
@@ -554,29 +557,33 @@ class VideoTimelineCreateTableTask(BareHiveTableTask):
 
     @property
     def columns(self):
-        return VideoSegmentSummaryRecord.get_hive_schema()
+        return VideoTimelineRecord.get_hive_schema()
 
 
-class VideoTimelineCreatePartitionTask(VideoTableDownstreamMixin, HivePartitionTask):
+class VideoTimelinePartitionTask(VideoTableDownstreamMixin, HivePartitionTask):
+    """Creates the Hive storage partition used to hold video_timeline data"""
+
     @property
     def hive_table_task(self):
-        return VideoTimelineCreateTableTask(
+        return VideoTimelineTableTask(
             warehouse_path=self.warehouse_path,
         )
 
-    @property
-    def partition_by(self):
-        return self.hive_table_task.partition_by
+    # @property
+    # def partition_by(self):
+    #     return self.hive_table_task.partition_by
 
     @property
     def partition_value(self):
         """Use a dynamic partition value based on the date parameter."""
         return self.interval.date_b.isoformat()  # pylint: disable=no-member
 
-    @property
-    def data_task(self):
-        """A bit of an abuse here as data should be for populating this table instead of an upstream table"""
-        return VideoUsageTableTask(
+    def requires(self):
+        # There is some glue in requires that links in the data and table tasks that needs to survive unscathed
+        for requirement in super(VideoTimelinePartitionTask, self).requires():
+            yield requirement
+
+        yield VideoUsageTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -591,6 +598,8 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 
     @property
     def insert_query(self):
+        """ The insert query that specifies the fields from the source table """
+
         return """
             SELECT
                 pipeline_video_id,
@@ -600,27 +609,24 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             FROM video_usage
         """
 
-    @property
     def query(self):
         full_insert_query = """
+                    USE {database_name};
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
-                    {insert_query}
-                """.format(
-                    table=self.requires_local.table,
-                    partition=self.requires_local.partition,
-                    insert_query=self.insert_query.strip(),  # pylint: disable=no-member
-                )
-        return full_insert_query
+                    {insert_query};
+                    """.format(
+                        database_name=hive_database_name(),
+                        table=self.partition_task.hive_table_task.table,
+                        partition=self.partition,
+                        insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                    )
+        return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        return self.requires_local.partition  # pylint: disable=no-member
-        # return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-
-# Is this appropriate?  Requires local feels like it's too low level and instead I should pass these as parameters
-    def requires_local(self):
-        return VideoTimelineCreatePartitionTask(
+    def partition_task(self):
+        """ The task that creates the partition used by this job """
+        return VideoTimelinePartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -629,15 +635,25 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             warehouse_path=self.warehouse_path,
         )
 
-# TODO correct this to be the proper location.  Also how do I touch this file?
-    # def output(self):
-    #     marker_url = url_path_join(self.marker, str(hash(self)))
-    #     return get_target_from_url(marker_url)
-    #     return luigi.contrib.hdfs.HdfsTarget("data/artist_streams_%s.tsv" % self.date_interval)
+    @property
+    def partition(self):
+        """ A shorthand for the partition information on the upstream partition task """
+        return self.partition_task.partition  # pylint: disable=no-member
+
+    def requires(self):
+        for requirement in super(VideoTimelineDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+    def output(self):
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root)
 
 
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask):
-    """Insert information about video segments from a Hive table into MySQL."""
+    """Insert information about video timelines from a Hive table into MySQL."""
 
     @property
     def table(self):
@@ -656,7 +672,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
 
     @property
     def columns(self):
-        return VideoSegmentSummaryRecord.get_sql_schema()
+        return VideoTimelineRecord.get_sql_schema()
 
     @property
     def indexes(self):
@@ -665,7 +681,9 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
         ]
 
 
-class VideoCreateTableTask(BareHiveTableTask):
+class VideoTableTask(BareHiveTableTask):
+    """Creates the Hive storage table used to hold video data"""
+
     @property
     def partition_by(self):
         return 'dt'
@@ -676,29 +694,29 @@ class VideoCreateTableTask(BareHiveTableTask):
 
     @property
     def columns(self):
-        return VideoNonsegmentSummaryRecord.get_hive_schema()
+        return VideoSegmentSummaryRecord.get_hive_schema()
 
 
-class VideoCreatePartitionTask(VideoTableDownstreamMixin, HivePartitionTask):
+class VideoPartitionTask(VideoTableDownstreamMixin, HivePartitionTask):
+    """Creates the Hive storage partition used to hold video data"""
+
     @property
     def hive_table_task(self):
-        return VideoCreateTableTask(
+        return VideoTableTask(
             warehouse_path=self.warehouse_path,
         )
 
     @property
-    def partition_by(self):
-        return self.hive_table_task.partition_by
-
-    @property
     def partition_value(self):
-        """Use a dynamic partition value based on the date parameter."""
+        # Use a dynamic partition value based on the date parameter.
         return self.interval.date_b.isoformat()  # pylint: disable=no-member
 
-    @property
-    def data_task(self):
-        """A bit of an abuse here as data should be for populating this table instead of an upstream table"""
-        return VideoUsageTableTask(
+    def requires(self):
+        # There is some glue in requires that links in the data and table tasks that needs to survive unscathed
+        for requirement in super(VideoPartitionTask, self).requires():
+            yield requirement
+
+        yield VideoUsageTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -713,6 +731,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 
     @property
     def insert_query(self):
+        """ The fields used in the source table. """
         return """
             SELECT
                 pipeline_video_id,
@@ -734,25 +753,29 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                 users_at_end
         """
 
-    @property
     def query(self):
         full_insert_query = """
+                    USE {database_name};
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
-                    {insert_query}
+                    {insert_query};
                 """.format(
-                    table=self.requires_local.table,
-                    partition=self.requires_local.partition,
+                    database_name=hive_database_name(),
+                    table=self.partition_task.hive_table_task.table,
+                    partition=self.partition,
                     insert_query=self.insert_query.strip(),  # pylint: disable=no-member
                 )
-        return full_insert_query
+        return textwrap.dedent(full_insert_query)
 
     @property
     def partition(self):
-        return self.requires_local.partition  # pylint: disable=no-member
+        """ A shorthand for the partition object on the upstream partition task. """
+        return self.partition_task.partition  # pylint: disable=no-member
 
-    def requires_local(self):
-        return VideoCreatePartitionTask(
+    @property
+    def partition_task(self):
+        """ Returns the task representing the work to create the partition. """
+        return VideoPartitionTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -761,9 +784,20 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             warehouse_path=self.warehouse_path,
         )
 
+    def requires(self):
+        for requirement in super(VideoDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+    def output(self):
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root)
+
 
 class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
-    """Insert non-segment information about videos from a Hive table into MySQL."""
+    """Insert summary information into the video table in MySQL."""
 
     @property
     def table(self):
@@ -782,7 +816,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
     @property
     def columns(self):
-        return VideoNonsegmentSummaryRecord.get_sql_schema()
+        return VideoSegmentSummaryRecord.get_sql_schema()
 
     @property
     def indexes(self):
@@ -793,7 +827,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
 @workflow_entry_point
 class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
-    """Insert all video data into MySQL."""
+    """Insert all video data into MySQL. """
 
     def requires(self):
         kwargs = {
