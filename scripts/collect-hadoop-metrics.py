@@ -295,5 +295,6 @@ if __name__ == "__main__":
     statsd_client = statsd.StatsClient(statsd_host, statsd_port, prefix=statsd_prefix)
     for (metric_name, metric_value) in metrics:
         statsd_client.gauge(metric_name, metric_value)
+        statsd_client.incr(metric_name, metric_value)
 
     print "[collect-hadoop-metrics] Done.  Exiting."
