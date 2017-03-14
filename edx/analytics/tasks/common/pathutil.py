@@ -290,7 +290,7 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         date_string = event_time.split("T")[0]
 
         if date_string < self.lower_bound_date_string or date_string >= self.upper_bound_date_string:
-            self.incr_counter('Event', 'Discard Outside Date Interval', 1)
+            ## self.incr_counter('Event', 'Discard Outside Date Interval', 1)
             return None
 
         return event, date_string
