@@ -4,18 +4,13 @@ import json
 import logging
 import math
 import re
-import urllib
 import textwrap
-import urlparse
-import os
+import urllib
 
 import ciso8601
 import luigi
 from luigi import configuration
-from luigi.file import atomic_file
-from luigi.hdfs import HdfsTarget, HdfsAtomicWritePipe
 from luigi.hive import HiveQueryTask
-from luigi.s3 import S3Target, AtomicS3File
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -24,7 +19,6 @@ from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask,
                                            HivePartitionTask, hive_database_name)
-from edx.analytics.tasks.util.s3_util import ScalableS3Client, S3HdfsTarget
 from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField
 
@@ -134,95 +128,6 @@ class VideoSegmentDetailRecord(Record):
                                          'video.')
     num_views = IntegerField(description='The total number of times any part of the segment was viewed, regardless of '
                                          'who was watching it.')
-
-
-class S3MarkerTarget(S3Target):
-    """An S3 Target that uses a marker file to indicate success.  In reality these should be shared functionality but
-    for now they are localized in the video process."""
-
-    def exists(self):  # pragma: no cover
-        """Completion of this target is based solely on the existence of the marker file."""
-        return self.fs.exists(self.path + "/_SUCCESS")
-
-    def touch_marker(self):  # pragma: no cover
-        """Generate the marker file.  This should be called at the completion of the Task."""
-        AtomicS3File(self.path + "/_SUCCESS", self.fs).close()
-
-
-class HdfsMarkerTarget(HdfsTarget):
-    """An HDFS Target that uses a marker file to indicate success.  In reality these should be shared functionality but
-    for now they are localized in the video process."""
-
-    def exists(self):  # pragma: no cover
-        """Completion of this target is based solely on the existence of the marker file."""
-        return self.fs.exists(self.path + "/_SUCCESS")
-
-    def touch_marker(self):  # pragma: no cover
-        """Generate the marker file.  This should be called at the completion of the Task."""
-        try:
-            self.format.hdfs_writer(self.path + "/_SUCCESS").close()
-        except NotImplementedError:
-            self.format.pipe_writer(HdfsAtomicWritePipe(self.path + "/_SUCCESS")).close()
-
-
-class LocalMarkerTarget(luigi.LocalTarget):
-    """A Local Target that uses a marker file to indicate success.  In reality these should be shared functionality but
-    for now they are localized in the video process."""
-
-    def exists(self):  # pragma: no cover
-        """Completion of this target is based solely on the existence of the marker file."""
-        return self.fs.exists(self.path + "/_SUCCESS")
-
-    def touch_marker(self):  # pragma: no cover
-        """Generate the marker file.  This should be called at the completion of the Task."""
-        normpath = os.path.normpath(self.path)
-        parentfolder = os.path.dirname(normpath)
-        if parentfolder and not os.path.exists(parentfolder):
-            os.makedirs(parentfolder)
-
-        if self.format:
-            self.format.pipe_writer(atomic_file(self.path + "/_SUCCESS")).close()
-        else:
-            atomic_file(self.path + "/_SUCCESS").close()
-
-
-# Lifted from url.py and modified to use the above listed classes
-DEFAULT_TARGET_CLASS = LocalMarkerTarget
-URL_SCHEME_TO_TARGET_CLASS = {
-    'hdfs': HdfsMarkerTarget,
-    's3': S3HdfsTarget,
-    's3n': S3HdfsTarget,
-    'file': LocalMarkerTarget,
-    's3+https': S3MarkerTarget,
-}
-
-
-# Lifted from url.py and modified to use the above listed classes
-def get_tag_target_class_from_url(url):
-    """Returns a luigi target class based on the url scheme"""
-    parsed_url = urlparse.urlparse(url)
-    target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
-    kwargs = {}
-    if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
-        kwargs['format'] = luigi.hdfs.PlainDir
-    if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
-        # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
-        # everything else off the url and pass that in to the target.
-        url = parsed_url.path
-    if issubclass(target_class, luigi.s3.S3Target):
-        kwargs['client'] = ScalableS3Client()
-
-    url = url.rstrip('/')
-    args = (url,)
-
-    return target_class, args, kwargs
-
-
-# Lifted from url.py and modified to use the above listed functions
-def get_tag_target_from_url(url):  # pragma: no cover
-    """Returns a luigi target based on the url scheme"""
-    cls, args, kwargs = get_tag_target_class_from_url(url)
-    return cls(*args, **kwargs)
 
 
 class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -777,7 +682,7 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
         output_root = url_path_join(self.warehouse_path,
                                     self.partition_task.hive_table_task.table,
                                     self.partition.path_spec + '/')
-        return get_tag_target_from_url(output_root)
+        return get_target_from_url(output_root, True)
 
     def on_success(self):  # pragma: no cover
         """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
@@ -921,7 +826,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
         output_root = url_path_join(self.warehouse_path,
                                     self.partition_task.hive_table_task.table,
                                     self.partition.path_spec + '/')
-        return get_tag_target_from_url(output_root)
+        return get_target_from_url(output_root, True)
 
     def on_success(self):  # pragma: no cover
         """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the

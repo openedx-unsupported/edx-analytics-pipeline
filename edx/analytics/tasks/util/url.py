@@ -18,8 +18,54 @@ import luigi.configuration
 import luigi.format
 import luigi.hdfs
 import luigi.s3
+from luigi.hdfs import HdfsTarget
+from luigi.s3 import S3Target
 
 from edx.analytics.tasks.util.s3_util import ScalableS3Client, S3HdfsTarget
+
+
+class MarkerMixin(object):
+    """This mixin handles Targets that cannot accurately be measured by the existence of data files, and instead need
+    another positive marker to indicate Task success."""
+
+    def exists(self):  # pragma: no cover
+        """Completion of this target is based solely on the existence of the marker file."""
+        return self.fs.exists(self.path + "/_SUCCESS")
+
+    def touch_marker(self):  # pragma: no cover
+        """Generate the marker file using file system native to the parent Target."""
+
+        tmp = self.__copy__()
+        tmp.path = self.path + "/_SUCCESS"
+        tmp.open("w").close()
+
+
+class S3MarkerTarget(MarkerMixin, S3Target):
+    """An S3 Target that uses a marker file to indicate success."""
+
+    def __copy__(self):  # pragma: no cover
+        return S3MarkerTarget(self.path, self.format, self.client)
+
+
+class HdfsMarkerTarget(MarkerMixin, HdfsTarget):
+    """An HDFS Target that uses a marker file to indicate success."""
+
+    def __copy__(self):  # pragma: no cover
+        return HdfsMarkerTarget(self.path, self.format, self.is_tmp)
+
+
+class LocalMarkerTarget(MarkerMixin, luigi.LocalTarget):
+    """A Local Target that uses a marker file to indicate success."""
+
+    def __copy__(self):  # pragma: no cover
+        return LocalMarkerTarget(self.path, self.format, self.is_tmp)
+
+
+class S3HdfsMarkerTarget(MarkerMixin, S3HdfsTarget):
+    """An S3 HDFS Target that uses a marker file to indicate success."""
+
+    def __copy__(self):  # pragma: no cover
+        return S3HdfsMarkerTarget(self.path, self.format, self.is_tmp)
 
 
 class ExternalURL(luigi.ExternalTask):
@@ -58,11 +104,25 @@ URL_SCHEME_TO_TARGET_CLASS = {
     's3+https': luigi.s3.S3Target,
 }
 
+DEFAULT_MARKER_TARGET_CLASS = LocalMarkerTarget
+URL_SCHEME_TO_MARKER_TARGET_CLASS = {
+    'hdfs': HdfsMarkerTarget,
+    's3': S3HdfsMarkerTarget,
+    's3n': S3HdfsMarkerTarget,
+    'file': LocalMarkerTarget,
+    's3+https': S3MarkerTarget,
+}
 
-def get_target_class_from_url(url):
+
+def get_target_class_from_url(url, marker=False):
     """Returns a luigi target class based on the url scheme"""
     parsed_url = urlparse.urlparse(url)
-    target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
+
+    if marker:
+        target_class = URL_SCHEME_TO_MARKER_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_MARKER_TARGET_CLASS)
+    else:
+        target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
+
     kwargs = {}
     if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
         kwargs['format'] = luigi.hdfs.PlainDir
@@ -79,9 +139,9 @@ def get_target_class_from_url(url):
     return target_class, args, kwargs
 
 
-def get_target_from_url(url):
+def get_target_from_url(url, marker=False):
     """Returns a luigi target based on the url scheme"""
-    cls, args, kwargs = get_target_class_from_url(url)
+    cls, args, kwargs = get_target_class_from_url(url, marker)
     return cls(*args, **kwargs)
 
 
