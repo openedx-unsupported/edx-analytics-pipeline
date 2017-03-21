@@ -11,6 +11,8 @@ from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileT
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask,
     LoadInternalReportingCourseCatalogMixin,
+    ProgramCoursePartitionTask,
+    ProgramCourseRecord,
 )
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import (
@@ -1068,3 +1070,58 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             EnrollmentDailyTask(**enrollment_kwargs),
             ImportCourseSummaryEnrollmentsIntoMysql(**course_summary_kwargs),
         )
+
+
+class ImportProgramCoursesIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
+                                    HiveQueryToMysqlTask):
+    """Creates the `program_course` Mysql table."""
+
+    @property
+    def indexes(self):
+        return [('program_id',), ('course_id',)]
+
+    @property
+    def query(self):
+        query = """
+        SELECT program_id,
+               program_type,
+               program_title,
+               catalog_course,
+               catalog_course_title,
+               course_id,
+               org_id,
+               partner_short_code
+        FROM   program_course;
+        """
+        return query
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def table(self):
+        """
+        The name of a hive table created from the result of self.query
+        and the name of the table to load data to in Mysql.
+        """
+        return 'course_meta_program'
+
+    @property
+    def columns(self):
+        return ProgramCourseRecord.get_sql_schema()
+
+    @property
+    def required_table_tasks(self):
+        """
+        Note: HiveQueryToMysqlTask.overwrite defaults to True, but we'd like
+        everything upstream of this task to *not* run if data already
+        exists, so we set the required ProgramCoursePartitionTask's overwrite
+        parameter to False.
+        """
+        yield [ProgramCoursePartitionTask(date=self.date,
+                                          warehouse_path=self.warehouse_path,
+                                          api_root_url=self.api_root_url,
+                                          api_page_size=self.api_page_size,
+                                          overwrite=False)]
