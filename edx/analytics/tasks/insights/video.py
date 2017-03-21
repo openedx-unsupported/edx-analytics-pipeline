@@ -92,29 +92,29 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         username = event.get('username', '').strip()
         if not username:
             log.error("Video event without username: %s", event)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing username', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing username', 1)
             return
 
         course_id = eventlog.get_course_id(event)
         if course_id is None:
             log.warn('Video event without valid course_id: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing course_id', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing course_id', 1)
             return
 
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             # This should already have been logged.
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Event Data', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing Event Data', 1)
             return
 
         encoded_module_id = event_data.get('id')
         if encoded_module_id is None:
             log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
             return
 
         # self.incr_counter(self.counter_category_name, 'Video Events Before Time Check', 1)
@@ -128,9 +128,9 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 youtube_id = code
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Play', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Play', 1)
                 return
             ### self.incr_counter(self.counter_category_name, 'Subset Play', 1)
         elif event_type == VIDEO_PAUSED:
@@ -138,26 +138,26 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             # so provide a default of zero.
             current_time = self._check_time_offset(event_data.get('currentTime', 0), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Pause', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Pause', 1)
                 return
             ### self.incr_counter(self.counter_category_name, 'Subset Pause', 1)
         elif event_type == VIDEO_SEEK:
             current_time = self._check_time_offset(event_data.get('new_time'), line)
             old_time = self._check_time_offset(event_data.get('old_time'), line)
             if current_time is None or old_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Seek', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Seek', 1)
                 return
             ### self.incr_counter(self.counter_category_name, 'Subset Seek', 1)
         elif event_type == VIDEO_STOPPED:
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Stop', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Stop', 1)
                 return
             ### self.incr_counter(self.counter_category_name, 'Subset Stop', 1)
 
@@ -180,22 +180,22 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             time_value = float(time_value)
         except ValueError:
             log.warn('Video event with invalid time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Value', 1)
+            self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Value', 1)
             return None
         except TypeError:
             log.warn('Video event with invalid time-offset type: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Type', 1)
+            self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Type', 1)
             return None
 
         # Some events have ridiculous (and dangerous) values for time.
         if time_value > VIDEO_MAXIMUM_DURATION:
             log.warn('Video event with huge time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Huge Time-Offset Value', 1)
+            self.incr_counter(self.counter_category_name, 'Quality Huge Time-Offset Value', 1)
             return None
 
         if time_value < 0.0:
             log.warn('Video event with negative time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Negative Time-Offset Value', 1)
+            self.incr_counter(self.counter_category_name, 'Quality Negative Time-Offset Value', 1)
             return None
 
         # We must screen out 'nan' and 'inf' values, as they do not "round-trip".
@@ -203,7 +203,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         # eval(repr(float('nan'))) throws a NameError rather than returning float('nan').
         if math.isnan(time_value) or math.isinf(time_value):
             log.warn('Video event with nan or inf time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Nan-Inf Time-Offset Value', 1)
+            self.incr_counter(self.counter_category_name, 'Quality Nan-Inf Time-Offset Value', 1)
             return None
 
         return time_value
