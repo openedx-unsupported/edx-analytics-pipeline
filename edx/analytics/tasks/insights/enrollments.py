@@ -2,27 +2,35 @@
 
 import logging
 import datetime
+import textwrap
 
 import luigi
-import luigi.task
+from luigi.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
+import luigi.task
 
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
-    CoursePartitionTask,
-    LoadInternalReportingCourseCatalogMixin,
+    CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask,
 )
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import (
-    PathSelectionByDateIntervalTask,
-    EventLogSelectionDownstreamMixin,
-    EventLogSelectionMixin,
+    PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, EventLogSelectionMixin,
 )
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.decorators import workflow_entry_point
-from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePartition, HiveQueryToMysqlTask
+from edx.analytics.tasks.util.hive import (
+    BareHiveTableTask,
+    HivePartition,
+    HivePartitionTask,
+    HiveQueryToMysqlTask,
+    HiveTableTask,
+    WarehouseMixin,
+    hive_database_name,
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, BooleanField, DateTimeField
+from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, StringField, Record
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
 
 log = logging.getLogger(__name__)
@@ -1036,9 +1044,137 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             yield [task.hive_table_task for task in catalog_tasks]
 
 
+class CourseProgramMetadataRecord(Record):
+    """Represents a course run within a program for the result store."""
+    course_id = StringField(nullable=False, length=255)
+    program_id = StringField(nullable=False, length=36)
+    program_type = StringField(nullable=False, length=32)
+    program_title = StringField(nullable=True, length=255, normalize_whitespace=True)
+
+
+class CourseProgramMetadataTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_program_metadata` Hive storage table."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_program_metadata'
+
+    @property
+    def columns(self):
+        return CourseProgramMetadataRecord.get_hive_schema()
+
+
+class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_program_metadata` Hive table."""
+
+    @property
+    def hive_table_task(self):
+        return CourseProgramMetadataTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        return self.date.isoformat()
+
+
+class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Selects from `program_course` and persists results into `course_program_metadata` Hive table."""
+
+    @property
+    def insert_query(self):
+        column_names = CourseProgramMetadataRecord.get_fields().keys()
+        query = """
+        SELECT {columns}
+        FROM   program_course;
+        """.format(columns=','.join(column_names))
+        return query
+
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
+    @property
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_program_metadata`."""
+        return CourseProgramMetadataPartitionTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+        )
+
+    def requires(self):
+        for requirement in super(CourseProgramMetadataDataTask, self).requires():
+            yield requirement
+
+        yield self.partition_task
+
+        # We need the `program_course` Hive table to exist before we can execute the query to persist and load data.
+        yield ProgramCoursePartitionTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMixin,
+                                             MysqlInsertTask):  # pragma: no cover
+    """Creates/populates the `course_program_metadata` Result Store table."""
+
+    @property
+    def table(self):
+        return 'course_program_metadata'
+
+    @property
+    def columns(self):
+        return CourseProgramMetadataRecord.get_sql_schema()
+
+    @property
+    def indexes(self):
+        return [('course_id',)]
+
+    @property
+    def insert_source_task(self):
+        return CourseProgramMetadataDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size
+        )
+
+
 @workflow_entry_point
-class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                 luigi.WrapperTask):
+class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL"""
 
     def requires(self):
@@ -1060,11 +1196,13 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
             'enable_course_catalog': self.enable_course_catalog,
         }, **enrollment_kwargs)
 
-        yield (
+        yield [
             CourseEnrollmentSummaryTableTask(**enrollment_kwargs),
             EnrollmentByGenderTask(**enrollment_kwargs),
             EnrollmentByBirthYearTask(**enrollment_kwargs),
             EnrollmentByEducationLevelTask(**enrollment_kwargs),
             EnrollmentDailyTask(**enrollment_kwargs),
             ImportCourseSummaryEnrollmentsIntoMysql(**course_summary_kwargs),
-        )
+        ]
+        if self.enable_course_catalog:
+            yield CourseProgramMetadataInsertToMysqlTask(**course_summary_kwargs)
