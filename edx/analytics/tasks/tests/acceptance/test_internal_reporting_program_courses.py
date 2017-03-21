@@ -8,10 +8,11 @@ import logging
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.url import url_path_join
 
+
 log = logging.getLogger(__name__)
 
 
-class InternalReportingProgramCourseLoadAcceptanceTest(AcceptanceTestCase):
+class InternalReportingProgramCourseLoadAcceptanceTest(AcceptanceTestCase):  # pragma: no cover
     """End-to-end test of the workflow to load the `program_course` table."""
 
     DATE = '2016-09-08'

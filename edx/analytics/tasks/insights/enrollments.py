@@ -1073,7 +1073,7 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
 
 
 class ImportProgramCoursesIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                    HiveQueryToMysqlTask):
+                                    HiveQueryToMysqlTask):  # pragma: no cover
     """Creates the `program_course` Mysql table."""
 
     @property
