@@ -1148,7 +1148,7 @@ class CourseMetaProgramDataTask(CourseSummaryEnrollmentDownstreamMixin,
         USE {database_name};
 
         INSERT INTO TABLE {table}
-        PARTITION ({partition})
+        PARTITION ({partition.query_spec})
         {insert_query};
         """.format(
             database_name=hive_database_name(),
