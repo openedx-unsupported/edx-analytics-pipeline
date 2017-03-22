@@ -1460,6 +1460,9 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'segment_event_type_distribution/'))
 
+    def extra_modules(self):
+        return [pytz, ua_parser, user_agents, dateutil]
+
     def get_event_time(self, event):
         """
         Returns time information from event if present, else returns None.
@@ -1485,7 +1488,7 @@ class PushToVerticaSegmentEventTypeDistributionTask(SegmentEventLogSelectionDown
 
     @property
     def table(self):
-        return "segment_event_type_distribution"
+        return "segment_event_type_keyinfo"
 
     @property
     def columns(self):
