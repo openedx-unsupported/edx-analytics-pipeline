@@ -34,38 +34,24 @@ class MarkerMixin(object):
 
     def touch_marker(self):  # pragma: no cover
         """Generate the marker file using file system native to the parent Target."""
-
-        tmp = self.__copy__()
-        tmp.path = self.path + "/_SUCCESS"
-        tmp.open("w").close()
+        marker = self.__class__(path=self.path + "/_SUCCESS")
+        marker.open("w").close()
 
 
 class S3MarkerTarget(MarkerMixin, S3Target):
     """An S3 Target that uses a marker file to indicate success."""
 
-    def __copy__(self):  # pragma: no cover
-        return S3MarkerTarget(self.path, self.format, self.client)
-
 
 class HdfsMarkerTarget(MarkerMixin, HdfsTarget):
     """An HDFS Target that uses a marker file to indicate success."""
-
-    def __copy__(self):  # pragma: no cover
-        return HdfsMarkerTarget(self.path, self.format, self.is_tmp)
 
 
 class LocalMarkerTarget(MarkerMixin, luigi.LocalTarget):
     """A Local Target that uses a marker file to indicate success."""
 
-    def __copy__(self):  # pragma: no cover
-        return LocalMarkerTarget(self.path, self.format, self.is_tmp)
-
 
 class S3HdfsMarkerTarget(MarkerMixin, S3HdfsTarget):
     """An S3 HDFS Target that uses a marker file to indicate success."""
-
-    def __copy__(self):  # pragma: no cover
-        return S3HdfsMarkerTarget(self.path, self.format, self.is_tmp)
 
 
 class ExternalURL(luigi.ExternalTask):

@@ -716,12 +716,12 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
                     {insert_query};
-                    """.format(
-                        database_name=hive_database_name(),
-                        table=self.partition_task.hive_table_task.table,
-                        partition=self.partition,
-                        insert_query=self.insert_query.strip(),  # pylint: disable=no-member
-                    )
+                    """.format(database_name=hive_database_name(),
+                               table=self.partition_task.hive_table_task.table,
+                               partition=self.partition,
+                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                              )
+
         return textwrap.dedent(full_insert_query)
 
     @property
@@ -759,7 +759,7 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
         output_root = url_path_join(self.warehouse_path,
                                     self.partition_task.hive_table_task.table,
                                     self.partition.path_spec + '/')
-        return get_target_from_url(output_root, True)
+        return get_target_from_url(output_root, marker=True)
 
     def on_success(self):  # pragma: no cover
         """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
@@ -860,12 +860,11 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
                     {insert_query};
-                """.format(
-                    database_name=hive_database_name(),
-                    table=self.partition_task.hive_table_task.table,
-                    partition=self.partition,
-                    insert_query=self.insert_query.strip(),  # pylint: disable=no-member
-                )
+                """.format(database_name=hive_database_name(),
+                           table=self.partition_task.hive_table_task.table,
+                           partition=self.partition,
+                           insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                          )
         return textwrap.dedent(full_insert_query)
 
     @property
@@ -903,7 +902,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
         output_root = url_path_join(self.warehouse_path,
                                     self.partition_task.hive_table_task.table,
                                     self.partition.path_spec + '/')
-        return get_target_from_url(output_root, True)
+        return get_target_from_url(output_root, marker=True)
 
     def on_success(self):  # pragma: no cover
         """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
