@@ -31,8 +31,9 @@ class InternalReportingProgramCourseLoadAcceptanceTest(AcceptanceTestCase):  # p
         self.upload_file(input_location, output_location)
 
     def test_import_program_courses_into_mysql(self):
-        """Tests the workflow for the `program_course` table, end to end."""
-        self.task.launch(['ImportProgramCoursesIntoMysql', '--date', self.DATE])
+        """Tests the workflow for the `course_meta_program` table, end to end."""
+        self.task.launch(['CourseMetaProgramInsertToMysqlTask',
+                          '--date', self.DATE])
 
         columns = ['program_id', 'program_type', 'program_title',
                    'catalog_course', 'catalog_course_title', 'course_id',
