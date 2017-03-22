@@ -1478,15 +1478,72 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
         """
         Returns time information from event if present, else returns None.
 
-        Overrides base class implementation to get correct timestamp.
+        Overrides base class implementation to get correct timestamp
+        used by get_event_and_date_string(line).
 
         """
+        # try:
+        #    # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
+        #    # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
+        #    return event['originalTimestamp']
+        # except KeyError:
+        #    self.incr_counter('Event', 'Missing Time Field', 1)
+        #     return None
+        # Copy from SegmentEventRecordDataTask.
+        return self.get_event_arrival_time(event)
+        
+    def get_event_arrival_time(self, event):
+        # Copy from SegmentEventRecordDataTask.
+        return self._get_time_from_segment_event(event, 'receivedAt')
+
+    def _get_time_from_segment_event(self, event, key):
+        # Copy from SegmentEventRecordDataTask.
         try:
-            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
-            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
-            return event['originalTimestamp']
+            event_time = event[key]
+            event_time = self.normalize_time(event_time)
+            if event_time is None:
+                # Try again, with a more powerful (and more flexible) parser.
+                try:
+                    event_time = self.extended_normalize_time(event[key])
+                    if event_time is None:
+                        log.error("Really unparseable %s time from event: %r", key, event)
+                        self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
+                    else:
+                        # Log this for now, until we have confidence this is reasonable.
+                        log.warning("Parsable unparseable type for %s time in event: %r", key, event)
+                        self.incr_counter(self.counter_category_name, 'Quality Parsable unparseable for {} Time Field'.format(key), 1)
+                except Exception:
+                    log.error("Unparseable %s time from event: %r", key, event)
+                    self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
+            return event_time
         except KeyError:
-            self.incr_counter('Event', 'Missing Time Field', 1)
+            log.error("Missing %s time from event: %r", key, event)
+            self.incr_counter(self.counter_category_name, 'Quality Missing {} Time Field'.format(key), 1)
+            return None
+        except TypeError:
+            log.error("Bad type for %s time in event: %r", key, event)
+            self.incr_counter(self.counter_category_name, 'Quality Bad type for {} Time Field'.format(key), 1)
+            return None
+        except UnicodeEncodeError:
+            # This is more specific than ValueError, so it is processed first.
+            log.error("Bad encoding for %s time in event: %r", key, event)
+            self.incr_counter(self.counter_category_name, 'Quality Bad encoding for {} Time Field'.format(key), 1)
+            return None
+        except ValueError:
+            # Try again, with a more powerful (and more flexible) parser.
+            try:
+                event_time = self.extended_normalize_time(event[key])
+                if event_time is None:
+                    log.error("Unparseable %s time from event: %r", key, event)
+                    self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
+                else:
+                    # Log this for now, until we have confidence this is reasonable.
+                    log.warning("Parsable bad value for %s time in event: %r", key, event)
+                    self.incr_counter(self.counter_category_name, 'Quality Parsable bad value for {} Time Field'.format(key), 1)
+                return event_time
+            except Exception:
+                log.error("Bad value for %s time in event: %r", key, event)
+                self.incr_counter(self.counter_category_name, 'Quality Bad value for {} Time Field'.format(key), 1)
             return None
 
 
