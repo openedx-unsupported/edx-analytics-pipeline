@@ -1500,11 +1500,11 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
         # Copy from SegmentEventRecordDataTask.
         try:
             event_time = event[key]
-            event_time = self.normalize_time(event_time)
+            event_time = self._normalize_time(event_time)
             if event_time is None:
                 # Try again, with a more powerful (and more flexible) parser.
                 try:
-                    event_time = self.extended_normalize_time(event[key])
+                    event_time = self._extended_normalize_time(event[key])
                     if event_time is None:
                         log.error("Really unparseable %s time from event: %r", key, event)
                         self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
@@ -1532,7 +1532,7 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
         except ValueError:
             # Try again, with a more powerful (and more flexible) parser.
             try:
-                event_time = self.extended_normalize_time(event[key])
+                event_time = self._extended_normalize_time(event[key])
                 if event_time is None:
                     log.error("Unparseable %s time from event: %r", key, event)
                     self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
@@ -1544,6 +1544,30 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
             except Exception:
                 log.error("Bad value for %s time in event: %r", key, event)
                 self.incr_counter(self.counter_category_name, 'Quality Bad value for {} Time Field'.format(key), 1)
+            return None
+
+    def _normalize_time(self, event_time):
+        """
+        Convert time string to ISO-8601 format in UTC timezone.
+
+        Returns None if string representation cannot be parsed.
+        """
+        datetime = ciso8601.parse_datetime(event_time)
+        if datetime:
+            return datetime.astimezone(pytz.utc).isoformat()
+        else:
+            return None
+
+    def _extended_normalize_time(self, event_time):
+        """
+        Convert time string to ISO-8601 format in UTC timezone.
+
+        Returns None if string representation cannot be parsed.
+        """
+        datetime = dateutil.parser.parse(event_time)
+        if datetime:
+            return datetime.astimezone(pytz.utc).isoformat()
+        else:
             return None
 
 
