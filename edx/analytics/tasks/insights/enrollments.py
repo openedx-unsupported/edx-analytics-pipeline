@@ -1169,7 +1169,8 @@ class CourseMetaProgramDataTask(CourseSummaryEnrollmentDownstreamMixin,
         """Returns the Task that creates the partition on
         `course_meta_program`."""
         return CourseMetaProgramPartitionTask(
-            warehouse_path=self.warehouse_path
+            date=self.date,
+            warehouse_path=self.warehouse_path,
         )
 
     def requires(self):
