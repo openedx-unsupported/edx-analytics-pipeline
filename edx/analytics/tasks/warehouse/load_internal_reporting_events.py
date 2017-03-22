@@ -1428,12 +1428,23 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
                 del event[key]
         other_keys =  self._get_keys_as_string('other', event)
 
-        yield (event_date, project_id, event_category, event_type, event_source, exported, property_keys, context_keys, traits_keys, other_keys), 1
+        yield (
+            event_date,
+            project_id.encode('utf8'),
+            event_category.encode('utf8'),
+            event_type.encode('utf8'),
+            event_source.encode('utf8'),
+            exported,
+            property_keys,
+            context_keys,
+            traits_keys,
+            other_keys
+        ), 1
 
     def _get_keys_as_string(self, root_label, root_obj):
         keylist = []
         self._get_key_list(keylist, root_label, root_obj)
-        return ','.join(sorted(keylist))
+        return ','.join(sorted(keylist)).encode('utf8')
 
     def _get_key_list(self, keylist, label, obj):
         if obj is None:
