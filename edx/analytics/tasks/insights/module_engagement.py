@@ -45,8 +45,9 @@ class ModuleEngagementRecord(Record):
     date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
     entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
                                                                      ' with. Example: "video".')
-    entity_id = StringField(length=255, nullable=False, description='A unique identifier for the entity within the'
-                                                                    ' course that the learner interacted with.')
+    entity_id = StringField(length=255, nullable=False, truncate=True,
+                            description='A unique identifier for the entity within the'
+                                        ' course that the learner interacted with.')
     event = StringField(length=30, nullable=False, description='The interaction the learner had with the entity.'
                                                                ' Example: "viewed".')
     count = IntegerField(nullable=False, description='Number of interactions the learner had with this entity on this'
