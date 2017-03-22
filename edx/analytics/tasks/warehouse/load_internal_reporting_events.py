@@ -1418,13 +1418,19 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
 
         self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
 
-        property_keys = self._get_keys_as_string('properties')
-        context_keys = self._get_keys_as_string('context')
+        property_keys = self._get_keys_as_string('properties', event.get('properties'))
+        context_keys = self._get_keys_as_string('context', event.get('context'))
+        traits_keys = self._get_keys_as_string('traits', event.get('traits'))
 
-        yield (event_date, project_id, event_category, event_type, event_source, exported, property_keys, context_keys), 1
+        # Get all other keys:
+        for key in ('properties', 'context', 'traits'):
+            if key in event:
+                del event[key]
+        other_keys =  self._get_keys_as_string('other', event)
 
-    def _get_keys_as_string(self, event, root_label):
-        root_obj = event.get(root_label)
+        yield (event_date, project_id, event_category, event_type, event_source, exported, property_keys, context_keys, traits_keys, other_keys), 1
+
+    def _get_keys_as_string(self, root_label, root_obj):
         keylist = []
         self._get_key_list(keylist, root_label, root_obj)
         return ','.join(sorted(keylist))
@@ -1492,6 +1498,8 @@ class PushToVerticaSegmentEventTypeDistributionTask(SegmentEventLogSelectionDown
             ('exported', 'BOOLEAN'),
             ('property_keys', 'VARCHAR(4096)'),
             ('context_keys', 'VARCHAR(4096)'),
+            ('trait_keys', 'VARCHAR(4096)'),
+            ('other_keys', 'VARCHAR(4096)'),
             ('event_count', 'INT'),
         ]
 
