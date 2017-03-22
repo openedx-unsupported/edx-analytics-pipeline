@@ -1452,7 +1452,7 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
                 self._get_key_list(keylist, new_label, new_value)
         else:
             # We assume it's a single object, and add the label now.
-            keylist.add(label)
+            keylist.append(label)
 
     def reducer(self, key, values):
         yield (key), sum(values)
