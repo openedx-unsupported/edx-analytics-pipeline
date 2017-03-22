@@ -31,6 +31,10 @@ from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
+# Added for event-type-dist stuff.
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.util.url import get_target_from_url
+
 log = logging.getLogger(__name__)
 
 VERSION = '0.2.2'
@@ -1329,4 +1333,175 @@ class LoadEventsIntoWarehouseWorkflow(EventRecordLoadDownstreamMixin, VerticaCop
             events_list_file_path=self.events_list_file_path,
             schema=self.schema,
             credentials=self.credentials,
+        )
+
+
+class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJobTask):
+    """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
+    output_root = luigi.Parameter()
+    events_list_file_path = luigi.Parameter(default=None)
+
+    def requires_local(self):
+        return ExternalURL(url=self.events_list_file_path)
+
+    def init_local(self):
+        super(SegmentEventTypeDistributionTask, self).init_local()
+        if self.events_list_file_path is None:
+            self.known_events = {}
+        else:
+            self.known_events = self.parse_events_list_file()
+
+    def parse_events_list_file(self):
+        """ Read and parse the known events list file and populate it in a dictionary."""
+        parsed_events = {}
+        with self.input_local().open() as f_in:
+            lines = f_in.readlines()
+            for line in lines:
+                if not line.startswith('#') and len(line.split("\t")) is 3:
+                    parts = line.rstrip('\n').split("\t")
+                    parsed_events[(parts[1], parts[2])] = parts[0]
+        return parsed_events
+
+    def mapper(self, line):
+        value = self.get_event_and_date_string(line)
+        if value is None:
+            return
+        event, event_date = value
+        self.incr_counter('Segment_Event_Dist', 'Inputs with Dates', 1)
+
+        segment_type = event.get('type')
+        self.incr_counter('Segment_Event_Dist', 'Type {}'.format(segment_type), 1)
+
+        channel = event.get('channel')
+        self.incr_counter('Segment_Event_Dist', 'Channel {}'.format(channel), 1)
+
+        exported = False
+
+        if segment_type == 'track':
+            event_type = event.get('event')
+
+            if event_type is None or event_date is None:
+                # Ignore if any of the keys is None
+                self.incr_counter('Segment_Event_Dist', 'Tracking with missing type', 1)
+                return
+
+            if event_type.startswith('/'):
+                # Ignore events that begin with a slash.  How many?
+                self.incr_counter('Segment_Event_Dist', 'Tracking with implicit type', 1)
+                return
+
+            # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
+            # Their 'properties' lack any 'context', having only label and category.
+
+            event_category = event.get('properties', {}).get('category')
+            if channel == 'server':
+                event_source = event.get('properties', {}).get('context', {}).get('event_source')
+                if event_source is None:
+                    event_source = 'track-server'
+                elif (event_source, event_type) in self.known_events:
+                    event_category = self.known_events[(event_source, event_type)]
+                    exported = True
+
+                self.incr_counter('Segment_Event_Dist', 'Tracking server', 1)
+            else:
+                # expect that channel is 'client'.
+                event_source = channel
+                self.incr_counter('Segment_Event_Dist', 'Tracking non-server', 1)
+
+        else:
+            # 'page' or 'identify'
+            event_category = segment_type
+            event_type = segment_type
+            event_source = channel
+
+        project_id = event.get('projectId')
+
+        self.incr_counter('Segment_Event_Dist', 'Output From Mapper', 1)
+
+        property_keys = self._get_keys_as_string('properties')
+        context_keys = self._get_keys_as_string('context')
+
+        yield (event_date, project_id, event_category, event_type, event_source, exported, property_keys, context_keys), 1
+
+    def _get_keys_as_string(self, event, root_label):
+        root_obj = event.get(root_label)
+        keylist = []
+        self._get_key_list(keylist, root_label, root_obj)
+        return ','.join(sorted(keylist))
+
+    def _get_key_list(self, keylist, label, obj):
+        if obj is None:
+            pass
+        elif isinstance(obj, dict):
+            for key in obj.keys():
+                new_value = obj.get(key)
+                # Do not lowercase here.
+                new_label = u"{}.{}".format(label, key)
+                self.get_key_list(keylist, new_label, new_value)
+        elif isinstance(obj, list):
+            # We will output values that are stored in lists, just to see,
+            # even if we don't have a good way of dealing with them in mapping.
+            for index, new_value in enumerate(obj):
+                new_label = u"{}.[{}]".format(label, index)
+                self.get_key_list(keylist, new_label, new_value)
+        else:
+            # We assume it's a single object, and add the label now.
+            keylist.add(label)
+
+    def reducer(self, key, values):
+        yield (key), sum(values)
+
+    def output(self):
+        return get_target_from_url(url_path_join(self.output_root, 'segment_event_type_distribution/'))
+
+    def get_event_time(self, event):
+        """
+        Returns time information from event if present, else returns None.
+
+        Overrides base class implementation to get correct timestamp.
+
+        """
+        try:
+            # TODO: clarify which value should be used.  "originalTimestamp" is almost "sentAt".  "timestamp" is almost "receivedAt".
+            # Order is (probably) "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
+            return event['originalTimestamp']
+        except KeyError:
+            self.incr_counter('Event', 'Missing Time Field', 1)
+            return None
+
+
+class PushToVerticaSegmentEventTypeDistributionTask(SegmentEventLogSelectionDownstreamMixin, VerticaCopyTask):
+    """Push the event type distribution task data to Vertica."""
+    output_root = luigi.Parameter()
+    interval = luigi.DateIntervalParameter()
+    n_reduce_tasks = luigi.Parameter()
+    events_list_file_path = luigi.Parameter(default=None)
+
+    @property
+    def table(self):
+        return "segment_event_type_distribution"
+
+    @property
+    def columns(self):
+        return [
+            ('event_date', 'DATETIME'),
+            ('project_id', 'VARCHAR(255)'),
+            ('event_category', 'VARCHAR(255)'),
+            ('event_type', 'VARCHAR(255)'),
+            ('event_source', 'VARCHAR(255)'),
+            ('exported', 'BOOLEAN'),
+            ('property_keys', 'VARCHAR(4096)'),
+            ('context_keys', 'VARCHAR(4096)'),
+            ('event_count', 'INT'),
+        ]
+
+    @property
+    def insert_source_task(self):
+        return SegmentEventTypeDistributionTask(
+            output_root=self.output_root,
+            interval=self.interval,
+            n_reduce_tasks=self.n_reduce_tasks,
+            events_list_file_path=self.events_list_file_path,
+            pattern=self.pattern,
+            source=self.source,
         )
