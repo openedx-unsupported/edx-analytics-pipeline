@@ -1443,13 +1443,13 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
                 new_value = obj.get(key)
                 # Do not lowercase here.
                 new_label = u"{}.{}".format(label, key)
-                self.get_key_list(keylist, new_label, new_value)
+                self._get_key_list(keylist, new_label, new_value)
         elif isinstance(obj, list):
             # We will output values that are stored in lists, just to see,
             # even if we don't have a good way of dealing with them in mapping.
             for index, new_value in enumerate(obj):
                 new_label = u"{}.[{}]".format(label, index)
-                self.get_key_list(keylist, new_label, new_value)
+                self._get_key_list(keylist, new_label, new_value)
         else:
             # We assume it's a single object, and add the label now.
             keylist.add(label)
