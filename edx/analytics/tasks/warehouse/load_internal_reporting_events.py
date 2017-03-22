@@ -1431,7 +1431,7 @@ class SegmentEventTypeDistributionTask(SegmentEventLogSelectionMixin, MapReduceJ
         yield (
             event_date,
             project_id.encode('utf8') if project_id else '',
-            event_category.encode('utf8') if event_category else '',
+            unicode(event_category).encode('utf8') if event_category else '',
             event_type.encode('utf8') if event_type else '',
             event_source.encode('utf8') if event_source else '',
             exported,
