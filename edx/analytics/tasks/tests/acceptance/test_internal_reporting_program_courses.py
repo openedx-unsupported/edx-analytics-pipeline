@@ -1,5 +1,5 @@
 """
-End to end test of the internal reporting ImportProgramCoursesIntoMysql.
+End to end test of the internal reporting CourseProgramMetadataInsertToMysqlTask.
 """
 
 import os
@@ -21,7 +21,7 @@ class InternalReportingProgramCourseLoadAcceptanceTest(AcceptanceTestCase):  # p
         super(InternalReportingProgramCourseLoadAcceptanceTest, self).setUp()
         input_location = os.path.join(self.data_dir,
                                       'input',
-                                      'program_course_catalog.json')
+                                      'course_catalog.json')
         output_location = url_path_join(self.warehouse_path,
                                         'course_catalog_raw',
                                         'dt=' + self.DATE,
@@ -32,28 +32,16 @@ class InternalReportingProgramCourseLoadAcceptanceTest(AcceptanceTestCase):  # p
 
     def test_import_program_courses_into_mysql(self):
         """Tests the workflow for the `course_meta_program` table, end to end."""
-        self.task.launch(['CourseMetaProgramInsertToMysqlTask',
+        self.task.launch(['CourseProgramMetadataInsertToMysqlTask',
                           '--date', self.DATE])
 
-        columns = ['program_id', 'program_type', 'program_title',
-                   'catalog_course', 'catalog_course_title', 'course_id',
-                   'org_id', 'partner_short_code']
-
         with self.export_db.cursor() as cursor:
-            cursor.execute(
-                '''
-                  SELECT {columns}
-                  FROM   course_meta_program
-                '''.format(columns=','.join(columns))
-            )
-            actual = cursor.fetchall()
+            cursor.execute('SELECT * FROM course_program_metadata')
+            # discard the `id` and `created` columns
+            actual = [row[1: -1] for row in cursor.fetchall()]
 
         expected = [
-            ('acb243a0-1234-5abe-099e-ffcae2a340d4', 'XSeries', 'Testing',
-             'edX+Open_DemoX', 'All about acceptance testing!',
-             'edX/Open_DemoX/edx_demo_course', 'edX', 'openedx'),
-            ('acb243a0-1234-5abe-099e-ffcae2a340d4', 'XSeries', 'Testing',
-             'edX+Testing102', 'All about acceptance testing Part 3!',
-             'course-v1:edX+Testing102x+1T2017', 'edX', 'openedx')
+            ('edX/Open_DemoX/edx_demo_course', 'acb243a0-1234-5abe-099e-ffcae2a340d4', 'XSeries', 'Testing'),
+            ('course-v1:edX+Testing102x+1T2017', 'acb243a0-1234-5abe-099e-ffcae2a340d4', 'XSeries', 'Testing')
         ]
         self.assertEqual(expected, actual)
