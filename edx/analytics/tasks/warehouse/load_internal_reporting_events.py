@@ -33,7 +33,7 @@ from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.2.2'
+VERSION = '0.2.3'
 
 EVENT_TABLE_NAME = 'event_records'
 
@@ -207,6 +207,7 @@ class EventRecord(SparseRecord):
     is_correct = StringField(length=255, nullable=True, description='')  # Boolean
     is_correct_location = StringField(length=255, nullable=True, description='')  # Boolean
     item_id = StringField(length=255, nullable=True, description='')  # integer, string
+    letter_grade = StringField(length=64, nullable=True)
     list_type = StringField(length=255, nullable=True, description='')  # string
     location = StringField(length=255, nullable=True, description='')  # library
     manually = StringField(length=255, nullable=True, description='')  # Boolean
@@ -252,6 +253,7 @@ class EventRecord(SparseRecord):
     page_size = StringField(length=255, nullable=True, description='')  # integer
     partition_id = StringField(length=255, nullable=True, description='')  # number
     partition_name = StringField(length=255, nullable=True, description='')  # string
+    percent_grade = FloatField(nullable=True)
     # parts: [criterion, option, feedback]	array
     previous_cohort_id = StringField(length=255, nullable=True, description='')  # int:  cohort
     previous_cohort_name = StringField(length=255, nullable=True, description='')  # cohort
