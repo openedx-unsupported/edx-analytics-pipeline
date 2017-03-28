@@ -294,6 +294,7 @@ if __name__ == "__main__":
     # Ship them to the local statsd endpoint.
     statsd_client = statsd.StatsClient(statsd_host, statsd_port, prefix=statsd_prefix)
     for (metric_name, metric_value) in metrics:
+        print "[collect-hadoop-metrics] shipping metrics {} -> {}".format(metric_name, metric_value)
         statsd_client.gauge(metric_name, metric_value)
         statsd_client.incr(metric_name, metric_value)
 
