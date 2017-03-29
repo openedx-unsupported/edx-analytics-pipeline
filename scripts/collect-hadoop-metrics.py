@@ -1,8 +1,9 @@
 import json
 import sys
+import time
 import boto3
+import graphitesend
 import requests
-import statsd
 import yaml
 from edx.analytics.tasks.util.retry import retry
 from yarn_api_client import HistoryServer
@@ -279,10 +280,10 @@ if __name__ == "__main__":
 
     print "[collect-hadoop-metrics] Targeting HistoryServer at '{}'.".format(hs_address)
 
-    statsd_config = output_config.get('statsd', {})
-    statsd_host = statsd_config.get('host', 'localhost')
-    statsd_port = statsd_config.get('port', 8125)
-    statsd_prefix = statsd_config.get('prefix', 'edx.analytics.emr')
+    graphite_config = output_config.get('graphite', {})
+    graphite_host = graphite_config.get('host', 'localhost')
+    graphite_port = graphite_config.get('port', 2003)
+    graphite_prefix = graphite_config.get('prefix', 'edx.analytics.emr')
 
     # Actually collect the metrics.
     metrics = []
@@ -292,10 +293,9 @@ if __name__ == "__main__":
       print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
 
     # Ship them to the local statsd endpoint.
-    statsd_client = statsd.StatsClient(statsd_host, statsd_port, prefix=statsd_prefix)
+    emission_ts = int(time.time())
+    stats_client = graphitesend.init(graphite_server=graphite_host, graphite_port=graphite_port, prefix=graphite_prefix, system_name='')
     for (metric_name, metric_value) in metrics:
-        print "[collect-hadoop-metrics] shipping metrics {} -> {}".format(metric_name, metric_value)
-        statsd_client.gauge(metric_name, metric_value)
-        statsd_client.incr(metric_name, metric_value)
+        stats_client.send(metric_name, metric_value, emission_ts)
 
     print "[collect-hadoop-metrics] Done.  Exiting."
