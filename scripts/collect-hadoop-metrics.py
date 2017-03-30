@@ -257,7 +257,7 @@ if __name__ == "__main__":
     # Load our configuration.
     if len(sys.argv) < 2:
         print "[collect-hadoop-metrics] You must specify the configuration file to load!  Exiting."
-        sys.exit(1)
+        sys.exit(0)
 
     conf_file = sys.argv[1]
     config = {}
@@ -267,7 +267,7 @@ if __name__ == "__main__":
             config = yaml.load(f)
     except IOError:
         print "[collect-hadoop-metrics] Error reading configuration file or configuration does not exist!  Exiting."
-        sys.exit(1)
+        sys.exit(0)
 
     input_config = config.get('input', {})
     output_config = config.get('output', {})
@@ -280,7 +280,7 @@ if __name__ == "__main__":
         hs_address = get_local_address_on_emr()
     if hs_address is None:
         print "[collect-hadoop-metrics] No HistoryServer address specified and unable to query instance metadata!  Exiting."
-        sys.exit(1)
+        sys.exit(0)
 
     print "[collect-hadoop-metrics] Targeting HistoryServer at '{}'.".format(hs_address)
 
@@ -289,15 +289,12 @@ if __name__ == "__main__":
     graphite_port = graphite_config.get('port', 2003)
     graphite_prefix = graphite_config.get('prefix', 'edx.analytics.emr')
 
-    # Actually collect the metrics.
-    metrics = []
     try:
-      metrics = collect_metrics(hs_address, metric_templates)
-    except Exception as ex:
-      print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
+        metrics = collect_metrics(hs_address, metric_templates)
 
-    # Ship them to the local statsd endpoint.
-    stats_client = graphitesend.init(graphite_server=graphite_host, graphite_port=graphite_port, prefix=graphite_prefix, system_name='')
-    stats_client.send_list(metrics)
+        stats_client = graphitesend.init(graphite_server=graphite_host, graphite_port=graphite_port, prefix=graphite_prefix, system_name='')
+        stats_client.send_list(metrics)
+    except Exception as ex:
+        print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
 
     print "[collect-hadoop-metrics] Done.  Exiting."
