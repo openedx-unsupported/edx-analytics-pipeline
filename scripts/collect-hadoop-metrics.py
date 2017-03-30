@@ -1,6 +1,5 @@
 import json
 import sys
-import time
 import boto3
 import graphitesend
 import requests
@@ -298,9 +297,7 @@ if __name__ == "__main__":
       print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
 
     # Ship them to the local statsd endpoint.
-    emission_ts = int(time.time())
     stats_client = graphitesend.init(graphite_server=graphite_host, graphite_port=graphite_port, prefix=graphite_prefix, system_name='')
-    for (metric_name, metric_value) in metrics:
-        stats_client.send(metric_name, metric_value, emission_ts)
+    stats_client.send_list(metrics)
 
     print "[collect-hadoop-metrics] Done.  Exiting."
