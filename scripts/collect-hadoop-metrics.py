@@ -262,8 +262,13 @@ if __name__ == "__main__":
 
     conf_file = sys.argv[1]
     config = {}
-    with open(conf_file, 'r') as f:
-        config = yaml.load(f)
+
+    try:
+        with open(conf_file, 'r') as f:
+            config = yaml.load(f)
+    except IOError:
+        print "[collect-hadoop-metrics] Error reading configuration file or configuration does not exist!  Exiting."
+        sys.exit(1)
 
     input_config = config.get('input', {})
     output_config = config.get('output', {})
