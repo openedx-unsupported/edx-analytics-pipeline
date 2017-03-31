@@ -29,8 +29,6 @@ def gen_sphinx_tasks(entry_point, labels, *_args, **kwargs):
     '''.format(now=time.strftime('%c'))
 
     toctree_header = '''{warning}
-:orphan:
-
 .. toctree::
    :maxdepth: 1
 '''
