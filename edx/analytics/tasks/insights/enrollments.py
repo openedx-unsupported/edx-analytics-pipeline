@@ -1151,6 +1151,13 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
                                              MysqlInsertTask):  # pragma: no cover
     """Creates/populates the `course_program_metadata` Result Store table."""
 
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
+
     @property
     def table(self):
         return 'course_program_metadata'

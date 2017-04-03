@@ -770,6 +770,13 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert information about video timelines from a Hive table into MySQL."""
 
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
+
     @property
     def table(self):  # pragma: no cover
         return 'video_timeline'
@@ -912,6 +919,13 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 
 class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert summary information into the video table in MySQL."""
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
