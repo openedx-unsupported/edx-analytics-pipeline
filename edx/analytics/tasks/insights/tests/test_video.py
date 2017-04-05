@@ -7,8 +7,9 @@ from ddt import ddt, data, unpack
 from mock import patch, MagicMock, sentinel
 
 from edx.analytics.tasks.insights.video import (
-    UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION,
-    VideoSegmentDetailRecord)
+    VIDEO_CODES, VIDEO_UNKNOWN_DURATION, VIDEO_VIEWING_SECONDS_PER_SEGMENT, UserVideoViewingTask, VideoUsageTask, 
+    VideoSegmentDetailRecord,
+)
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
@@ -151,7 +152,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
         self.assert_single_map_output(self.create_event_log_line(), self.default_key, expected_value)
 
-    @data('html5', 'mobile')
+    @data(*tuple(VIDEO_CODES))
     def test_play_video_non_youtube(self, code):
         payload = {
             "id": self.video_id,

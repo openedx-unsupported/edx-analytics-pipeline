@@ -25,6 +25,11 @@ from edx.analytics.tasks.util.record import Record, StringField, IntegerField
 
 log = logging.getLogger(__name__)
 
+VIDEO_CODES = frozenset([
+    'html5',
+    'mobile',
+    'hls',
+])
 VIDEO_PLAYED = 'play_video'
 VIDEO_PAUSED = 'pause_video'
 VIDEO_SEEK = 'seek_video'
@@ -211,7 +216,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         youtube_id = None
         if event_type == VIDEO_PLAYED:
             code = event_data.get('code')
-            if code not in ('html5', 'mobile'):
+            if code not in VIDEO_CODES:
                 youtube_id = code
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
