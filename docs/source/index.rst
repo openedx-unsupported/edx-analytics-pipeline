@@ -10,6 +10,11 @@ This guide provides information about the tasks in the edX analytics pipeline.
 
 .. include:: toctree.rst
 
+.. toctree::
+   :maxdepth: 1
+
+   faq.rst	     
+
 ##############
 Indexes
 ##############
