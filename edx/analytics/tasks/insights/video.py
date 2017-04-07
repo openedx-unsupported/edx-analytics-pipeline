@@ -664,9 +664,6 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             output_root=self.partition_location
         )
 
-    def output(self):  # pragma: no cover
-        return self.requires().output()
-
 
 class VideoTimelineTableTask(BareHiveTableTask):
     """Creates the Hive storage table used to hold video_timeline data."""
