@@ -99,20 +99,11 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
     """
 
     # Required parameters
-    date = luigi.DateParameter()
     output_root = luigi.Parameter()
-
-    # Override superclass to disable this parameter
-    interval = None
 
     # Write the output directly to the final destination and rely on the _SUCCESS file to indicate whether or not it
     # is complete. Note that this is a custom extension to luigi.
     enable_direct_output = True
-
-    def __init__(self, *args, **kwargs):
-        super(ModuleEngagementDataTask, self).__init__(*args, **kwargs)
-
-        self.interval = date_interval.Date.from_date(self.date)
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -143,19 +134,11 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         if not entity_id or not entity_type:
             return
 
+        split_date_str = date_string.split('-')
+        year_month = '-'.join(split_date_str[:2])
+
         for action in user_actions:
-            record = ModuleEngagementRecord(
-                course_id=course_id,
-                username=username,
-                date=DateField().deserialize_from_string(date_string),
-                entity_type=entity_type,
-                entity_id=entity_id,
-                event=action,
-                count=0
-            )
-            # The count is populated by the reducer, so exclude it from the key.
-            record_without_count = record.to_string_tuple()[:-1]
-            yield (record_without_count, 1)
+            yield ((year_month, username), (entity_type, action))
 
     def get_user_actions_from_event(self, event_data, event_source, event_type):
         """
@@ -193,7 +176,13 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
 
     def reducer(self, key, values):
         """Count the number of records that share this key."""
-        yield ('\t'.join(key), sum(values))
+        year_month, username = key
+        actions = set()
+        for record in values:
+            actions.add(record)
+
+        for action in actions:
+            yield (year_month, username), action
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -221,7 +210,7 @@ class ModuleEngagementTableTask(BareHiveTableTask):
 
     @property
     def table(self):
-        return 'module_engagement'
+        return 'module_engagement_monthly'
 
     @property
     def columns(self):
