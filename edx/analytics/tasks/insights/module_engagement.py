@@ -32,7 +32,7 @@ from edx.analytics.tasks.util.hive import (
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 
 log = logging.getLogger(__name__)
 
@@ -199,6 +199,31 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         if not self.complete() and output_target.exists():
             output_target.remove()
         return super(ModuleEngagementDataTask, self).run()
+
+
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+
+
+class EngagementToVerticaTask(VerticaCopyTask):
+
+    input_path = luigi.Parameter()
+
+    @property
+    def table(self):
+        return "engagement_by_month"
+
+    @property
+    def columns(self):
+        return [
+            ("year_month", "VARCHAR(7)"),
+            ("username", "VARCHAR(45)"),
+            ("entity_type", "VARCHAR(20)"),
+            ("action", "VARCHAR(20)"),
+        ]
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(self.input_path)
 
 
 class ModuleEngagementTableTask(BareHiveTableTask):
