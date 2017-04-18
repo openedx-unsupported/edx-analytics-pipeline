@@ -29,6 +29,7 @@ urllib3==1.19.1         # MIT
 user-agents==0.3.2	# MIT
 vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3 # BSD
+google-cloud-bigquery==0.24.0
 
 git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
