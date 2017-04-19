@@ -76,6 +76,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         if self.required_tasks is None:
             self.required_tasks = {
                 'credentials': ExternalURL(url=self.credentials),
+                'source': ExternalURL(url=source),
             }
         return self.required_tasks
 
@@ -127,12 +128,16 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
         dataset = client.dataset(self.dataset_id)
         table = dataset.table(self.table, self.schema)
-        job = client.load_table_from_storage(
-            'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
-            table,
-            self.source
-        )
-        job.begin()
+
+        with self.input()['source'].open('r') as source_file:
+            job = table.upload_from_file(source_file, source_format='text/csv')
+
+        # job = client.load_table_from_storage(
+        #     'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
+        #     table,
+        #     self.source
+        # )
+        # job.begin()
 
         while job.state != 'DONE':
             job.reload()
