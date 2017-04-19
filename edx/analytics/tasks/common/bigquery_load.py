@@ -76,7 +76,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         if self.required_tasks is None:
             self.required_tasks = {
                 'credentials': ExternalURL(url=self.credentials),
-                'source': ExternalURL(url=source),
+                'source': ExternalURL(url=self.source),
             }
         return self.required_tasks
 
