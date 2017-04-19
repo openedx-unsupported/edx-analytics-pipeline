@@ -133,7 +133,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         table = dataset.table(self.table, self.schema)
 
         with self.input()['source'].open('r') as source_file:
-            job = table.upload_from_file(source_file, source_format='text/csv')
+            job = table.upload_from_file(source_file, source_format='text/csv', field_delimiter=self.field_delimiter)
 
         # job = client.load_table_from_storage(
         #     'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
