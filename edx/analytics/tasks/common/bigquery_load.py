@@ -65,7 +65,6 @@ class BigQueryTarget(luigi.Target):
 
 class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
-    source = luigi.Parameter()
     dataset_id = luigi.Parameter()
     credentials = luigi.Parameter()
 
@@ -76,9 +75,13 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         if self.required_tasks is None:
             self.required_tasks = {
                 'credentials': ExternalURL(url=self.credentials),
-                'source': ExternalURL(url=self.source),
+                'source': self.insert_source_task,
             }
         return self.required_tasks
+
+    @property
+    def insert_source_task(self):
+        raise NotImplementedError
 
     @property
     def table(self):
@@ -162,6 +165,11 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 class TestBigQueryLoad(BigQueryLoadTask):
 
     date = luigi.DateParameter()
+    source = luigi.Parameter()
+
+    @property
+    def insert_source_task(self):
+        ExternalURL(url=self.source)
 
     @property
     def table(self):
