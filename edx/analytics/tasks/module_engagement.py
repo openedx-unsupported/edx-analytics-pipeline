@@ -673,6 +673,10 @@ class ModuleEngagementSummaryMetricRangesDataTask(ModuleEngagementDownstreamMixi
             normal_lower_bound, normal_upper_bound = numpy.percentile(  # pylint: disable=no-member
                 values, [self.low_percentile, self.high_percentile]
             )
+            if numpy.isnan(normal_lower_bound):
+                normal_lower_bound = float('inf')
+            if numpy.isnan(normal_upper_bound):
+                normal_upper_bound = float('inf')
             ranges = []
             if normal_lower_bound > 0:
                 ranges.append((METRIC_RANGE_LOW, 0, normal_lower_bound))
