@@ -23,10 +23,8 @@ def load_sqoop_cmd():
     return luigi.configuration.get_config().get('sqoop', 'command', 'sqoop')
 
 
-class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
-    """
-    An abstract task that uses Sqoop to read data out of a database and
-    writes it to a file in CSV format.
+class SqoopImportMixin(object):
+    """Mixin to expose useful parameters when importing from a database using Sqoop.
 
     In order to protect the database access credentials they are
     loaded from an external file which can be secured appropriately.
@@ -34,17 +32,14 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
     a simple map specifying the host, port, username password and
     database.
 
-    Inherited parameters:
-        overwrite:  Overwrite any existing imports.  Default is false.
-
     Example Credentials File::
 
-        {
-            "host": "db.example.com",
-            "port": "3306",
-            "username": "exampleuser",
-            "password": "example password"
-        }
+    {
+        "host": "db.example.com",
+        "port": "3306",
+        "username": "exampleuser",
+        "password": "example password"
+    }
     """
     destination = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'destination'},
@@ -55,24 +50,37 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         description='Path to the external access credentials file.',
     )
     database = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'database'}
+        config_path={'section': 'database-import', 'name': 'database'},
     )
     num_mappers = luigi.Parameter(
         default=None,
+        significant=False,
         description='The number of map tasks to ask Sqoop to use.',
     )
     verbose = luigi.BooleanParameter(
         default=False,
+        significant=False,
         description='Print more information while working.',
-    )
-    table_name = luigi.Parameter(
-        description='The name of the table to import.',
     )
     where = luigi.Parameter(
         default=None,
         description='A "where" clause to be passed to Sqoop.  Note that '
         'no spaces should be embedded and special characters should '
         'be escaped.  For example:  --where "id\<50". ',
+    )
+
+
+class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseHadoopJobTask):
+    """
+    An abstract task that uses Sqoop to read data out of a database and
+    writes it to a file in CSV format.
+
+    Inherited parameters:
+        overwrite:  Overwrite any existing imports.  Default is false.
+
+    """
+    table_name = luigi.Parameter(
+        description='The name of the table to import.',
     )
     columns = luigi.Parameter(
         is_list=True,
