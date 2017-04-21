@@ -349,6 +349,6 @@ class ActiveUserCounts(EventLogSelectionMixin, MapReduceJobTask):
         if not self.complete() and output_target.exists():
             output_target.remove()
 
-        super(UserLogins, self).run()
+        super(ActiveUserCounts, self).run()
 
 
