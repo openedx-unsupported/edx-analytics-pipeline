@@ -9,7 +9,7 @@ from luigi.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
 import luigi.task
 
-from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportPersistentCourseGradeTask
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask,
 )
@@ -948,6 +948,7 @@ class CourseSummaryEnrollmentRecord(Record):
     count_change_7_days = IntegerField(nullable=True,
                                        description='Difference in enrollment counts over the past 7 days')
     cumulative_count = IntegerField(nullable=True, description='The cumulative total of all users ever enrolled')
+    passing_users = IntegerField(nullable=True, description='The count of currently passing learners')
 
 
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
@@ -964,26 +965,29 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
         start_date = end_date - datetime.timedelta(days=7)
 
         query = """
-            SELECT
-                enrollment_end.course_id,
-                course.catalog_course_title,
-                course.catalog_course,
-                course.start_time,
-                course.end_time,
-                course.pacing_type,
-                course.availability,
-                enrollment_end.mode,
-                enrollment_end.count,
-                (enrollment_end.count - COALESCE(enrollment_start.count, 0)) AS count_change_7_days,
-                enrollment_end.cumulative_count
-            FROM course_enrollment_mode_daily enrollment_end
-            LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
-                ON enrollment_start.course_id = enrollment_end.course_id
-                AND enrollment_start.mode = enrollment_end.mode
-                AND enrollment_start.date = '{start_date}'
-            LEFT OUTER JOIN course_catalog course
-                ON course.course_id = enrollment_end.course_id
-            WHERE enrollment_end.date = '{end_date}'
+            SELECT enrollment_end.course_id,
+                   course.catalog_course_title,
+                   course.catalog_course,
+                   course.start_time,
+                   course.end_time,
+                   course.pacing_type,
+                   course.availability,
+                   enrollment_end.mode,
+                   enrollment_end.count,
+                   (enrollment_end.count - COALESCE(enrollment_start.count, 0)) AS count_change_7_days,
+                   enrollment_end.cumulative_count,
+                   course_grade_by_mode.passing_users
+            FROM   course_enrollment_mode_daily enrollment_end
+                   LEFT OUTER JOIN course_enrollment_mode_daily enrollment_start
+                                ON enrollment_start.course_id = enrollment_end.course_id
+                               AND enrollment_start.mode = enrollment_end.mode
+                               AND enrollment_start.date = '{start_date}'
+                   LEFT OUTER JOIN course_catalog course
+                                ON course.course_id = enrollment_end.course_id
+                   LEFT OUTER JOIN course_grade_by_mode
+                                ON enrollment_end.course_id = course_grade_by_mode.course_id
+                               AND enrollment_end.mode = course_grade_by_mode.mode
+            WHERE  enrollment_end.date = '{end_date}'
         """.format(
             start_date=start_date.isoformat(),
             end_date=end_date.isoformat(),
@@ -1005,6 +1009,12 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def required_table_tasks(self):
+        common_kwargs = {
+            'warehouse_path': self.warehouse_path,
+            'interval': self.interval,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'overwrite_n_days': self.overwrite_n_days,
+        }
         # Note this is not exactly correct, as what we really need is
         # for enrollment-by-mode data to be in Hive.  If we are rerunning
         # and enrollment-by-mode data has already been calculated, this
@@ -1013,12 +1023,9 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
         # the loading into Hive, this dependency should change to reflect that.
         yield EnrollmentByModeTask(
             mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
-            interval=self.interval,
             pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-            overwrite_n_days=self.overwrite_n_days,
+            **common_kwargs
         )
 
         # We do not propagate the local overwrite value here.
@@ -1042,6 +1049,11 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             # the Open edX installation isn't running a catalog service, so just create empty hive tables without
             # loading any data into them
             yield [task.hive_table_task for task in catalog_tasks]
+
+        yield CourseGradeByModeDataTask(
+            date=self.date,
+            **common_kwargs
+        )
 
 
 class CourseProgramMetadataRecord(Record):
@@ -1178,6 +1190,131 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size
         )
+
+
+class CourseGradeByModeRecord(Record):
+    """Represents aggregated course grades by enrollment mode."""
+    course_id = StringField(nullable=False, length=255)
+    mode = StringField(nullable=False, length=255)
+    passing_users = IntegerField(nullable=True, description='The count of currently passing learners')
+
+
+class CourseGradeByModeTableTask(CourseSummaryEnrollmentDownstreamMixin, BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_grade_by_mode` Hive storage table."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_grade_by_mode'
+
+    @property
+    def columns(self):
+        return CourseGradeByModeRecord.get_hive_schema()
+
+
+class CourseGradeByModePartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_grade_by_mode` Hive table."""
+
+    @property
+    def hive_table_task(self):
+        return CourseGradeByModeTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        return self.date.isoformat()
+
+
+class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_grade_by_mode` Hive table."""
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT   all_enrollments.course_id AS course_id,
+                 all_enrollments.mode AS mode,
+                 SUM(CASE WHEN closest_enrollment.passed_timestamp IS NOT NULL THEN 1 ELSE 0 END) AS passing_users
+        FROM     course_enrollment all_enrollments
+                 LEFT OUTER JOIN (
+                     SELECT ce.course_id,
+                            ce.user_id,
+                            MAX(ce.date) AS enrollment_date,
+                            MAX(grades.passed_timestamp) AS passed_timestamp
+                     FROM   course_enrollment ce
+                            INNER JOIN grades_persistentcoursegrade grades
+                                    ON grades.course_id = ce.course_id
+                                   AND grades.user_id = ce.user_id
+                     WHERE  ce.date <= to_date(grades.modified)
+                     GROUP BY ce.course_id,
+                              ce.user_id
+                 ) closest_enrollment
+                         ON all_enrollments.course_id = closest_enrollment.course_id
+                        AND all_enrollments.user_id = closest_enrollment.user_id
+                        AND all_enrollments.date = closest_enrollment.enrollment_date
+        GROUP BY all_enrollments.course_id,
+                 all_enrollments.mode
+        """
+
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
+    @property
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = CourseGradeByModePartitionTask(date=self.date, warehouse_path=self.warehouse_path)
+        return self._partition_task
+
+    def requires(self):
+        yield self.partition_task
+
+        # We need the `grades_persistentcoursegrade` Hive table to exist before we can persist and load data.
+        yield ImportPersistentCourseGradeTask(
+            import_date=self.date,
+            destination=self.warehouse_path,
+        )
+
+        # this will give us the `course_enrollment` Hive table for the query above
+        yield CourseEnrollmentTableTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
 
 
 @workflow_entry_point
