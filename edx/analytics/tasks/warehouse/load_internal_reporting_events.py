@@ -8,6 +8,7 @@ from event values to column values.
 
 """
 import datetime
+import json
 import logging
 
 import ciso8601
@@ -28,7 +29,7 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
-from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
+from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, DateTimeField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
@@ -368,9 +369,9 @@ class EventRecord(SparseRecord):
 class JsonEventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
 
-    timestamp = DateField(length=255, nullable=True, description='Timestamp when event was emitted.')
+    timestamp = DateTimeField(length=255, nullable=True, description='Timestamp when event was emitted.')
 
-    received_at = DateField(length=255, nullable=True, description='Timestamp when event was received/recorded.')
+    received_at = DateTimeField(length=255, nullable=True, description='Timestamp when event was received/recorded.')
 
     # was context_user_id:
     user_id = IntegerField(nullable=True, description='The numeric identifier of the user who was logged in when the event was emitted.')
@@ -635,6 +636,17 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 event_dict[event_record_key] = int(obj)
             except ValueError:
                 log.error('Unable to cast value to int for %s: %r', label, obj)
+        elif isinstance(event_record_field, DateTimeField):
+            try:
+                if obj is not None:
+                    datetime_obj = ciso8601.parse_datetime(obj)
+                    if datetime_obj.tzinfo:
+                        datetime_obj = datetime_obj.astimezone(pytz.utc)
+                else:
+                    datetime_obj = obj
+                event_dict[event_record_key] = datetime_obj
+            except ValueError:
+                log.error('Unable to cast value to datetime for %s: %r', label, obj)
         elif isinstance(event_record_field, BooleanField):
             try:
                 event_dict[event_record_key] = bool(obj)
@@ -724,10 +736,12 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
                 # Add new clauses for JSONEventRecord:
                 # Skip values that are explicitly set or calculated:
-                if field_key in ['user_id', 'course_id', 'emitter_type', 'source', 'raw_event']:
+                if field_key in ['course_id', 'emitter_type', 'source', 'raw_event']:
                     pass
                 elif field_key == 'referrer':
                     add_event_mapping_entry('root.referer')
+                elif field_key == 'user_id':
+                    add_event_mapping_entry('root.context.user_id')
 
                 # Handle special-cases:
                 elif field_key == "currenttime":
@@ -773,6 +787,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
             return
 
+        # TODO: why not use eventlog.get_event_username?  Difference between '' and None?
         username = event.get('username', '').strip()
         # if not username:
         #   return
@@ -818,8 +833,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         self.add_calculated_event_entry(event_dict, 'course_id', course_id)
         self.add_calculated_event_entry(event_dict, 'username', username)
 
-        # TODO: line may be in different formats, so we really need to re-generate the JSON.
-        self.add_calculated_event_entry(event_dict, 'raw_event', line)
+        self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
 
         # self.add_agent_info(event_dict, event.get('agent'))
 
@@ -875,6 +889,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
     counter_category_name = 'Segment Event Exports'
 
+    # TODO: this never actually worked in a cluster.
     def _get_project_name(self, project_id):
         if project_id not in self.project_names:
             if self.config is None:
@@ -972,6 +987,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 # Skip values that are explicitly calculated rather than copied:
                 elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
                     pass
+
+                # Add new clauses for JSONEventRecord:
+                # Skip values that are explicitly set or calculated:
+                if field_key in ['emitter_type', 'source', 'raw_event']:
+                    pass
+
                 # Map values that are top-level:
                 elif field_key in ['channel']:
                     add_event_mapping_entry(u"root.{}".format(field_key))
@@ -1075,18 +1096,24 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         self.incr_counter(self.counter_category_name, u'Subset Project {}'.format(project_name), 1)
 
-        event_dict = {'version': VERSION}
+        # event_dict = {'version': VERSION}
+        event_dict = {}
         self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
-        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        # was project
+        self.add_calculated_event_entry(event_dict, 'source', project_name)
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
-        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
-        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        # was event_source
+        self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)
+        # self.add_calculated_event_entry(event_dict, 'event_category', event_category)
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+        # self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
+        # self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
+        self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
+
+        # event-mapping has to add only a few values:  course_id, user_id, anonymous_id, label, category, url, referrer.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
 
