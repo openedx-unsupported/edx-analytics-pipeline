@@ -337,6 +337,8 @@ class ActiveUserCounts(EventLogSelectionMixin, MapReduceJobTask):
         
     def reducer(self, key, values):
         year_month, username = key
+        year_month = unicode(year_month, 'utf8').encode('utf8')
+        username = unicode(username, 'utf8').encode('utf8')
         yield year_month, username
 
     def output(self):
