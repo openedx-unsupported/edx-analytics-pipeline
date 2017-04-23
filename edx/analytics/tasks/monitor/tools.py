@@ -336,7 +336,8 @@ class ActiveUserCounts(EventLogSelectionMixin, MapReduceJobTask):
         yield (year_month, username), 1
         
     def reducer(self, key, values):
-        yield key, sum(values)
+        year_month, username = key
+        yield year_month, username
 
     def output(self):
         return get_target_from_url(self.output_root)
