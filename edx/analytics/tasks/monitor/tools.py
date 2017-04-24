@@ -380,16 +380,16 @@ class ActiveUserCountsRaw(MapReduceJobTask):
             event = eventlog.parse_json_event(line)
             if event is None:
                 self.incr_counter('Event', 'Discard Unparseable Event', 1)
-                return None
+                return
 
             event_time = self.get_event_time(event)
             if not event_time:
                 self.incr_counter('Event', 'Discard Missing Time Field', 1)
-                return None
+                return
 
             username = event.get('username')
             if not username:
-                return None
+                return
 
             split_date = event_time.split('-')
             year_month = '{0}-{1}'.format(split_date[0], split_date[1])
@@ -423,9 +423,4 @@ class ActiveUserCountsRaw(MapReduceJobTask):
         if not self.complete() and output_target.exists():
             output_target.remove()
 
-        super(ActiveUserCounts, self).run()
-
-
-        super(ActiveUserCounts, self).run()
-
-
+        super(ActiveUserCountsRaw, self).run()
