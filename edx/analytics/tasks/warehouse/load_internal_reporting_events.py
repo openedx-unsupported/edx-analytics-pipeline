@@ -446,6 +446,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
     # Create a DateField object to help with converting date_string
     # values for assignment to DateField objects.
     date_field_for_converting = DateField()
+    date_time_field_for_validating = DateTimeField()
 
     # This is a placeholder.  It is expected to be overridden in derived classes.
     counter_category_name = 'Event Record Exports'
@@ -637,6 +638,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             except ValueError:
                 log.error('Unable to cast value to int for %s: %r', label, obj)
         elif isinstance(event_record_field, DateTimeField):
+            datetime_obj = None
             try:
                 if obj is not None:
                     datetime_obj = ciso8601.parse_datetime(obj)
@@ -644,9 +646,19 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                         datetime_obj = datetime_obj.astimezone(pytz.utc)
                 else:
                     datetime_obj = obj
-                event_dict[event_record_key] = datetime_obj
             except ValueError:
                 log.error('Unable to cast value to datetime for %s: %r', label, obj)
+
+            # Because it's not enough just to create a datetime object, also perform
+            # validation here.
+            if datetime_obj is not None:
+                validation_errors = self.date_time_field_for_validating.validate(datetime_obj)
+                if len(validation_errors) > 0:
+                    log.error('Invalid assigment of value %r to field "%s": %s', datetime_obj, label, ', '.join(validation_errors))
+                    datetime_obj = None
+
+            event_dict[event_record_key] = datetime_obj
+
         elif isinstance(event_record_field, BooleanField):
             try:
                 event_dict[event_record_key] = bool(obj)
@@ -783,9 +795,12 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             return
 
         # Ignore events that begin with a slash (i.e. implicit events).
+        event_url = None
         if event_type.startswith('/'):
-            self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
-            return
+            # self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
+            # return
+            event_url = event_type
+            event_type = 'edx.server.request'
 
         # TODO: why not use eventlog.get_event_username?  Difference between '' and None?
         username = event.get('username', '').strip()
@@ -822,6 +837,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         # was project
         self.add_calculated_event_entry(event_dict, 'source', project_name)
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
+
         # was event_source
         self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)
         # self.add_calculated_event_entry(event_dict, 'event_category', event_category)
@@ -834,6 +850,9 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         self.add_calculated_event_entry(event_dict, 'username', username)
 
         self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
+
+        if event_url is not None:
+            self.add_calculated_event_entry(event_dict, 'url', event_url)
 
         # self.add_agent_info(event_dict, event.get('agent'))
 
@@ -1372,7 +1391,7 @@ class PruneEventPartitionsInVertica(EventRecordLoadDownstreamMixin, SchemaManage
         ]
         # Check for pruning.
         # if self.interval and self.earliest_date and self.retention_interval:
-        if false:
+        if False:
             earliest_date_to_retain = self.interval.date_b - self.retention_interval
             split_date = self.earliest_date.split('-')
             earliest_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))

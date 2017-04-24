@@ -98,13 +98,33 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
             event['event'] = event_data
         return json.dumps(event, sort_keys=True)
 
+    def _get_event_record_from_mapper(self, kwargs):
+        """Returns an EventRecord constructed from mapper output."""
+        line = self.create_event_log_line(**kwargs)
+        mapper_output = tuple(self.task.mapper(line))
+        self.assertEquals(len(mapper_output), 1)
+        row = mapper_output[0]
+        self.assertEquals(len(row), 2)
+        _actual_key, actual_value = row
+        return JsonEventRecord.from_tsv(actual_value)
+
     @data(
         {'time': "2013-12-01T15:38:32.805444"},  # a good time, but lies outside the interval
         {'event_type': None},
-        {'event': 'sdfasdf'}
+        {'event': 'sdfasdf'},
     )
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
+
+    @data(
+        {'event_type': '/implicit/event/url'},
+    )
+    def test_implicit_events(self, kwargs):
+        event = self.create_event_log_line(**kwargs)
+        actual_record = self._get_event_record_from_mapper(kwargs)
+        url = getattr(actual_record, 'url')
+        self.assertEquals(url, kwargs['event_type'])
+        self.assertEquals(getattr(actual_record, 'event_type'), 'edx.server.request')
 
     def test_problem_check(self):
         template = self.event_templates['problem_check']
@@ -328,6 +348,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
 
     @data(
         {'sentAt': '2016-07-26 05:11:37 a.m. +000A'},
+        {'sentAt': '0300-01-01T00:00:00.000Z'},
     )
     def test_unparsable_timestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
