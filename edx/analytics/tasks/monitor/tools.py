@@ -360,6 +360,72 @@ class ActiveUserCounts(EventLogSelectionMixin, MapReduceJobTask):
         if not self.complete() and output_target.exists():
             output_target.remove()
 
+
+class ActiveUserCountsRaw(MapReduceJobTask):
+
+    input_path = luigi.Parameter()
+    output_root = luigi.Parameter()
+    enable_direct_output = True
+
+    def requires(self):
+        return ExternalURL(self.input_path)
+
+    def jobconfs(self):
+        jcs = super(ActiveUserCountsRaw, self).jobconfs()
+        jcs.append('mapreduce.input.fileinputformat.input.dir.recursive=true')
+        return jcs
+
+    def mapper(self, line):
+        try:
+            event = eventlog.parse_json_event(line)
+            if event is None:
+                self.incr_counter('Event', 'Discard Unparseable Event', 1)
+                return None
+
+            event_time = self.get_event_time(event)
+            if not event_time:
+                self.incr_counter('Event', 'Discard Missing Time Field', 1)
+                return None
+
+            username = event.get('username')
+            if not username:
+                return None
+
+            split_date = event_time.split('-')
+            year_month = '{0}-{1}'.format(split_date[0], split_date[1])
+            yield (year_month, username), 1
+        except:
+            log.exception('Unable to process event')
+            self.incr_counter('Event', 'Unknown Error', 1)
+        
+    def reducer(self, key, values):
+        year_month, username = key
+        try:
+            str(username)
+        except:
+            self.incr_counter('Encoding', 'Unicode Username', 1)
+            try:
+                username = username.encode('utf8')
+            except:
+                self.incr_counter('Encoding', 'Unable to Encode Username', 1)
+                return
+
+        yield year_month, username
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+    def complete(self):
+        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
+
+    def run(self):
+        output_target = self.output()
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+
+        super(ActiveUserCounts, self).run()
+
+
         super(ActiveUserCounts, self).run()
 
 
