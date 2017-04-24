@@ -382,7 +382,7 @@ class ActiveUserCountsRaw(MapReduceJobTask):
                 self.incr_counter('Event', 'Discard Unparseable Event', 1)
                 return
 
-            event_time = self.get_event_time(event)
+            event_time = eventlog.get_event_time_string(event)
             if not event_time:
                 self.incr_counter('Event', 'Discard Missing Time Field', 1)
                 return
