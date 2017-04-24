@@ -337,8 +337,16 @@ class ActiveUserCounts(EventLogSelectionMixin, MapReduceJobTask):
         
     def reducer(self, key, values):
         year_month, username = key
-        year_month = unicode(year_month, 'utf8').encode('utf8')
-        username = unicode(username, 'utf8').encode('utf8')
+        try:
+            str(username)
+        except:
+            self.incr_counter('Encoding', 'Unicode Username', 1)
+            try:
+                username = username.encode('utf8')
+            except:
+                self.incr_counter('Encoding', 'Unable to Encode Username', 1)
+                return
+
         yield year_month, username
 
     def output(self):
