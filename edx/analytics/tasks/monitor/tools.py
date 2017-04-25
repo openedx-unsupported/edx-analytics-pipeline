@@ -424,3 +424,26 @@ class ActiveUserCountsRaw(MapReduceJobTask):
             output_target.remove()
 
         super(ActiveUserCountsRaw, self).run()
+
+
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+
+
+class ActiveUsersToVerticaTask(VerticaCopyTask):
+
+    input_path = luigi.Parameter()
+
+    @property
+    def table(self):
+        return "active_users_by_month"
+
+    @property
+    def columns(self):
+        return [
+            ("year_month", "VARCHAR(7)"),
+            ("username", "VARCHAR(45)"),
+        ]
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(self.input_path)
