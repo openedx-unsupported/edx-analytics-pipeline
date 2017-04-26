@@ -29,6 +29,7 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
+from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, get_org_id_for_course
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, DateTimeField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
@@ -388,6 +389,7 @@ class JsonEventRecord(SparseRecord):
 
     # was context_course_id
     course_id = StringField(length=255, nullable=True, description='The course_id associated with this event (if any).')
+    org_id = StringField(length=255, nullable=True, description='Id of organization, as used in course_id.')
 
     label = StringField(length=511, nullable=True, description='The GA label associated with this event.')
 
@@ -412,6 +414,13 @@ class JsonEventRecord(SparseRecord):
     source = StringField(length=255, nullable=False, description='The segment.com project the event was sent to.')
 
     input_file = StringField(length=255, nullable=True, description='The full URL of the file that contains this event in S3.')
+
+    agent_type = StringField(length=20, nullable=True, description='The type of device used.')
+    agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.')
+    agent_os = StringField(length=100, nullable=True, description='The name of the OS on the device used. ')
+    agent_browser = StringField(length=100, nullable=True, description='The name of the browser used.')
+    agent_touch_capable = BooleanField(nullable=True, description='A boolean value indicating that the device was touch-capable.')
+    # agent_touch_capable = StringField(length=10, nullable=True, description='')
 
     raw_event = StringField(length=60000, nullable=True, description='The full text of the event as a JSON string. This can be parsed at query time using UDFs.')
 
@@ -603,7 +612,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             agent_dict['device_name'] = user_agent.device.family
             agent_dict['os'] = user_agent.os.family
             agent_dict['browser'] = user_agent.browser.family
-            agent_dict['touch_capable'] = unicode(user_agent.is_touch_capable)
+            # agent_dict['touch_capable'] = unicode(user_agent.is_touch_capable)
+            agent_dict['touch_capable'] = user_agent.is_touch_capable
         else:
             self.incr_counter(self.counter_category_name, 'Quality Unrecognized agent type', 1)
 
@@ -854,12 +864,18 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         if event_url is not None:
             self.add_calculated_event_entry(event_dict, 'url', event_url)
 
-        # self.add_agent_info(event_dict, event.get('agent'))
+        self.add_agent_info(event_dict, event.get('agent'))
 
         # event-mapping has to add only a few values:  user_id, category, url, referer=>referrer.
         # some are segment-only:  anonymous_id, label.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
+
+        # Try to extract course_id information.
+        if course_id is not None:
+            org_id = get_org_id_for_course(course_id)
+            if org_id:
+                self.add_calculated_event_entry(event_dict, 'org_id', org_id)
 
         record = JsonEventRecord(**event_dict)
 
@@ -1127,14 +1143,28 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        # self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        # self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
+        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
         self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
 
         # event-mapping has to add only a few values:  course_id, user_id, anonymous_id, label, category, url, referrer.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
+
+        # Try to extract course_id information.
+        course_id = event_dict.get('course_id')
+        if course_id is None:
+            # course_id may be stored in 'label', so try to parse what is there.
+            label = event_dict.get('label')
+            if is_valid_course_id(label):
+                self.add_calculated_event_entry(event_dict, 'course_id', label)
+                course_id = event_dict.get('course_id')
+
+        if course_id is not None:
+            org_id = get_org_id_for_course(course_id)
+            if org_id:
+                self.add_calculated_event_entry(event_dict, 'org_id', org_id)
 
         record = JsonEventRecord(**event_dict)
         key = (date_received, project_name)
