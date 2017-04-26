@@ -433,10 +433,11 @@ from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 class ActiveUsersToVerticaTask(VerticaCopyTask):
 
     input_path = luigi.Parameter()
+    table_name = luigi.Parameter(default='active_users_by_month')
 
     @property
     def table(self):
-        return "active_users_by_month"
+        return self.table_name
 
     @property
     def columns(self):
@@ -448,3 +449,14 @@ class ActiveUsersToVerticaTask(VerticaCopyTask):
     @property
     def insert_source_task(self):
         return ExternalURL(self.input_path)
+
+    @property
+    def auto_primary_key(self):
+        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
+        return ('row_number', 'AUTO_INCREMENT')
+
+    @property
+    def default_columns(self):
+        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
+        return None
+
