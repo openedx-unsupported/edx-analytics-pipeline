@@ -1,5 +1,6 @@
 """Test enrollment computations"""
 
+from datetime import datetime
 import json
 from unittest import TestCase
 
@@ -7,12 +8,13 @@ import luigi
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.enrollments import (
+    ACTIVATED,
+    DEACTIVATED,
+    MODE_CHANGED,
+    CourseEnrollmentSummaryTask,
     CourseEnrollmentTask,
     CourseEnrollmentEventsTask,
-    DEACTIVATED,
-    ACTIVATED,
-    MODE_CHANGED,
-    CourseEnrollmentSummaryTask
+    ImportCourseSummaryEnrollmentsIntoMysql,
 )
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
 
@@ -562,3 +564,16 @@ class CourseEnrollmentSummaryTaskReducerTest(ReducerTestMixin, TestCase):
         expected = ((self.course_id, self.user_id, 'credit', '1', 'honor', '2013-01-01 00:00:01.000000',
                      '2013-01-01 00:00:03.000000', '\\N', '2013-01-01 00:00:02.000000', '2013-01-02 00:00:00.000000'),)
         self._check_output_complete_tuple(inputs, expected)
+
+
+class TestImportCourseSummaryEnrollmentsIntoMysql(TestCase):
+    def test_query(self):
+        expected_columns = ('course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time',
+                            'pacing_type', 'availability', 'mode', 'count', 'count_change_7_days',
+                            'cumulative_count', 'passing_users',)
+        import_task = ImportCourseSummaryEnrollmentsIntoMysql(
+            date=datetime(2017, 1, 1), warehouse_path='/tmp/foo'
+        )
+        select_clause = import_task.query.partition('FROM')[0]
+        for column in expected_columns:
+            assert column in select_clause
