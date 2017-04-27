@@ -82,7 +82,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
         if not date:
             date = self.DEFAULT_DATE
         self.task = TrackingEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
         )
         self.task.init_local()
@@ -266,7 +266,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         if not date:
             date = self.DEFAULT_DATE
         self.task = SegmentEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
         )
         self.task.init_local()
