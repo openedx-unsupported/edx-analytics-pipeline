@@ -30,7 +30,7 @@ class EnrollmentGradesAcceptanceTest(AcceptanceTestCase):
 
     def setUp(self):
         """Loads enrollment and course catalog fixtures."""
-        super(EnrollmentAcceptanceTest, self).setUp()
+        super(EnrollmentGradesAcceptanceTest, self).setUp()
 
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 7, 30))
         self.execute_sql_fixture_file('load_auth_userprofile.sql')
