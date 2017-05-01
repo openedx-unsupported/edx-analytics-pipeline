@@ -847,7 +847,7 @@ class ImportPersistentCourseGradeTask(ImportMysqlToHiveTableTask):
             ('course_edited_timestamp', 'TIMESTAMP'),
             ('course_version', 'STRING'),
             ('grading_policy_hash', 'STRING'),
-            ('percent_grade', 'DECIMAL(0,2)'),
+            ('percent_grade', 'DECIMAL(10,2)'),
             ('letter_grade', 'STRING'),
             ('passed_timestamp', 'TIMESTAMP'),
             ('created', 'TIMESTAMP'),
