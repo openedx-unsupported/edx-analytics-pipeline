@@ -10,6 +10,7 @@ from event values to column values.
 import datetime
 import json
 import logging
+import re
 
 import ciso8601
 import dateutil
@@ -39,6 +40,12 @@ VERSION = '0.2.4'
 
 # EVENT_TABLE_NAME = 'event_records'
 EVENT_TABLE_NAME = 'json_event_records'
+
+# Define pattern to extract a course_id from a string by looking
+# explicitly for a version string and two plus-delimiters.
+# TODO: avoid this hack by finding a more opaque-keys-respectful way.
+NEW_COURSE_ID_PATTERN = r'(?P<course_id>course\-v1\:[^/+]+(\+)[^/+]+(\+)[^/]+)'
+NEW_COURSE_REGEX = re.compile(r'^.*?{}'.format(NEW_COURSE_ID_PATTERN))
 
 
 class EventRecord(SparseRecord):
@@ -951,7 +958,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                         log.warning("Parsable unparseable type for %s time in event: %r", key, event)
                         self.incr_counter(self.counter_category_name, 'Quality Parsable unparseable for {} Time Field'.format(key), 1)
                 except Exception:
-                    log.error("Unparseable %s time from event: %r", key, event)
+
                     self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
             return event_time
         except KeyError:
@@ -1163,11 +1170,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 course_id = event_dict.get('course_id')
 
         if course_id is None:
-            # course_id may be extractable from 'url', so try to parse what is there.
+            # course_id may be extractable from 'url' in the usual
+            # way, so try to parse what is there.
             url = event_dict.get('url')
             course_key = get_course_key_from_url(url)
             if course_key:
                 course_id = unicode(course_key)
+                self.add_calculated_event_entry(event_dict, 'course_id', course_id)
+            elif url:
+                # course_id may be extractable from 'url' by looking for the
+                # version string and plus-delimiters explicitly anywhere in the URL.
+                match = NEW_COURSE_REGEX.match(url)
+                if match:
+                    course_id_string = match.group('course_id')
+                    if is_valid_course_id(course_id_string):
+                        self.add_calculated_event_entry(event_dict, 'course_id', course_id_string)
+                        course_id = event_dict.get('course_id')
 
         if course_id is not None:
             org_id = get_org_id_for_course(course_id)

@@ -292,8 +292,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
                         "app_name": "edx.mobileapp.android",
                     },
                     "category": "screen",
-                    # Change "label" from "Launch" to a course_id, to test its extraction.
-                    "label": "course-v1:FooX+1.23x+2013_Spring",
+                    "label": "Launch",
                 },
                 "writeKey": "dummy_write_key",
                 "projectId": self.DEFAULT_PROJECT,
@@ -359,6 +358,23 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         timestamp = getattr(actual_record, 'timestamp')
         self.assertEquals(timestamp, None)
 
+    @data(
+        {'properties': {'course_id': 'course-v1:FooX+1.23x+2013_Spring'}},
+        {'properties': {'courseid': 'course-v1:FooX+1.23x+2013_Spring'}},
+        {'properties': {'course': 'course-v1:FooX+1.23x+2013_Spring'}},
+        {'properties': {'label': 'course-v1:FooX+1.23x+2013_Spring'}},
+        {'properties': {'url': 'https://courses.edx.org/courses/course-v1:FooX+1.23x+2013_Spring'}},
+        {'properties': {'url': 'https://courses.edx.org/courses/FooX/1.23x/2013_Spring'}},
+        {'properties': {'url': 'https://courses.edx.org/verify_student/start-flow/course-v1:FooX+1.23x+2013_Spring/'}},
+        {'properties': {'url': 'https://courses.edx.org/course_modes/choose/course-v1:FooX+1.23x+2013_Spring/'}},
+    )
+    def test_course_ids(self, kwargs):
+        actual_record = self._get_event_record_from_mapper(kwargs)
+        course_id = getattr(actual_record, 'course_id')
+        self.assertNotEquals(course_id, None)
+        org_id = getattr(actual_record, 'org_id')
+        self.assertNotEquals(org_id, None)
+
     def test_android_screen(self):
         template = self.event_templates['android_screen']
         event = self.create_event_log_line(template=template)
@@ -386,9 +402,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             # 'channel': 'server',
             'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
             'category': 'screen',
-            'label': 'course-v1:FooX+1.23x+2013_Spring',
-            'course_id': 'course-v1:FooX+1.23x+2013_Spring',
-            'org_id': 'FooX',
+            'label': 'Launch',
             # 'locale': 'en-US',
             # 'timezone': 'America/New_York',
             # 'app_name': 'edX',
