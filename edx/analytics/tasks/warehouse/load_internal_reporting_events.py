@@ -370,12 +370,13 @@ class EventRecord(SparseRecord):
 class JsonEventRecord(SparseRecord):
     """Represents an event, either a tracking log event or segment event."""
 
-    timestamp = DateTimeField(length=255, nullable=True, description='Timestamp when event was emitted.')
+    timestamp = DateTimeField(nullable=True, description='Timestamp when event was emitted.')
 
-    received_at = DateTimeField(length=255, nullable=True, description='Timestamp when event was received/recorded.')
+    received_at = DateTimeField(nullable=True, description='Timestamp when event was received/recorded.')
 
     # was context_user_id:
-    user_id = IntegerField(nullable=True, description='The numeric identifier of the user who was logged in when the event was emitted.')
+    user_id = StringField(length=255, nullable=True, description='The identifier of the user who was logged in when the event was emitted. '
+                          'This is often but not always numeric.')
 
     username = StringField(length=50, nullable=True, description='The username of the user who was logged in when the event was emitted.')
 
