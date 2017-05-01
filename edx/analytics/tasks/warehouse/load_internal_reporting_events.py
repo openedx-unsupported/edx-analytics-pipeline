@@ -29,7 +29,7 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
-from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, get_org_id_for_course
+from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, get_org_id_for_course, get_course_key_from_url
 from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, DateTimeField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
@@ -1161,6 +1161,13 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             if is_valid_course_id(label):
                 self.add_calculated_event_entry(event_dict, 'course_id', label)
                 course_id = event_dict.get('course_id')
+
+        if course_id is None:
+            # course_id may be extractable from 'url', so try to parse what is there.
+            url = event_dict.get('url')
+            course_key = get_course_key_from_url(url)
+            if course_key:
+                course_id = unicode(course_key)
 
         if course_id is not None:
             org_id = get_org_id_for_course(course_id)
