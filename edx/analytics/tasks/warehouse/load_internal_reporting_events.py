@@ -1041,6 +1041,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key in ['anonymous_id']:
                     add_event_mapping_entry(u"root.context.anonymousid")
+                    add_event_mapping_entry(u"root.context.traits.anonymousid")
+                    add_event_mapping_entry(u"root.traits.anonymousid")
                     add_event_mapping_entry("root.anonymousid")
                 elif field_key in ['agent']:
                     add_event_mapping_entry(u"root.context.useragent")
@@ -1051,13 +1053,21 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     add_event_mapping_entry(u"root.properties.courseid")
                     add_event_mapping_entry(u"root.properties.course_id")
                     add_event_mapping_entry(u"root.properties.course")
+                    add_event_mapping_entry(u"root.properties.data.course_id")
+                    add_event_mapping_entry(u"root.properties.data.course-id")
+                    add_event_mapping_entry(u"root.properties.context.course_id")                    
                 elif field_key in ['username']:
                     add_event_mapping_entry(u"root.traits.username")
+                    add_event_mapping_entry(u"root.context.traits.username")
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
                 elif field_key in ['client_id', 'host', 'session', 'referer']:
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
                 elif field_key in ['user_id']:
                     add_event_mapping_entry(u"root.context.user_id")
+                    add_event_mapping_entry(u"root.properties.context.user_id")
+                    add_event_mapping_entry(u"root.properties.data.user_id")
+                    add_event_mapping_entry(u"root.context.traits.userid")
+                    add_event_mapping_entry(u"root.traits.userid")
                     # I think this is more often a username than an id.
                     # TODO: figure it out later...  Exception is type=page,
                     # for which it's an id?  No, that's not consistent,
@@ -1078,6 +1088,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 elif field_key in ['path', 'referrer', 'search', 'title', 'url', 'variationname', 'variationid', 'experimentid', 'experimentname', 'category', 'label', 'display_name']:
                     add_event_mapping_entry(u"root.properties.{}".format(field_key))
                     add_event_mapping_entry(u"root.context.page.{}".format(field_key))
+                    add_event_mapping_entry(u"root.data.{}".format(field_key))
                     add_event_mapping_entry(u"root.properties.context.page.{}".format(field_key))
                 else:
                     pass
