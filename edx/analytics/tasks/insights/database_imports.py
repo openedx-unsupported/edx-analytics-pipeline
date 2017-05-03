@@ -50,20 +50,20 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
         # information.
         query_format = textwrap.dedent("""
             USE {database_name};
-            DROP TABLE IF EXISTS {table_name};
-            CREATE EXTERNAL TABLE {table_name} (
+            DROP TABLE IF EXISTS `{table_name}`;
+            CREATE EXTERNAL TABLE `{table_name}` (
                 {col_spec}
             )
             PARTITIONED BY (dt STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table_name} ADD PARTITION (dt = '{partition_date}');
+            ALTER TABLE `{table_name}` ADD PARTITION (dt = '{partition_date}');
         """)
 
         query = query_format.format(
             database_name=hive_database_name(),
             table_name=self.table_name,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(name, col_type) for name, col_type in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition_date=self.partition_date,

@@ -30,14 +30,14 @@ class ImportStudentCourseEnrollmentTestCase(TestCase):
         expected_query = textwrap.dedent(
             """
             USE default;
-            DROP TABLE IF EXISTS student_courseenrollment;
-            CREATE EXTERNAL TABLE student_courseenrollment (
-                id INT,user_id INT,course_id STRING,created TIMESTAMP,is_active BOOLEAN,mode STRING
+            DROP TABLE IF EXISTS `student_courseenrollment`;
+            CREATE EXTERNAL TABLE `student_courseenrollment` (
+                `id` INT,`user_id` INT,`course_id` STRING,`created` TIMESTAMP,`is_active` BOOLEAN,`mode` STRING
             )
             PARTITIONED BY (dt STRING)
 
             LOCATION 's3://foo/bar/student_courseenrollment';
-            ALTER TABLE student_courseenrollment ADD PARTITION (dt = '2014-07-01');
+            ALTER TABLE `student_courseenrollment` ADD PARTITION (dt = '2014-07-01');
             """
         )
         self.assertEquals(query, expected_query)
@@ -75,14 +75,14 @@ class ImportPersistentCourseGradeTestCase(TestCase):
         expected_query = textwrap.dedent(
             """
             USE default;
-            DROP TABLE IF EXISTS grades_persistentcoursegrade;
-            CREATE EXTERNAL TABLE grades_persistentcoursegrade (
-                id INT,user_id INT,course_id STRING,course_edited_timestamp TIMESTAMP,course_version STRING,grading_policy_hash STRING,percent_grade DECIMAL(10,2),letter_grade STRING,passed_timestamp TIMESTAMP,created TIMESTAMP,modified TIMESTAMP
+            DROP TABLE IF EXISTS `grades_persistentcoursegrade`;
+            CREATE EXTERNAL TABLE `grades_persistentcoursegrade` (
+                `id` INT,`user_id` INT,`course_id` STRING,`course_edited_timestamp` TIMESTAMP,`course_version` STRING,`grading_policy_hash` STRING,`percent_grade` DECIMAL(10,2),`letter_grade` STRING,`passed_timestamp` TIMESTAMP,`created` TIMESTAMP,`modified` TIMESTAMP
             )
             PARTITIONED BY (dt STRING)
 
             LOCATION 's3://foo/bar/grades_persistentcoursegrade';
-            ALTER TABLE grades_persistentcoursegrade ADD PARTITION (dt = '2014-07-01');
+            ALTER TABLE `grades_persistentcoursegrade` ADD PARTITION (dt = '2014-07-01');
             """
         )
         self.assertEquals(query, expected_query)

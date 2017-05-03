@@ -18,7 +18,7 @@ class HivePartitionTest(TestCase):
         self.assertEquals(self.partition.as_dict(), {'dt': '2014-01-01'})
 
     def test_query_spec(self):
-        self.assertEquals(self.partition.query_spec, "dt='2014-01-01'")
+        self.assertEquals(self.partition.query_spec, "`dt`='2014-01-01'")
 
     def test_path_spec(self):
         self.assertEquals(self.partition.path_spec, "dt=2014-01-01")

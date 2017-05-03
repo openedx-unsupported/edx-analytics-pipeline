@@ -1142,10 +1142,10 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             SELECT
                 course_id,
                 user_id,
-                MIN(date) AS first_enrollment_date
+                MIN(`date`) AS first_enrollment_date
             FROM course_enrollment
             WHERE
-                at_end = 1 AND date < '{end}'
+                at_end = 1 AND `date` < '{end}'
             GROUP BY course_id, user_id
         ) lce
             ON (ce.course_id = lce.course_id AND ce.user_id = lce.user_id)
@@ -1160,7 +1160,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         ) seg
             ON (ce.course_id = seg.course_id AND au.username = seg.username)
         WHERE
-            ce.date = '{last_complete_date}'
+            ce.`date` = '{last_complete_date}'
         """.format(
             start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
             end=self.interval.date_b.isoformat(),  # pylint: disable=no-member

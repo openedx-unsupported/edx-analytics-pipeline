@@ -89,7 +89,7 @@ class CalendarTableTask(CalendarDownstreamMixin, HiveTableTask):
 
     @property
     def partition(self):
-        return HivePartition('interval', str(self.interval))
+        return HivePartition('date_interval', str(self.interval))
 
     def requires(self):
         return CalendarTask(
