@@ -838,6 +838,11 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         # Put the fixed value back, so it can be properly mapped.
         event['event'] = event_data
 
+        # Add a check in the payload for a course_id -- it is sometimes there
+        # instead of in context.
+        if not course_id and event_data.get('course_id'):
+            course_id = event_data.get('course_id')
+
         event_source = event.get('event_source')
         if event_source is None:
             self.incr_counter(self.counter_category_name, 'Discard Missing Event Source', 1)
