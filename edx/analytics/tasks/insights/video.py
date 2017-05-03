@@ -202,8 +202,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Event Data', 1)
             return
 
-        encoded_module_id = event_data.get('id')
-        if encoded_module_id is None:
+        encoded_module_id = event_data.get('id', '').strip() # we have seen id values with leading newline
+        if not encoded_module_id:
             log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
             ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
             ## self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
