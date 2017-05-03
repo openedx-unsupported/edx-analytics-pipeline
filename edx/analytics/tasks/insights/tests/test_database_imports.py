@@ -77,7 +77,7 @@ class ImportPersistentCourseGradeTestCase(TestCase):
             USE default;
             DROP TABLE IF EXISTS grades_persistentcoursegrade;
             CREATE EXTERNAL TABLE grades_persistentcoursegrade (
-                id INT,user_id INT,course_id STRING,course_edited_timestamp TIMESTAMP,course_version STRING,grading_policy_hash STRING,percent_grade DECIMAL,letter_grade STRING,passed_timestamp TIMESTAMP,created TIMESTAMP,modified TIMESTAMP
+                id INT,user_id INT,course_id STRING,course_edited_timestamp TIMESTAMP,course_version STRING,grading_policy_hash STRING,percent_grade DECIMAL(10,2),letter_grade STRING,passed_timestamp TIMESTAMP,created TIMESTAMP,modified TIMESTAMP
             )
             PARTITIONED BY (dt STRING)
 
