@@ -1,7 +1,10 @@
+import logging
 import os
 from unittest import TestCase
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+
+log = logging.getLogger(__name__)
 
 
 class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
@@ -42,4 +45,6 @@ class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
             )),
         ]
         for expected in expected_rows:
+            if expected not in str(hive_output):
+                log.error('Expected "%r" not in output: %r', expected, str(hive_output))
             self.assertTrue(expected in str(hive_output))
