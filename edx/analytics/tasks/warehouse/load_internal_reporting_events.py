@@ -1133,13 +1133,17 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = event.get('properties', {}).get('category')
+            # event_category = event.get('properties', {}).get('category')
             if channel == 'server':
-                event_source = event.get('properties', {}).get('context', {}).get('event_source')
-                if event_source is None:
-                    event_source = 'track-server'
-                elif (event_source, event_type) in self.known_events:
-                    event_category = self.known_events[(event_source, event_type)]
+                event_source = 'track-server'
+                properties = event.get('properties')
+                if properties and properties.get('context'):
+                    source = properties.get('context').get('event_source')
+                    if source:
+                        event_source = source
+
+                # elif (event_source, event_type) in self.known_events:
+                #     event_category = self.known_events[(event_source, event_type)]
                 self.incr_counter(self.counter_category_name, 'Subset Type track And Channel server', 1)
             else:
                 # expect that channel is 'client'.
@@ -1148,7 +1152,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         else:
             # type is 'page' or 'identify' or 'screen'
-            event_category = segment_type
+            # event_category = segment_type
             event_type = segment_type
             event_source = channel
 
@@ -1160,17 +1164,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         # event_dict = {'version': VERSION}
         event_dict = {}
         self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
-        # was project
-        self.add_calculated_event_entry(event_dict, 'source', project_name)
+        self.add_calculated_event_entry(event_dict, 'source', project_name)  # was 'project'
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
-        # was event_source
-        self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)
+        self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)  # was 'event_source'
         # self.add_calculated_event_entry(event_dict, 'event_category', event_category)
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+
+        # An issue with this logic: if a key exists and contains a value of None, then None will
+        # be returned instead of an empty dict specified as the default, and the next get() will fail.
+        # So check specifically for non-false values.
+        if event.get('context'):
+            self.add_agent_info(event_dict, event.get('context').get('userAgent'))
+        properties = event.get('properties')
+        if properties and properties.get('context'):
+            self.add_agent_info(event_dict, properties.get('context').get('agent'))
 
         self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
 
@@ -1183,7 +1192,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         if course_id is None:
             # course_id may be stored in 'label', so try to parse what is there.
             label = event_dict.get('label')
-            if is_valid_course_id(label):
+            if label and is_valid_course_id(label):
                 self.add_calculated_event_entry(event_dict, 'course_id', label)
                 course_id = event_dict.get('course_id')
 
