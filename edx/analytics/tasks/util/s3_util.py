@@ -76,7 +76,7 @@ def get_s3_key(s3_conn, url):
     return key
 
 
-def generate_s3_sources(s3_conn, source, patterns=['*'], include_zero_length=False):
+def generate_s3_sources(s3_conn, source, patterns=['*'], include_zero_length=False, validate_keys=True):
     """
     Returns a list of S3 sources that match filters.
 
@@ -114,7 +114,23 @@ def generate_s3_sources(s3_conn, source, patterns=['*'], include_zero_length=Fal
     # Filter only paths that match the include patterns
     paths = _filter_matches(patterns, paths)
 
+    # Check that key actually exists.  (It doesn't always.)
+    if validate_keys:
+        paths = _filter_valid_keys(bucket, root, paths)
+
     return ((bucket.name, root, path) for path in paths)
+
+
+def _filter_valid_keys(bucket, root, paths):
+    """Return only paths that actually exist in the given bucket."""
+
+    def func(pathname):
+        """Check if pathname exists in bucket."""
+        source_url = join_as_s3_url(bucket.name, root, pathname)
+        _, key_name = get_s3_bucket_key_names(source_url)
+        key = bucket.get_key(key_name)
+        return key is not None
+    return (p for p in paths if func(p))
 
 
 def _filter_matches(patterns, names):
