@@ -10,9 +10,9 @@ General Notes
 
 #. These tasks are intended to be kicked off by some scheduler (Jenkins, cron etc)
 #. You can use a script to automatically deploy a cluster on EMR, run the task and then shut it down. Here is an example: `run-automated-task.sh <https://github.com/edx/edx-analytics-configuration/blob/master/automation/run-automated-task.sh>`_.
-#. Tweak ``NUM_REDUCE_TASKS`` based on the size of your cluster. If the cluster is not being used for anything else a good rule of thumb is to make ``NUM_REDUCE_TASKS`` equal the number of available reduce slots on your cluster.
-#. There are a bunch of ``s3://`` paths listed below, but those could easily be replaced with ``hdfs://`` paths.
-#. "credentials" files are json files should be stored somewhere secure and have the following format
+#. Tweak ``NUM_REDUCE_TASKS`` based on the size of your cluster. If the cluster is not being used for anything else a good rule of thumb is to make ``NUM_REDUCE_TASKS`` equal the number of available reduce slots on your cluster. See hadoop docs to determine the number of reduce slots available on your cluster.
+#. Luigi, the underlying workflow engine, has support for both S3 and HDFS when specifying input and output paths. ``s3://`` can be replaced with ``hdfs://`` in all examples below.
+#. "credentials" files are json files should be stored somewhere secure and have the following format. They are often stored in S3 or HDFS but can also be stored on the local filesystem of the machine running the data pipeline.
 
   ::
 
@@ -25,7 +25,6 @@ General Notes
           "password": "passwordforsomeuser",
         }
 
-#. I've started to put comments next to some parameters, please feel free to add in your own comments as well. Note that bash will get unhappy if you try to run these commands with those comments in place, be sure to strip them out of your commands before running. Also, ensure that there is no space following the trailing backslash on line endings.
 
 Performance (Graded and Ungraded)
 ---------------------------------
@@ -44,17 +43,32 @@ Task
 ::
 
     AnswerDistributionWorkflow --local-scheduler \
-      --src s3://path/to/tracking/logs/ \ [This should be the HDFS/S3 path to your tracking logs]
-      --dest s3://folder/where/intermediate/files/go/ \ [This can be any location in HDFS/S3 that doesn't exist yet]
-      --name unique_name \ [This can be any alphanumeric string, using the same string will attempt to use the same intermediate outputs etc]
-      --output-root s3://final/output/path/ \ [This can be any location in HDFS/S3 that doesn't exist yet]
-      --include '*tracking.log*.gz' \ [This glob pattern should match all of your tracking log files]
-      --manifest "s3://scratch/path/to/manifest.txt" \ [This can be any path in HDFS/S3 that doesn't exist yet, a file will be written here]
-      --base-input-format "org.edx.hadoop.input.ManifestTextInputFormat" \ [This is the name of the class within the jar to use to process the manifest]
-      --lib-jar "hdfs://localhost:9000/edx-analytics-pipeline/packages/edx-analytics-hadoop-util.jar" \ [This is the path to the jar containing the above class, note that it should be an HDFS/S3 path]
+      --src s3://path/to/tracking/logs/ \
+      --dest s3://folder/where/intermediate/files/go/ \
+      --name unique_name \
+      --output-root s3://final/output/path/ \
+      --include '*tracking.log*.gz' \
+      --manifest "s3://scratch/path/to/manifest.txt" \
+      --base-input-format "org.edx.hadoop.input.ManifestTextInputFormat" \
+      --lib-jar "hdfs://localhost:9000/edx-analytics-pipeline/packages/edx-analytics-hadoop-util.jar" \
       --n-reduce-tasks $NUM_REDUCE_TASKS \
-      --marker $dest/marker \ [This should be an HDFS/S3 path that doesn't exist yet. If this marker exists, the job will think it has already run.]
-      --credentials s3://secure/path/to/result_store_credentials.json [See discussion of credential files above, these should be the credentials for the result store database to write the result to]
+      --marker $dest/marker \
+      --credentials s3://secure/path/to/result_store_credentials.json
+
+Parameter Descriptions
+~~~~~~~~~~~~~~~~~~~~~~
+
+* ``--src``: This should be the HDFS/S3 path to your tracking logs.
+* ``--dest``: This can be any location in HDFS/S3 that doesn't exist yet.
+* ``--name``: This can be any alphanumeric string, using the same string will attempt to use the same intermediate outputs etc.
+* ``--output-root``: This can be any location in HDFS/S3 that doesn't exist yet.
+* ``--include``: This glob pattern should match all of your tracking log files.
+* ``--manifest``: This can be any path in HDFS/S3 that doesn't exist yet, a file will be written here.
+* ``--base-input-format``: This is the name of the class within the jar to use to process the manifest.
+* ``--lib-jar``: This is the path to the jar containing the above class, note that it should be an HDFS/S3 path.
+* ``--n-reduce-tasks``: Number of reduce tasks to schedule.
+* ``--marker``: This should be an HDFS/S3 path that doesn't exist yet. If this marker exists, the job will think it has already run.
+* ``--credentials``: See discussion of credential files above. These should be the credentials for the result store database to write the result to.
 
 Functional example:
 ~~~~~~~~~~~~~~~~~~~
@@ -75,13 +89,6 @@ Functional example:
       --marker hdfs://localhost:9000/tmp/pipeline-task-scheduler/AnswerDistributionWorkflow/1449177792/marker  \
       --credentials /edx/etc/edx-analytics-pipeline/output.json
 
-The contents of a credentials file look something like this:
-
-::
-
-    {"username": "pipeline001", "host": "localhost", "password": "password", "port": 3306}
-
-
 Enrollment
 ----------
 
@@ -90,10 +97,10 @@ Notes
 
 * Intended to run nightly.
 * This populates most of the data needed by the "Enrollment" lens in insights, including the demographic breakdowns by age, gender, and level of education.
-* This uses more up-to-date patterns.
 * Requires the following sections in config files: hive, database-export, database-import, map-reduce, event-logs, manifest, enrollments. The course-summary-enrollment and course-catalog-api sections are optional.
 * It *does not* require the "enrollment-reports" section. That section is used to generate static CSV reports.
 * The interval here, should be the beginning of time essentially. It computes enrollment by observing state changes from the beginning of time.
+* ``$FROM_DATE`` can be any string that is accepted by the unix utility ``date``. Here are a few examples: "today", "yesterday", and "2016-05-01".
 
 Task
 ~~~~
@@ -135,7 +142,6 @@ Notes
 * This is also one of our older tasks.
 * Finds the most recent event for every user and geolocates the IP address on the event.
 * This currently uses the student_courseenrollment table to figure out which users are enrolled in which courses. It should really be using the "course_enrollment" table computed by the enrollment and demographics related tasks.
-* This no longer supports a separate ``user-country-output`` parameter for intermediate data.  This is now written to a dated partition under ``(warehouse_path)/last_country_of_user/``.
 * Requires a maxmind data file (country granularity) to be uploaded to HDFS or S3 (see the ``geolocation`` section of the config file).  Getting a data file could look like this:
 
 ::
@@ -181,7 +187,7 @@ On December 5, 2016 the ``--course-country-output`` parameter was removed.  That
 History task
 ~~~~~~~~~~~~
 
-To load the historical enrollment events, you would need to first run:
+To load the historical location data, you would need to first run:
 
 ::
 
@@ -217,7 +223,6 @@ Notes
 ~~~~~
 
 * Intended to be run daily.
-* Still a work in progress - erroneous events can make videos appear to be much longer than they actually are.
 
 Task
 ~~~~
