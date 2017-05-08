@@ -778,6 +778,12 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
                     'want.',
         significant=False
     )
+    allow_empty_insert = luigi.BooleanParameter(
+        default=False,
+        description='Allow the video table to be empty (e.g. if no video activity has occurred)',
+        config_path={'section': 'videos', 'name': 'allow_empty_insert'},
+        significant=False,
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -927,6 +933,12 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',
         significant=False
+    )
+    allow_empty_insert = luigi.BooleanParameter(
+        default=False,
+        description='Allow the video table to be empty (e.g. if no video activity has occurred)',
+        config_path={'section': 'videos', 'name': 'allow_empty_insert'},
+        significant=False,
     )
 
     @property
