@@ -6,6 +6,7 @@ Supports outputs to HDFS, S3, and local FS.
 
 """
 
+from collections import Counter
 import datetime
 import fnmatch
 import logging
@@ -316,3 +317,33 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
                 log.warn('mapreduce_map_input_file not defined in os.environ, unable to determine input file path')
                 self.incr_counter('Event', 'Missing map_input_file', 1)
                 return ''
+
+
+class CachedPathSelectionByDateIntervalTask(object):
+    def __init__(self, *args, **kwargs):
+        super(CachedPathSelectionByDateIntervalTask, self).__init__(*args, **kwargs)
+        self.cache = Counter()
+        self.cached_sources = set()
+
+    def explore_partition(self, source):
+        if (not self.cache) or (source not in self.cached_sources):
+            for date, url in self._explore_partition_by_date(source):
+                self.cache[date] += 1
+            self.cached_sources.add(source)
+        return self.cache
+
+    def _explore_partition_by_date(self, source):
+        """
+        Assumes that we want to find all dates with a non-empty piece in a Hive/warehouse partition located at some
+        S3 path (e.g. files like `s3://bucket-name/dev/warehouse/table_name/dt=YYYY-mm-dd/file.dat` compose a partition
+        for the `table_name` table).
+        """
+        s3_conn = boto.connect_s3()
+        bucket_name, root = get_s3_bucket_key_names(source)
+        bucket = s3_conn.get_bucket(bucket_name)
+        for key_metadata in bucket.list(root):
+            if key_metadata.size > 0:
+                date_part = key_metadata.name.split('/')[-2]
+                date = datetime.datetime.strptime(date_part, 'dt=%Y-%m-%d')
+                key_path = key_metadata.name[len(root):].lstrip('/')
+                yield date, url_path_join(source, key_path)
