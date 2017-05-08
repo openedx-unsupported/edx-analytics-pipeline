@@ -45,11 +45,10 @@ class AllProblemCheckEventsParamMixin(EventLogSelectionDownstreamMixin, MapReduc
     """Parameters for AllProblemCheckEventsTask."""
 
 
-class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
+class AllProblemCheckEventsTask(
+        AllProblemCheckEventsParamMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask, WarehouseMixin
+):
     """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
-
-    # TODO: set this up to use warehouse_path instead...
-    output_root = luigi.Parameter()
 
     def mapper(self, line):
         """
@@ -122,6 +121,10 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
         if not opaque_key_util.is_valid_course_id(course_id):
             log.error("encountered explicit problem_check event with bogus course_id: %s", event)
+            return None
+
+        if problem_data.get('problem_id') is None:
+            log.error("encountered explicit problem_check event with bogus problem_id: %s", event)
             return None
 
         # There was a short period of time where context contained course_id but no user_id.
