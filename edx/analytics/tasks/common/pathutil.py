@@ -53,6 +53,7 @@ class PathSetTask(luigi.Task):
     )
 
     def __init__(self, *args, **kwargs):
+        log.debug("Initializing PathSetTask")
         super(PathSetTask, self).__init__(*args, **kwargs)
         self.s3_conn = None
 
@@ -60,6 +61,7 @@ class PathSetTask(luigi.Task):
         """Yield each individual path given a source folder and a set of file-matching expressions."""
         for src in self.src:
             if src.startswith('s3'):
+                log.debug("Generating files for S3 source:  %s", src)
                 # connect lazily as needed:
                 if self.s3_conn is None:
                     self.s3_conn = boto.connect_s3()
@@ -67,6 +69,7 @@ class PathSetTask(luigi.Task):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
+                log.debug("Generating files for hdfs source:  %s", src)
                 for source, size in luigi.hdfs.listdir(src, recursive=True, include_size=True):
                     if not self.include_zero_length and size == 0:
                         continue
@@ -75,6 +78,7 @@ class PathSetTask(luigi.Task):
             else:
                 # Apply the include patterns to the relative path below the src directory.
                 # TODO: implement exclude_zero_length to match S3 case.
+                log.debug("Generating files for local source:  %s", src)
                 for dirpath, _dirnames, files in os.walk(src):
                     for filename in files:
                         filepath = os.path.join(dirpath, filename)
@@ -86,10 +90,12 @@ class PathSetTask(luigi.Task):
         """Write each individual path to a manifest file and yield the path to that file."""
         manifest_target = get_target_from_url(self.manifest)
         if not manifest_target.exists():
+            log.debug("Generating manifest file:  %s", self.manifest)
             with manifest_target.open('w') as manifest_file:
                 for external_url_task in self.generate_file_list():
                     manifest_file.write(external_url_task.url + '\n')
-
+        else:
+            log.debug("Manifest file already exists:  %s", self.manifest)
         yield ExternalURL(self.manifest)
 
     def requires(self):

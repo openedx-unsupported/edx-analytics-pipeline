@@ -638,6 +638,15 @@ class ProblemCheckEvent(
     """Identifies first and last problem_check events for a user on a problem in a course, given raw event log input."""
 
     def requires(self):
+        log.debug("Calling ProblemCheckEvent.requires(%s, %s, %s)", self.src, self.include, self.manifest)
+        log.debug("  Other values:  engine %s, input_format %s, lib_jar %s, reduce_tasks %s, name %s, dest %s",
+                  self.mapreduce_engine,
+                  self.input_format,
+                  self.lib_jar,
+                  self.n_reduce_tasks,
+                  self.name,
+                  self.dest,
+        )
         return PathSetTask(self.src, self.include, self.manifest)
 
     def output(self):
