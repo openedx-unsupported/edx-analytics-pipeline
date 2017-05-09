@@ -496,10 +496,7 @@ class MultipartitionHiveTableTask(HiveTableTask):
 
     @property
     def recover_partitions(self):
-        # TODO: make this sensitive to the underlying client.  At the moment, it only
-        # works on EMR, and not on analyticstack.
-        # On non-EMR hadoop, one must use:  'MSCK REPAIR TABLE {table};' 
-        return 'ALTER TABLE {table} RECOVER PARTITIONS;'.format(table=self.table)
+        return 'MSCK REPAIR TABLE {table};'.format(table=self.table)
 
     def output(self):
         # TODO:  at present, this just checks to see if the table is present.
