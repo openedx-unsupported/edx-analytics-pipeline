@@ -142,6 +142,32 @@ class EventLogSelectionDownstreamMixin(object):
     )
 
 
+def _list_s3_urls(source):
+    """Recursively list all non-empty files inside the source URL directory."""
+    s3_conn = boto.connect_s3()
+    bucket_name, root = get_s3_bucket_key_names(source)
+    bucket = s3_conn.get_bucket(bucket_name)
+    for key_metadata in bucket.list(root):
+        if key_metadata.size > 0:
+            yield url_path_join('s3://', bucket_name, key_metadata.key)
+
+
+def _list_hdfs_urls(source):
+    """Recursively list all files inside the source directory on the hdfs filesystem."""
+    if luigi.hdfs.exists(source):
+        # listdir raises an exception if the source doesn't exist.
+        for source in luigi.hdfs.listdir(source, recursive=True):
+            yield source
+
+
+def _list_local_urls(source):
+    """Recursively list all files inside the source directory on the local filesystem."""
+    for directory_path, _subdir_paths, filenames in os.walk(source):
+        for filename in filenames:
+            yield os.path.join(directory_path, filename)
+
+
+
 class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
     """
     Select all relevant event log input files from a directory.
@@ -194,26 +220,18 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_s3_urls(self, source):
         """Recursively list all files inside the source URL directory."""
-        s3_conn = boto.connect_s3()
-        bucket_name, root = get_s3_bucket_key_names(source)
-        bucket = s3_conn.get_bucket(bucket_name)
-        for key_metadata in bucket.list(root):
-            if key_metadata.size > 0:
-                key_path = key_metadata.key[len(root):].lstrip('/')
-                yield url_path_join(source, key_path)
+        for key_url in _list_s3_urls(source):
+            yield key_url
 
     def _get_hdfs_urls(self, source):
         """Recursively list all files inside the source directory on the hdfs filesystem."""
-        if luigi.hdfs.exists(source):
-            # listdir raises an exception if the source doesn't exist.
-            for source in luigi.hdfs.listdir(source, recursive=True):
-                yield source
+        for hdfs_url in _list_hdfs_urls(source):
+            yield hdfs_url
 
     def _get_local_urls(self, source):
         """Recursively list all files inside the source directory on the local filesystem."""
-        for directory_path, _subdir_paths, filenames in os.walk(source):
-            for filename in filenames:
-                yield os.path.join(directory_path, filename)
+        for filename in _list_local_urls(source):
+            yield filename
 
     def should_include_url(self, url):
         """
@@ -319,31 +337,43 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
                 return ''
 
 
-class CachedPathSelectionByDateIntervalTask(object):
-    def __init__(self, *args, **kwargs):
-        super(CachedPathSelectionByDateIntervalTask, self).__init__(*args, **kwargs)
-        self.cache = Counter()
-        self.cached_sources = set()
+class CachedPartitionExplorer(object):
+    """Explores and caches the dates covered by a Hive partition in the data warehouse."""
+    cache = Counter()
+    cached_sources = set()
 
-    def explore_partition(self, source):
-        if (not self.cache) or (source not in self.cached_sources):
-            for date, url in self._explore_partition_by_date(source):
-                self.cache[date] += 1
-            self.cached_sources.add(source)
-        return self.cache
+    def clear(self):
+        self.cache.clear()
+        self.cached_sources.clear()
 
-    def _explore_partition_by_date(self, source):
+    @classmethod
+    def explore_partition(cls, source):
+        """Lists out the urls that live under `source` (recursively) and stores them in a class-level cache.
+        Also stores the set of already explored sources. Uses the prefix of `source` to determine which url-listing
+        helper method to use."""
+        if source.startswith('s3'):
+            return cls._explore_partition(source, _list_s3_urls)
+        elif source.startswith('hdfs'):
+            return cls._explore_partition(source, _list_hdfs_urls)
+        else:
+            return cls._explore_partition(source, _list_local_urls)
+
+    @classmethod
+    def _explore_partition(cls, source, url_lister):
+        if (not cls.cache) or (source not in cls.cached_sources):
+            for date, url in cls._explore_partition_by_date(source, url_lister):
+                cls.cache[date] += 1
+            cls.cached_sources.add(source)
+        return cls.cache
+
+    @staticmethod
+    def _explore_partition_by_date(source, url_lister):
         """
         Assumes that we want to find all dates with a non-empty piece in a Hive/warehouse partition located at some
         S3 path (e.g. files like `s3://bucket-name/dev/warehouse/table_name/dt=YYYY-mm-dd/file.dat` compose a partition
         for the `table_name` table).
         """
-        s3_conn = boto.connect_s3()
-        bucket_name, root = get_s3_bucket_key_names(source)
-        bucket = s3_conn.get_bucket(bucket_name)
-        for key_metadata in bucket.list(root):
-            if key_metadata.size > 0:
-                date_part = key_metadata.name.split('/')[-2]
-                date = datetime.datetime.strptime(date_part, 'dt=%Y-%m-%d')
-                key_path = key_metadata.name[len(root):].lstrip('/')
-                yield date, url_path_join(source, key_path)
+        for key_url in url_lister(source):
+            date_part = key_url.split('/')[-2]
+            date = datetime.datetime.strptime(date_part, 'dt=%Y-%m-%d')
+            yield date, key_url

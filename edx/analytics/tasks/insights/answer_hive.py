@@ -15,7 +15,9 @@ import luigi.s3
 from luigi.configuration import get_config
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.pathutil import (
+    EventLogSelectionDownstreamMixin, EventLogSelectionMixin, CachedPartitionExplorer,
+)
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 from edx.analytics.tasks.insights.answer_dist import get_text_from_html, try_str_to_float
 import edx.analytics.tasks.util.eventlog as eventlog
