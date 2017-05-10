@@ -38,8 +38,7 @@ log = logging.getLogger(__name__)
 
 VERSION = '0.2.4'
 
-# EVENT_TABLE_NAME = 'event_records'
-EVENT_TABLE_NAME = 'json_event_records'
+EVENT_TABLE_NAME = 'event_records'
 
 # Define pattern to extract a course_id from a string by looking
 # explicitly for a version string and two plus-delimiters.
@@ -538,7 +537,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         # )
         return url_path_join(
             self.output_root,
-            'event_records',
+            EVENT_TABLE_NAME,
             'dt={date}'.format(date=date_received),
             '{project}.tsv'.format(project=project),
         )
