@@ -660,29 +660,29 @@ class LatestProblemInfo(HiveAnswerTableFromQueryTask):
                    all_answers.question,
                    all_answers.problem_display_name,
                    all_answers.answer_uses_value_id,
-                   earliest.earliest_time,
-                   latest.latest_time
+                   earliest_problem.time AS earliest_time,
+                   latest_problem.time AS latest_time
             FROM   all_answers
                    LEFT JOIN (
                        SELECT   course_id,
                                 part_id,
-                                min(time) AS earliest_time
+                                min(time) AS time
                        FROM     all_answers
                        GROUP BY course_id, part_id
-                   ) earliest
-                          ON all_answers.course_id = earliest.course_id
-                         AND all_answers.part_id = earliest.part_id
-                         AND all_answers.time = earliest.earliest_time
+                   ) earliest_problem
+                          ON all_answers.course_id = earliest_problem.course_id
+                         AND all_answers.part_id = earliest_problem.part_id
+                         AND all_answers.time = earliest_problem.time
                    LEFT JOIN (
                        SELECT   course_id,
                                 part_id,
-                                max(time) AS latest_time
+                                max(time) AS time
                        FROM     all_answers
                        GROUP BY course_id, part_id
-                   ) latest
-                          ON all_answers.course_id = latest.course_id
-                         AND all_answers.part_id = latest.part_id
-                         AND all_answers.time = latest.latest_time
+                   ) latest_problem
+                          ON all_answers.course_id = latest_problem.course_id
+                         AND all_answers.part_id = latest_problem.part_id
+                         AND all_answers.time = latest_problem.time
             WHERE  all_answers.should_include_answer = 'True'
               AND  all_answers.uses_submission = 'True'
         ) temp
@@ -738,8 +738,8 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
                    all_answers.grouping_key,
                    all_answers.variant,
                    all_answers.correct,
-                   earliest.earliest_time,
-                   latest.latest_time,
+                   earliest_answer.time AS earliest_time,
+                   latest_answer.time AS latest_time,
                    IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
                       all_answers.answer,
                       all_answers.answer_value_id) AS answer_value,
@@ -751,26 +751,26 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
                        SELECT   course_id,
                                 part_id,
                                 grouping_key,
-                                min(time) AS earliest_time
+                                min(time) AS time
                        FROM     all_answers
                        GROUP BY course_id, part_id, grouping_key
-                   ) earliest
-                           ON all_answers.course_id = earliest.course_id
-                          AND all_answers.part_id = earliest.part_id
-                          AND all_answers.grouping_key = earliest.grouping_key
-                          AND all_answers.time = earliest.earliest_time
+                   ) earliest_answer
+                           ON all_answers.course_id = earliest_answer.course_id
+                          AND all_answers.part_id = earliest_answer.part_id
+                          AND all_answers.grouping_key = earliest_answer.grouping_key
+                          AND all_answers.time = earliest_answer.time
                    LEFT JOIN (
                        SELECT   course_id,
                                 part_id,
                                 grouping_key,
-                                max(time) AS latest_time
+                                max(time) AS time
                        FROM     all_answers
                        GROUP BY course_id, part_id, grouping_key
-                   ) latest
-                           ON all_answers.course_id = latest.course_id
-                          AND all_answers.part_id = latest.part_id
-                          AND all_answers.grouping_key = latest.grouping_key
-                          AND all_answers.time = latest.latest_time
+                   ) latest_answer
+                           ON all_answers.course_id = latest_answer.course_id
+                          AND all_answers.part_id = latest_answer.part_id
+                          AND all_answers.grouping_key = latest_answer.grouping_key
+                          AND all_answers.time = latest_answer.time
                    INNER JOIN latest_problem_info
                            ON latest_problem_info.course_id = all_answers.course_id
                           AND latest_problem_info.part_id = all_answers.part_id
@@ -817,40 +817,40 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
                grouping_key,
                course_user_tags,
                max(earliest_time) AS earliest_time,
-               max(latest.latest_time) AS latest_time
+               max(latest_time) AS latest_time
         FROM (
             SELECT all_answers.course_id,
                    all_answers.part_id,
                    all_answers.user_id,
                    all_answers.grouping_key,
                    all_answers.course_user_tags,
-                   earliest.earliest_time,
-                   latest.latest_time
+                   earliest_answer.time AS earliest_time,
+                   latest_answer.time AS latest_time
             FROM   all_answers
                    LEFT JOIN (
                        SELECT   course_id,
                                 part_id,
                                 user_id,
-                                min(time) AS earliest_time
+                                min(time) AS time
                        FROM     all_answers
                        GROUP BY course_id, part_id, user_id
-                       ) earliest
-                          ON all_answers.course_id = earliest.course_id
-                         AND all_answers.part_id = earliest.part_id
-                         AND all_answers.user_id = earliest.user_id
-                         AND all_answers.time = earliest.earliest_time
+                       ) earliest_answer
+                          ON all_answers.course_id = earliest_answer.course_id
+                         AND all_answers.part_id = earliest_answer.part_id
+                         AND all_answers.user_id = earliest_answer.user_id
+                         AND all_answers.time = earliest_answer.time
                    LEFT JOIN (
                       SELECT   course_id,
                                part_id,
                                user_id,
-                               max(time) AS latest_time
+                               max(time) AS time
                       FROM     all_answers
                       GROUP BY course_id, part_id, user_id
-                      ) latest
-                         ON all_answers.course_id = latest.course_id
-                        AND all_answers.part_id = latest.part_id
-                        AND all_answers.user_id = latest.user_id
-                        AND all_answers.time = latest.latest_time
+                      ) latest_answer
+                         ON all_answers.course_id = latest_answer.course_id
+                        AND all_answers.part_id = latest_answer.part_id
+                        AND all_answers.user_id = latest_answer.user_id
+                        AND all_answers.time = latest_answer.time
         ) temp
         GROUP BY course_id, part_id, user_id, grouping_key, course_user_tags
         """
