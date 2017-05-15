@@ -59,7 +59,8 @@ class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
             subjects = pandas.DataFrame(database_subjects, columns=['row_number', 'course_id', 'date', 'subject_uri',
                                                                     'subject_title', 'subject_language'])
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(subjects == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            for frame in (subjects, expected):
+                frame.sort(['row_number'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(subjects, expected)
