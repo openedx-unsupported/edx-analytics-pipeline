@@ -52,7 +52,7 @@ class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
         """Validates the output, comparing it to a csv of all the expected output from this workflow."""
         with self.vertica.cursor() as cursor:
             expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_subjects_for_acceptance.csv')
-            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+            expected = pandas.read_csv(expected_output_csv, parse_dates=[2])
 
             cursor.execute("SELECT * FROM {schema}.d_course_subjects;".format(schema=self.vertica.schema_name))
             database_subjects = cursor.fetchall()
