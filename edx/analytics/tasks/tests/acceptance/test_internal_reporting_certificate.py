@@ -35,7 +35,7 @@ class InternalReportingCertificateLoadAcceptanceTest(AcceptanceTestCase):
         """Validates the output, comparing it to a csv of all the expected output from this workflow."""
         with self.vertica.cursor() as cursor:
             expected_output_csv = os.path.join(self.data_dir, 'output', 'acceptance_expected_d_user_course_certificate.csv')
-            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+            expected = pandas.read_csv(expected_output_csv, parse_dates=[6,7])
 
             cursor.execute("SELECT * FROM {schema}.d_user_course_certificate".format(schema=self.vertica.schema_name))
             response = cursor.fetchall()
@@ -44,7 +44,8 @@ class InternalReportingCertificateLoadAcceptanceTest(AcceptanceTestCase):
                 'final_grade', 'has_passed', 'created_date', 'modified_date',
             ])
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(d_user_course_certificate == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            for frame in (d_user_course_certificate, expected):
+                frame.sort(['user_id'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(subjects, expected)
