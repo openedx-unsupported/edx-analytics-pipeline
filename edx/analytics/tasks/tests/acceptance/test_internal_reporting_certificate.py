@@ -48,4 +48,4 @@ class InternalReportingCertificateLoadAcceptanceTest(AcceptanceTestCase):
                 frame.sort(['user_id'], inplace=True, ascending=[True])
                 frame.reset_index(drop=True, inplace=True)
 
-            self.assert_data_frames_equal(subjects, expected)
+            self.assert_data_frames_equal(d_user_course_certificate, expected)
