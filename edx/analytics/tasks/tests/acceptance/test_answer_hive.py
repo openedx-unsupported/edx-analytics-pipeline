@@ -33,7 +33,7 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 8, 26))
 
 
-class AnswerDistributionHiveAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
+class AnswerDistOneFilePerCourseHiveAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
     """Acceptance test for the CSV-generating Answer Distribution Task"""
 
     def test_answer_distribution(self):
@@ -74,3 +74,36 @@ class AnswerDistributionHiveAcceptanceTest(BaseAnswerDistributionAcceptanceTest)
             for i, expected_row in enumerate(expected_rows):
                 actual_row = actual_rows[i]
                 self.assertListEqual(expected_row, actual_row)
+
+
+class AnswerDistFromHiveToMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTest):
+    """Acceptance tests for Hive Answer Distribution Tasks -> MySQL"""
+
+    def test_answer_distribution_mysql(self):
+        self.task.launch([
+            'AnswerDistributionFromHiveToMySQLTaskWorkflow',
+            '--source', self.test_src,
+            '--warehouse-path', url_path_join(self.test_root, 'dst'),
+            '--lib-jar', self.oddjob_jar,
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--credentials', self.export_db.credentials_file_url,
+            '--interval', self.interval,
+        ])
+
+        self.validate_output()
+
+    def validate_output(self):
+        with self.export_db.cursor() as cursor:
+            cursor.execute('SELECT DISTINCT(`course_id`) FROM answer_distribution_from_hive')
+            course_id = cursor.fetchall()[0][0]
+            self.assertEqual('course-v1:edX+DemoX+Test_2014', course_id)
+
+            cursor.execute("""
+            SELECT SUM(`first_response_count`),
+                   SUM(`last_response_count`)
+            FROM   answer_distribution_from_hive
+            """)
+
+            counts = cursor.fetchone()
+            self.assertEqual(2, counts[0])
+            self.assertEqual(2, counts[1])
