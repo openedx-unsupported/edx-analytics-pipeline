@@ -1114,7 +1114,7 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
             'interval': self.interval,
         }
         yield (
-            TrackingEventRecordDataTask(**kwargs),
+            # TrackingEventRecordDataTask(**kwargs),
             SegmentEventRecordDataTask(**kwargs),
         )
         # for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
