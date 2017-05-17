@@ -24,10 +24,6 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
     def setUp(self):
         super(BaseAnswerDistributionAcceptanceTest, self).setUp()
 
-        assert 'oddjob_jar' in self.config
-
-        self.oddjob_jar = self.config['oddjob_jar']
-        self.input_format = self.config.get('manifest_input_format', self.INPUT_FORMAT)
         self.interval = '2014-08-26-2014-08-27'
 
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 8, 26))
@@ -39,8 +35,6 @@ class AnswerDistOneFilePerCourseHiveAcceptanceTest(BaseAnswerDistributionAccepta
     def test_answer_distribution(self):
         self.task.launch([
             'AnswerDistOneFilePerCourseTask',
-            '--source', self.test_src,
-            '--warehouse-path', url_path_join(self.test_root, 'dst'),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--interval', self.interval,
             '--output-root', self.test_out,
@@ -66,7 +60,7 @@ class AnswerDistOneFilePerCourseHiveAcceptanceTest(BaseAnswerDistributionAccepta
              'Interactive Questions'],
         ]
 
-        output_target = self.get_targets_from_remote_path(url_path_join(self.test_root, 'dst', 'latest_answer_dist'))[0]
+        output_target = self.get_targets_from_remote_path(url_path_join(self.warehouse_path, 'latest_answer_dist'))[0]
 
         with output_target.open() as output_file:
             # columns are sometimes separated by more than one tab
@@ -82,9 +76,6 @@ class AnswerDistFromHiveToMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceT
     def test_answer_distribution_mysql(self):
         self.task.launch([
             'AnswerDistributionFromHiveToMySQLTaskWorkflow',
-            '--source', self.test_src,
-            '--warehouse-path', url_path_join(self.test_root, 'dst'),
-            '--lib-jar', self.oddjob_jar,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--credentials', self.export_db.credentials_file_url,
             '--interval', self.interval,
