@@ -25,7 +25,6 @@ from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 # TODO: move MultipartitionHiveTableTask to util.hive, and clean these out...
 import textwrap
 from luigi.hive import HiveTableTarget, HivePartitionTarget
-# from edx.analytics.tasks.util.datetime_util import all_dates_between
 from edx.analytics.tasks.util.hive import HiveTableTask, WarehouseMixin, HivePartition, hive_database_name
 
 import logging
@@ -103,7 +102,6 @@ class AllProblemCheckEventsTask(AllProblemCheckEventsParamMixin, EventLogSelecti
 
         # Get the "problem data".  This is the event data, the context, and anything else that would
         # be useful further downstream.
-        # TODO: make the timestamp logic more efficient than this (i.e. avoid the parse).
         augmented_data_fields = ['context', 'timestamp']
         problem_data = eventlog.get_augmented_event_data(event, augmented_data_fields)
         if problem_data is None:
@@ -517,18 +515,6 @@ class MultipartitionHiveTableTask(HiveTableTask):
         # Instead, we should see if all requested partitions in a specified
         # interval are present.
         return HiveTableTarget(self.table, database=hive_database_name())
-
-
-# class HivePartitionInIntervalTarget(HivePartitionTarget):
-#     """
-#     This should see if all requested partitions in a specified
-#     interval are present.
-
-#     This is a short-cut for creating a separate list of HivePartitionTargets.
-#     """
-#     def __init__(self, table, partition, database='default', interval, fail_missing_table=False, client=default_client):
-#         super(HivePartitionInIntervalTarget).__init__(self, table, partition, database=database, fail_missing_table=fail_missing_table, client=client)
-#         self.interval = interval
 
 
 class AllProblemCheckEventsInHiveTask(AllProblemCheckEventsParamMixin, MultipartitionHiveTableTask):

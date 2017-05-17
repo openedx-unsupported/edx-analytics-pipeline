@@ -56,19 +56,3 @@ def _parse_date_string(date_str):
     """Efficiently parse an ISO 8601 date stamp into a datetime.date() object."""
     date_parts = [int(p) for p in date_str.split('-')[:3]]
     return datetime.date(*date_parts)
-
-
-def all_dates_between(start_date_str, end_date_str):
-    """
-    All dates from the start date up to the end date.
-
-    Yields:
-        str: ISO 8601 datestamp for each date from the first date (inclusive) up to the end date (exclusive).
-
-    """
-    current_date = _parse_date_string(start_date_str)
-    end_date = _parse_date_string(end_date_str)
-
-    while current_date < end_date:
-        yield current_date.isoformat()
-        current_date += datetime.timedelta(days=1)
