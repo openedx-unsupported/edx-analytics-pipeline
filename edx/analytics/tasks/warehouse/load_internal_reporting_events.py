@@ -987,11 +987,11 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = get_object_or_else_with_null_protect(event, 'properties').get('category')
+            event_category = self.get_object_or_else_with_null_protect(event, 'properties').get('category')
             if channel == 'server':
 
-                event_properties = get_object_or_else_with_null_protect(event, 'properties')
-                event_context = get_object_or_else_with_null_protect(event_properties, 'context')
+                event_properties = self.get_object_or_else_with_null_protect(event, 'properties')
+                event_context = self.get_object_or_else_with_null_protect(event_properties, 'context')
                 event_source = event_context.get('event_source')
 
                 if event_source is None:
@@ -1025,10 +1025,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
-        event_context = get_object_or_else_with_null_protect(event, 'context')
+        event_context = self.get_object_or_else_with_null_protect(event, 'context')
         self.add_agent_info(event_dict, event_context.get('userAgent'))
-        event_properties = get_object_or_else_with_null_protect(event, 'properties')
-        event_properties_context = get_object_or_else_with_null_protect(event_properties, 'context')
+        event_properties = self.get_object_or_else_with_null_protect(event, 'properties')
+        event_properties_context = self.get_object_or_else_with_null_protect(event_properties, 'context')
         self.add_agent_info(event_dict, event_properties_context.get('agent'))
 
         event_mapping = self.get_event_mapping()
