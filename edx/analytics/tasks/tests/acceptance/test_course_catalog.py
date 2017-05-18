@@ -4,6 +4,7 @@ End to end test of the course catalog tasks.
 
 import logging
 import os
+import datetime
 
 import pandas
 
@@ -50,16 +51,24 @@ class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
 
     def validate_output(self):
         """Validates the output, comparing it to a csv of all the expected output from this workflow."""
+
+        columns = ['row_number', 'course_id', 'date', 'subject_uri', 'subject_title', 'subject_language']
+
         with self.vertica.cursor() as cursor:
             expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_subjects_for_acceptance.csv')
-            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+
+            def convert_date(date_string):
+                """Convert date string to a date object."""
+                return datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
+
+            expected = pandas.read_csv(expected_output_csv, converters={'date': convert_date})
 
             cursor.execute("SELECT * FROM {schema}.d_course_subjects;".format(schema=self.vertica.schema_name))
             database_subjects = cursor.fetchall()
-            subjects = pandas.DataFrame(database_subjects, columns=['row_number', 'course_id', 'date', 'subject_uri',
-                                                                    'subject_title', 'subject_language'])
+            subjects = pandas.DataFrame(database_subjects, columns=columns)
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(subjects == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            for frame in (subjects, expected):
+                frame.sort(['row_number'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(subjects, expected)
