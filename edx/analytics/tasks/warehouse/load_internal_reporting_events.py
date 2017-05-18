@@ -983,7 +983,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
             event_category = event.get('properties', {}).get('category')
             if channel == 'server':
-                event_source = event.get('properties', {}).get('context', {}).get('event_source')
+                event_context = event.get('properties', {}).get('context', {})
+
+                if event_context is None:
+                    event_context = {}
+                    
+                event_source = event_context.get('event_source')
                 if event_source is None:
                     event_source = 'track-server'
                 elif (event_source, event_type) in self.known_events:
