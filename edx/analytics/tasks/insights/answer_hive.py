@@ -630,6 +630,21 @@ class LatestProblemInfo(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
+        """
+        The LEFT JOINs in the temp relation will give us rows that look like this:
+
+        course_id | part_id | ...other columns... | earliest_time | latest_time
+        -----------------------------------------------------------------------
+        course-1  | part-1  | ...                 | NULL          | 20170501
+        course-1  | part-1  | ...                 | 20170401      | NULL
+
+
+        The outermost query here uses GROUP BY and MAX to "squash" the example above into:
+
+        course_id | part_id | ...other columns... | earliest_time | latest_time
+        -----------------------------------------------------------------------
+        course-1  | part-1  | ...                 | 20170401      | 20170501
+        """
         return """
         SELECT course_id,
                part_id,
@@ -708,14 +723,15 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
+        # Again use GROUP BY/MAX to squash NULLs from the temp relation.
         return """
         SELECT course_id,
                part_id,
                grouping_key,
                variant,
                correct,
-               max(earliest_time) AS earliest_time,
-               max(latest_time) AS latest_time,
+               MAX(earliest_time) AS earliest_time,
+               MAX(latest_time) AS latest_time,
                answer_value,
                value_id
         FROM (
@@ -796,14 +812,15 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
+        # Again use GROUP BY/MAX to squash NULLs from the temp relation.
         return """
         SELECT course_id,
                part_id,
                user_id,
                grouping_key,
                course_user_tags,
-               max(earliest_time) AS earliest_time,
-               max(latest_time) AS latest_time
+               MAX(earliest_time) AS earliest_time,
+               MAX(latest_time) AS latest_time
         FROM (
             SELECT all_answers.course_id,
                    all_answers.part_id,
