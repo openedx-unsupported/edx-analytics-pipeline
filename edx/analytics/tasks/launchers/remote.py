@@ -16,6 +16,11 @@ STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
 ANSIBLE_MAX_RETRY = 3
 
+REMOTE_DATA_DIR = '/var/lib/analytics-tasks'
+REMOTE_LOG_DIR = '/var/log/analytics-tasks'
+
+REMOTE_CONFIG_DIR_BASE = 'config'
+REMOTE_CODE_DIR_BASE = 'repo'
 
 def main():
     """Parse arguments and run the remote task."""
@@ -47,6 +52,11 @@ def main():
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
+    log('Parsed arguments = {0}'.format(arguments))
+    log('Running commands from path = {0}'.format(STATIC_FILES_PATH))
+    uid = arguments.remote_name or str(uuid.uuid4())
+    log('Remote name = {0}'.format(uid))
+
     # Push in any secure config values that we got.
     if arguments.secure_config:
       for config_path in arguments.secure_config:
@@ -55,12 +65,7 @@ def main():
         # shouldn't have to know that, which in turn makes --additional-config agnostic of
         # how we're using it for edX's purposes (with a repository).
         arguments.launch_task_arguments.append('--additional-config')
-        arguments.launch_task_arguments.append(os.path.join(REMOTE_CONFIG_DIR, config_path))
-
-    log('Parsed arguments = {0}'.format(arguments))
-    log('Running commands from path = {0}'.format(STATIC_FILES_PATH))
-    uid = arguments.remote_name or str(uuid.uuid4())
-    log('Remote name = {0}'.format(uid))
+        arguments.launch_task_arguments.append(os.path.join(REMOTE_DATA_DIR, uid, REMOTE_CONFIG_DIR_BASE, config_path))
 
     if arguments.vagrant_path:
         parse_vagrant_ssh_config(arguments)
@@ -104,6 +109,7 @@ def run_task_playbook(inventory, arguments, uid):
             return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
+    code_dir = os.path.join(data_dir, REMOTE_CODE_DIR_BASE)
     log_dir = os.path.join(REMOTE_LOG_DIR, uid)
     sudo_user = arguments.sudo_user
 
@@ -114,9 +120,10 @@ def run_task_playbook(inventory, arguments, uid):
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 
-    command = 'cd {data_dir}/repo && . $HOME/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
+    command = 'cd {code_dir} && . $HOME/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
         env_vars=env_var_string + ' ' if env_var_string else '',
         data_dir=data_dir,
+        code_dir=code_dir,
         task_arguments=' '.join(arguments.launch_task_arguments),
         log_dir=log_dir,
         bg='nohup ' if not arguments.wait else '',
@@ -168,7 +175,7 @@ def convert_args_to_extra_vars(arguments, uid):
         'pipeline': {
             'url': 'https://github.com/edx/edx-analytics-pipeline.git',
             'branch': 'origin/master',
-            'dir_name': 'repo'
+            'dir_name': REMOTE_CODE_DIR_BASE
         }
     }
     if arguments.repo:
