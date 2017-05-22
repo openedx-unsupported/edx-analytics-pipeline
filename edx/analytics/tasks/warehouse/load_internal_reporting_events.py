@@ -950,12 +950,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         return self.event_mapping
 
-    def get_object_or_else_with_null_protect(self, base_object, property_name):
-        val = base_object.get(property_name, {})
-        if val is None:
-            val = {}
-        return val
-
     def mapper(self, line):
         self.incr_counter(self.counter_category_name, 'Inputs', 1)
 
@@ -987,12 +981,17 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = self.get_object_or_else_with_null_protect(event, 'properties').get('category')
-            if channel == 'server':
+            event_properties = event.get('properties', {})
+            if event_properties is None:
+                event_properties = {}
 
-                event_properties = self.get_object_or_else_with_null_protect(event, 'properties')
-                event_context = self.get_object_or_else_with_null_protect(event_properties, 'context')
-                event_source = event_context.get('event_source')
+            event_category = event_properties.get('category')
+            if channel == 'server':
+                event_properties_context = event_properties.get('context', {})
+                if event_properties_context is None:
+                    event_properties_context = {}
+
+                event_source = event_properties_context.get('event_source')
 
                 if event_source is None:
                     event_source = 'track-server'
@@ -1025,10 +1024,20 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
-        event_context = self.get_object_or_else_with_null_protect(event, 'context')
+        event_context = event.get('context', {})
+        if event_context is None:
+            event_context = {}
+
         self.add_agent_info(event_dict, event_context.get('userAgent'))
-        event_properties = self.get_object_or_else_with_null_protect(event, 'properties')
-        event_properties_context = self.get_object_or_else_with_null_protect(event_properties, 'context')
+
+        event_properties = event.get('properties', {})
+        if event_properties is None:
+            event_properties = {}
+
+        event_properties_context = event_properties.get('context', {})
+        if event_properties_context is None:
+            event_properties_context = {}
+            
         self.add_agent_info(event_dict, event_properties_context.get('agent'))
 
         event_mapping = self.get_event_mapping()
