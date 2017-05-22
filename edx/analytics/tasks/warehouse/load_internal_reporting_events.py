@@ -981,22 +981,17 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_properties = event.get('properties', {})
-            if event_properties is None:
-                event_properties = {}
-
-            event_category = event_properties.get('category')
+            # event_category = event.get('properties', {}).get('category')
             if channel == 'server':
-                event_properties_context = event_properties.get('context', {})
-                if event_properties_context is None:
-                    event_properties_context = {}
+                event_source = 'track-server'
+                properties = event.get('properties')
+                if properties and properties.get('context'):
+                    source = properties.get('context').get('event_source')
+                    if source:
+                        event_source = source
 
-                event_source = event_properties_context.get('event_source')
-
-                if event_source is None:
-                    event_source = 'track-server'
-                elif (event_source, event_type) in self.known_events:
-                    event_category = self.known_events[(event_source, event_type)]
+                # elif (event_source, event_type) in self.known_events:
+                #     event_category = self.known_events[(event_source, event_type)]
                 self.incr_counter(self.counter_category_name, 'Subset Type track And Channel server', 1)
             else:
                 # expect that channel is 'client'.
@@ -1023,23 +1018,19 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
+        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
+        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
-        event_context = event.get('context', {})
-        if event_context is None:
-            event_context = {}
+        # An issue with this logic: if a key exists and contains a value of None, then None will
+        # be returned instead of an empty dict specified as the default, and the next get() will fail.
+        # So check specifically for non-false values.
+        if event.get('context'):
+            self.add_agent_info(event_dict, event.get('context').get('userAgent'))
+        properties = event.get('properties')
+        if properties and properties.get('context'):
+            self.add_agent_info(event_dict, properties.get('context').get('agent'))
 
-        self.add_agent_info(event_dict, event_context.get('userAgent'))
-
-        event_properties = event.get('properties', {})
-        if event_properties is None:
-            event_properties = {}
-
-        event_properties_context = event_properties.get('context', {})
-        if event_properties_context is None:
-            event_properties_context = {}
-            
-        self.add_agent_info(event_dict, event_properties_context.get('agent'))
-
+        # event-mapping has to add only a few values:  course_id, user_id, anonymous_id, label, category, url, referrer.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
 
