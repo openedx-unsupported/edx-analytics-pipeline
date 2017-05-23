@@ -467,7 +467,7 @@ class LoadInternalReportingUserToBigQuery(WarehouseMixin, BigQueryLoadTask):
         ]
 
 
-class DailyLoadSubjectsToVerticaTask(PullCatalogMixin, BigQueryLoadTask):
+class DailyLoadSubjectsToBigQueryTask(PullCatalogMixin, BigQueryLoadTask):
 
     @property
     def insert_source_task(self):
