@@ -868,6 +868,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         try:
             result = self._get_time_from_segment_event(event, 'receivedAt')
         except KeyError:
+            log.info("Error pulling receivedAt, defaulting to requestTime")
             result = self._get_time_from_segment_event(event, 'requestTime')
             self.incr_counter(self.counter_category_name, 'Quality Supplementing requestTime for receivedAt', 1)
         return result
