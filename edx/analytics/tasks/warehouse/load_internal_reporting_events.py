@@ -864,7 +864,15 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        return self._get_time_from_segment_event(event, 'receivedAt')
+        result = None
+        try:
+            result = self._get_time_from_segment_event(event, 'receivedAt')
+        except KeyError:
+            result = self._get_time_from_segment_event(event, 'requestTime')
+            self.incr_counter(self.counter_category_name, 'Quality Supplementing requestTime for receivedAt', 1)
+        return result
+
+
 
     def get_event_emission_time(self, event):
         return self._get_time_from_segment_event(event, 'sentAt')
@@ -981,9 +989,18 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = event.get('properties', {}).get('category')
+            event_properties = event.get('properties', {})
+            if event_properties is None:
+                event_properties = {}
+
+            event_category = event_properties.get('category')
             if channel == 'server':
-                event_source = event.get('properties', {}).get('context', {}).get('event_source')
+                event_properties_context = event_properties.get('context', {})
+                if event_properties_context is None:
+                    event_properties_context = {}
+
+                event_source = event_properties_context.get('event_source')
+
                 if event_source is None:
                     event_source = 'track-server'
                 elif (event_source, event_type) in self.known_events:
@@ -1014,8 +1031,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+
+        event_context = event.get('context', {})
+        if event_context is None:
+            event_context = {}
+
+        self.add_agent_info(event_dict, event_context.get('userAgent'))
+
+        event_properties = event.get('properties', {})
+        if event_properties is None:
+            event_properties = {}
+
+        event_properties_context = event_properties.get('context', {})
+        if event_properties_context is None:
+            event_properties_context = {}
+
+        self.add_agent_info(event_dict, event_properties_context.get('agent'))
 
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
