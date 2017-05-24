@@ -30,7 +30,7 @@ user-agents==0.3.2	# MIT
 vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3 # BSD
 
-git+https://github.com/HassanJaveed84/google-cloud-python.git@55e530d876344c75c8fc7796d071878ba0fbf9fe#egg=google-cloud-python&subdirectory=bigquery
+git+https://github.com/HassanJaveed84/google-cloud-python.git@6f596f5518adb2eb8f78dd1ec7a3553dfa612d6d#egg=google-cloud-python&subdirectory=bigquery
 git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
 
