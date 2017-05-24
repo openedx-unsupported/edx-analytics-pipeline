@@ -1036,6 +1036,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
+        if event_dict.get("event_type") is None:
+            self.incr_counter(self.counter_category_name, 'Dropping due to missing event_type field', 1)
+            return
+
         event_context = event.get('context', {})
         if event_context is None:
             event_context = {}
