@@ -110,6 +110,10 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
     def null_marker(self):
         return '\N'
 
+    @property
+    def quote_character(self):
+        return ''
+
     def create_dataset(self, client):
         dataset = client.dataset(self.dataset_id)
         if not dataset.exists():
@@ -148,7 +152,12 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         table = dataset.table(self.table, self.schema)
 
         with self.input()['source'].open('r') as source_file:
-            job = table.upload_from_file(source_file, source_format='text/csv', field_delimiter=self.field_delimiter)
+            job = table.upload_from_file(
+                    source_file,
+                    source_format='text/csv',
+                    field_delimiter=self.field_delimiter,
+                    quote_character=self.quote_character
+            )
 
         # job = client.load_table_from_storage(
         #     'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
@@ -159,6 +168,9 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
         while job.state != 'DONE':
             job.reload()
+
+        if job.errors:
+            raise Exception([error['message'] for error in job.errors])
 
         self.init_touch(client)
         self.output().touch()
