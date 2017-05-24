@@ -106,6 +106,10 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
     def field_delimiter(self):
         return "\t"
 
+    @property
+    def null_marker(self):
+        return '\N'
+
     def create_dataset(self, client):
         dataset = client.dataset(self.dataset_id)
         if not dataset.exists():
