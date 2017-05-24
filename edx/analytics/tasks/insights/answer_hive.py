@@ -631,63 +631,41 @@ class LatestProblemInfo(HiveAnswerTableFromQueryTask):
     @property
     def insert_query(self):
         """
-        The LEFT JOINs in the temp relation will give us rows that look like this:
-
-        course_id | part_id | ...other columns... | earliest_time | latest_time
-        -----------------------------------------------------------------------
-        course-1  | part-1  | ...                 | NULL          | 20170501
-        course-1  | part-1  | ...                 | 20170401      | NULL
-
-
-        The outermost query here uses GROUP BY and MAX to "squash" the example above into:
-
-        course_id | part_id | ...other columns... | earliest_time | latest_time
-        -----------------------------------------------------------------------
-        course-1  | part-1  | ...                 | 20170401      | 20170501
+        The question (the text of the question) can sometimes vary
+        over a course/problem/part combination, even in the same variant.
+        We assume that the most recent version of the question is the
+        "correct" one, and therefore select from all_answers only the
+        problem/question that occurred most recently.
         """
         return """
-        SELECT course_id,
-               part_id,
-               problem_id,
-               question,
-               problem_display_name,
-               answer_uses_value_id,
-               MAX(earliest_time) AS earliest_time,
-               MAX(latest_time) AS latest_time
+        SELECT 
+            all_answers.course_id,
+            all_answers.part_id,
+            all_answers.problem_id,
+            all_answers.question,
+            all_answers.problem_display_name,
+            all_answers.answer_uses_value_id,
+            extremes.earliest_time,
+            extremes.latest_time
         FROM (
-            SELECT all_answers.course_id,
-                   all_answers.part_id,
-                   all_answers.problem_id,
-                   all_answers.question,
-                   all_answers.problem_display_name,
-                   all_answers.answer_uses_value_id,
-                   earliest_problem.time AS earliest_time,
-                   latest_problem.time AS latest_time
-            FROM   all_answers
-                   LEFT JOIN (
-                       SELECT   course_id,
-                                part_id,
-                                min(time) AS time
-                       FROM     all_answers
-                       GROUP BY course_id, part_id
-                   ) earliest_problem
-                          ON all_answers.course_id = earliest_problem.course_id
-                         AND all_answers.part_id = earliest_problem.part_id
-                         AND all_answers.time = earliest_problem.time
-                   LEFT JOIN (
-                       SELECT   course_id,
-                                part_id,
-                                max(time) AS time
-                       FROM     all_answers
-                       GROUP BY course_id, part_id
-                   ) latest_problem
-                          ON all_answers.course_id = latest_problem.course_id
-                         AND all_answers.part_id = latest_problem.part_id
-                         AND all_answers.time = latest_problem.time
-            WHERE  all_answers.should_include_answer = 'True'
-              AND  all_answers.uses_submission = 'True'
-        ) temp
-        GROUP BY course_id, part_id, problem_id, question, problem_display_name, answer_uses_value_id
+            SELECT
+                course_id,
+                part_id,
+                MIN(time) AS earliest_time,
+                MAX(time) AS latest_time
+            FROM
+                all_answers
+            GROUP BY
+                course_id,
+                part_id
+            ) extremes
+            INNER JOIN all_answers ON
+                extremes.course_id = all_answers.course_id AND
+                extremes.part_id = all_answers.part_id AND
+                extremes.latest_time = all_answers.time
+        WHERE
+            all_answers.should_include_answer = 'True' AND
+            all_answers.uses_submission = 'True'
         """
 
     def requires(self):
@@ -723,61 +701,43 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
-        # Again use GROUP BY/MAX to squash NULLs from the temp relation.
         return """
-        SELECT course_id,
-               part_id,
-               grouping_key,
-               variant,
-               correct,
-               MAX(earliest_time) AS earliest_time,
-               MAX(latest_time) AS latest_time,
-               answer_value,
-               value_id
+        SELECT
+            all_answers.course_id,
+            all_answers.part_id,
+            all_answers.grouping_key,
+            all_answers.variant,
+            all_answers.correct,
+            extremes.earliest_time,
+            extremes.latest_time,
+            IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
+               all_answers.answer,
+               all_answers.answer_value_id) AS answer_value,
+            IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
+               all_answers.answer_value_id,
+               all_answers.answer) AS value_id
         FROM (
-            SELECT all_answers.course_id,
-                   all_answers.part_id,
-                   all_answers.grouping_key,
-                   all_answers.variant,
-                   all_answers.correct,
-                   earliest_answer.time AS earliest_time,
-                   latest_answer.time AS latest_time,
-                   IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
-                      all_answers.answer,
-                      all_answers.answer_value_id) AS answer_value,
-                   IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
-                      all_answers.answer_value_id,
-                      all_answers.answer) AS value_id
-            FROM   all_answers
-                   LEFT JOIN (
-                       SELECT   course_id,
-                                part_id,
-                                grouping_key,
-                                min(time) AS time
-                       FROM     all_answers
-                       GROUP BY course_id, part_id, grouping_key
-                   ) earliest_answer
-                           ON all_answers.course_id = earliest_answer.course_id
-                          AND all_answers.part_id = earliest_answer.part_id
-                          AND all_answers.grouping_key = earliest_answer.grouping_key
-                          AND all_answers.time = earliest_answer.time
-                   LEFT JOIN (
-                       SELECT   course_id,
-                                part_id,
-                                grouping_key,
-                                max(time) AS time
-                       FROM     all_answers
-                       GROUP BY course_id, part_id, grouping_key
-                   ) latest_answer
-                           ON all_answers.course_id = latest_answer.course_id
-                          AND all_answers.part_id = latest_answer.part_id
-                          AND all_answers.grouping_key = latest_answer.grouping_key
-                          AND all_answers.time = latest_answer.time
-                   INNER JOIN latest_problem_info
-                           ON latest_problem_info.course_id = all_answers.course_id
-                          AND latest_problem_info.part_id = all_answers.part_id
-        ) temp
-        GROUP BY course_id, part_id, grouping_key, variant, correct, answer_value, value_id
+            SELECT
+                course_id,
+                part_id,
+                grouping_key,
+                MIN(time) AS earliest_time,
+                MAX(time) AS latest_time
+            FROM
+                all_answers
+            GROUP BY
+                course_id,
+                part_id,
+                grouping_key
+            ) extremes
+            INNER JOIN all_answers ON 
+                all_answers.course_id = extremes.course_id AND
+                all_answers.part_id = extremes.part_id AND
+                all_answers.grouping_key = extremes.grouping_key AND
+                all_answers.time = extremes.time           
+            INNER JOIN latest_problem_info ON
+                latest_problem_info.course_id = all_answers.course_id AND
+                latest_problem_info.part_id = all_answers.part_id
         """
 
     def requires(self):
@@ -812,50 +772,34 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
-        # Again use GROUP BY/MAX to squash NULLs from the temp relation.
         return """
-        SELECT course_id,
-               part_id,
-               user_id,
-               grouping_key,
-               course_user_tags,
-               MAX(earliest_time) AS earliest_time,
-               MAX(latest_time) AS latest_time
+        SELECT
+            all_answers.course_id,
+            all_answers.part_id,
+            all_answers.user_id,
+            all_answers.grouping_key,
+            all_answers.course_user_tags,
+            extremes.earliest_time,
+            extremes.latest_time
         FROM (
-            SELECT all_answers.course_id,
-                   all_answers.part_id,
-                   all_answers.user_id,
-                   all_answers.grouping_key,
-                   all_answers.course_user_tags,
-                   earliest_answer.time AS earliest_time,
-                   latest_answer.time AS latest_time
-            FROM   all_answers
-                   LEFT JOIN (
-                       SELECT   course_id,
-                                part_id,
-                                user_id,
-                                min(time) AS time
-                       FROM     all_answers
-                       GROUP BY course_id, part_id, user_id
-                       ) earliest_answer
-                          ON all_answers.course_id = earliest_answer.course_id
-                         AND all_answers.part_id = earliest_answer.part_id
-                         AND all_answers.user_id = earliest_answer.user_id
-                         AND all_answers.time = earliest_answer.time
-                   LEFT JOIN (
-                      SELECT   course_id,
-                               part_id,
-                               user_id,
-                               max(time) AS time
-                      FROM     all_answers
-                      GROUP BY course_id, part_id, user_id
-                      ) latest_answer
-                         ON all_answers.course_id = latest_answer.course_id
-                        AND all_answers.part_id = latest_answer.part_id
-                        AND all_answers.user_id = latest_answer.user_id
-                        AND all_answers.time = latest_answer.time
-        ) temp
-        GROUP BY course_id, part_id, user_id, grouping_key, course_user_tags
+            SELECT
+                course_id,
+                part_id,
+                user_id,
+                MIN(time) AS earliest_time,
+                MAX(time) AS latest_time
+            FROM
+                all_answers
+            GROUP BY
+                course_id,
+                part_id,
+                user_id
+            ) extremes
+            INNER JOIN all_answers ON
+                extremes.course_id = all_answers.course_id AND
+                extremes.part_id = all_answers.part_id AND
+                extremes.user_id = all_answers.user_id AND
+                extremes.latest_time = all_answers.time
         """
 
     def requires(self):
@@ -894,29 +838,38 @@ class LatestAnswerDist(HiveAnswerTableFromQueryTask):
     @property
     def insert_query(self):
         return """
-        SELECT   latest_answers.course_id,
-                 latest_answers.part_id,
-                 latest_answer_info.variant,
-                 latest_answer_info.is_correct,
-                 latest_answer_info.answer_value,
-                 latest_answer_info.value_id,
-                 SUM(CASE WHEN latest_answers.earliest_time IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
-                 SUM(CASE WHEN latest_answers.latest_time IS NOT NULL THEN 1 ELSE 0 END) AS last_response_count,
-                 latest_problem_info.problem_id,
-                 latest_problem_info.question,
-                 latest_problem_info.problem_display_name
-        FROM     latest_answers
-                 INNER JOIN latest_problem_info
-                         ON latest_problem_info.course_id = latest_answers.course_id
-                        AND latest_problem_info.part_id = latest_answers.part_id
-                 INNER JOIN latest_answer_info
-                         ON latest_answer_info.course_id = latest_answers.course_id
-                        AND latest_answer_info.part_id = latest_answers.part_id
-                        AND latest_answer_info.grouping_key = latest_answers.grouping_key
-        GROUP BY latest_answers.course_id, latest_answers.part_id, latest_answers.grouping_key,
-                 latest_answer_info.variant, latest_answer_info.is_correct,
-                 latest_answer_info.answer_value, latest_answer_info.value_id,
-                 latest_problem_info.problem_id, latest_problem_info.question, latest_problem_info.problem_display_name
+        SELECT
+            latest_answers.course_id,
+            latest_answers.part_id,
+            latest_answer_info.variant,
+            latest_answer_info.is_correct,
+            latest_answer_info.answer_value,
+            latest_answer_info.value_id,
+            SUM(CASE WHEN latest_answers.earliest_time IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
+            SUM(CASE WHEN latest_answers.latest_time IS NOT NULL THEN 1 ELSE 0 END) AS last_response_count,
+            latest_problem_info.problem_id,
+            latest_problem_info.question,
+            latest_problem_info.problem_display_name
+        FROM
+            latest_answers
+            INNER JOIN latest_problem_info ON
+                latest_problem_info.course_id = latest_answers.course_id AND
+                latest_problem_info.part_id = latest_answers.part_id
+            INNER JOIN latest_answer_info ON
+                latest_answer_info.course_id = latest_answers.course_id AND
+                latest_answer_info.part_id = latest_answers.part_id AND
+                latest_answer_info.grouping_key = latest_answers.grouping_key
+        GROUP BY
+            latest_answers.course_id,
+            latest_answers.part_id,
+            latest_answers.grouping_key,
+            latest_answer_info.variant,
+            latest_answer_info.is_correct,
+            latest_answer_info.answer_value,
+            latest_answer_info.value_id,
+            latest_problem_info.problem_id,
+            latest_problem_info.question,
+            latest_problem_info.problem_display_name
         """
 
     def requires(self):
