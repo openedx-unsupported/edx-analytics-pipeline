@@ -64,7 +64,7 @@ class EventRecord(SparseRecord):
     agent = StringField(length=1023, nullable=True, description='')
     # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
-    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
     # agent_touch_capable = BooleanField(nullable=True, description='')
