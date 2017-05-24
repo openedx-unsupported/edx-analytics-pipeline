@@ -41,17 +41,9 @@ class AnswerDistOneFilePerCourseHiveAcceptanceTest(BaseAnswerDistributionAccepta
         ])
 
         expected_rows = [
-            ['course-v1:edX+DemoX+Test_2014', '932e6f2ce8274072a355a94560216d1a_2_1', 'False',
-             'Feeling sleepy can cause white rabbits to appear.', 'choice_0', '1', '0',
-             'block-v1:edX+DemoX+Test_2014+type@problem+block@932e6f2ce8274072a355a94560216d1a',
-             'Perchance to Dream'],
-            ['course-v1:edX+DemoX+Test_2014', '932e6f2ce8274072a355a94560216d1a_2_1', 'False',
-             'There is foreshadowing of a tea party.', 'choice_1', '0', '0',
-             'block-v1:edX+DemoX+Test_2014+type@problem+block@932e6f2ce8274072a355a94560216d1a',
-             'Perchance to Dream'],
             ['course-v1:edX+DemoX+Test_2014', '932e6f2ce8274072a355a94560216d1a_2_1', 'True',
              'There is an implication that the strangeness to follow can be considered like a dream.',
-             'choice_2', '0', '1',
+             'choice_2', '1', '1',
              'block-v1:edX+DemoX+Test_2014+type@problem+block@932e6f2ce8274072a355a94560216d1a',
              'Perchance to Dream'],
             ['course-v1:edX+DemoX+Test_2014', '9cee77a606ea4c1aa5440e0ea5d0f618_2_1', 'False',
