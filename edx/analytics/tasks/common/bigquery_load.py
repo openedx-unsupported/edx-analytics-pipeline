@@ -156,6 +156,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
                     source_file,
                     source_format='text/csv',
                     field_delimiter=self.field_delimiter,
+                    null_marker=self.null_marker,
                     quote_character=self.quote_character
             )
 
