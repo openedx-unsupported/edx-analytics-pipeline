@@ -734,7 +734,7 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
                 all_answers.course_id = extremes.course_id AND
                 all_answers.part_id = extremes.part_id AND
                 all_answers.grouping_key = extremes.grouping_key AND
-                all_answers.time = extremes.time           
+                all_answers.time = extremes.latest_time
             INNER JOIN latest_problem_info ON
                 latest_problem_info.course_id = all_answers.course_id AND
                 latest_problem_info.part_id = all_answers.part_id
