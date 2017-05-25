@@ -624,7 +624,6 @@ class LatestProblemInfo(HiveAnswerTableFromQueryTask):
             ('question', 'STRING'),
             ('problem_display_name', 'STRING'),
             ('answer_uses_value_id', 'STRING'),   # change to TINYINT sometime...
-            ('earliest_time', 'STRING'),
             ('latest_time', 'STRING'),
         ]
 
@@ -645,13 +644,11 @@ class LatestProblemInfo(HiveAnswerTableFromQueryTask):
             all_answers.question,
             all_answers.problem_display_name,
             all_answers.answer_uses_value_id,
-            extremes.earliest_time,
             extremes.latest_time
         FROM (
             SELECT
                 course_id,
                 part_id,
-                MIN(time) AS earliest_time,
                 MAX(time) AS latest_time
             FROM
                 all_answers
@@ -693,7 +690,6 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
             ('grouping_key', 'STRING'),
             ('variant', 'STRING'),
             ('is_correct', 'STRING'),
-            ('earliest_time', 'STRING'),
             ('latest_time', 'STRING'),
             ('answer_value', 'STRING'),
             ('value_id', 'STRING'),
@@ -708,7 +704,6 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
             all_answers.grouping_key,
             all_answers.variant,
             all_answers.correct,
-            extremes.earliest_time,
             extremes.latest_time,
             IF(latest_problem_info.answer_uses_value_id='True' OR all_answers.uses_submission='True',
                all_answers.answer,
@@ -721,7 +716,6 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
                 course_id,
                 part_id,
                 grouping_key,
-                MIN(time) AS earliest_time,
                 MAX(time) AS latest_time
             FROM
                 all_answers
@@ -752,11 +746,16 @@ class LatestAnswerInfo(HiveAnswerTableFromQueryTask):
         )
 
 
-class LatestAnswers(HiveAnswerTableFromQueryTask):
+class EarliestLatestAnswers(HiveAnswerTableFromQueryTask):
+    """
+    For each course/question part/user, tells us the earliest and latest answer
+    (via `grouping_key`) and the time of the answer given by the user
+    to the question.
+    """
 
     @property
     def table(self):
-        return 'latest_answers'
+        return 'earliest_latest_answers'
 
     @property
     def columns(self):
@@ -779,14 +778,13 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
             all_answers.user_id,
             all_answers.grouping_key,
             all_answers.course_user_tags,
-            extremes.earliest_time,
-            extremes.latest_time
+            NULL AS earliest_time,
+            latest.latest_time
         FROM (
             SELECT
                 course_id,
                 part_id,
                 user_id,
-                MIN(time) AS earliest_time,
                 MAX(time) AS latest_time
             FROM
                 all_answers
@@ -794,12 +792,39 @@ class LatestAnswers(HiveAnswerTableFromQueryTask):
                 course_id,
                 part_id,
                 user_id
-            ) extremes
+            ) latest
             INNER JOIN all_answers ON
-                extremes.course_id = all_answers.course_id AND
-                extremes.part_id = all_answers.part_id AND
-                extremes.user_id = all_answers.user_id AND
-                extremes.latest_time = all_answers.time
+                latest.course_id = all_answers.course_id AND
+                latest.part_id = all_answers.part_id AND
+                latest.user_id = all_answers.user_id AND
+                latest.latest_time = all_answers.time
+        UNION
+        SELECT
+            all_answers.course_id,
+            all_answers.part_id,
+            all_answers.user_id,
+            all_answers.grouping_key,
+            all_answers.course_user_tags,
+            earliest.earliest_time,
+            NULL AS latest_time
+        FROM (
+            SELECT
+                course_id,
+                part_id,
+                user_id,
+                MIN(time) AS earliest_time
+            FROM
+                all_answers
+            GROUP BY
+                course_id,
+                part_id,
+                user_id
+            ) earliest
+            INNER JOIN all_answers ON
+                earliest.course_id = all_answers.course_id AND
+                earliest.part_id = all_answers.part_id AND
+                earliest.user_id = all_answers.user_id AND
+                earliest.earliest_time = all_answers.time
         """
 
     def requires(self):
@@ -839,30 +864,30 @@ class LatestAnswerDist(HiveAnswerTableFromQueryTask):
     def insert_query(self):
         return """
         SELECT
-            latest_answers.course_id,
-            latest_answers.part_id,
+            earliest_latest_answers.course_id,
+            earliest_latest_answers.part_id,
             latest_answer_info.variant,
             latest_answer_info.is_correct,
             latest_answer_info.answer_value,
             latest_answer_info.value_id,
-            SUM(CASE WHEN latest_answers.earliest_time IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
-            SUM(CASE WHEN latest_answers.latest_time IS NOT NULL THEN 1 ELSE 0 END) AS last_response_count,
+            SUM(CASE WHEN earliest_latest_answers.earliest_time IS NOT NULL THEN 1 ELSE 0 END) AS first_response_count,
+            SUM(CASE WHEN earliest_latest_answers.latest_time IS NOT NULL THEN 1 ELSE 0 END) AS last_response_count,
             latest_problem_info.problem_id,
             latest_problem_info.question,
             latest_problem_info.problem_display_name
         FROM
-            latest_answers
+            earliest_latest_answers
             INNER JOIN latest_problem_info ON
-                latest_problem_info.course_id = latest_answers.course_id AND
-                latest_problem_info.part_id = latest_answers.part_id
+                latest_problem_info.course_id = earliest_latest_answers.course_id AND
+                latest_problem_info.part_id = earliest_latest_answers.part_id
             INNER JOIN latest_answer_info ON
-                latest_answer_info.course_id = latest_answers.course_id AND
-                latest_answer_info.part_id = latest_answers.part_id AND
-                latest_answer_info.grouping_key = latest_answers.grouping_key
+                latest_answer_info.course_id = earliest_latest_answers.course_id AND
+                latest_answer_info.part_id = earliest_latest_answers.part_id AND
+                latest_answer_info.grouping_key = earliest_latest_answers.grouping_key
         GROUP BY
-            latest_answers.course_id,
-            latest_answers.part_id,
-            latest_answers.grouping_key,
+            earliest_latest_answers.course_id,
+            earliest_latest_answers.part_id,
+            earliest_latest_answers.grouping_key,
             latest_answer_info.variant,
             latest_answer_info.is_correct,
             latest_answer_info.answer_value,
@@ -881,7 +906,7 @@ class LatestAnswerDist(HiveAnswerTableFromQueryTask):
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
         )
-        yield LatestAnswers(
+        yield EarliestLatestAnswers(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
