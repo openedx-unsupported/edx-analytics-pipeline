@@ -423,7 +423,7 @@ class JsonEventRecord(SparseRecord):
     input_file = StringField(length=255, nullable=True, description='The full URL of the file that contains this event in S3.')
 
     agent_type = StringField(length=20, nullable=True, description='The type of device used.')
-    agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.')
+    agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='The name of the OS on the device used. ')
     agent_browser = StringField(length=100, nullable=True, description='The name of the browser used.')
     agent_touch_capable = BooleanField(nullable=True, description='A boolean value indicating that the device was touch-capable.')
