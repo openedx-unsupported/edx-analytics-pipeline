@@ -73,7 +73,7 @@ class EventRecord(SparseRecord):
     agent = StringField(length=1023, nullable=True, description='')
     # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
-    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
     # agent_touch_capable = BooleanField(nullable=True, description='')
@@ -998,7 +998,19 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        return self._get_time_from_segment_event(event, 'receivedAt')
+        result = None
+        try:
+            if event['receivedAt'] is None:
+                self.incr_counter(self.counter_category_name, 'Attempting to find receivedAt', 1)
+            result = self._get_time_from_segment_event(event, 'receivedAt')
+            self.incr_counter(self.counter_category_name, 'Found receivedAt', 1)
+        except KeyError:
+            log.info("Error pulling receivedAt, defaulting to requestTime")
+            result = self._get_time_from_segment_event(event, 'requestTime')
+            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+        return result
+
+
 
     def get_event_emission_time(self, event):
         return self._get_time_from_segment_event(event, 'sentAt')
@@ -1170,6 +1182,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
+
+        if event_dict.get("event_type") is None:
+            self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
+            return
 
         # An issue with this logic: if a key exists and contains a value of None, then None will
         # be returned instead of an empty dict specified as the default, and the next get() will fail.
