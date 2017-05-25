@@ -866,12 +866,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
     def get_event_arrival_time(self, event):
         result = None
         try:
-            if event['receivedAt'] is None:
-                self.incr_counter(self.counter_category_name, 'Attempting to find receivedAt', 1)
             result = self._get_time_from_segment_event(event, 'receivedAt')
-            self.incr_counter(self.counter_category_name, 'Found receivedAt', 1)
         except KeyError:
-            log.info("Error pulling receivedAt, defaulting to requestTime")
             result = self._get_time_from_segment_event(event, 'requestTime')
             self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
         return result
