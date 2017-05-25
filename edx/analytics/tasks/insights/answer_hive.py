@@ -771,6 +771,10 @@ class EarliestLatestAnswers(HiveAnswerTableFromQueryTask):
 
     @property
     def insert_query(self):
+        """
+        We can safely use UNION ALL here, since the NULLs that we provide for
+        earliest/latest times guarantee that we won't have duplicate rows.
+        """
         return """
         SELECT
             all_answers.course_id,
@@ -798,7 +802,7 @@ class EarliestLatestAnswers(HiveAnswerTableFromQueryTask):
                 latest.part_id = all_answers.part_id AND
                 latest.user_id = all_answers.user_id AND
                 latest.latest_time = all_answers.time
-        UNION
+        UNION ALL
         SELECT
             all_answers.course_id,
             all_answers.part_id,
