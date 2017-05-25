@@ -64,7 +64,7 @@ class EventRecord(SparseRecord):
     agent = StringField(length=1023, nullable=True, description='')
     # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
-    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
     # agent_touch_capable = BooleanField(nullable=True, description='')
@@ -864,7 +864,15 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        return self._get_time_from_segment_event(event, 'receivedAt')
+        result = None
+        try:
+            result = self._get_time_from_segment_event(event, 'receivedAt')
+        except KeyError:
+            result = self._get_time_from_segment_event(event, 'requestTime')
+            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+        return result
+
+
 
     def get_event_emission_time(self, event):
         return self._get_time_from_segment_event(event, 'sentAt')
@@ -960,6 +968,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.incr_counter(self.counter_category_name, 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
+        if segment_type is None:
+            segment_type = event.get('action').lower()
+
         self.incr_counter(self.counter_category_name, u'Subset Type {}'.format(segment_type), 1)
 
         channel = event.get('channel')
@@ -1023,6 +1034,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
+
+        if event_dict.get("event_type") is None:
+            self.incr_counter(self.counter_category_name, 'Dropping due to missing event_type field', 1)
+            return
 
         event_context = event.get('context', {})
         if event_context is None:
