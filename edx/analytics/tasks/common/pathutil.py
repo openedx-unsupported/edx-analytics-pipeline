@@ -300,7 +300,10 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         try:
             return event['time']
         except KeyError:
-            return None
+            try:
+                return event['timestamp']
+            except KeyError:
+                return None
 
     def get_map_input_file(self):
         """Get the name of the input file from Hadoop."""
