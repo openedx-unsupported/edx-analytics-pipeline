@@ -10,8 +10,17 @@ addons:
       - liblapack-dev
       - libatlas-base-dev
 
+env:
+  - MAKE_TARGET=test
+  - MAKE_TARGET=coverage
+
+install:
+  - git clone https://github.com/$TRAVIS_REPO_SLUG.git $TRAVIS_REPO_SLUG
+  - cd $TRAVIS_REPO_SLUG
+  - git checkout -f ${TRAVIS_PULL_REQUEST_BRANCH:-$TRAVIS_BRANCH}
+
 script:
-  - make test
+  - make $MAKE_TARGET
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
