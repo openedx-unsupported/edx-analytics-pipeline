@@ -156,7 +156,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
 
         source_path = self.input()['source'].path
-        parsed_url = urlparse.parse(source_path)
+        parsed_url = urlparse.urlparse(source_path)
         destination_path = url_path_join('gs:////', parsed_url.netloc, parsed_url.path)
         return_code = subprocess.call(['gsutil', '-m', 'rsync', source_path, destination_path])
 
