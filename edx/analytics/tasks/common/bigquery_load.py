@@ -183,6 +183,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         job.quote_character = self.quote_character
         job.null_marker = self.null_marker
 
+        log.debug("Starting BigQuery Load job.")
         job.begin()
 
         while job.state != 'DONE':
