@@ -172,10 +172,12 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
         #job_name = str(uuid.uuid4())
 
+        load_uri = url_path_join(destination_path,'*')
+
         job = client.load_table_from_storage(
             'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
             table,
-            destination_path
+            load_uri
         )
         job.field_delimiter = self.field_delimiter
         job.quote_character = self.quote_character
