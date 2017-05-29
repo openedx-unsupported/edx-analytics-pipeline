@@ -4,6 +4,9 @@ import os
 import luigi
 import json
 import time
+import subprocess
+import urlparse
+import uuid
 from luigi import configuration
 
 from google.cloud import bigquery
@@ -151,21 +154,33 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
         dataset = client.dataset(self.dataset_id)
         table = dataset.table(self.table, self.schema)
 
-        with self.input()['source'].open('r') as source_file:
-            job = table.upload_from_file(
-                    source_file,
-                    source_format='text/csv',
-                    field_delimiter=self.field_delimiter,
-                    null_marker=self.null_marker,
-                    quote_character=self.quote_character
-            )
 
-        # job = client.load_table_from_storage(
-        #     'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
-        #     table,
-        #     self.source
-        # )
-        # job.begin()
+        source_path = self.input()['source'].path
+        parsed_url = urlparse.parse(source_path)
+        destination_path = url_path_join('gs:////', parsed_url.netloc, parsed_url.path)
+        return_code = subprocess.call(['gsutil', '-m', 'rsync', source_path, destination_path])
+
+        # with self.input()['source'].open('r') as source_file:
+        #     job = table.upload_from_file(
+        #             source_file,
+        #             source_format='text/csv',
+        #             field_delimiter=self.field_delimiter,
+        #             null_marker=self.null_marker,
+        #             quote_character=self.quote_character
+        #     )
+
+        #job_name = str(uuid.uuid4())
+
+        job = client.load_table_from_storage(
+            'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
+            table,
+            destination_path
+        )
+        job.field_delimiter = self.field_delimiter
+        job.quote_character = self.quote_character
+        job.null_marker = self.null_marker
+
+        job.begin()
 
         while job.state != 'DONE':
             job.reload()
