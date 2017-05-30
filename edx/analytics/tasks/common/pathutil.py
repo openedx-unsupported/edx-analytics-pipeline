@@ -306,6 +306,8 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         if 'requestTime' in event:
             return event['requestTime']
 
+        log.info("Error found no usable time value for event " + event)
+
         return None
 
     def get_map_input_file(self):
