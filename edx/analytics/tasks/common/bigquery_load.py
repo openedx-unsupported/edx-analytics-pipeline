@@ -525,7 +525,7 @@ class DailyLoadSubjectsToBigQueryTask(PullCatalogMixin, BigQueryLoadTask):
         ]
 
 
-class LoadWarehouseBigQueryTask(luigi.WrapperTask):
+class LoadWarehouseBigQueryTask(WarehouseMixin, luigi.WrapperTask):
 
     date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
