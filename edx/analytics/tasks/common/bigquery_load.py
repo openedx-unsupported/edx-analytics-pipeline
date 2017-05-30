@@ -523,3 +523,56 @@ class DailyLoadSubjectsToBigQueryTask(PullCatalogMixin, BigQueryLoadTask):
             bigquery.SchemaField('subject_title', 'STRING'),
             bigquery.SchemaField('subject_language', 'STRING'),
         ]
+
+
+class LoadWarehouseBigQueryTask(luigi.WrapperTask):
+
+    date = luigi.DateParameter()
+    n_reduce_tasks = luigi.Parameter()
+    dataset_id = luigi.Parameter()
+    credentials = luigi.Parameter()
+    overwrite = luigi.BooleanParameter(default=False, significant=False)
+
+    def requires(self):
+        kwargs = {
+            'dataset_id': self.dataset_id,
+            'credentials': self.credentials,
+            'overwrite': self.overwrite,
+            'warehouse_path': self.warehouse_path,
+        }
+
+        yield LoadInternalReportingCertificatesToBigQuery(
+            date=self.date,
+            **kwargs
+        )
+
+        yield LoadInternalReportingCountryToBigQuery(
+            date=self.date,
+            **kwargs
+        )
+
+        yield LoadInternalReportingCourseCatalogToBigQuery(
+            date=self.date,
+            **kwargs
+        )
+
+        yield LoadUserCourseSummaryToBigQuery(
+            date=self.date,
+            **kwargs
+        )
+
+        yield LoadInternalReportingUserActivityToBigQuery(
+            date=self.date,
+            **kwargs
+        )
+
+        yield LoadInternalReportingUserToBigQuery(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            **kwargs
+        )
+
+        yield DailyLoadSubjectsToBigQueryTask(
+            date=self.date,
+            **kwargs
+        )
