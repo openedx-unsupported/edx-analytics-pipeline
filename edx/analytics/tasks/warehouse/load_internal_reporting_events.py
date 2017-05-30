@@ -864,14 +864,20 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        result = None
         try:
-            result = self._get_time_from_segment_event(event, 'receivedAt')
-        except KeyError:
-            result = self._get_time_from_segment_event(event, 'requestTime')
-            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
-        return result
+            if 'receivedAt' in event:
+                return self._get_time_from_segment_event(event, 'receivedAt')
 
+            if 'requestTime' in event:
+                self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+                return self._get_time_from_segment_event(event, 'requestTime')
+
+            self.incr_counter(self.counter_category_name, 'Neither receivedAt nor requestTime present', 1)
+
+        except KeyError:
+            return None
+
+        return None
 
 
     def get_event_emission_time(self, event):
