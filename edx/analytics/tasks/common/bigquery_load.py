@@ -172,7 +172,10 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
         #job_name = str(uuid.uuid4())
 
-        load_uri = url_path_join(destination_path,'*')
+        if not destination_path.endswith('.tsv'):
+            load_uri = url_path_join(destination_path,'*')
+        else:
+            load_uri = destination_path
 
         job = client.load_table_from_storage(
             'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time())),
