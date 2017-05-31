@@ -864,19 +864,19 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        try:
-            if 'receivedAt' in event:
-                return self._get_time_from_segment_event(event, 'receivedAt')
+        if 'receivedAt' in event:
+            return self._get_time_from_segment_event(event, 'receivedAt')
 
-            if 'requestTime' in event:
-                self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
-                return self._get_time_from_segment_event(event, 'requestTime')
+        if 'requestTime' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'requestTime')
 
-            self.incr_counter(self.counter_category_name, 'Neither receivedAt nor requestTime present', 1)
-            log.error("Missing event arrival time in event '%r'", event)
+        if 'timestamp' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing timestamp for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'timestamp')
 
-        except KeyError:
-            return None
+        self.incr_counter(self.counter_category_name, 'Neither timestamp, receivedAt nor requestTime present', 1)
+        log.error("Missing event arrival time in event '%r'", event)
 
         return None
 
@@ -975,7 +975,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.incr_counter(self.counter_category_name, 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
-        if segment_type is None:
+        if segment_type is None and 'action' in event:
             segment_type = event.get('action').lower()
 
         self.incr_counter(self.counter_category_name, u'Subset Type {}'.format(segment_type), 1)
