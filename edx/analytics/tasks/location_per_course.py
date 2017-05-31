@@ -408,6 +408,7 @@ class LastCountryOfUserPartitionTask(LastCountryOfUserDownstreamMixin, HiveParti
     def hive_table_task(self):
         return LastCountryOfUserTableTask(
             warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
         )
 
     @property
