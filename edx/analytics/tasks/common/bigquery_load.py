@@ -7,6 +7,7 @@ import time
 import subprocess
 import urlparse
 import uuid
+import tempfile
 from luigi import configuration
 
 from google.cloud import bigquery
@@ -28,6 +29,16 @@ from edx.analytics.tasks.warehouse.course_catalog import PullCatalogMixin, Daily
 log = logging.getLogger(__name__)
 
 
+def wait_for_job(job):
+    while True:
+        job.reload()
+        if job.state == 'DONE':
+            if job.error_result:
+                raise RuntimeError(job.errors)
+            return
+        time.sleep(1)
+
+
 class BigQueryTarget(luigi.Target):
 
     def __init__(self, credentials_target, dataset_id, table, update_id):
@@ -45,9 +56,21 @@ class BigQueryTarget(luigi.Target):
         dataset = self.client.dataset(self.dataset_id)
         table = dataset.table('table_updates')
         table.reload() # Load the schema
-        table.insert_data([
-            (self.update_id, "{dataset}.{table}".format(dataset=self.dataset_id, table=self.table))
-        ])
+
+        # Use a tempfile for loading data into table_updates
+        # We deliberately don't use table.insert_data as it we cannot use delete on
+        # a bigquery table with streaming inserts.
+        tmp = tempfile.NamedTemporaryFile(bufsize=0)
+        table_update_row  = (self.update_id, "{dataset}.{table}".format(dataset=self.dataset_id, table=self.table))
+        tmp.write(','.join(table_update_row))
+
+        tmp.seek(0)
+        job = table.upload_from_file(tmp, source_format='text/csv')
+
+        try:
+            wait_for_job(job)
+        finally:
+            tmp.close()
 
     def create_marker_table(self):
         marker_table_schema = [
@@ -129,13 +152,12 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
             table.create()
 
     def init_touch(self, client):
-        pass
-        # if self.overwrite:
-        #     query = client.run_sync_query("delete {dataset}.table_updates where target_table='{dataset}.{table}'".format(
-        #         dataset=self.dataset_id, table=self.table
-        #     ))
-        #     query.use_legacy_sql = False
-        #     query.run()
+        if self.overwrite:
+            query = client.run_sync_query("delete {dataset}.table_updates where target_table='{dataset}.{table}'".format(
+                dataset=self.dataset_id, table=self.table
+            ))
+            query.use_legacy_sql = False
+            query.run()
 
     def init_copy(self, client):
         self.attempted_removal = True
@@ -193,12 +215,7 @@ class BigQueryLoadTask(OverwriteOutputMixin, luigi.Task):
 
         log.debug("Starting BigQuery Load job.")
         job.begin()
-
-        while job.state != 'DONE':
-            job.reload()
-
-        if job.errors:
-            raise Exception([error['message'] for error in job.errors])
+        wait_for_job(job)
 
         self.init_touch(client)
         self.output().touch()
