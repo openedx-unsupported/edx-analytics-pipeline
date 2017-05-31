@@ -297,10 +297,18 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
 
     def get_event_time(self, event):
         """Returns time information from event if present, else returns None."""
-        try:
-            return event['time']
-        except KeyError:
-            return None
+        if 'time' in event:
+            return event["time"]
+
+        if 'timestamp' in event:
+            return event['timestamp']
+
+        if 'requestTime' in event:
+            return event['requestTime']
+
+        log.info("Error found no usable time value for event " + event)
+
+        return None
 
     def get_map_input_file(self):
         """Get the name of the input file from Hadoop."""

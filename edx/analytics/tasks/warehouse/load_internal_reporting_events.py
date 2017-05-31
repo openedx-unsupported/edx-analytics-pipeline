@@ -864,14 +864,21 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        result = None
         try:
-            result = self._get_time_from_segment_event(event, 'receivedAt')
-        except KeyError:
-            result = self._get_time_from_segment_event(event, 'requestTime')
-            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
-        return result
+            if 'receivedAt' in event:
+                return self._get_time_from_segment_event(event, 'receivedAt')
 
+            if 'requestTime' in event:
+                self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+                return self._get_time_from_segment_event(event, 'requestTime')
+
+            self.incr_counter(self.counter_category_name, 'Neither receivedAt nor requestTime present', 1)
+            log.error("Missing event arrival time in event '%r'", event)
+
+        except KeyError:
+            return None
+
+        return None
 
 
     def get_event_emission_time(self, event):
@@ -1035,10 +1042,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
-        if event_dict.get("event_type") is None:
-            self.incr_counter(self.counter_category_name, 'Dropping due to missing event_type field', 1)
-            return
-
         event_context = event.get('context', {})
         if event_context is None:
             event_context = {}
@@ -1052,7 +1055,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         event_properties_context = event_properties.get('context', {})
         if event_properties_context is None:
             event_properties_context = {}
-            
+
         self.add_agent_info(event_dict, event_properties_context.get('agent'))
 
         event_mapping = self.get_event_mapping()
