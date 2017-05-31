@@ -60,17 +60,21 @@ class BigQueryTarget(luigi.Target):
         # Use a tempfile for loading data into table_updates
         # We deliberately don't use table.insert_data as it we cannot use delete on
         # a bigquery table with streaming inserts.
-        tmp = tempfile.NamedTemporaryFile(bufsize=0)
+        tmp = tempfile.NamedTemporaryFile(delete=False)
         table_update_row  = (self.update_id, "{dataset}.{table}".format(dataset=self.dataset_id, table=self.table))
         tmp.write(','.join(table_update_row))
+        tmp.close()
 
-        tmp.seek(0)
-        job = table.upload_from_file(tmp, source_format='text/csv')
+
+        # table.upload_from_file requires the file to be opened in 'rb' mode
+        with open(tmp.name, 'rb') as source_file:
+            job = table.upload_from_file(source_file, source_format='text/csv')
 
         try:
             wait_for_job(job)
         finally:
             tmp.close()
+            os.unlink(tmp.name)
 
     def create_marker_table(self):
         marker_table_schema = [
