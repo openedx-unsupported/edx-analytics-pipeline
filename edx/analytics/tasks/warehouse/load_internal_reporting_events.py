@@ -873,6 +873,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 return self._get_time_from_segment_event(event, 'requestTime')
 
             self.incr_counter(self.counter_category_name, 'Neither receivedAt nor requestTime present', 1)
+            log.error("Missing event arrival time in event '%r'", event)
 
         except KeyError:
             return None
