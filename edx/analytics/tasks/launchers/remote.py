@@ -10,8 +10,6 @@ import sys
 from urlparse import urlparse, parse_qsl
 import uuid
 
-from . import *
-
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
 ANSIBLE_MAX_RETRY = 3
