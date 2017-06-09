@@ -7,6 +7,7 @@ Main method for running tasks on a local machine.
 
 """
 
+import argparse
 from contextlib import contextmanager
 import logging
 import os
@@ -39,6 +40,10 @@ OVERRIDE_CONFIGURATION_FILE = 'override.cfg'
 
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--additional-config', help='additional configuration file to be loaded after default/override', default=None, action='append')
+    arguments, _extra_args = parser.parse_known_args()
+
     # In order to see errors during extension loading, you can uncomment the next line.
     logging.basicConfig(level=logging.DEBUG)
 
@@ -46,12 +51,23 @@ def main():
     # TODO: launch tasks by their entry_point name
     stevedore.ExtensionManager('edx.analytics.tasks')
 
+    # Load the override configuration if it's specified/exists.
     configuration = luigi.configuration.get_config()
     if os.path.exists(OVERRIDE_CONFIGURATION_FILE):
-        log.debug('Using %s', OVERRIDE_CONFIGURATION_FILE)
+        log.debug('Loading override configuration \'%s\'...', OVERRIDE_CONFIGURATION_FILE)
         configuration.add_config_path(OVERRIDE_CONFIGURATION_FILE)
     else:
-        log.debug('Configuration file %s does not exist', OVERRIDE_CONFIGURATION_FILE)
+        log.debug('Configuration file \'%s\' does not exist!', OVERRIDE_CONFIGURATION_FILE)
+
+    # Load any additional configuration files passed in.
+    if arguments.additional_config is not None:
+        for additional_config in arguments.additional_config:
+            if os.path.exists(additional_config):
+                log.debug('Loading additional configuration file \'%s\'...', additional_config)
+                configuration.add_config_path(additional_config)
+            else:
+                log.debug('Configuration file \'%s\' does not exist!', additional_config)
+
 
     # Tell luigi what dependencies to pass to the Hadoop nodes
     # - edx.analytics.tasks is used to load the pipeline code, since we cannot trust all will be loaded automatically.
