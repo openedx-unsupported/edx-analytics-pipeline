@@ -22,6 +22,7 @@ python-dateutil==2.6.0 	# BSD
 python-gnupg==0.3.9	# BSD
 pytz==2016.10		# ZPL
 requests==2.12.4        # Apache 2.0
+sailthru-client==2.3.1
 six==1.10.0		# MIT
 stevedore==1.19.1 	# Apache 2.0
 ua-parser==0.3.6 	# Apache
