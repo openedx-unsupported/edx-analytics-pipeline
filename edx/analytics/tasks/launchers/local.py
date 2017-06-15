@@ -11,6 +11,7 @@ import argparse
 from contextlib import contextmanager
 import logging
 import os
+import sys
 
 import boto
 import filechunkio
@@ -41,8 +42,14 @@ OVERRIDE_CONFIGURATION_FILE = 'override.cfg'
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--additional-config', help='additional configuration file to be loaded after default/override', default=None, action='append')
+    parser.add_argument('--additional-config', help='additional configuration file to be loaded after default/override',
+        default=None, action='append')
     arguments, _extra_args = parser.parse_known_args()
+
+    # This is a relative level of terrible depending on who you are.  We're removing our --additional-config command
+    # arguments because Luigi will blow up if the underlying workflow isn't actually saying that it expects to see
+    # an argument called --additional-config.
+    reset_command_line_args()
 
     # In order to see errors during extension loading, you can uncomment the next line.
     logging.basicConfig(level=logging.DEBUG)
@@ -90,6 +97,19 @@ def main():
 
     with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
         luigi.run()
+
+
+def reset_command_line_args():
+  arg_list = sys.argv
+  modified_arg_list = arg_list
+
+  for i, v in enumerate(arg_list):
+    if v == '--additional-config':
+      # Clear out the flag, and clear out the value attached to it.
+      modified_arg_list[i] = None
+      modified_arg_list[i+1] = None
+
+  sys.argv = list(filter(lambda x: x is not None, modified_arg_list))
 
 
 @contextmanager
