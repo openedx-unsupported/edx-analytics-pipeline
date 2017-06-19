@@ -1,6 +1,7 @@
 """Test processing of events for loading into Hive, etc."""
 
 import unittest
+import json
 
 from ddt import ddt, data
 import luigi
@@ -82,7 +83,7 @@ class TrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin,
         if not date:
             date = self.DEFAULT_DATE
         self.task = TrackingEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
         )
         self.task.init_local()
@@ -266,7 +267,7 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         if not date:
             date = self.DEFAULT_DATE
         self.task = SegmentEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
         )
         self.task.init_local()
@@ -296,6 +297,14 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
         {'sentAt': '2016-07-26 05:11:37 a.m. +0000'},
     )
     def test_funky_but_parsable_timestamps(self, kwargs):
+        actual_record = self._get_event_record_from_mapper(kwargs)
+        timestamp = getattr(actual_record, 'timestamp')
+        self.assertNotEquals(timestamp, None)
+
+    @data(
+        {'sentAt': '2013-12-17T15:38:32.805444Z'},
+    )
+    def test_validtimestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
         timestamp = getattr(actual_record, 'timestamp')
         self.assertNotEquals(timestamp, None)
@@ -351,3 +360,144 @@ class SegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, 
             expected_key,
             expected_value
         )
+
+
+
+
+@ddt
+class SegmentEventRecordTaskMapTimeMappingTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
+    """Base class for test analysis of detailed student engagement"""
+
+    DEFAULT_USER_ID = 10
+    DEFAULT_TIMESTAMP = "2013-12-17T15:38:32"
+    DEFAULT_DATE = "2013-12-17"
+    DEFAULT_ANONYMOUS_ID = "abcdef12-3456-789a-bcde-f0123456789a"
+    DEFAULT_PROJECT = "segment_test"
+
+    def setUp(self):
+        super(SegmentEventRecordTaskMapTimeMappingTest, self).setUp()
+
+        self.initialize_ids()
+        self.event_templates = {
+            'android_screen': {
+                "messageId": "fake_message_id",
+                "type": "screen",
+                "channel": "server",
+                "context": {
+                    "app": {
+                        "build": 82,
+                        "name": "edX",
+                        "namespace": "org.edx.mobile",
+                        "version": "2.3.0",
+                    },
+                    "traits": {
+                        "anonymousId": self.DEFAULT_ANONYMOUS_ID
+                    },
+                    "library": {
+                        "name": "analytics-android",
+                        "version": "3.4.0",
+                    },
+                    "os": {
+                        "name": "Android",
+                        "version": "5.1.1",
+                    },
+                    "timezone": "America/New_York",
+                    "screen": {
+                        "density": 3.5,
+                        "width": 1440,
+                        "height": 2560,
+                    },
+                    "userAgent": "Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)",
+                    "locale": "en-US",
+                    "device": {
+                        "id": "fake_device_id",
+                        "manufacturer": "samsung",
+                        "model": "SAMSUNG-SM-N920A",
+                        "name": "noblelteatt",
+                        "advertisingId": "fake_advertising_id",
+                        "adTrackingEnabled": False,
+                        "type": "android",
+                    },
+                    "network": {
+                        "wifi": True,
+                        "carrier": "AT&T",
+                        "bluetooth": False,
+                        "cellular": False,
+                    },
+                    "ip": "98.236.220.148"
+                },
+                "anonymousId": self.DEFAULT_ANONYMOUS_ID,
+                "integrations": {
+                    "All": True,
+                    "Google Analytics": False,
+                },
+                "category": "",
+                "name": "Launch",
+                "properties": {
+                    "data": {
+                    },
+                    "device-orientation": "portrait",
+                    "navigation-mode": "full",
+                    "context": {
+                        "app_name": "edx.mobileapp.android",
+                    },
+                    "category": "screen",
+                    "label": "Launch",
+                },
+                "writeKey": "dummy_write_key",
+                "projectId": self.DEFAULT_PROJECT,
+                "timestamp": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),
+                "sentAt": "{0}.000Z".format(self.DEFAULT_TIMESTAMP),
+                "originalTimestamp": "{0}-0400".format(self.DEFAULT_TIMESTAMP),
+                "version": 2,
+            }
+        }
+        self.default_event_template = 'android_screen'
+        self.create_task()
+
+    def create_task(self, date=None):  # pylint: disable=arguments-differ
+        """Allow arguments to be passed to the task constructor."""
+        if not date:
+            date = self.DEFAULT_DATE
+        self.task = SegmentEventRecordDataTask(
+            interval=luigi.DateIntervalParameter().parse(date),
+            output_root='/fake/output',
+        )
+        self.task.init_local()
+
+    def _get_event_record_from_mapper(self, kwargs):
+        """Returns an EventRecord constructed from mapper output."""
+        line = self.create_event_log_line(**kwargs)
+        mapper_output = tuple(self.task.mapper(line))
+        self.assertEquals(len(mapper_output), 1)
+        row = mapper_output[0]
+        self.assertEquals(len(row), 2)
+        _actual_key, actual_value = row
+        return EventRecord.from_tsv(actual_value)
+
+    @data(
+        {'notRequestTime': "2013-12-17T15:38:32.805444Z"},
+    )
+    def test_error_on_missing_timestamps(self, kwargs):
+        line = self.create_event_log_line(**kwargs)
+        line_json = json.loads(line)
+        timestamp = self.task.get_event_arrival_time(line_json)
+        self.assertEquals(timestamp, None)
+
+    @data(
+        {'requestTime': "2014-12-01T15:38:32.805444Z"},
+    )
+    def test_defaulting_to_requestTime_timestamps(self, kwargs):
+        line = self.create_event_log_line(**kwargs)
+        line_json = json.loads(line)
+        timestamp = self.task.get_event_arrival_time(line_json)
+        self.assertEquals(timestamp, "2014-12-01T15:38:32.805444Z")
+
+    @data(
+        {'receivedAt': "2013-12-17T15:38:32.805444Z", 'requestTime': "2014-12-18T15:38:32.805444Z"},
+    )
+    def test_defaulting_to_requestTime_timestamps(self, kwargs):
+        line = self.create_event_log_line(**kwargs)
+        line_json = json.loads(line)
+        timestamp = self.task.get_event_arrival_time(line_json)
+        self.assertEquals(timestamp, "2013-12-17T15:38:32.805444+00:00")
