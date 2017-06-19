@@ -182,6 +182,10 @@ class LoadInternalReportingCertificatesToRedshift(WarehouseMixin, RedshiftS3Copy
     date = luigi.DateParameter()
 
     @property
+    def table_attributes(self):
+        return 'DISTKEY(user_id)'
+
+    @property
     def columns(self):
         return [
             ('user_id', 'INTEGER NOT NULL'),
@@ -238,6 +242,11 @@ class LoadInternalReportingCountryToRedshift(WarehouseMixin, RedshiftS3CopyToTab
 
 class LoadInternalReportingCourseToRedshift(LoadInternalReportingCourseCatalogMixin, RedshiftS3CopyToTable):
 
+
+    @property
+    def table_attributes(self):
+        return 'DISTKEY(course_id)'
+
     @property
     def columns(self):
         return CourseRecord.get_sql_schema()
@@ -260,6 +269,10 @@ class LoadInternalReportingCourseToRedshift(LoadInternalReportingCourseCatalogMi
 class LoadInternalReportingCourseSeatToRedshift(LoadInternalReportingCourseCatalogMixin, RedshiftS3CopyToTable):
 
     @property
+    def table_attributes(self):
+        return 'DISTKEY(course_id)'
+
+    @property
     def columns(self):
         return CourseSeatRecord.get_sql_schema()
 
@@ -279,6 +292,10 @@ class LoadInternalReportingCourseSeatToRedshift(LoadInternalReportingCourseCatal
 
 
 class LoadInternalReportingProgramCourseToRedshift(LoadInternalReportingCourseCatalogMixin, RedshiftS3CopyToTable):
+
+    @property
+    def table_attributes(self):
+        return 'DISTKEY(course_id)'
 
     @property
     def columns(self):
@@ -323,6 +340,10 @@ class LoadUserCourseSummaryToRedshift(WarehouseMixin, RedshiftS3CopyToTable):
     date = luigi.DateParameter()
 
     @property
+    def table_attributes(self):
+        return 'DISTKEY(user_id)'
+
+    @property
     def columns(self):
         return EnrollmentSummaryRecord.get_sql_schema()
 
@@ -338,6 +359,10 @@ class LoadUserCourseSummaryToRedshift(WarehouseMixin, RedshiftS3CopyToTable):
 class LoadInternalReportingUserActivityToRedshift(WarehouseMixin, RedshiftS3CopyToTable):
 
     date = luigi.DateParameter()
+
+    @property
+    def table_attributes(self):
+        return 'DISTKEY(user_id)'
 
     def __init__(self, *args, **kwargs):
         super(LoadInternalReportingUserActivityToRedshift, self).__init__(*args, **kwargs)
@@ -381,6 +406,10 @@ class LoadInternalReportingUserToRedshift(WarehouseMixin, RedshiftS3CopyToTable)
     n_reduce_tasks = luigi.Parameter()
 
     @property
+    def table_attributes(self):
+        return 'DISTKEY(user_id)'
+
+    @property
     def insert_source_task(self):
         return (
             AggregateInternalReportingUserTableHive(
@@ -410,6 +439,10 @@ class LoadInternalReportingUserToRedshift(WarehouseMixin, RedshiftS3CopyToTable)
 
 
 class DailyLoadSubjectsToRedshift(PullCatalogMixin, RedshiftS3CopyToTable):
+
+    @property
+    def table_attributes(self):
+        return 'DISTKEY(course_id)'
 
     @property
     def insert_source_task(self):
