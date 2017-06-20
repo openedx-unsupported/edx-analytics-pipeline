@@ -49,7 +49,10 @@ def main():
     # This is a relative level of terrible depending on who you are.  We're removing our --additional-config command
     # arguments because Luigi will blow up if the underlying workflow isn't actually saying that it expects to see
     # an argument called --additional-config.
-    reset_command_line_args()
+
+    # We get a cleaned command-line arguments list, free of the arguments *we* care about, since Luigi will throw
+    # errors when it sees arguments that it or the workflow didn't specify.  We pass these in when invoking Luigi.
+    cmdline_args = get_cleaned_command_line_args()
 
     # In order to see errors during extension loading, you can uncomment the next line.
     logging.basicConfig(level=logging.DEBUG)
@@ -96,11 +99,14 @@ def main():
     # Launch Luigi using the default builder
 
     with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
-        luigi.run()
+        luigi.run(cmdline_args)
 
 
-def reset_command_line_args():
-  arg_list = sys.argv
+def get_cleaned_command_line_args():
+  """
+  Gets a list of command-line arguments after removing local launcher-specific parameters.
+  """
+  arg_list = sys.argv[1:]
   modified_arg_list = arg_list
 
   for i, v in enumerate(arg_list):
@@ -109,7 +115,7 @@ def reset_command_line_args():
       modified_arg_list[i] = None
       modified_arg_list[i+1] = None
 
-  sys.argv = list(filter(lambda x: x is not None, modified_arg_list))
+  return list(filter(lambda x: x is not None, modified_arg_list))
 
 
 @contextmanager
