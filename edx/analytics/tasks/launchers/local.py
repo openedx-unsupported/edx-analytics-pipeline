@@ -46,10 +46,6 @@ def main():
         default=None, action='append')
     arguments, _extra_args = parser.parse_known_args()
 
-    # This is a relative level of terrible depending on who you are.  We're removing our --additional-config command
-    # arguments because Luigi will blow up if the underlying workflow isn't actually saying that it expects to see
-    # an argument called --additional-config.
-
     # We get a cleaned command-line arguments list, free of the arguments *we* care about, since Luigi will throw
     # errors when it sees arguments that it or the workflow didn't specify.  We pass these in when invoking Luigi.
     cmdline_args = get_cleaned_command_line_args()
