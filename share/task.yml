@@ -184,10 +184,6 @@
     - name: configuration override removed
       file: path={{ working_repo_dir }}/override.cfg state=absent
 
-    - name: secure config installed
-      command: cp {{ working_dir }}/{{ secure_config }} {{ working_repo_dir }}/override.cfg
-      when: secure_config is defined
-
     - name: configuration override installed
       copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644
       when: override_config is defined
