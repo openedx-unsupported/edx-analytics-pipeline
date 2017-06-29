@@ -9,8 +9,8 @@ install: requirements uninstall
 	python setup.py install --force
 
 bootstrap: uninstall
-	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/base.txt
+	pip install -U -r requirements/pre.txt --no-cache-dir
+	pip install -U -r requirements/base.txt --no-cache-dir
 	python setup.py install --force
 
 develop: requirements develop-local
@@ -28,12 +28,12 @@ else
 endif
 
 requirements:
-	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/default.txt
-	pip install -U -r requirements/extra.txt
+	pip install -U -r requirements/pre.txt --no-cache-dir
+	pip install -U -r requirements/default.txt --no-cache-dir
+	pip install -U -r requirements/extra.txt --no-cache-dir
 
 test-requirements: requirements
-	pip install -U -r requirements/test.txt
+	pip install -U -r requirements/test.txt --no-cache-dir
 
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
@@ -67,7 +67,7 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	pip install -U -r requirements/docs.txt
+	pip install -U -r requirements/docs.txt --no-cache-dir
 	python setup.py install --force
 
 docs-local:
