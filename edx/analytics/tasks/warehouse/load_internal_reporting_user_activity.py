@@ -58,7 +58,7 @@ class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
             SELECT
               au.id
             , uad.course_id
-            , uad.date
+            , uad.`date`
             , uad.category
             , uad.count
             FROM auth_user au
