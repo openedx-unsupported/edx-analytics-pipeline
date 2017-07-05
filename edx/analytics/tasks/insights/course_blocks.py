@@ -61,7 +61,7 @@ class CourseBlocksDownstreamMixin(TimestampPartitionMixin, WarehouseMixin, Overw
                     'CourseListPartitionTask.'
     )
     partition_format = luigi.Parameter(
-        config_path={'section': 'course_blocks', 'name': 'partition_format'},
+        config_path={'section': 'course-blocks', 'name': 'partition_format'},
         default='%Y-%m-%d',
         description='Format string for the course blocks table partition\'s `date` parameter. '
                     'Must result in a filename-safe string, or your partitions will fail to be created.\n'
