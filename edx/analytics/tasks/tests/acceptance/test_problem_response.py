@@ -67,9 +67,19 @@ class ProblemResponseReportWorkflowAcceptanceTest(AcceptanceTestCase):
         """Run the ProblemResponseReportWorkflow task and test the output."""
         marker_path = url_path_join(self.test_out, 'marker-{}'.format(str(time.time())))
         report_date = self.DATE.strftime('%Y-%m-%d')
+
+        # The test tracking.log file contains problem_check events for 2016-09-06, 09-07, and 09-08.
+        # However, to test the interval parameter propagation, we deliberately exclude all but the 2016-09-07 events.
+        #
+        # This is important because this task can be run multiple times a day, and so must be configurable to have an
+        # interval-end of "tomorrow", which will include all events from today.
+        interval_start = '2016-09-07'
+        interval_end = '2016-09-08'
+
         self.task.launch([
             'ProblemResponseReportWorkflow',
-            '--interval', '2016-09-01-2016-09-08',
+            '--interval-start', interval_start,
+            '--interval-end', interval_end,
             '--date', report_date,
             '--marker', marker_path,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),

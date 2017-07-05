@@ -504,6 +504,7 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
             **kwargs
         )
         self.problem_response_partition = LatestProblemResponsePartitionTask(
+            partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,
             interval_end=self.interval_end,
@@ -598,6 +599,10 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
         """
         return ProblemResponseLocationPartitionTask(
             date=self.date,
+            partition_format=self.partition_format,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
             overwrite=self.overwrite,
             mapreduce_engine=self.mapreduce_engine,
             lib_jar=self.lib_jar,
