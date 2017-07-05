@@ -146,7 +146,17 @@ class CourseEnrollmentEventsTask(
         return tasks
 
     def run(self):
+        # This removes the marker file.
         self.remove_output_on_overwrite()
+        # We also want to remove the output files before running, in case output
+        # is to HDFS.  (On HDFS, files cannot be renamed to an already-existing file.)
+        if self.overwrite:
+            for date in self.interval:
+                url = self.output_path_for_key(date.isoformat())
+                target = get_target_from_url(url)
+                if target.exists():
+                    target.remove()
+
         super(CourseEnrollmentEventsTask, self).run()
 
         # This makes sure that a output file exists for each date in the interval
