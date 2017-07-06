@@ -9,7 +9,7 @@ install: requirements uninstall
 	python setup.py install --force
 
 bootstrap: uninstall
-	pip install -U -r requirements/pre.txt --no-cache-dir
+	pip install -U -r requirements/pre.txt
 	pip install -U -r requirements/base.txt --no-cache-dir
 	python setup.py install --force
 
@@ -28,7 +28,7 @@ else
 endif
 
 requirements:
-	pip install -U -r requirements/pre.txt --no-cache-dir
+	pip install -U -r requirements/pre.txt
 	pip install -U -r requirements/default.txt --no-cache-dir
 	pip install -U -r requirements/extra.txt --no-cache-dir
 
