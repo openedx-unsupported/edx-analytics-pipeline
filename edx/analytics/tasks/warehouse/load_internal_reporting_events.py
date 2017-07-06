@@ -1189,7 +1189,7 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
 
     @property
     def table_partition_key(self):
-        return 'date'
+        return 'SUBSTR(date, 0, 8)'
 
 
 class LoadEventRecordIntervalToVertica(EventRecordDownstreamMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
