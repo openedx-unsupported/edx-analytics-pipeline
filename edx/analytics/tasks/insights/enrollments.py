@@ -146,7 +146,17 @@ class CourseEnrollmentEventsTask(
         return tasks
 
     def run(self):
+        # This removes the marker file.
         self.remove_output_on_overwrite()
+        # We also want to remove the output files before running, in case output
+        # is to HDFS.  (On HDFS, files cannot be renamed to an already-existing file.)
+        if self.overwrite:
+            for date in self.interval:
+                url = self.output_path_for_key(date.isoformat())
+                target = get_target_from_url(url)
+                if target.exists():
+                    target.remove()
+
         super(CourseEnrollmentEventsTask, self).run()
 
         # This makes sure that a output file exists for each date in the interval
@@ -1199,7 +1209,7 @@ class CourseGradeByModeRecord(Record):
     passing_users = IntegerField(nullable=True, description='The count of currently passing learners')
 
 
-class CourseGradeByModeTableTask(CourseSummaryEnrollmentDownstreamMixin, BareHiveTableTask):  # pragma: no cover
+class CourseGradeByModeTableTask(BareHiveTableTask):  # pragma: no cover
     """Creates the `course_grade_by_mode` Hive storage table."""
 
     @property
@@ -1215,8 +1225,11 @@ class CourseGradeByModeTableTask(CourseSummaryEnrollmentDownstreamMixin, BareHiv
         return CourseGradeByModeRecord.get_hive_schema()
 
 
-class CourseGradeByModePartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
     """Creates storage partition for the `course_grade_by_mode` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
 
     @property
     def hive_table_task(self):
