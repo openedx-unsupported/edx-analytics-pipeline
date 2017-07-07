@@ -61,7 +61,7 @@ class CourseBlocksDownstreamMixin(TimestampPartitionMixin, WarehouseMixin, Overw
                     'CourseListPartitionTask.'
     )
     partition_format = luigi.Parameter(
-        config_path={'section': 'course_blocks', 'name': 'partition_format'},
+        config_path={'section': 'course-blocks', 'name': 'partition_format'},
         default='%Y-%m-%d',
         description='Format string for the course blocks table partition\'s `date` parameter. '
                     'Must result in a filename-safe string, or your partitions will fail to be created.\n'
@@ -90,20 +90,17 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
     )
 
     def requires(self):
-        results = {
-            'course_list': CourseListApiDataTask(
-                date=self.date,
-                output_root=self.input_root,
-                overwrite=self.overwrite,
-            )
-        }
-        return results
+        return CourseListApiDataTask(
+            date=self.date,
+            output_root=self.input_root,
+            overwrite=self.overwrite,
+        )
 
     def run(self):
         self.remove_output_on_overwrite()
 
         courses = []
-        with self.input()['course_list'].open('r') as course_list_file:
+        with self.input().open('r') as course_list_file:
             for line in course_list_file:
                 course = CourseRecord.from_tsv(line)
                 courses.append(course.course_id)
@@ -283,7 +280,7 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
 
     def complete(self):
         """
-        The task is complete if the output_root file is present.
+        The task is complete if the output_root/_SUCCESS file is present.
         """
         return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
 
@@ -379,9 +376,3 @@ class CourseBlocksPartitionTask(CourseBlocksDownstreamMixin, MapReduceJobTaskMix
     def output_root(self):
         """Expose the partition location path as the output root."""
         return self.partition_location
-
-    def complete(self):
-        """
-        The task is complete if the output_root/_SUCCESS file is present.
-        """
-        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()

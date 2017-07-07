@@ -65,7 +65,6 @@ class CourseBlocksTestMixin(object):
             shutil.rmtree(dirname)
 
 
-@ddt
 class CourseBlocksApiDataTaskTest(CourseBlocksTestMixin, TestCase):
     """Tests the CourseBlocksApiDataTask basic functions. """
 

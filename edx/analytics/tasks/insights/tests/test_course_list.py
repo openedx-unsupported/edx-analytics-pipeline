@@ -46,6 +46,20 @@ class CourseListTestMixin(object):
             shutil.rmtree(dirname)
 
 
+class CourseListApiDataTaskTest(CourseListTestMixin, TestCase):
+    """Tests the CourseBlocksApiDataTask basic functions. """
+
+    def test_complete(self):
+        self.create_task()
+        self.assertFalse(self.task.complete())
+
+        # Create the output_root/_SUCCESS file
+        with open(os.path.join(self.output_dir, '_SUCCESS'), 'w') as success:
+            success.write('')
+        self.assertTrue(self.task.output().exists())
+        self.assertTrue(self.task.complete())
+
+
 @ddt
 class CourseListApiDataMapperTaskTest(CourseListTestMixin, MapperTestMixin, TestCase):
     """Tests the CourseListApiDataTask mapper output"""

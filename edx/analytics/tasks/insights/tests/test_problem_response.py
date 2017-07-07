@@ -603,6 +603,7 @@ class LatestProblemResponsePartitionTaskTest(ProblemResponseTestMixin, TestCase)
         """Create the task"""
         self.task = self.task_class(
             warehouse_path=self.output_dir,
+            date=self.timestamp,
             **kwargs
         )
 

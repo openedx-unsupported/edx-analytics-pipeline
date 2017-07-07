@@ -63,7 +63,7 @@ class TimestampPartitionMixin(object):
                     'be used to create time-based data partitions.',
     )
     partition_format = luigi.Parameter(
-        config_path={'section': 'course_list', 'name': 'partition_format'},
+        config_path={'section': 'course-list', 'name': 'partition_format'},
         default='%Y-%m-%d',
         description='Format string for the course list table partition\'s `date` parameter. '
                     'Must result in a filename-safe string, or your partitions will fail to be created.\n'
@@ -160,7 +160,7 @@ class CourseListApiDataTask(CourseListDownstreamMixin, MapReduceJobTask):
 
         course = json.loads(line)
 
-        # eucalpytus API uses 'id' instead of 'course_id'
+        # eucalyptus API uses 'id' instead of 'course_id'
         if 'id' in course:
             course_id = course['id']
             del course['id']
@@ -269,9 +269,3 @@ class CourseListPartitionTask(CourseListDownstreamMixin, MapReduceJobTaskMixin, 
     def output_root(self):
         """Expose the partition location path as the output root."""
         return self.partition_location
-
-    def complete(self):
-        """
-        The task is complete if the output_root/_SUCCESS file is present.
-        """
-        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()

@@ -27,23 +27,59 @@ class ProblemResponseReportWorkflowAcceptanceTest(AcceptanceTestCase):
         """Copy the input data into place."""
         super(ProblemResponseReportWorkflowAcceptanceTest, self).setUp()
 
-        # Copy course list and course blocks REST API data
-        for table_name in ('course_list', 'course_blocks'):
-            daily_partition = "dt=" + self.DATE.strftime(self.DAILY_PARTITION_FORMAT)
-            file_name = table_name + '.json'
-            self.upload_file(url_path_join(self.data_dir, 'input', file_name),
-                             url_path_join(self.warehouse_path, table_name + '_raw', daily_partition, file_name))
+        self.partition = "dt=" + self.DATE.strftime(self.DAILY_PARTITION_FORMAT)
 
         # Copy tracking logs into hdfs
         self.upload_tracking_log(url_path_join(self.data_dir, 'input', self.TRACKING_LOG), self.DATE)
 
-    def test_problem_response_report(self):
-        """Run the ProblemResponseReportWorkflow task and test its output."""
+    def setup_raw_input(self):
+        """Copy raw course list and course blocks REST API data into warehouse."""
+        for table_name in ('course_list', 'course_blocks'):
+            file_name = table_name + '.json'
+            self.upload_file(url_path_join(self.data_dir, 'input', file_name),
+                             url_path_join(self.warehouse_path, table_name + '_raw', self.partition, file_name))
+
+    def setup_hive_input(self):
+        """Copy processed hive course list and course blocks data into warehouse."""
+        for table_name in ('course_list', 'course_blocks'):
+            for file_name in ('part-00000', 'part-00001', '_SUCCESS'):
+                self.upload_file(url_path_join(self.data_dir, 'output', table_name, file_name),
+                                 url_path_join(self.warehouse_path, table_name, self.partition, file_name))
+
+    def test_problem_response_report_raw_input(self):
+        """
+        Run the ProblemResponseReportWorkflow task against raw json input data, to simulate running the reports
+        prior to having course hive data.
+        """
+        self.setup_raw_input()
+        self.validate_problem_response_report()
+
+    def test_problem_response_report_hive_input(self):
+        """
+        Run the ProblemResponseReportWorkflow task against previously-processed hive input data, to simulate running the
+        reports after course hive data has been processed.  This is what happens when the problem respons report task
+        runs more frequently than the course data tasks.
+        """
+        self.setup_hive_input()
+        self.validate_problem_response_report()
+
+    def validate_problem_response_report(self):
+        """Run the ProblemResponseReportWorkflow task and test the output."""
         marker_path = url_path_join(self.test_out, 'marker-{}'.format(str(time.time())))
         report_date = self.DATE.strftime('%Y-%m-%d')
+
+        # The test tracking.log file contains problem_check events for 2016-09-06, 09-07, and 09-08.
+        # However, to test the interval parameter propagation, we deliberately exclude all but the 2016-09-07 events.
+        #
+        # This is important because this task can be run multiple times a day, and so must be configurable to have an
+        # interval-end of "tomorrow", which will include all events from today.
+        interval_start = '2016-09-07'
+        interval_end = '2016-09-08'
+
         self.task.launch([
             'ProblemResponseReportWorkflow',
-            '--interval', '2016-09-01-2016-09-08',
+            '--interval-start', interval_start,
+            '--interval-end', interval_end,
             '--date', report_date,
             '--marker', marker_path,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),

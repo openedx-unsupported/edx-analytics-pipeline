@@ -388,12 +388,6 @@ class LatestProblemResponsePartitionTask(ProblemResponseTableMixin, HivePartitio
         """Expose the partition location path as the output root."""
         return self.partition_location
 
-    def complete(self):
-        """
-        The task is complete if the output_root/_SUCCESS file is present.
-        """
-        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
-
     @property
     def hive_table_task(self):
         return LatestProblemResponseTableTask(
@@ -510,6 +504,7 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
             **kwargs
         )
         self.problem_response_partition = LatestProblemResponsePartitionTask(
+            partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,
             interval_end=self.interval_end,
@@ -524,12 +519,6 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
     def output_root(self):
         """Expose the partition location path as the output root."""
         return self.partition_location
-
-    def complete(self):
-        """
-        The task is complete if the output_root is present.
-        """
-        return get_target_from_url(self.output_root).exists()
 
     @property
     def hive_table_task(self):
@@ -610,6 +599,10 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
         """
         return ProblemResponseLocationPartitionTask(
             date=self.date,
+            partition_format=self.partition_format,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
             overwrite=self.overwrite,
             mapreduce_engine=self.mapreduce_engine,
             lib_jar=self.lib_jar,
