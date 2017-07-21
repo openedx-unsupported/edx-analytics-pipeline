@@ -48,7 +48,7 @@ class ActiveUsersAcceptanceTest(AcceptanceTestCase):
             expected_output_data = read_csv_fixture_as_list(expected_output_csv)
             expected = pandas.DataFrame(expected_output_data, columns=columns)
 
-            cursor.execute("SELECT * FROM {schema}.f_active_users_this_year".format(schema=self.vertica.schema_name))
+            cursor.execute("SELECT * FROM {schema}.f_active_users_per_week".format(schema=self.vertica.schema_name))
             response = cursor.fetchall()
             f_active_users_this_year = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
 
