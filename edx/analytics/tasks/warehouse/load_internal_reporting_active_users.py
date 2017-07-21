@@ -4,13 +4,14 @@ import datetime
 import os
 import logging
 import luigi
+import isoweek
 
 from edx.analytics.tasks.common.pathutil import (
     PathSetTask,
     EventLogSelectionMixin,
     EventLogSelectionDownstreamMixin,
 )
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import IncrementalVerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, BareHiveTableTask, HivePartitionTask
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
@@ -38,7 +39,7 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
 
         if value is None:
             return
-        event, _date_string = value
+        event, date_string = value
 
         username = eventlog.get_event_username(event)
 
@@ -47,18 +48,29 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
             self.incr_counter('Active Users last year', 'Discard Event Missing username', 1)
             return
 
-        yield username, 1
+        date = datetime.date(*[int(x) for x in date_string.split('-')])
+        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        week = isoweek.Week(iso_year, iso_weekofyear)
+        start_date = week.monday().isoformat()
+        end_date = (week.sunday() + datetime.timedelta(1)).isoformat()
+
+        yield (start_date, end_date, username), 1
 
     def reducer(self, key, values):
-        yield self.interval.date_a.isoformat(), self.interval.date_b.isoformat(), key
+        yield key
 
     def output(self):
-        output_url = self.hive_partition_path('active_users_this_year', self.interval.date_b)
+        output_url = self.hive_partition_path('active_users_per_week', self.interval.date_b)
         return get_target_from_url(output_url)
 
     def run(self):
         self.remove_output_on_overwrite()
         super(ActiveUsersTask, self).run()
+
+    def extra_modules(self):
+        import isoweek
+        return [isoweek]
+
 
 class ActiveUsersTableTask(BareHiveTableTask):
     """Hive table that stores the active users over time."""
@@ -69,18 +81,18 @@ class ActiveUsersTableTask(BareHiveTableTask):
 
     @property
     def table(self):
-        return 'active_users_this_year'
+        return 'active_users_per_week'
 
     @property
     def columns(self):
         return [
-            ('window_start_date', 'STRING'),
-            ('window_end_date', 'STRING'),
+            ('start_date', 'STRING'),
+            ('end_date', 'STRING'),
             ('username', 'STRING'),
         ]
 
 
-class ActiveUsersPartitionTask(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, HivePartitionTask):
+class ActiveUsersPartitionTask(ActiveUsersDownstreamMixin, HivePartitionTask):
     """Creates hive table partition to hold active users data."""
 
     @property
@@ -107,37 +119,37 @@ class ActiveUsersPartitionTask(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, 
         )
 
 
-class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTask):
+class LoadInternalReportingActiveUsersToWarehouse(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, IncrementalVerticaCopyTask):
     """Loads the active_users_this_year hive table into Vertica warehouse."""
 
-    HIVE_TABLE = 'active_users_this_year'
-
-    date = luigi.DateParameter()
-
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingActiveUsersToWarehouse, self).__init__(*args, **kwargs)
-
-        path = url_path_join(self.warehouse_path, self.HIVE_TABLE)
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+    HIVE_TABLE = 'active_users_per_week'
 
     @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.load_date.isoformat())  # pylint: disable=no-member
+    def record_filter(self):
+        return "start_date='{start_date}' and end_date='{end_date}'".format(
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat()
+        )
+
+    def update_id(self):
+        return '{task_name}(start_date={start_date},end_date={end_date})'.format(
+            task_name=self.task_family,
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat()
+        )
 
     @property
     def insert_source_task(self):
-        partition_location = url_path_join(self.warehouse_path, self.HIVE_TABLE, self.partition.path_spec) + '/'
-        return ExternalURL(url=partition_location)
+        return ActiveUsersPartitionTask(
+            interval=self.interval,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        ).data_task
 
     @property
     def table(self):
-        return 'f_active_users_this_year'
+        return 'f_active_users_per_week'
 
     @property
     def auto_primary_key(self):
@@ -151,7 +163,46 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
     @property
     def columns(self):
         return [
-            ('window_start_date', 'DATE'),
-            ('window_end_date', 'DATE'),
+            ('start_date', 'DATE'),
+            ('end_date', 'DATE'),
             ('username', 'VARCHAR(45) NOT NULL'),
         ]
+
+
+class ActiveUsersWorkflow(ActiveUsersDownstreamMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+
+    date = luigi.DateParameter()
+    overwrite_n_weeks = luigi.IntParameter(default=1)
+    interval = None
+
+    def requires(self):
+        kwargs = {
+            'schema': self.schema,
+            'credentials': self.credentials,
+            'weeks': 1,
+            'warehouse_path': self.warehouse_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+        }
+
+        yield LoadInternalReportingActiveUsersToWarehouse(
+            end_date=self.date,
+            overwrite=self.overwrite,
+            **kwargs
+        )
+
+        weeks_to_overwrite = self.overwrite_n_weeks
+        end_date = self.date
+
+        while weeks_to_overwrite > 0:
+            end_date = end_date - datetime.timedelta(weeks=1)
+
+            yield LoadInternalReportingActiveUsersToWarehouse(
+                end_date=end_date,
+                overwrite=True,
+                **kwargs
+            )
+            weeks_to_overwrite -= 1
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))

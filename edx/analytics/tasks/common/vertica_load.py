@@ -521,6 +521,68 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             raise ImportError('Vertica client library not available')
 
 
+class IncrementalVerticaCopyTask(VerticaCopyTask):
+    """
+    A task for copying data into a Vertica database incrementally.
+
+    If overwrite is True, this task only deletes a subset of the table being written to
+    and only deletes table_updates row with the same update_id.
+    """
+
+    def init_copy(self, connection):
+        self.attempted_removal = True
+        if self.overwrite:
+            # Before changing the current contents table, we have to make sure there
+            # are no aggregate projections on it.
+            self.drop_aggregate_projections(connection)
+
+            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+            # commit the currently open transaction before continuing with the copy.
+            query = "DELETE FROM {schema}.{table} where {record_filter}".format(
+                schema=self.schema,
+                table=self.table,
+                record_filter=self.record_filter
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
+
+    def init_touch(self, connection):
+        if self.overwrite:
+            # Clear the appropriate rows from the luigi Vertica marker table
+            marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            marker_schema = self.output().marker_schema
+            try:
+                query = "DELETE FROM {marker_schema}.{marker_table} where update_id='{update_id}';".format(
+                    marker_schema=marker_schema,
+                    marker_table=marker_table,
+                    update_id=self.update_id(),
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+            except vertica_python.errors.Error as err:
+                if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
+                    # If so, then our query error failed because the table doesn't exist.
+                    pass
+                else:
+                    raise
+        connection.cursor().flush_to_query_ready()
+
+    @property
+    def record_filter(self):
+        """
+        A string that specifies the data to overwrite, this will be the entire WHERE clause of the generated query.
+        """
+        raise NotImplementedError
+
+
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
     """
     Base class for running schema management commands on warehouse.
