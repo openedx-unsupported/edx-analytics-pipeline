@@ -25,7 +25,7 @@ class ActiveUsersAcceptanceTest(AcceptanceTestCase):
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'active_users'),
-            url_path_join(self.warehouse_path, 'active_users_this_year', 'dt=2017-06-05', 'active_users')
+            url_path_join(self.warehouse_path, 'active_users_per_week', 'dt=2017-07-21', 'active_users')
         )
 
     @when_vertica_available
@@ -40,10 +40,10 @@ class ActiveUsersAcceptanceTest(AcceptanceTestCase):
     def validate_output(self):
         """Validates the output, comparing it to a csv of expected output."""
 
-        columns = ['window_start_date', 'window_end_date', 'username']
+        columns = ['start_date', 'end_date', 'username']
 
         with self.vertica.cursor() as cursor:
-            expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_active_users_this_year.csv')
+            expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_active_users_per_week.csv')
 
             expected_output_data = read_csv_fixture_as_list(expected_output_csv)
             expected = pandas.DataFrame(expected_output_data, columns=columns)

@@ -38,7 +38,7 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
 
         if value is None:
             return
-        event, _date_string = value
+        event, date_string = value
 
         username = eventlog.get_event_username(event)
 
@@ -47,18 +47,30 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
             self.incr_counter('Active Users last year', 'Discard Event Missing username', 1)
             return
 
-        yield username, 1
+        date = datetime.date(*[int(x) for x in date_string.split('-')])
+        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        week = isoweek.Week(iso_year, iso_weekofyear)
+        start_date = week.monday().isoformat()
+        end_date = (week.sunday() + datetime.timedelta(1)).isoformat()
+
+        yield (start_date, end_date, username), 1
 
     def reducer(self, key, values):
-        yield self.interval.date_a.isoformat(), self.interval.date_b.isoformat(), key
+        yield key
+        #yield self.interval.date_a.isoformat(), self.interval.date_b.isoformat(), key
 
     def output(self):
-        output_url = self.hive_partition_path('active_users_this_year', self.interval.date_b)
+        output_url = self.hive_partition_path('active_users_per_week', self.interval.date_b)
         return get_target_from_url(output_url)
 
     def run(self):
         self.remove_output_on_overwrite()
         super(ActiveUsersTask, self).run()
+
+    def extra_modules(self):
+        import isoweek
+        return [isoweek]
+
 
 class ActiveUsersTableTask(BareHiveTableTask):
     """Hive table that stores the active users over time."""
@@ -69,13 +81,13 @@ class ActiveUsersTableTask(BareHiveTableTask):
 
     @property
     def table(self):
-        return 'active_users_this_year'
+        return 'active_users_per_week'
 
     @property
     def columns(self):
         return [
-            ('window_start_date', 'STRING'),
-            ('window_end_date', 'STRING'),
+            ('start_date', 'STRING'),
+            ('end_date', 'STRING'),
             ('username', 'STRING'),
         ]
 
@@ -110,7 +122,7 @@ class ActiveUsersPartitionTask(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, 
 class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTask):
     """Loads the active_users_this_year hive table into Vertica warehouse."""
 
-    HIVE_TABLE = 'active_users_this_year'
+    HIVE_TABLE = 'active_users_per_week'
 
     date = luigi.DateParameter()
 
@@ -137,7 +149,7 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
 
     @property
     def table(self):
-        return 'f_active_users_this_year'
+        return 'f_active_users_per_week'
 
     @property
     def auto_primary_key(self):
@@ -151,7 +163,7 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
     @property
     def columns(self):
         return [
-            ('window_start_date', 'DATE'),
-            ('window_end_date', 'DATE'),
+            ('start_date', 'DATE'),
+            ('end_date', 'DATE'),
             ('username', 'VARCHAR(45) NOT NULL'),
         ]
