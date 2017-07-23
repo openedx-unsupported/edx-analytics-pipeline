@@ -4,6 +4,7 @@ import datetime
 import os
 import logging
 import luigi
+import isoweek
 
 from edx.analytics.tasks.common.pathutil import (
     PathSetTask,
