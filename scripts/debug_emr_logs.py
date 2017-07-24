@@ -1,4 +1,5 @@
 import argparse
+from collections import deque
 import gzip
 import os
 import re
@@ -40,6 +41,11 @@ def main():
         action='store_true',
         help='Cleanup logs.'
     )
+    arg_parser.add_argument(
+        '-n', '--context',
+        type=int,
+        help='Number of lines of the log to include before the error.'
+    )
 
     args = arg_parser.parse_args()
 
@@ -64,7 +70,7 @@ def main():
 
     extract_files(args.output_path)
 
-    display_errors(args.output_path)
+    display_errors(args.output_path, args.context)
 
     if args.cleanup:
         shutil.rmtree(args.output_path)
@@ -96,7 +102,7 @@ def extract_files(root_path):
                             output_file.write(line)
 
 
-def display_errors(root_path):
+def display_errors(root_path, context=0):
     error_text = []
 
     for path, dirs, files in os.walk(root_path):
@@ -104,10 +110,20 @@ def display_errors(root_path):
             if filename == 'stderr':
                 filename_with_path = os.path.join(path, filename)
                 with open(filename_with_path) as f:
-                    data = f.read()
-                    for exc in re.findall(r'luigi-exc-hex=[0-9a-f]+', data):
-                        error_text.append(filename_with_path)
-                        hex_string = exc.split('=')[-1]
+                    context_buffer = deque()
+                    for line in f:
+                        match = re.match(r'luigi-exc-hex=([0-9a-f]+)', line)
+                        if not match:
+                            if context:
+                                context_buffer.append(line)
+                                if len(context_buffer) > context:
+                                    context_buffer.popleft()
+                            continue
+                        else:
+                            hex_string = match.group(1)
+
+                        print('---' + filename_with_path)
+                        print(''.join(context_buffer))
                         if hasattr(hex_string, 'decode'):
                             # Python 2.X
                             err = hex_string.decode('hex')
@@ -115,9 +131,8 @@ def display_errors(root_path):
                             # Python 3.X
                             import binascii
                             err = binascii.unhexlify(hex_string).decode('utf8')
-                        error_text.append(err)
+                        print(err)
 
-    print('\n'.join(error_text))
 
 if __name__ == '__main__':
     main()
