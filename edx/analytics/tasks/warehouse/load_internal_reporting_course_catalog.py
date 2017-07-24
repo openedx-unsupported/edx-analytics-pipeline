@@ -38,6 +38,13 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
         default=None,
         description="A list of partner short codes that we should fetch data for."
     )
+    partner_api_urls = luigi.Parameter(
+        default_from_config={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
+        is_list=True,
+        default=None,
+        description="A list of API URLs that are associated with the partner_short_codes.  This list must exactly " +
+                    "match the ordering of the partner_short_codes list."
+    )
     api_root_url = luigi.Parameter(
         config_path={'section': 'course-catalog-api', 'name': 'api_root_url'},
         default=None,
@@ -66,9 +73,22 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
                     'partner': partner_short_code,
                     'exclude_utm': 1,
                 }
-                if not self.api_root_url:
-                    raise luigi.parameter.MissingParameterException("Missing api_root_url.")
-                url = url_path_join(self.api_root_url, 'course_runs') + '/'
+
+                if self.partner_api_urls:
+                    url_index = short_codes.index(partner_short_code)
+
+                    if url_index >= self.partner_api_urls.__len__():
+                        raise luigi.parameter.MissingParameterException(
+                            "Error!  Index of the partner short code from partner_short_codes exceeds the length of "
+                            "partner_api_urls.  These lists are not in sync!!!")
+                    api_root_url = self.partner_api_urls[url_index]
+                elif self.api_root_url:
+                    api_root_url = self.api_root_url
+                else:
+                    raise luigi.parameter.MissingParameterException("Missing either a partner_api_urls or an " +
+                                                                    "api_root_url.")
+
+                url = url_path_join(api_root_url, 'course_runs') + '/'
                 for response in client.paginated_get(url, params=params):
                     parsed_response = response.json()
                     counter = 0
