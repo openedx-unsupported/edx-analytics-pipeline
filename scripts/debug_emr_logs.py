@@ -71,14 +71,12 @@ def main():
 
 
 def download_emr_logs(s3_emr_logs_url, output_path):
-    print("Downloading logs.")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    proc = Popen(
-        ['aws', 's3', 'sync', s3_emr_logs_url, output_path, '--exclude', '*', '--include', '*stderr.gz'],
-        stdout=PIPE,
-    )
+    cmd = ['aws', 's3', 'sync', s3_emr_logs_url, output_path, '--exclude', '*', '--include', '*stderr.gz']
+    print('Downloading logs using command: ' + ' '.join(cmd))
+    proc = Popen(cmd, stdout=PIPE)
     stdout = proc.communicate()[0]
     return proc.returncode
 
@@ -109,7 +107,15 @@ def display_errors(root_path):
                     data = f.read()
                     for exc in re.findall(r'luigi-exc-hex=[0-9a-f]+', data):
                         error_text.append(filename_with_path)
-                        error_text.append(exc.split('=')[-1].decode('hex'))
+                        hex_string = exc.split('=')[-1]
+                        if hasattr(hex_string, 'decode'):
+                            # Python 2.X
+                            err = hex_string.decode('hex')
+                        else:
+                            # Python 3.X
+                            import binascii
+                            err = binascii.unhexlify(hex_string).decode('utf8')
+                        error_text.append(err)
 
     print('\n'.join(error_text))
 
