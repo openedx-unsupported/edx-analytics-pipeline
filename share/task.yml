@@ -194,6 +194,9 @@
 
     - name: boto configured
       copy: src=boto.cfg dest={{ working_repo_dir }}/.boto mode=644
+      
+    - name: awscli upgraded
+      command: sudo pip install awscli --upgrade
 
     - name: show working directory
       debug: var=working_repo_dir
