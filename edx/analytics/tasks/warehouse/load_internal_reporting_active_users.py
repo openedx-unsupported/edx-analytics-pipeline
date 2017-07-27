@@ -11,7 +11,7 @@ from edx.analytics.tasks.common.pathutil import (
     EventLogSelectionMixin,
     EventLogSelectionDownstreamMixin,
 )
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, BareHiveTableTask, HivePartitionTask
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
@@ -20,6 +20,16 @@ from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 
 log = logging.getLogger(__name__)
+
+try:
+    import vertica_python
+    from vertica_python.errors import QueryError
+    vertica_client_available = True  # pylint: disable=invalid-name
+except ImportError:
+    log.warn('Unable to import Vertica client libraries')
+    # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
+    # them, instead just fail noisily if we attempt to use these libraries.
+    vertica_client_available = False  # pylint: disable=invalid-name
 
 
 class ActiveUsersDownstreamMixin(
@@ -58,7 +68,6 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
 
     def reducer(self, key, values):
         yield key
-        #yield self.interval.date_a.isoformat(), self.interval.date_b.isoformat(), key
 
     def output(self):
         output_url = self.hive_partition_path('active_users_per_week', self.interval.date_b)
@@ -120,33 +129,75 @@ class ActiveUsersPartitionTask(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, 
         )
 
 
-class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTask):
+class LoadInternalReportingActiveUsersToWarehouse(ActiveUsersDownstreamMixin, VerticaCopyTask):
     """Loads the active_users_this_year hive table into Vertica warehouse."""
 
     HIVE_TABLE = 'active_users_per_week'
 
     date = luigi.DateParameter()
 
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingActiveUsersToWarehouse, self).__init__(*args, **kwargs)
+    interval = None
 
-        path = url_path_join(self.warehouse_path, self.HIVE_TABLE)
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
+    def init_copy(self, connection):
+        self.attempted_removal = True
+        if self.overwrite:
+            # Before changing the current contents table, we have to make sure there
+            # are no aggregate projections on it.
+            self.drop_aggregate_projections(connection)
 
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+            # commit the currently open transaction before continuing with the copy.
+            query = "DELETE FROM {schema}.{table} where end_date='{date}'".format(
+                schema=self.schema,
+                table=self.table,
+                date=self.date.isoformat())
+            log.debug(query)
+            connection.cursor().execute(query)
 
-    @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.load_date.isoformat())  # pylint: disable=no-member
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
+
+    def init_touch(self, connection):
+        if self.overwrite:
+            # Clear the appropriate rows from the luigi Vertica marker table
+            marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            marker_schema = self.output().marker_schema
+            try:
+                query = "DELETE FROM {marker_schema}.{marker_table} where update_id='{update_id}';".format(
+                    marker_schema=marker_schema,
+                    marker_table=marker_table,
+                    update_id=self.update_id(),
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+            except vertica_python.errors.Error as err:
+                if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
+                    # If so, then our query error failed because the table doesn't exist.
+                    pass
+                else:
+                    raise
+        connection.cursor().flush_to_query_ready()
+
+    def update_id(self):
+        return '{task_name}(date={date})'.format(
+            task_name=self.task_family,
+            date=self.date.isoformat()
+        )
 
     @property
     def insert_source_task(self):
-        partition_location = url_path_join(self.warehouse_path, self.HIVE_TABLE, self.partition.path_spec) + '/'
-        return ExternalURL(url=partition_location)
+        return ActiveUsersPartitionTask(
+            end_date=self.date,
+            weeks=1,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        ).data_task
 
     @property
     def table(self):
@@ -168,3 +219,40 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
             ('end_date', 'DATE'),
             ('username', 'VARCHAR(45) NOT NULL'),
         ]
+
+
+class ActiveUsersWorkflow(ActiveUsersDownstreamMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+
+    date = luigi.DateParameter()
+    overwrite_n_weeks = luigi.IntParameter(default=1)
+    interval = None
+
+    def requires(self):
+        yield LoadInternalReportingActiveUsersToWarehouse(
+            schema=self.schema,
+            credentials=self.credentials,
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            n_reduce_tasks=self.n_reduce_tasks,
+            overwrite=self.overwrite,
+        )
+
+        weeks_to_overwrite = self.overwrite_n_weeks
+        end_date = self.date
+
+        while weeks_to_overwrite > 0:
+            end_date = end_date - datetime.timedelta(weeks=1)
+
+            yield LoadInternalReportingActiveUsersToWarehouse(
+                schema=self.schema,
+                credentials=self.credentials,
+                date=end_date,
+                warehouse_path=self.warehouse_path,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=True,
+            )
+            weeks_to_overwrite -= 1
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))
