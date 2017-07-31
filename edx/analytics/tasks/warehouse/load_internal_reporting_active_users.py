@@ -110,7 +110,7 @@ class ActiveUsersPartitionTask(WeeklyIntervalMixin, ActiveUsersDownstreamMixin, 
 class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTask):
     """Loads the active_users_this_year hive table into Vertica warehouse."""
 
-    HIVE_TABLE = 'active_users_this_year'
+    HIVE_TABLE = 'active_users_per_week'
 
     date = luigi.DateParameter()
 
@@ -137,7 +137,7 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
 
     @property
     def table(self):
-        return 'f_active_users_this_year'
+        return 'f_active_users_per_week'
 
     @property
     def auto_primary_key(self):
@@ -151,7 +151,7 @@ class LoadInternalReportingActiveUsersToWarehouse(WarehouseMixin, VerticaCopyTas
     @property
     def columns(self):
         return [
-            ('window_start_date', 'DATE'),
-            ('window_end_date', 'DATE'),
+            ('start_date', 'DATE'),
+            ('end_date', 'DATE'),
             ('username', 'VARCHAR(45) NOT NULL'),
         ]
