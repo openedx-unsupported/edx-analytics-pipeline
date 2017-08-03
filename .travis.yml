@@ -1,6 +1,7 @@
 language: python
 python:
   - "2.7"
+
 cache: pip
 
 addons:
@@ -9,6 +10,9 @@ addons:
       - libblas-dev
       - liblapack-dev
       - libatlas-base-dev
+
+before_install:
+  - export BOTO_CONFIG=/dev/null
 
 script:
   - make test
