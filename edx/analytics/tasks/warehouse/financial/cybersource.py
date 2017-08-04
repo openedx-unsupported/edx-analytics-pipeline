@@ -12,6 +12,7 @@ from luigi import date_interval
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
 
 log = logging.getLogger(__name__)
 
@@ -190,9 +191,6 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
 class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Determines a set of dates to pull, and requires them."""
 
-    interval = luigi.DateIntervalParameter(
-        default=None,
-    )
     interval_end = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
         significant=False,
@@ -210,20 +208,27 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
         # Provide default for output_root at this level.
         if self.output_root is None:
             self.output_root = self.warehouse_path
-        if self.interval is None:
-            self.interval = date_interval.Custom(self.interval_start, self.interval_end)
+
+        self.run_date = self.interval_end - datetime.timedelta(days=1)
+        self.selection_interval = date_interval.Custom(self.interval_start, self.run_date)
 
     def requires(self):
         """Internal method to actually calculate required tasks once."""
-        args = {
-            'merchant_id': self.merchant_id,
-            'output_root': self.warehouse_path,
-            'overwrite': self.overwrite,
-        }
 
-        for run_date in self.interval:
-            args['run_date'] = run_date
-            yield DailyProcessFromCybersourceTask(**args)
+        yield PathSelectionByDateIntervalTask(
+            source=[url_path_join(self.warehouse_path, 'payments')],
+            interval=self.selection_interval,
+            pattern=['.*dt=(?P<date>\\d{{4}}-\\d{{2}}-\\d{{2}})/cybersource_{}\\.tsv'.format(self.merchant_id)],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        yield DailyProcessFromCybersourceTask(
+            merchant_id=self.merchant_id,
+            output_root=self.output_root,
+            run_date=self.run_date,
+            overwrite=self.overwrite,
+        )
 
     def output(self):
         return [task.output() for task in self.requires()]
