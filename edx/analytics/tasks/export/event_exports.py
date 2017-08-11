@@ -162,6 +162,12 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             )
         )
 
+    def event_export_counter(self, counter_title, incr_value=1):
+        """
+        A shorthand hadoop counter incrementer that organizes counters under a common title.
+        """
+        self.incr_counter("Event Export", counter_title, incr_value)
+
     def multi_output_reducer(self, key, values, output_file):
         """
         Write values to the appropriate file as determined by the key.
@@ -173,20 +179,28 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         def report_progress(num_bytes):
             """Update hadoop counters as the file is written"""
-            self.incr_counter('Event Export', 'Bytes Written to Output', num_bytes)
+            self.event_export_counter(counter_title='Bytes Written to Output', incr_value=num_bytes)
 
         key_file_targets = [get_target_from_url(url_path_join(self.gpg_key_dir, recipient)) for recipient in recipients]
-        with make_encrypted_file(output_file, key_file_targets, progress=report_progress) as encrypted_output_file:
-            outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
-            try:
-                for value in values:
-                    outfile.write(value.strip())
-                    outfile.write('\n')
-                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
-                    # Do not remove it.
-                    self.incr_counter('Event Export', 'Raw Bytes Written', len(value) + 1)
-            finally:
-                outfile.close()
+        try:
+            with make_encrypted_file(output_file, key_file_targets, progress=report_progress,
+                                     hadoop_counter_incr_func=self.event_export_counter) as encrypted_output_file:
+                outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
+                try:
+                    for value in values:
+                        outfile.write(value.strip())
+                        outfile.write('\n')
+                        # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite
+                        # loop.  Do not remove it.
+                        self.event_export_counter(counter_title='Raw Bytes Written', incr_value=(len(value) + 1))
+                finally:
+                    outfile.close()
+        except IOError as err:
+            log.error("Error encountered while encrypting and gzipping Organization: %s file: %s Exception: %s",
+                      org_id, key_file_targets, err)
+            # This counter is set when there is an error during the generation of the encryption file for an
+            # organization for any reason, including encryption errors related to an expired GPG key.
+            self.event_export_counter(counter_title="{} org with Errors".format(org_id), incr_value=1)
 
     def get_org_id(self, event):
         """
