@@ -42,6 +42,11 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
     table_name = luigi.Parameter(
         description='The name of the table.',
     )
+    direct = luigi.BooleanParameter(
+        default=True,
+        significant=False,
+        description='Passthrough parameter for mysqldumpi\'s "direct" mode.  Requires that no set of columns be selected.',
+    )
 
     date = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
@@ -117,7 +122,8 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
             destination=destination,
             overwrite=self.overwrite,
             mysql_delimiters=True,
-            num_mappers=self.num_mappers
+            num_mappers=self.num_mappers,
+            direct=self.direct,
         )
 
     @property
@@ -232,6 +238,13 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
             return True
         return False
 
+    def import_without_direct_flag(self, table_name):
+        """Views cannot use the --direct sqoop parameter and therefore must omit it"""
+        if table_name == "dw_auth_user":
+            return True
+        return False
+
+
     def requires(self):
         if not self.table_list:
             results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
@@ -248,18 +261,33 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
 
         for table_name in self.table_list:
             if not self.should_exclude_table(table_name):
-                yield LoadMysqlToVerticaTableTask(
-                    credentials=self.credentials,
-                    schema=pre_import_task.schema_loading,
-                    db_credentials=self.db_credentials,
-                    database=self.database,
-                    warehouse_path=self.warehouse_path,
-                    table_name=table_name,
-                    overwrite=self.overwrite,
-                    date=self.date,
-                    marker_schema=self.marker_schema,
-                    num_mappers=self.num_mappers,
-                )
+                if self.import_without_direct_flag(table_name):
+                    yield LoadMysqlToVerticaTableTask(
+                        credentials=self.credentials,
+                        schema=pre_import_task.schema_loading,
+                        db_credentials=self.db_credentials,
+                        database=self.database,
+                        warehouse_path=self.warehouse_path,
+                        table_name=table_name,
+                        overwrite=self.overwrite,
+                        date=self.date,
+                        marker_schema=self.marker_schema,
+                        num_mappers=self.num_mappers,
+                        direct=False
+                    )
+                else:
+                    yield LoadMysqlToVerticaTableTask(
+                        credentials=self.credentials,
+                        schema=pre_import_task.schema_loading,
+                        db_credentials=self.db_credentials,
+                        database=self.database,
+                        warehouse_path=self.warehouse_path,
+                        table_name=table_name,
+                        overwrite=self.overwrite,
+                        date=self.date,
+                        marker_schema=self.marker_schema,
+                        num_mappers=self.num_mappers,
+                    )
 
         yield PostImportDatabaseTask(
             date=self.date,
