@@ -16,6 +16,8 @@ log = logging.getLogger(__name__)
 key_cache = {}  # pylint: disable=invalid-name
 
 
+DEFAULT_HADOOP_COUNTER_FUNC = lambda x: None
+
 def get_key_from_target(key_file_target):
     """Get the contents of the key file pointed to by the target"""
 
@@ -37,7 +39,7 @@ def get_key_from_target(key_file_target):
 
 @contextmanager
 def make_encrypted_file(output_file, key_file_targets, recipients=None, progress=None, dir=None,
-                        hadoop_counter_incr_func=None):
+                        hadoop_counter_incr_func=DEFAULT_HADOOP_COUNTER_FUNC):
     """
     Creates a file object to be written to, whose contents will afterwards be encrypted.
 
@@ -72,7 +74,7 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None, progress
             copy_file_to_file(temp_encrypted_file, output_file, progress)
 
 
-def _import_key_files(gpg_instance, key_file_targets, hadoop_counter_incr_func):
+def _import_key_files(gpg_instance, key_file_targets, hadoop_counter_incr_func=DEFAULT_HADOOP_COUNTER_FUNC):
     """
     Load key-file targets into the GPG instance.
 
