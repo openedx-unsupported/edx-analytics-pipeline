@@ -126,99 +126,11 @@ def _filter_matches(patterns, names):
     return (n for n in names if func(n))
 
 
-class ScalableS3Client(S3Client):
-    """
-    S3 client that adds support for multipart uploads and requires minimal permissions.
-
-    Uses S3 multipart upload API for large files, and regular S3 puts for smaller files.
-
-    This client should only require PutObject and PutObjectAcl permissions in order to write to the target bucket.
-    """
-    # TODO: Make this behavior configurable and submit this change upstream.
-
-    def put(self, local_path, destination_s3_path):
-        """Put an object stored locally to an S3 path."""
-
-        # parse path into bucket and key
-        (bucket, key) = self._path_to_bucket_and_key(destination_s3_path)
-
-        # If Boto is passed "validate=True", it will require an
-        # additional permission to be present when asked to list all
-        # of the keys in the bucket.  We want to minimize the set of
-        # required permissions so we get a reference to the bucket
-        # without validating that it exists.  It should only require
-        # PutObject and PutObjectAcl permissions in order to write to
-        # the target bucket.
-        s3_bucket = self.s3.get_bucket(bucket, validate=False)
-
-        # Check first if we should be doing a multipart upload.
-        source_size_bytes = os.stat(local_path).st_size
-        if source_size_bytes < MULTIPART_UPLOAD_THRESHOLD:
-            self._upload_single(local_path, s3_bucket, key)
-        else:
-            log.info("File '%s' has size %d, exceeding threshold %d for using put -- using multipart upload.",
-                     destination_s3_path, source_size_bytes, MULTIPART_UPLOAD_THRESHOLD)
-            self._upload_multipart(local_path, destination_s3_path, s3_bucket, key, source_size_bytes)
-
-    def _upload_single(self, local_path, s3_bucket, key):
-        """
-        Write a local file to an S3 key using single PUT.
-
-        This only works for files < 5GB in size.
-        """
-        s3_key = Key(s3_bucket)
-        s3_key.key = key
-        # Explicitly set the ACL policy when putting the object, so
-        # that it has an ACL when AWS writes to keys from another account.
-        s3_key.set_contents_from_filename(local_path, policy=DEFAULT_KEY_ACCESS_POLICY)
-
-    def _upload_multipart(self, local_path, destination_s3_path, s3_bucket, key, source_size_bytes):
-        """Upload a large local file to an S3 path, using S3's multipart upload API."""
-
-        # Explicitly set the ACL policy when putting the object, so
-        # that it has an ACL when AWS writes to keys from another account.
-        multipart = s3_bucket.initiate_multipart_upload(key, policy=DEFAULT_KEY_ACCESS_POLICY)
-
-        number_of_chunks, bytes_per_chunk = self._get_chunk_specs(source_size_bytes)
-        log.info("Uploading file '%s' with size %d in %d parts, with chunksize of %d.",
-                 destination_s3_path, source_size_bytes, number_of_chunks, bytes_per_chunk)
-
-        chunk_generator = self._generate_chunks(source_size_bytes, number_of_chunks, bytes_per_chunk)
-        for part_num, chunk_byte_offset, num_bytes in chunk_generator:
-            with FileChunkIO(local_path, 'r', offset=chunk_byte_offset, bytes=num_bytes) as chunk:
-                multipart.upload_part_from_file(fp=chunk, part_num=part_num)
-
-        if len(multipart.get_all_parts()) == number_of_chunks:
-            multipart.complete_upload()
-        else:
-            multipart.cancel_upload()
-
-    def _get_chunk_specs(self, source_size_bytes):
-        """Returns number of chunks and bytes-per-chunk given a filesize."""
-        # Select a chunk size, so that the chunk size grows with the overall size, but
-        # more slowly.  (Scale so that it equals the minimum chunk size.)
-        bytes_per_chunk = int(math.sqrt(MINIMUM_BYTES_PER_CHUNK) * math.sqrt(source_size_bytes))
-        bytes_per_chunk = min(max(bytes_per_chunk, MINIMUM_BYTES_PER_CHUNK), MULTIPART_UPLOAD_THRESHOLD)
-        number_of_chunks = int(math.ceil(source_size_bytes / float(bytes_per_chunk)))
-        return number_of_chunks, bytes_per_chunk
-
-    def _generate_chunks(self, source_size_bytes, number_of_chunks, bytes_per_chunk):
-        """Returns the index, offset, and size of chunks."""
-        for chunk_index in range(number_of_chunks):
-            chunk_byte_offset = chunk_index * bytes_per_chunk
-            remaining_bytes_in_file = source_size_bytes - chunk_byte_offset
-            num_bytes = min([bytes_per_chunk, remaining_bytes_in_file])
-            # indexing of parts is one-based.
-            yield chunk_index + 1, chunk_byte_offset, num_bytes
-
-
 class S3HdfsTarget(HdfsTarget):
     """HDFS target that supports writing and reading files directly in S3."""
 
     # Luigi does not support writing to HDFS targets that point to complete URLs like "s3://foo/bar" it only supports
     # HDFS paths that look like standard file paths "/foo/bar".
-
-    # (This class also provides a customized implementation for S3Client.)
 
     # TODO: Fix the upstream bug in luigi that prevents writing to HDFS files that are specified by complete URLs
 
@@ -234,5 +146,5 @@ class S3HdfsTarget(HdfsTarget):
         else:
             safe_path = self.path.replace('s3n://', 's3://')
             if not hasattr(self, 's3_client'):
-                self.s3_client = ScalableS3Client()
-            return AtomicS3File(safe_path, self.s3_client)
+                self.s3_client = S3Client()
+            return AtomicS3File(safe_path, self.s3_client, policy=DEFAULT_KEY_ACCESS_POLICY)

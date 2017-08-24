@@ -21,8 +21,7 @@ import luigi.s3
 from luigi.hdfs import HdfsTarget
 from luigi.s3 import S3Target
 
-from edx.analytics.tasks.util.s3_util import ScalableS3Client, S3HdfsTarget
-
+from edx.analytics.tasks.util.s3_util import S3HdfsTarget, DEFAULT_KEY_ACCESS_POLICY
 
 class MarkerMixin(object):
     """This mixin handles Targets that cannot accurately be measured by the existence of data files, and instead need
@@ -117,7 +116,7 @@ def get_target_class_from_url(url, marker=False):
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
     if issubclass(target_class, luigi.s3.S3Target):
-        kwargs['client'] = ScalableS3Client()
+        kwargs['policy'] = DEFAULT_KEY_ACCESS_POLICY
 
     url = url.rstrip('/')
     args = (url,)
