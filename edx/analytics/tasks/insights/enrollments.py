@@ -1060,10 +1060,11 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             # loading any data into them
             yield [task.hive_table_task for task in catalog_tasks]
 
-        yield CourseGradeByModeDataTask(
-            date=self.date,
-            **common_kwargs
-        )
+        # To get course_grade_by_mode correctly into Hive, it must be calculated by the Data task *and*
+        # be loaded into Hive.  If rerunning with existing grade data, the data task will only ensure
+        # the calculated data is in S3, so the partition task must be run as well to reload it.
+        yield CourseGradeByModeDataTask(date=self.date, **common_kwargs)
+        yield CourseGradeByModePartitionTask(date=self.date, warehouse_path=self.warehouse_path)
 
 
 class CourseProgramMetadataRecord(Record):
