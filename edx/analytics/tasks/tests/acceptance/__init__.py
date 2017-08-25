@@ -112,9 +112,12 @@ def modify_target_for_local_server(target):
     else:
         return target
 
-def as_list_param(value):
+def as_list_param(value, escape_quotes=True):
     """Convenience method to convert a single string to a format expected by a Luigi ListParameter."""
-    return json.dumps([value,])
+    if escape_quotes:
+        return '[\\"{}\\"]'.format(value)
+    else:
+        return json.dumps([value,])
 
 
 def coerce_columns_to_string(row):
@@ -206,7 +209,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'manifest': {
                 'path': url_path_join(self.test_root, 'manifest'),
-                'lib_jar': as_list_param(self.config['oddjob_jar'])
+                'lib_jar': as_list_param(self.config['oddjob_jar'], escape_quotes=False)
             },
             'database-import': {
                 'credentials': self.config['credentials_file_url'],
@@ -228,12 +231,12 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': as_list_param(self.test_src),
-                'pattern': as_list_param(".*tracking.log-(?P<date>\\d{8}).*\\.gz"),
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*tracking.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
             },
             'segment-logs': {
-                'source': as_list_param(self.test_src),
-                'pattern': as_list_param(".*segment.log-(?P<date>\\d{8}).*\\.gz"),
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*segment.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
             },
             'course-structure': {
                 'api_root_url': 'acceptance.test',
