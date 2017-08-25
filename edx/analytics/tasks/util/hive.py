@@ -329,8 +329,12 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         yield self.hive_table_task
 
     def output(self):
+        # Ugh.  A change in Luigi 1.0.22 (after our 1.0.17 fork) resulted in a change in ApacheHiveCommandClient.table_exists()
+        # behavior, so that it throws an exception when checking for a specific partition when the table doesn't exist.
+        # This means that HivePartitionTarget.exists() will fail, where before it succeeded even if the table did not exist.
+        # So change fail_missing_table=False here.  There is no reason for it anyway.
         return HivePartitionTarget(
-            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=True
+            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
         )
 
     def job_runner(self):
