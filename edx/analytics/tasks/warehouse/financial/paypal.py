@@ -7,6 +7,7 @@ https://developer.paypal.com/docs/classic/payflow/reporting/
 """
 
 import datetime
+import os
 import xml.etree.cElementTree as ET
 from cStringIO import StringIO
 import logging
@@ -21,8 +22,8 @@ import requests
 
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 
 log = logging.getLogger(__name__)
 
@@ -696,8 +697,17 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         if self.output_root is None:
             self.output_root = self.warehouse_path
 
-        self.run_date = self.interval_end - datetime.timedelta(days=1)
-        self.selection_interval = date_interval.Custom(self.interval_start, self.run_date)
+        path = url_path_join(self.warehouse_path, 'payments')
+        path_targets = PathSetTask([path]).output()
+        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+        dates = [path.rsplit('/', 2)[-1] for path in paths]
+        latest_date = sorted(dates)[-1]
+
+        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+        run_date = latest_completion_date + datetime.timedelta(days=1)
+
+        self.selection_interval = date_interval.Custom(self.interval_start, run_date)
+        self.run_interval = date_interval.Custom(run_date, self.interval_end)
 
     def requires(self):
 
@@ -709,12 +719,29 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
             date_pattern='%Y-%m-%d',
         )
 
-        yield PaypalTransactionsByDayTask(
-            account_id=self.account_id,
-            output_root=self.output_root,
-            date=self.run_date,
-            overwrite=self.overwrite,
-        )
+        for day in self.run_interval:
+            yield PaypalTransactionsByDayTask(
+                account_id=self.account_id,
+                output_root=self.output_root,
+                date=day,
+                overwrite=self.overwrite,
+            )
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+class PaypalDataValidationTask(WarehouseMixin, luigi.WrapperTask):
+
+    import_date = luigi.DateParameter()
+
+    paypal_interval_start = luigi.DateParameter(
+        default_from_config={'section': 'paypal', 'name': 'interval_start'},
+        significant=False,
+    )
+
+    def requires(self):
+        paypal_interval = date_interval.Custom(self.paypal_interval_start, self.import_date)
+        for date in paypal_interval:
+            url = url_path_join(self.warehouse_path, 'payments', 'dt=' + date.isoformat(), 'paypal.tsv')
+            yield ExternalURL(url=url)
