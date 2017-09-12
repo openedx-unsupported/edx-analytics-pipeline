@@ -3,7 +3,7 @@
 ansible==1.4.5 --no-binary ansible         # GPL v3 License
 boto==2.22.1            # MIT
 ecdsa==0.13 		# MIT
-Jinja2==2.8.1		# BSD
+Jinja2==2.9.6		# BSD
 pycrypto==2.6.1 	# public domain
 
 # The following are dependencies pulled in by the above,

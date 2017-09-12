@@ -1,7 +1,7 @@
-coverage==4.3.1
+coverage==4.4.1
 ddt==1.1.1
 diff-cover >= 0.2.1
-freezegun==0.3.8
+freezegun==0.3.9
 httpretty==0.8.14
 mock==2.0.0
 nose-ignore-docstring==0.2
@@ -26,8 +26,8 @@ wrapt==1.10.11
 
 # dependencies that are already pinned earlier.
 
-Jinja2==2.8.1
+Jinja2==2.9.6
 MarkupSafe==1.0
 pbr==3.1.1
-python-dateutil==2.6.0
+python-dateutil==2.6.1
 six==1.10.0
