@@ -5,8 +5,8 @@
 argparse==1.2.1 	# Python Software Foundation License
 boto3==1.4.4 # Apache 2.0
 ciso8601==1.0.3         # MIT
-edx-opaque-keys==0.4    # AGPL
 edx-ccx-keys==0.2.1     # AGPL
+edx-opaque-keys==0.4    # AGPL
 elasticsearch==1.7.0    # Apache
 filechunkio==1.8	# MIT
 graphitesend==0.10.0 # Apache
@@ -36,13 +36,19 @@ git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895
 # These dependencies are pulled in by the above requirements,
 # and are pinned here.
 
-distlib==0.2.4
+botocore==1.5.95
+distlib==0.2.2
+docutils==0.14
 future==0.16.0
-pymongo==3.4.0		# Apache 2.0
-pyOpenSSL==16.2.0       # Apache 2.0
-pbr==1.10.0 		# Apache
+futures==3.1.1
+jmespath==0.9.3
+pbr==3.1.1
+pymongo==3.5.1
+pyOpenSSL==17.2.0
+s3transfer==0.1.11
 
-# These dependencies are already pulled in by earlier requirements (e.g.
+
+# These dependencies are already pulled in by earlier requirements (e.g. base.txt)
 # and are NOT pinned here.
 
 # cffi==1.9.1             # MIT
@@ -54,12 +60,6 @@ pbr==1.10.0 		# Apache
 # pycparser==2.17         # BSD
 # setuptools==32.3.1
 
-# These dependencies are not used?
 
-# backports_abc==0.5
-# certifi==2016.9.26
-# mechanize==0.2.5	# BSD
-# ndg-httpsclient==0.4.2  # BSD
-# singledispatch==3.4.0.3
-# tornado==4.4.2 		# Apache 2.0
-# wsgiref==0.1.2 		# ZPL
+
+
