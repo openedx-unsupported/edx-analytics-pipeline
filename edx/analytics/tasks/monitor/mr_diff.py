@@ -55,7 +55,7 @@ class MapReduceDiff(MapReduceJobTask):
         a = set(rows_in_base)
         b = set(rows_in_target)
 
-        if a.symmetric_difference(b) is not None:
+        if a.symmetric_difference(b):
             text="Values appearing in base but not target for key:{}".format(key)
             values=a - b
             str_value = ','.join(str(s) for s in values)
