@@ -499,7 +499,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the VideoUsageTask and its required tasks."""
-    overwrite_n_days = luigi.IntParameter(default=3)
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'videos', 'name': 'overwrite_n_days'},
+        significant=False,
+        default=3,
+    )
 
 
 class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin, MultiOutputMapReduceJobTask):

@@ -33,7 +33,7 @@ class VideoAcceptanceTest(AcceptanceTestCase):
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 'SELECT pipeline_video_id, course_id, encoded_module_id, duration, segment_length,'
-                ' users_at_start, users_at_end, total_viewed_seconds FROM video'
+                ' users_at_start, users_at_end, total_viewed_seconds FROM video_test'
                 ' ORDER BY pipeline_video_id ASC'
             )
             results = cursor.fetchall()
@@ -76,7 +76,7 @@ class VideoAcceptanceTest(AcceptanceTestCase):
         """Ensure the video timeline counts are correct."""
         with self.export_db.cursor() as cursor:
             cursor.execute(
-                'SELECT pipeline_video_id, segment, num_users, num_views FROM video_timeline'
+                'SELECT pipeline_video_id, segment, num_users, num_views FROM video_timeline_test'
                 ' ORDER BY pipeline_video_id, segment ASC'
             )
             results = cursor.fetchall()
