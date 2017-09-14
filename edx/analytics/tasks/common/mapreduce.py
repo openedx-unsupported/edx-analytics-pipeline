@@ -130,7 +130,7 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
         }
 
     def input_hadoop(self):
-        manifest_id = 'man'
+        manifest_id = str(hash(self)).replace('-', 'n')
         return convert_to_manifest_input_if_necessary(manifest_id, super(MapReduceJobTask, self).input_hadoop())
 
 
