@@ -14,20 +14,25 @@ import os
 import sys
 
 import boto
-import filechunkio
+import bson
+import certifi
+import chardet
 import cjson
 import ciso8601
+import filechunkio
+import idna
 import opaque_keys
-import bson
 import pyinstrument
-import stevedore
 import requests
+import stevedore
+import urllib3
 
 import luigi
 import luigi.configuration
 import luigi.hadoop
 
 import edx.analytics.tasks
+
 
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
@@ -83,8 +88,10 @@ def main():
     # - opaque_keys is used to interpret serialized course_ids
     #   - opaque_keys extensions:  ccx_keys
     #   - dependencies of opaque_keys:  bson, stevedore
+    # - requests has several dependencies:
+    #   - chardet, urllib3, certifi, idna
     luigi.hadoop.attach(edx.analytics.tasks)
-    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, requests)
+    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, chardet, urllib3, certifi, idna, requests)
 
     if configuration.getboolean('ccx', 'enabled', default=False):
         import ccx_keys
