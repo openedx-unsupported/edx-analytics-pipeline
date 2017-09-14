@@ -13,10 +13,10 @@ log = logging.getLogger(__name__)
 
 class MapReduceDiff(MapReduceJobTask):
 
-    output_root = luigi.Parameter()
-    base_directory = luigi.Parameter()
-    target_directory = luigi.Parameter()
-    primary_key_columns = luigi.Parameter(is_list=True)
+    output_root = luigi.Parameter(default='/x')
+    base_directory = luigi.Parameter(default='s3://edx-analytics-data/prod/warehouse/user_video_viewing_by_date/dt=2017-09-04/000000_0')
+    target_directory = luigi.Parameter(default='s3://edx-analytics-data/prod/warehouse/user_video_viewing_by_date_x/dt=2017-09-04/000000_0')
+    primary_key_columns = luigi.Parameter(is_list=True, default=(0,1))
 
     def requires(self):
         yield ExternalURL(url=self.base_directory)
@@ -46,11 +46,25 @@ class MapReduceDiff(MapReduceJobTask):
             elif dirname == os.path.dirname(self.target_directory):
                 rows_in_target.append(value[:-1])
 
-        compare = lambda x, y: collections.Counter(x) == collections.Counter(y)
+        if len(rows_in_base)==0:
+            text= "Key: {} does not appear in base".format(key)
+            yield text
+        if len(rows_in_target)==0:
+            text= "Key: {} does not appear in target".format(key)
+            yield text
+        a = set(rows_in_base)
+        b = set(rows_in_target)
 
-        if len(rows_in_target) == len(rows_in_base):
-            if not compare(rows_in_base, rows_in_target):
-                yield key
+        if a.symmetric_difference(b) is not None:
+            text="Values appearing in base but not target for key:{}".format(key)
+            values=a - b
+            str_value = ','.join(str(s) for s in values)
+            yield text, str_value
+            text="Values appearing in target but not base for key:{}".format(key)
+            values=b - a
+            str_value = ','.join(str(s) for s in values)
+            yield text, str_value
+
 
     def output(self):
         return get_target_from_url(self.output_root)
