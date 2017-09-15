@@ -38,6 +38,11 @@ class PullFromCybersourceTaskMixin(OverwriteOutputMixin):
         self.password = config.get(section_name, 'password')
         self.interval_start = luigi.DateParameter().parse(config.get(section_name, 'interval_start'))
 
+        self.merchant_close_date = None
+        merchant_close_date = config.get(section_name, 'merchant_close_date', '')
+        if merchant_close_date:
+            self.merchant_close_date = luigi.DateParameter().parse(merchant_close_date)
+
 
 class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
     """
@@ -211,13 +216,19 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
             self.output_root = self.warehouse_path
 
         path = url_path_join(self.warehouse_path, 'payments')
-        path_targets = PathSetTask([path]).output()
+        file_pattern = '*cybersource_{}.tsv'.format(self.merchant_id)
+        path_targets = PathSetTask([path], include=[file_pattern], include_zero_length=True).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
         latest_date = sorted(dates)[-1]
 
         latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
         run_date = latest_completion_date + datetime.timedelta(days=1)
+
+        # Limit intervals to merchant account close date(if any).
+        if self.merchant_close_date:
+            run_date = min(run_date, self.merchant_close_date)
+            self.interval_end = min(self.interval_end, self.merchant_close_date)
 
         self.selection_interval = date_interval.Custom(self.interval_start, run_date)
         self.run_interval = date_interval.Custom(run_date, self.interval_end)
@@ -259,7 +270,14 @@ class CybersourceDataValidationTask(WarehouseMixin, luigi.WrapperTask):
         for merchant_id in self.cybersource_merchant_ids:
             section_name = 'cybersource:' + merchant_id
             interval_start = luigi.DateParameter().parse(config.get(section_name, 'interval_start'))
-            cybersource_interval = date_interval.Custom(interval_start, self.import_date)
+            interval_end = self.import_date
+
+            merchant_close_date = config.get(section_name, 'merchant_close_date', '')
+            if merchant_close_date:
+                parsed_date = luigi.DateParameter().parse(merchant_close_date)
+                interval_end = min(self.import_date, parsed_date)
+
+            cybersource_interval = date_interval.Custom(interval_start, interval_end)
 
             for date in cybersource_interval:
                 filename = "cybersource_{}.tsv".format(merchant_id)

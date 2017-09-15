@@ -698,7 +698,7 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
             self.output_root = self.warehouse_path
 
         path = url_path_join(self.warehouse_path, 'payments')
-        path_targets = PathSetTask([path]).output()
+        path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
         latest_date = sorted(dates)[-1]
