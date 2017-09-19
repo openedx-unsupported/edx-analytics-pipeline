@@ -605,6 +605,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             interval=self.interval,
             pattern=self.pattern,
             overwrite_n_days=self.overwrite_n_days,
+            overwrite=True,
         )
 
     def requires_hadoop(self):
