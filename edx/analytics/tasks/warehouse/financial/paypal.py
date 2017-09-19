@@ -736,7 +736,7 @@ class PaypalDataValidationTask(WarehouseMixin, luigi.WrapperTask):
     import_date = luigi.DateParameter()
 
     paypal_interval_start = luigi.DateParameter(
-        default_from_config={'section': 'paypal', 'name': 'interval_start'},
+        config_path={'section': 'paypal', 'name': 'interval_start'},
         significant=False,
     )
 

@@ -5,7 +5,7 @@ import datetime
 import textwrap
 
 import luigi
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
 import luigi.task
 
@@ -936,7 +936,7 @@ class EnrollmentDailyTask(EnrollmentTask):
 class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
 
-    enable_course_catalog = luigi.BooleanParameter(
+    enable_course_catalog = luigi.BoolParameter(
         config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
         default=False,
         description="Enables course catalog data jobs."
@@ -1173,7 +1173,7 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
                                              MysqlInsertTask):  # pragma: no cover
     """Creates/populates the `course_program_metadata` Result Store table."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',

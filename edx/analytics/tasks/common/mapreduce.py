@@ -11,8 +11,7 @@ import logging
 import logging.config
 
 import luigi
-import luigi.hdfs
-import luigi.hadoop
+import luigi.contrib.hadoop
 import luigi.task
 from luigi import configuration
 
@@ -55,7 +54,7 @@ class MapReduceJobTaskMixin(object):
     )
 
 
-class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
+class MapReduceJobTask(MapReduceJobTaskMixin, luigi.contrib.hadoop.JobTask):
     """
     Execute a map reduce job.  Typically using Hadoop, but can execute the
     job in process as well.
@@ -133,7 +132,7 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
         return convert_to_manifest_input_if_necessary(manifest_id, super(MapReduceJobTask, self).input_hadoop())
 
 
-class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
+class MapReduceJobRunner(luigi.contrib.hadoop.HadoopJobRunner):
     """
     Support more customization of the streaming command.
 
@@ -160,11 +159,11 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
         )
 
 
-class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
+class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
     """
     Execute map reduce tasks in process on the machine that is running luigi.
 
-    This is a modified version of luigi.hadoop.LocalJobRunner. The key differences are:
+    This is a modified version of luigi.contrib.hadoop.LocalJobRunner. The key differences are:
 
     * It gracefully handles .gz input files, decompressing them and streaming them directly to the mapper. This mirrors
       the behavior of hadoop's default file input format. Note this only works for files that support `tell()` and
@@ -252,7 +251,7 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     output_root = luigi.Parameter(
         description='A URL location where the split files will be stored.',
     )
-    delete_output_root = luigi.BooleanParameter(
+    delete_output_root = luigi.BoolParameter(
         default=False,
         significant=False,
         description='If True, recursively deletes the `output_root` at task creation.',

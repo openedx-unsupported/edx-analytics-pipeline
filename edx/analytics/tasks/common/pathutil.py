@@ -14,8 +14,8 @@ import re
 
 import boto
 import luigi
-import luigi.hdfs
-import luigi.format
+import luigi.contrib.hdfs
+import luigi.contrib.hdfs.format
 import luigi.task
 
 from luigi.date_interval import DateInterval
@@ -45,7 +45,7 @@ class PathSetTask(luigi.Task):
         default=None,
         description='A URL pointing to a manifest file location.',
     )
-    include_zero_length = luigi.BooleanParameter(
+    include_zero_length = luigi.BoolParameter(
         default=False,
         description='If True, include files/directories with size zero.',
     )
@@ -65,7 +65,7 @@ class PathSetTask(luigi.Task):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
-                for source, size in luigi.hdfs.listdir(src, recursive=True, include_size=True):
+                for source, size in luigi.contrib.hdfs.listdir(src, recursive=True, include_size=True):
                     if not self.include_zero_length and size == 0:
                         continue
                     elif any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
@@ -199,9 +199,9 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_hdfs_urls(self, source):
         """Recursively list all files inside the source directory on the hdfs filesystem."""
-        if luigi.hdfs.exists(source):
+        if luigi.contrib.hdfs.exists(source):
             # listdir raises an exception if the source doesn't exist.
-            for source in luigi.hdfs.listdir(source, recursive=True):
+            for source in luigi.contrib.hdfs.listdir(source, recursive=True):
                 yield source
 
     def _get_local_urls(self, source):

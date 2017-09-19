@@ -11,8 +11,9 @@ import datetime
 import ciso8601
 import luigi
 from luigi import configuration
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
+
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -874,13 +875,13 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert information about video timelines from a Hive table into MySQL."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',
         significant=False
     )
-    allow_empty_insert = luigi.BooleanParameter(
+    allow_empty_insert = luigi.BoolParameter(
         default=False,
         description='Allow the video table to be empty (e.g. if no video activity has occurred)',
         config_path={'section': 'videos', 'name': 'allow_empty_insert'},
@@ -1032,13 +1033,13 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert summary information into the video table in MySQL."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',
         significant=False
     )
-    allow_empty_insert = luigi.BooleanParameter(
+    allow_empty_insert = luigi.BoolParameter(
         default=False,
         description='Allow the video table to be empty (e.g. if no video activity has occurred)',
         config_path={'section': 'videos', 'name': 'allow_empty_insert'},

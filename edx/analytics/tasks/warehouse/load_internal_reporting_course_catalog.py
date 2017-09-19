@@ -7,7 +7,7 @@ import datetime
 import logging
 
 import luigi
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient

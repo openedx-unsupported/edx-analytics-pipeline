@@ -9,7 +9,7 @@ import tempfile
 import unittest
 
 import luigi
-import luigi.hdfs
+from luigi.contrib.hdfs.target import HdfsTarget
 from mock import patch, call
 
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
@@ -72,7 +72,7 @@ class TaskWithSpecialOutputs(luigi.ExternalTask):
     input_format = luigi.Parameter(default=None)
 
     def output(self):
-        target = luigi.hdfs.HdfsTarget('/tmp/foo')
+        target = HdfsTarget('/tmp/foo')
         target.lib_jar = self.lib_jar_path
         target.input_format = self.input_format
         return target

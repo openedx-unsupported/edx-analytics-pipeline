@@ -7,7 +7,7 @@ import shutil
 import unittest
 import csv
 
-from luigi.s3 import S3Client
+from luigi.contrib.s3 import S3Client
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
@@ -274,7 +274,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'schema': schema
             }
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
+            task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
         if 'elasticsearch_connection_class' in self.config:
             task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:

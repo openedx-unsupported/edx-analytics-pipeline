@@ -5,7 +5,7 @@ import unittest
 
 import ddt
 from elasticsearch import TransportError
-import luigi.hdfs
+import luigi.contrib.hdfs.target
 from mock import patch, call
 from freezegun import freeze_time
 
@@ -338,7 +338,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
 
 
 @freeze_time('2016-03-25')
-@patch.object(luigi.hdfs.HdfsTarget, '__del__', return_value=None)
+@patch.object(luigi.contrib.hdfs.target.HdfsTarget, '__del__', return_value=None)
 class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
     """Tests for the commit logic."""
 

@@ -15,11 +15,11 @@ import urlparse
 
 import luigi
 import luigi.configuration
-import luigi.format
-import luigi.hdfs
-import luigi.s3
-from luigi.hdfs import HdfsTarget
-from luigi.s3 import S3Target
+from luigi.contrib.hdfs import format as hdfs_format
+import luigi.contrib.hdfs
+import luigi.contrib.s3
+from luigi.contrib.hdfs.target import HdfsTarget
+from luigi.contrib.s3 import S3Target
 
 from edx.analytics.tasks.util.s3_util import S3HdfsTarget, DEFAULT_KEY_ACCESS_POLICY
 
@@ -68,7 +68,7 @@ class UncheckedExternalURL(ExternalURL):
         return True
 
 
-class IgnoredTarget(luigi.hdfs.HdfsTarget):
+class IgnoredTarget(HdfsTarget):
     """Dummy target for use in Hadoop jobs that produce no explicit output file."""
     def __init__(self):
         super(IgnoredTarget, self).__init__(is_tmp=True)
@@ -82,11 +82,11 @@ class IgnoredTarget(luigi.hdfs.HdfsTarget):
 
 DEFAULT_TARGET_CLASS = luigi.LocalTarget
 URL_SCHEME_TO_TARGET_CLASS = {
-    'hdfs': luigi.hdfs.HdfsTarget,
+    'hdfs': HdfsTarget,
     's3': S3HdfsTarget,
     's3n': S3HdfsTarget,
     'file': luigi.LocalTarget,
-    's3+https': luigi.s3.S3Target,
+    's3+https': S3Target,
 }
 
 DEFAULT_MARKER_TARGET_CLASS = LocalMarkerTarget
@@ -109,13 +109,13 @@ def get_target_class_from_url(url, marker=False):
         target_class = URL_SCHEME_TO_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_TARGET_CLASS)
 
     kwargs = {}
-    if issubclass(target_class, luigi.hdfs.HdfsTarget) and url.endswith('/'):
-        kwargs['format'] = luigi.hdfs.PlainDir
+    if issubclass(target_class, HdfsTarget) and url.endswith('/'):
+        kwargs['format'] = hdfs_format.PlainDir
     if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
         # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
-    if issubclass(target_class, luigi.s3.S3Target):
+    if issubclass(target_class, S3Target):
         kwargs['policy'] = DEFAULT_KEY_ACCESS_POLICY
 
     url = url.rstrip('/')

@@ -21,7 +21,7 @@ class SqoopImportFromMysqlTestCase(unittest.TestCase):
         self.addCleanup(patcher.stop)
         self.mock_sqoop_password_target().path = "/temp/password_file"
 
-        patcher2 = patch("luigi.hadoop.run_and_track_hadoop_job")
+        patcher2 = patch("luigi.contrib.hadoop.run_and_track_hadoop_job")
         self.mock_run = patcher2.start()
         self.addCleanup(patcher2.stop)
 

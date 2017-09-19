@@ -11,8 +11,9 @@ from urlparse import urlparse
 
 from boto.s3.key import Key
 from filechunkio import FileChunkIO
-from luigi.s3 import S3Client, AtomicS3File
-from luigi.hdfs import HdfsTarget, Plain
+from luigi.contrib.s3 import S3Client, AtomicS3File
+from luigi.contrib.hdfs.target import HdfsTarget
+from luigi.contrib.hdfs.format import Plain
 
 
 log = logging.getLogger(__name__)

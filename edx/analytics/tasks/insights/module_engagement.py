@@ -264,11 +264,11 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     Django ORM does not support composite primary key indexes, so we have to use a secondary index.
     """
 
-    allow_empty_insert = luigi.BooleanParameter(
+    allow_empty_insert = luigi.BoolParameter(
         default=False,
         config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
     )
-    overwrite_hive = luigi.BooleanParameter(
+    overwrite_hive = luigi.BoolParameter(
         default=False,
         significant=False
     )
@@ -322,7 +322,7 @@ class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDowns
                                    OverwriteOutputMixin, OverwriteFromDateMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
 
-    overwrite_mysql = luigi.BooleanParameter(
+    overwrite_mysql = luigi.BoolParameter(
         default=False,
         significant=False
     )
@@ -760,7 +760,7 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
 class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMixin, MysqlInsertTask):
     """Result store storage for the metric ranges."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',
@@ -1225,7 +1225,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
 class ModuleEngagementRosterIndexDownstreamMixin(object):
     """Indexing parameters that can be specified at the workflow level."""
 
-    obfuscate = luigi.BooleanParameter(
+    obfuscate = luigi.BoolParameter(
         default=False,
         description='Generate fake names and email addresses for users. This can be used to generate production-like'
                     ' data sets that are more difficult to associate with particular users at a glance. Useful for'
@@ -1390,7 +1390,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
     )
 
     # Don't use the OverwriteOutputMixin since it changes the behavior of complete() (which we don't want).
-    overwrite = luigi.BooleanParameter(default=False, significant=False)
+    overwrite = luigi.BoolParameter(default=False, significant=False)
     throttle = luigi.FloatParameter(
         config_path={'section': 'module-engagement', 'name': 'throttle'},
         description=ElasticsearchIndexTask.throttle.description,

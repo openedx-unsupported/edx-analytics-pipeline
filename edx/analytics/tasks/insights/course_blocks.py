@@ -171,7 +171,7 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
         default='(Deleted block :)',
         description='Mark deleted (orphan) blocks with this string in course_path.',
     )
-    sort_orphan_blocks_up = luigi.BooleanParameter(
+    sort_orphan_blocks_up = luigi.BoolParameter(
         config_path={'section': 'course-blocks', 'name': 'sort_orphan_blocks_up'},
         default=False,
         description='If True, any deleted (orphan) blocks will be pushed to the top of the list '

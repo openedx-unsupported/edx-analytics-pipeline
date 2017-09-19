@@ -3,8 +3,6 @@ Luigi tasks for extracting tags distribution statistics from tracking log files.
 """
 import logging
 import luigi
-import luigi.hdfs
-import luigi.s3
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -160,7 +158,7 @@ class TagsDistributionWorkflow(
     """
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description="Whether or not to overwrite existing outputs",
         significant=False

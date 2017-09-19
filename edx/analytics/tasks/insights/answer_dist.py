@@ -10,8 +10,6 @@ import json
 from operator import itemgetter
 
 import luigi
-import luigi.hdfs
-import luigi.s3
 from luigi.configuration import get_config
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
@@ -843,7 +841,7 @@ class AnswerDistributionToMySQLTaskWorkflow(
 ):
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
-    overwrite = luigi.BooleanParameter(default=True, significant=False)
+    overwrite = luigi.BoolParameter(default=True, significant=False)
 
     @property
     def insert_source_task(self):

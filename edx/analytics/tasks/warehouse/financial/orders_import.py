@@ -1,7 +1,6 @@
 """Import Orders: Shopping Cart Tables from the LMS, Orders from Otto."""
 
 import luigi
-import luigi.hdfs
 
 from edx.analytics.tasks.insights.database_imports import (
     DatabaseImportMixin,

@@ -5,7 +5,7 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
+from luigi.contrib.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -428,6 +428,7 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
 
 class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disable=abstract-method
     """Creates a hive table from the results of a hive query, given parameters instead of properties."""
+    priority = -100000
 
     insert_query = luigi.Parameter()
     table = luigi.Parameter()
@@ -438,11 +439,11 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
     """Populates a MySQL table with the results of a hive query."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='If True, overwrite the MySQL data.',
     )
-    hive_overwrite = luigi.BooleanParameter(
+    hive_overwrite = luigi.BoolParameter(
         default=False,
         description='If True, overwrite the hive data.',
     )

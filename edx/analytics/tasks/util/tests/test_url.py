@@ -3,9 +3,8 @@
 from unittest import TestCase
 
 import luigi
-import luigi.format
-import luigi.hdfs
-import luigi.s3
+from luigi.contrib.s3 import S3Target
+from luigi.contrib.hdfs.target import HdfsTarget
 from mock import patch
 
 from edx.analytics.tasks.util import url
@@ -17,12 +16,12 @@ class TargetFromUrlTestCase(TestCase):
     def test_s3_scheme(self):
         for test_url in ['s3://foo/bar', 's3n://foo/bar']:
             target = url.get_target_from_url(test_url)
-            self.assertIsInstance(target, luigi.hdfs.HdfsTarget)
+            self.assertIsInstance(target, HdfsTarget)
             self.assertEquals(target.path, test_url)
 
     def test_hdfs_scheme(self):
         target = url.get_target_from_url('hdfs:///foo/bar')
-        self.assertIsInstance(target, luigi.hdfs.HdfsTarget)
+        self.assertIsInstance(target, HdfsTarget)
         self.assertEquals(target.path, '/foo/bar')
 
     def test_file_scheme(self):
@@ -32,17 +31,17 @@ class TargetFromUrlTestCase(TestCase):
             self.assertIsInstance(target, luigi.LocalTarget)
             self.assertEquals(target.path, path)
 
-    @patch('luigi.s3.S3Client')
+    @patch('luigi.contrib.s3.S3Client')
     def test_s3_https_scheme(self, _mock_client):
         test_url = 's3+https://foo/bar'
         target = url.get_target_from_url(test_url)
-        self.assertIsInstance(target, luigi.s3.S3Target)
+        self.assertIsInstance(target, S3Target)
         self.assertEquals(target.path, test_url)
 
     def test_hdfs_directory(self):
         test_url = 's3://foo/bar/'
         target = url.get_target_from_url(test_url)
-        self.assertIsInstance(target, luigi.hdfs.HdfsTarget)
+        self.assertIsInstance(target, HdfsTarget)
         self.assertEquals(target.path, test_url[:-1])
         # TODO: target.format is wrapped.  Unwrap it....
         # self.assertEquals(target.format, luigi.hdfs.PlainDir)
