@@ -50,3 +50,9 @@ def mysql_datetime_to_isoformat(mysql_datetime):
         date_parts[6] = tenths * 100000
     timestamp = datetime.datetime(*date_parts).isoformat()
     return ensure_microseconds(timestamp)
+
+
+def _parse_date_string(date_str):
+    """Efficiently parse an ISO 8601 date stamp into a datetime.date() object."""
+    date_parts = [int(p) for p in date_str.split('-')[:3]]
+    return datetime.date(*date_parts)
