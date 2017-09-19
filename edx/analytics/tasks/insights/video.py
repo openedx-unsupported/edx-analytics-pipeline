@@ -943,7 +943,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
     @property
     def table(self):  # pragma: no cover
-        return 'video'
+        return 'video_utf'
 
     @property
     def insert_source_task(self):  # pragma: no cover
