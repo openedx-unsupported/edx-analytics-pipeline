@@ -584,11 +584,11 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
 
         super(UserVideoViewingByDateTask, self).run()
 
-        # for date in self.overwrite_interval:
-        #     url = self.output_path_for_key(date.isoformat())
-        #     target = get_target_from_url(url)
-        #     if not target.exists():
-        #         target.open("w").close()  # touch the file
+        for date in self.overwrite_interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
 
 
 class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
@@ -605,6 +605,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             interval=self.interval,
             pattern=self.pattern,
             overwrite_n_days=self.overwrite_n_days,
+            overwrite=True,
         )
 
     def requires_hadoop(self):
