@@ -547,6 +547,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
 
         date_string = start_timestamp.split("T")[0]
         if date_string < lower_bound_date_string or date_string >= upper_bound_date_string:
+            self.incr_counter('Video viewings by date', 'Discard viewing out of bound', 1)
             return
 
         yield date_string, line
@@ -605,6 +606,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             interval=self.interval,
             pattern=self.pattern,
             overwrite_n_days=self.overwrite_n_days,
+            overwrite=True,
         )
 
     def requires_hadoop(self):
