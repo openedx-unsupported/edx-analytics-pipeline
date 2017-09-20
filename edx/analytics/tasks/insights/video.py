@@ -576,20 +576,20 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
 
     def run(self):
         self.remove_output_on_overwrite()
-        if self.overwrite:
-            for date in self.overwrite_interval:
-                url = self.output_path_for_key(date.isoformat())
-                target = get_target_from_url(url)
-                if target.exists():
-                    target.remove()
+        # if self.overwrite:
+#             for date in self.overwrite_interval:
+#                 url = self.output_path_for_key(date.isoformat())
+#                 target = get_target_from_url(url)
+#                 if target.exists():
+#                     target.remove()
 
         super(UserVideoViewingByDateTask, self).run()
 
-        for date in self.overwrite_interval:
-            url = self.output_path_for_key(date.isoformat())
-            target = get_target_from_url(url)
-            if not target.exists():
-                target.open("w").close()  # touch the file
+        # for date in self.overwrite_interval:
+        #     url = self.output_path_for_key(date.isoformat())
+        #     target = get_target_from_url(url)
+        #     if not target.exists():
+        #         target.open("w").close()  # touch the file
 
 
 class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
