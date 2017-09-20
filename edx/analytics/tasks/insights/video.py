@@ -520,7 +520,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
         ))
 
     def requires(self):
-        output_path = self.hive_partition_path('user_video_viewing_test', self.interval.date_b)
+        output_path = self.hive_partition_path('user_video_viewing', self.interval.date_b)
         return UserVideoViewingTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -542,8 +542,8 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
             _event_type
         ) = line.split('\t')
 
-        lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        lower_bound_date_string = self.overwrite_interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        upper_bound_date_string = self.overwrite_interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
         date_string = start_timestamp.split("T")[0]
         if date_string < lower_bound_date_string or date_string >= upper_bound_date_string:
