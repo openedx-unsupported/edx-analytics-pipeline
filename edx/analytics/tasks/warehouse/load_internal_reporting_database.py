@@ -226,7 +226,6 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
             return True
         return False
 
-    # def requires(self):
     def run(self):
         # Add yields of tasks in run() method, to serve as dynamic dependencies.
         # This method should be rerun each time it yields a job.
