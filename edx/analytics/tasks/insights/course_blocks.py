@@ -96,6 +96,9 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
             overwrite=self.overwrite,
         )
 
+    def get_api_params(self):
+        return dict(depth="all", requested_fields="children", all_blocks="true")
+
     def run(self):
         self.remove_output_on_overwrite()
 
@@ -106,7 +109,7 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
                 courses.append(course.course_id)
 
         client = EdxApiClient(token_type=self.api_token_type)
-        params = dict(depth="all", requested_fields="children", all_blocks="true")
+        params = self.get_api_params()
         counter = 0
         with self.output().open('w') as output_file:
             for course_id in courses:  # pylint: disable=not-an-iterable
