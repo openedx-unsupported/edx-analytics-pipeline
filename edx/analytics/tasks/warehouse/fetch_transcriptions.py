@@ -13,6 +13,9 @@ from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 # from edx.analytics.tasks.insights.course_list import TimestampPartitionMixin, CourseRecord, CourseListApiDataTask
 from edx.analytics.tasks.insights.course_blocks import PullCourseBlocksApiData, CourseBlocksDownstreamMixin
 
+from edx.analytics.tasks.util.edx_api_client import EdxApiClient
+from requests.exceptions import HTTPError
+
 
 log = logging.getLogger(__name__)
 
@@ -32,9 +35,19 @@ class PullVideoCourseBlocksApiData(PullCourseBlocksApiData):
             depth="all",
             # requested_fields="children",
             # all_blocks="true",
-            student_view_data=block_type,
-            block_types_filter=block_type,
+
+            #student_view_data=block_type,
+            #block_types_filter=block_type,
             # assume we no longer need a username?  Maybe with current token, it's no longer needed.
+            # But according to API documentation, it is.
+            # See http://edx.readthedocs.io/projects/edx-platform-api/en/latest/courses/blocks.html. 
+            username='brianstaff',
+            # requested_fields="graded,forat,student_view_multi_devices",
+            requested_fields="graded,student_view_multi_devices",
+            nav_depth=3,
+            student_view_data="video",
+            block_counts="video"
+            # "GET /api/courses/v1/blocks/?depth=all&requested_fields=graded,format,student_view_multi_device&student_view_data=video,discussion&block_counts=video&nav_depth=3&u            
         )
         return params
 
@@ -45,7 +58,64 @@ class PullVideoCourseBlocksApiData(PullCourseBlocksApiData):
                 'course_video_blocks.json'
             )
         )
-    
+
+class ExtractParticularTranscript(luigi.Task):
+    output_root = luigi.Parameter()
+
+    def output(self):
+        return get_target_from_url(self.output_root, "particular.trans")
+
+    api_root_url = luigi.Parameter(
+        config_path={'section': 'course-blocks', 'name': 'api_root_url'},
+        description="The base URL for the course blocks API. This URL should look like"
+                    "https://lms.example.com/api/v1/blocks/"
+    )
+    api_token_type = luigi.Parameter(
+        config_path={'section': 'course-blocks', 'name': 'api_token_type'},
+        default='bearer',
+        description="Type of authentication required for the API call, e.g. jwt or bearer."
+    )
+
+    def run(self):
+        # self.remove_output_on_overwrite()
+        client = EdxApiClient(token_type=self.api_token_type)
+        params = {} # self.get_api_params()
+        counter = 0
+        # https://courses.edx.org/api/mobile/v0.5/video_outlines/transcripts/course-v1:BerkeleyX+GG101x-2+1T2015/88b183fd7e9d4f1ea91c60333c4b1f21/en
+        # course_id = quote('course-v1:BerkeleyX+GG101x-2+1T2015')
+        # block_id = '88b183fd7e9d4f1ea91c60333c4b1f21'
+        # This worked in Splunk, but gives a 404 locally:
+        # /api/mobile/v0.5/video_outlines/transcripts/course-v1:HarvardX+MCB64.1x+2T2017/a1e7a715a1b04321afaecaf099011346/en
+        # => https://courses.edx.org/api/mobile/v0.5/video_outlines/transcripts/course-v1:HarvardX+MCB64.1x+2T2017/a1e7a715a1b04321afaecaf099011346/en
+        # course_id = quote('course-v1:HarvardX+MCB64.1x+2T2017')
+        course_id = 'course-v1:HarvardX+MCB64.1x+2T2017'
+        block_id = 'a1e7a715a1b04321afaecaf099011346'
+        courses = [course_id,]
+        api_root_url = 'https://courses.edx.org/api/mobile/v0.5/video_outlines/transcripts/{}/{}/en'.format(course_id, block_id)
+        with self.output().open('w') as output_file:
+            for course_id in courses:  # pylint: disable=not-an-iterable
+                # params['course_id'] = course_id
+                try:
+                    # Course Blocks are returned on one page
+                    # response = client.get(self.api_root_url, params=params)
+                    response = client.get(api_root_url)
+                except HTTPError as error:
+                    # 404 errors may occur if we try to fetch the course blocks for a deleted course.
+                    # So we just log and ignore them.
+                    if error.response.status_code == 404:
+                        log.error('Error fetching API resource %s: %s', params, error)
+                    else:
+                        raise error
+                else:
+                    parsed_response = response.json()
+                    parsed_response['course_id'] = course_id
+                    output_file.write(json.dumps(parsed_response))
+                    output_file.write('\n')
+                    counter += 1
+
+        log.info('Wrote %d records to output file', counter)
+
+
 class ExtractVideoTranscriptionURLsTask(CourseBlocksDownstreamMixin, luigi.Task):
     """Fetch video transcription URLs from course blocks, and output as TSV."""
     """

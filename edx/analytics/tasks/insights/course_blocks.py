@@ -10,7 +10,7 @@ import luigi
 from requests.exceptions import HTTPError
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask,
@@ -89,12 +89,15 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
         description="Type of authentication required for the API call, e.g. jwt or bearer."
     )
 
+    # def requires(self):
+    #     return CourseListApiDataTask(
+    #         date=self.date,
+    #         output_root=self.input_root,
+    #         overwrite=self.overwrite,
+    #     )
+
     def requires(self):
-        return CourseListApiDataTask(
-            date=self.date,
-            output_root=self.input_root,
-            overwrite=self.overwrite,
-        )
+        return ExternalURL(url=self.input_root)
 
     def get_api_params(self):
         return dict(depth="all", requested_fields="children", all_blocks="true")
