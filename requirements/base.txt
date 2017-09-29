@@ -5,6 +5,7 @@ boto==2.22.1            # MIT
 ecdsa==0.13 		# MIT
 Jinja2==2.8.1		# BSD
 pycrypto==2.6.1 	# public domain
+gsutil==4.27  # Apache 2.0
 
 # The following are dependencies pulled in by the above,
 # but are pinned here.
