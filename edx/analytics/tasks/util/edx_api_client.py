@@ -79,7 +79,7 @@ class EdxApiClient(object):
 
         config = configuration.get_config()
         self.client_id = client_id or config.get('edx-rest-api', 'client_id')
-        self.client_secret = client_secret or config.get('edx-rest-api', 'client_secret')
+        self.client_secret = client_secret or config.get('edx-rest-api', 'client_secret', '')
         self.auth_url = auth_url or config.get('edx-rest-api', 'auth_url')
         self.token_type = token_type or 'jwt'
         self.oauth_username = oauth_username or config.get('edx-rest-api', 'oauth_username', None)
