@@ -49,7 +49,7 @@ VIDEO_VIEWING_SECONDS_PER_SEGMENT = 5
 VIDEO_VIEWING_MINIMUM_LENGTH = 0.25  # seconds
 
 VideoViewing = namedtuple('VideoViewing', [   # pylint: disable=invalid-name
-    'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration'])
+    'start_timestamp', 'course_id', 'encoded_module_id', 'start_offset', 'video_duration', 'seek_timestamp', 'original_offset'])
 
 
 class VideoTimelineRecord(Record):
@@ -342,8 +342,12 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                         # Duration might still be unknown, but just store it.
                         self.video_durations[youtube_id] = video_duration
 
+                seek_timestamp = None
+                original_offset = None
                 if last_viewing_end_event is not None and last_viewing_end_event[1] == VIDEO_SEEK:
+                    original_offset = current_time
                     start_offset = last_viewing_end_event[2]
+                    seek_timestamp = ciso8601.parse_datetime(last_viewing_end_event[1])
                     ## self.incr_counter(self.counter_category_name, 'Subset Viewing Start With Offset From Preceding Seek', 1)
                 else:
                     start_offset = current_time
@@ -353,7 +357,9 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     course_id=course_id,
                     encoded_module_id=encoded_module_id,
                     start_offset=start_offset,
-                    video_duration=video_duration
+                    video_duration=video_duration,
+                    seek_timestamp=seek_timestamp,
+                    original_offset=original_offset,
                 )
 
             def end_viewing(end_time):
@@ -388,6 +394,14 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                     return None
 
+                viewing_duration = (end_time - viewing.start_offset)
+                event_duration = (parsed_timestamp - viewing.start_timestamp).total_seconds()
+                seek_duration = 0
+                original_duration = 0
+                if viewing.seek_timestamp is not None:
+                    seek_duration = (viewing.start_timestamp - viewing.seek_timestamp).total_seconds()
+                    original_duration = (end_time - viewing.original_offset)
+
                 return (
                     username,
                     viewing.course_id,
@@ -397,6 +411,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     viewing.start_offset,
                     end_time,
                     event_type,
+                    timestamp,
+                    viewing_duration,
+                    event_duration,
+                    seek_duration,
+                    original_duration,
                 )
 
             if event_type == VIDEO_PLAYED:
@@ -434,6 +453,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             else:
                 # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
                 ## self.incr_counter(self.counter_category_name, 'Discard Event Outside Of Viewing', 1)
+                # TODO: this should probably be added here, because any other event would interrupt a play-skip-play
+                # sequence.  Without this, it will currently use the first skip in a play-skip-morestuff-play sequence.
+                # Originally it was last_event, so play-skip-morestuff-skip-play would take the last skip.
+                # I think it should be ignoring every case with "more stuff", by clearing the viewing event here.
+                # last_viewing_end_event = None
                 pass
 
         if viewing is not None:
