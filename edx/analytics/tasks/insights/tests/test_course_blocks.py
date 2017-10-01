@@ -260,7 +260,7 @@ class PullCourseBlocksApiDataTest(CourseBlocksTestMixin, TestCase):
     @data(
         (404, None),
         (403, HTTPError),
-        (500, HTTPError),
+        (500, None),
     )
     @unpack
     def test_errors(self, status_code, expected_exception):

@@ -116,8 +116,11 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
                     response = client.get(self.api_root_url, params=params)
                 except HTTPError as error:
                     # 404 errors may occur if we try to fetch the course blocks for a deleted course.
+                    # One course in production at edX also fails consistently with a 500.
                     # So we just log and ignore them.
                     if error.response.status_code == 404:
+                        log.error('Error fetching API resource %s: %s', params, error)
+                    elif error.response.status_code == 500:
                         log.error('Error fetching API resource %s: %s', params, error)
                     else:
                         raise error
