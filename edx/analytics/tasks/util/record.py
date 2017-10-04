@@ -689,6 +689,10 @@ class DateTimeField(Field):  # pylint: disable=abstract-method
             validation_errors.append('The value is a naive datetime.')
         elif value.utcoffset().total_seconds() != 0:
             validation_errors.append('The value must use UTC timezone.')
+        elif value.year < 1900:
+            # https://docs.python.org/2/library/datetime.html?highlight=strftime#strftime-strptime-behavior
+            # "The exact range of years for which strftime() works also varies across platforms. Regardless of platform, years before 1900 cannot be used."
+            validation_errors.append('The value must be a date after 1900.')
 
         return validation_errors
 
