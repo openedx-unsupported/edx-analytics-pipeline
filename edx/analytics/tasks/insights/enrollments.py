@@ -122,8 +122,10 @@ class CourseEnrollmentEventsTask(
                 output_file.write('\t'.join([str(field) for field in value]))
                 output_file.write('\n')
             except UnicodeEncodeError as e:
+                #These messages should be removed once we have tested unicode strings
+                self.incr_counter(self.counter_category_name, 'Discard Enroll Unparseable Unicode', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
                 log.error(u'\t'.join([unicode(field) for field in value]))
-                raise e
 
     def output_path_for_key(self, key):
         date_string = key
