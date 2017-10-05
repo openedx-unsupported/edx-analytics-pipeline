@@ -122,7 +122,7 @@ class CourseEnrollmentEventsTask(
                 output_file.write('\t'.join([str(field) for field in value]))
                 output_file.write('\n')
             except UnicodeEncodeError as e:
-                log.error(u'\t'.join([str(field) for field in value]))
+                log.error(u'\t'.join([unicode(field) for field in value]))
                 raise e
 
     def output_path_for_key(self, key):
