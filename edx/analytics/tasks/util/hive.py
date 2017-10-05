@@ -436,17 +436,23 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
 
     def __init__(self, *args, **kwargs):
         super(HiveTableFromParameterQueryTask, self).__init__(*args, **kwargs)
-        self.requirements = None
+        self.required_table_tasks = None
 
     def set_required(self, required_table_tasks):
+        log.debug('Setting requirements on %s: %s', self, required_table_tasks)
         self.required_table_tasks = required_table_tasks
 
-    def requires(self):
-        if self.requirements is not None:
-            self.requirements = list(super(HiveTableFromParameterQueryTask, self).requires())
-            self.requirements.extend(self.required_table_tasks)
-        return self.requirements
+    def run(self):
+        # Use dynamic dependencies here to make sure that the tasks on
+        # which this depends have been run.
+        if self.required_table_tasks is not None:
+            for task in self.required_table_tasks:
+                log.debug('Yielding dependency dynamically at runtime for %s: %s', self, task)                
+                yield task
 
+        # Now actually do the work.
+        super(HiveTableFromParameterQueryTask, self).run()    
+    
 
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
     """Populates a MySQL table with the results of a hive query."""
