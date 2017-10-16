@@ -6,21 +6,24 @@ import math
 import re
 import textwrap
 import urllib
+import datetime
 
 import ciso8601
 import luigi
 from luigi import configuration
 from luigi.hive import HiveQueryTask
+from luigi.parameter import DateIntervalParameter
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask,
                                            HivePartitionTask, hive_database_name)
-from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
+from edx.analytics.tasks.util.url import UncheckedExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 
 log = logging.getLogger(__name__)
@@ -496,7 +499,105 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the VideoUsageTask and its required tasks."""
-    pass
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'videos', 'name': 'overwrite_n_days'},
+        significant=False,
+        default=3,
+    )
+
+
+class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin, MultiOutputMapReduceJobTask):
+    "Task that reads in video viewings and outputs by date of viewing start time."
+
+    output_root = None
+
+    def __init__(self, *args, **kwargs):
+        super(UserVideoViewingByDateTask, self).__init__(*args, **kwargs)
+
+        overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+        self.overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+            overwrite_from_date,
+            self.interval.date_b
+        ))
+
+    def requires(self):
+        output_path = self.hive_partition_path('user_video_viewing', self.interval.date_b)
+        return UserVideoViewingTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.overwrite_interval,
+            pattern=self.pattern,
+            output_root=output_path,
+        )
+
+    def mapper(self, line):
+        (
+            _username,
+            _course_id,
+            _encoded_module_id,
+            _video_duration,
+            start_timestamp,
+            _start_offset,
+            _end_time,
+            _event_type
+        ) = line.split('\t')
+
+        lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+
+        date_string = start_timestamp.split("T")[0]
+        if date_string < lower_bound_date_string or date_string >= upper_bound_date_string:
+            return
+
+        yield date_string, line
+
+    def multi_output_reducer(self, _date_string, values, output_file):
+        for value in values:
+            output_file.write(value)
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('user_video_viewing_by_date', date_string),
+            'user_video_viewing_{date}'.format(
+                date=date_string,
+            ),
+        )
+
+    def downstream_input_tasks(self):
+        """
+        MultiOutputMapReduceJobTask returns marker as output(which cannot be used as input in other jobs).
+        This method returns the external tasks, which can then be used as input.
+        """
+
+        tasks = []
+        for date in self.interval: # pylint: disable=not-an-iterable
+            url = self.output_path_for_key(date.isoformat())
+            tasks.append(UncheckedExternalURL(url))
+
+        return tasks
+
+    def run(self):
+        # Remove the marker file.
+        self.remove_output_on_overwrite()
+        # Also remove actual output files in case of overwrite.
+        if self.overwrite:
+            for date in self.overwrite_interval:
+                url = self.output_path_for_key(date.isoformat())
+                target = get_target_from_url(url)
+                if target.exists():
+                    target.remove()
+
+        super(UserVideoViewingByDateTask, self).run()
+
+        # Make sure an output file exists for each day within the interval.
+        for date in self.overwrite_interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
 
 
 class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
@@ -505,20 +606,19 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
     output_root = luigi.Parameter()
     dropoff_threshold = luigi.FloatParameter(config_path={'section': 'videos', 'name': 'dropoff_threshold'})
 
-    def requires(self):
-        # Define path so that data could be loaded into Hive, without actually requiring the load to be performed.
-        table_name = 'user_video_viewing'
-        dummy_partition = HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-        partition_path_spec = dummy_partition.path_spec
-        input_path = url_path_join(self.warehouse_path, table_name, partition_path_spec + '/')
-        return UserVideoViewingTask(
+    def requires_local(self):
+        return UserVideoViewingByDateTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=input_path,
+            overwrite_n_days=self.overwrite_n_days,
+            overwrite=True,
         )
+
+    def requires_hadoop(self):
+        return self.requires_local().downstream_input_tasks()
 
     def mapper(self, line):
         (
@@ -661,7 +761,8 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
-            output_root=self.partition_location
+            output_root=self.partition_location,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
 
@@ -755,6 +856,7 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     def output(self):  # pragma: no cover
@@ -798,6 +900,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     @property
@@ -911,6 +1014,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     def output(self):  # pragma: no cover
@@ -954,6 +1058,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     @property
@@ -978,6 +1083,7 @@ class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
             'interval': self.interval,
             'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
+            'overwrite_n_days': self.overwrite_n_days,
         }
         yield (
             InsertToMysqlVideoTimelineTask(**kwargs),
