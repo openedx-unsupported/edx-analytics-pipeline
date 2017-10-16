@@ -25,6 +25,7 @@ import user_agents
 
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadDailyPartitionTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, SchemaManagementTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
@@ -421,18 +422,22 @@ class JsonEventRecord(SparseRecord):
     # was project:
     source = StringField(length=255, nullable=False, description='The segment.com project the event was sent to.')
 
-    input_file = StringField(length=255, nullable=True, description='The full URL of the file that contains this event in S3.')
+    input_file = StringField(length=255, nullable=False, description='The full URL of the file that contains this event in S3.')
 
     agent_type = StringField(length=20, nullable=True, description='The type of device used.')
     agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='The name of the OS on the device used. ')
     agent_browser = StringField(length=100, nullable=True, description='The name of the browser used.')
+
+    # So having a StringField (as with EventRecord) has this write out to disk as "True".
+    # Using a BooleanField here has this end up being written out as 0 or 1.
+    # However, when loading to BigQuery as BOOLEAN, the boolean is translated back to True/False, or null.
     agent_touch_capable = BooleanField(nullable=True, description='A boolean value indicating that the device was touch-capable.')
-    # agent_touch_capable = StringField(length=10, nullable=True, description='')
 
     raw_event = StringField(length=60000, nullable=True, description='The full text of the event as a JSON string. This can be parsed at query time using UDFs.')
 
-    date = StringField(length=255, nullable=False, description='The date when the event was received.')
+    # This was originally a StringField, but a DateField outputs the same format and is more useful.
+    date = DateField(nullable=False, description='The date when the event was received.')
 
 
 class EventRecordClassMixin(object):
@@ -447,7 +452,8 @@ class EventRecordClassMixin(object):
         module_name = self.__class__.__module__
         local_module = import_module(module_name)
         self.record_class = getattr(local_module, self.event_record_type)
-        # TODO: raise an exception if no record class is found.
+        if not self.record_class:
+            raise ValueError("No event record class found:  {}".format(self.event_record_type))
 
     def get_event_record_class(self):
         return self.record_class
@@ -700,6 +706,23 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                     datetime_obj = None
 
             event_dict[event_record_key] = datetime_obj
+        elif isinstance(event_record_field, DateField):
+            date_obj = None
+            try:
+                if obj is not None:
+                    date_obj = self.date_field_for_converting.deserialize_from_string(obj)
+            except ValueError:
+                log.error('Unable to cast value to date for %s: %r', label, obj)
+
+            # Because it's not enough just to create a datetime object, also perform
+            # validation here.
+            if date_obj is not None:
+                validation_errors = self.date_field_for_converting.validate(date_obj)
+                if len(validation_errors) > 0:
+                    log.error('Invalid assigment of value %r to field "%s": %s', date_obj, label, ', '.join(validation_errors))
+                    date_obj = None
+
+            event_dict[event_record_key] = date_obj
         elif isinstance(event_record_field, BooleanField):
             try:
                 event_dict[event_record_key] = bool(obj)
@@ -1030,14 +1053,14 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return self._get_time_from_segment_event(event, 'receivedAt')
 
         if 'requestTime' in event:
-            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+            self.incr_counter(self.counter_category_name, 'Event arrival from requestTime', 1)
             return self._get_time_from_segment_event(event, 'requestTime')
 
         if 'timestamp' in event:
-            self.incr_counter(self.counter_category_name, 'Supplementing timestamp for receivedAt', 1)
+            self.incr_counter(self.counter_category_name, 'Event arrival from timestamp', 1)
             return self._get_time_from_segment_event(event, 'timestamp')
 
-        self.incr_counter(self.counter_category_name, 'Neither timestamp, receivedAt nor requestTime present', 1)
+        self.incr_counter(self.counter_category_name, 'Event arrival not set', 1)
         log.error("Missing event arrival time in event '%r'", event)
 
         return None
@@ -1592,3 +1615,50 @@ class LoadEventsIntoWarehouseWorkflow(EventRecordLoadDownstreamMixin, VerticaCop
             schema=self.schema,
             credentials=self.credentials,
         )
+
+
+class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadDailyPartitionTask):
+
+    @property
+    def table(self):
+        if self.uses_JSON_event_record():
+            return 'json_event_records'
+        else:
+            return 'event_records'
+
+    @property
+    def schema(self):
+        return self.get_event_record_class().get_bigquery_schema()
+
+    @property
+    def insert_source_task(self):
+        # TODO: decide if this should be an external URL, or if we should point to the actual task.
+        return ExternalURL(url=self.hive_partition_path(EVENT_TABLE_NAME, self.date))
+
+
+class LoadEventRecordIntervalToBigQuery(EventRecordDownstreamMixin, BigQueryLoadDownstreamMixin, luigi.WrapperTask):
+    """
+    Loads the event records table from Hive into the BigQuery data warehouse.
+
+    """
+
+    interval = luigi.DateIntervalParameter(
+        description='The range of received dates for which to create event records.',
+    )
+
+    def requires(self):
+        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+            # should_overwrite = date >= self.overwrite_from_date
+            yield LoadDailyEventRecordToBigQuery(
+                event_record_type=self.event_record_type,
+                date=date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
+                events_list_file_path=self.events_list_file_path,
+                dataset_id=self.dataset_id,
+                credentials=self.credentials,
+                max_bad_records=self.max_bad_records,
+            )
+
+    def output(self):
+        return [task.output() for task in self.requires()]

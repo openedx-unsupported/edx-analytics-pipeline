@@ -1,5 +1,6 @@
 """Test processing of events for loading into Hive, etc."""
 
+import datetime
 import json
 import unittest
 
@@ -227,7 +228,7 @@ class TrackingJsonEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, uni
             # 'event_category': 'unknown',
             'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
             'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'date': self.DEFAULT_DATE,
+            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
             # 'host': 'test_host',
             # 'ip': '127.0.0.1',
             'username': 'test_user',
@@ -260,7 +261,7 @@ class TrackingJsonEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, uni
             # 'event_category': 'unknown',
             'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
             'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'date': self.DEFAULT_DATE,
+            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
             # 'host': 'test_host',
             # 'ip': '127.0.0.1',
             'username': 'test_user',
@@ -562,7 +563,7 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
             # 'event_category': 'screen',
             'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32+00:00'),
             'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.796000+00:00'),
-            'date': self.DEFAULT_DATE,
+            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
             # 'agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)',
             'agent_type': 'tablet',
             'agent_device_name': 'Samsung SM-N920A',
