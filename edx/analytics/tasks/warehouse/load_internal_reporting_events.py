@@ -8,7 +8,9 @@ from event values to column values.
 
 """
 import datetime
+import json
 import logging
+import re
 
 import ciso8601
 import dateutil
@@ -28,14 +30,21 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
 )
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
-from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, IntegerField, FloatField, BooleanField
+from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, get_org_id_for_course, get_course_key_from_url
+from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, DateTimeField, IntegerField, FloatField, BooleanField
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 
-VERSION = '0.2.3'
+VERSION = '0.2.4'
 
 EVENT_TABLE_NAME = 'event_records'
+
+# Define pattern to extract a course_id from a string by looking
+# explicitly for a version string and two plus-delimiters.
+# TODO: avoid this hack by finding a more opaque-keys-respectful way.
+NEW_COURSE_ID_PATTERN = r'(?P<course_id>course\-v1\:[^/+]+(\+)[^/+]+(\+)[^/]+)'
+NEW_COURSE_REGEX = re.compile(r'^.*?{}'.format(NEW_COURSE_ID_PATTERN))
 
 
 class EventRecord(SparseRecord):
@@ -64,7 +73,7 @@ class EventRecord(SparseRecord):
     agent = StringField(length=1023, nullable=True, description='')
     # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
-    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
     # agent_touch_capable = BooleanField(nullable=True, description='')
@@ -364,6 +373,68 @@ class EventRecord(SparseRecord):
     campaign_name = StringField(length=255, nullable=True, description='')
 
 
+class JsonEventRecord(SparseRecord):
+    """Represents an event, either a tracking log event or segment event."""
+
+    timestamp = DateTimeField(nullable=True, description='Timestamp when event was emitted.')
+
+    received_at = DateTimeField(nullable=True, description='Timestamp when event was received/recorded.')
+
+    # was context_user_id:
+    user_id = StringField(length=255, nullable=True, description='The identifier of the user who was logged in when the event was emitted. '
+                          'This is often but not always numeric.')
+
+    username = StringField(length=50, nullable=True, description='The username of the user who was logged in when the event was emitted.')
+
+    anonymous_id = StringField(length=255, nullable=True, description='The anonymous_id of the user.')
+
+    event_type = StringField(
+        length=255,
+        nullable=False,
+        description='The name of the event (event name in the segment logs). For implicit events, this should be "edx.server.request".'
+    )
+
+    # was context_course_id
+    course_id = StringField(length=255, nullable=True, description='The course_id associated with this event (if any).')
+    org_id = StringField(length=255, nullable=True, description='Id of organization, as used in course_id.')
+
+    label = StringField(length=511, nullable=True, description='The GA label associated with this event.')
+
+    # This is not the same as "event_category".
+    category = StringField(length=255, nullable=True, description='The GA category for this event.')
+
+    # This was event_source:
+    emitter_type = StringField(length=255, nullable=False, description='Where the event was collected from (browser, mobile, server, etc).')
+
+    # This is populated for most segment events, but also forum, googlecomponent tracking log events.
+    url = StringField(
+        length=2047,
+        nullable=True,
+        description='For page events, the full URL (including hostname) that was accessed by the user. '
+        'For implicit events, this should be the full URL that the request was for.'
+    )
+
+    # use the length (and name) from segment version (referrer), and write tracking log 'referer' here as well.
+    referrer = StringField(length=8191, nullable=True, description='The HTTP referrer - also as a full URL.')
+
+    # was project:
+    source = StringField(length=255, nullable=False, description='The segment.com project the event was sent to.')
+
+    input_file = StringField(length=255, nullable=True, description='The full URL of the file that contains this event in S3.')
+
+    agent_type = StringField(length=20, nullable=True, description='The type of device used.')
+    agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.', truncate=True)
+    agent_os = StringField(length=100, nullable=True, description='The name of the OS on the device used. ')
+    agent_browser = StringField(length=100, nullable=True, description='The name of the browser used.')
+    agent_touch_capable = BooleanField(nullable=True, description='A boolean value indicating that the device was touch-capable.')
+    # agent_touch_capable = StringField(length=10, nullable=True, description='')
+
+    raw_event = StringField(length=60000, nullable=True, description='The full text of the event as a JSON string. This can be parsed at query time using UDFs.')
+
+    date = StringField(length=255, nullable=False, description='The date when the event was received.')
+
+
+
 class EventRecordDownstreamMixin(WarehouseMixin, MapReduceJobTaskMixin):
 
     events_list_file_path = luigi.Parameter(default=None)
@@ -374,31 +445,32 @@ class EventRecordDataDownstreamMixin(EventRecordDownstreamMixin):
     """Common parameters and base classes used to pass parameters through the event record workflow."""
 
     # Required parameter
-    date = luigi.DateParameter(
-        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
-                    ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
-                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
-    )
-
-    # Override superclass to disable this parameter
-    interval = None
+    # date = luigi.DateParameter(
+    #     description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
+    #                 ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
+    #                 ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
+    # )
+    #
+    # # Override superclass to disable this parameter
+    # interval = None
     output_root = luigi.Parameter()
 
 
 class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapReduceJobTask):
-    """Base class for loading EventRecords from different sources."""
+    """Base class for loading JsonEventRecords from different sources."""
 
     # Create a DateField object to help with converting date_string
     # values for assignment to DateField objects.
     date_field_for_converting = DateField()
+    date_time_field_for_validating = DateTimeField()
 
     # This is a placeholder.  It is expected to be overridden in derived classes.
     counter_category_name = 'Event Record Exports'
 
-    def __init__(self, *args, **kwargs):
-        super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
-
-        self.interval = luigi.date_interval.Date.from_date(self.date)
+    # def __init__(self, *args, **kwargs):
+    #     super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
+    #
+    #     self.interval = luigi.date_interval.Date.from_date(self.date)
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
@@ -455,7 +527,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         """
         # If we're only running now with a specific date, then there
         # is no reason to sort by date_received.
-        _date_received, project = key
+        date_received, project = key
 
         # return url_path_join(
         #     self.output_root,
@@ -465,6 +537,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         # )
         return url_path_join(
             self.output_root,
+            EVENT_TABLE_NAME,
+            'dt={date}'.format(date=date_received),
             '{project}.tsv'.format(project=project),
         )
 
@@ -547,7 +621,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             agent_dict['device_name'] = user_agent.device.family
             agent_dict['os'] = user_agent.os.family
             agent_dict['browser'] = user_agent.browser.family
-            agent_dict['touch_capable'] = unicode(user_agent.is_touch_capable)
+            # agent_dict['touch_capable'] = unicode(user_agent.is_touch_capable)
+            agent_dict['touch_capable'] = user_agent.is_touch_capable
         else:
             self.incr_counter(self.counter_category_name, 'Quality Unrecognized agent type', 1)
 
@@ -581,6 +656,28 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 event_dict[event_record_key] = int(obj)
             except ValueError:
                 log.error('Unable to cast value to int for %s: %r', label, obj)
+        elif isinstance(event_record_field, DateTimeField):
+            datetime_obj = None
+            try:
+                if obj is not None:
+                    datetime_obj = ciso8601.parse_datetime(obj)
+                    if datetime_obj.tzinfo:
+                        datetime_obj = datetime_obj.astimezone(pytz.utc)
+                else:
+                    datetime_obj = obj
+            except ValueError:
+                log.error('Unable to cast value to datetime for %s: %r', label, obj)
+
+            # Because it's not enough just to create a datetime object, also perform
+            # validation here.
+            if datetime_obj is not None:
+                validation_errors = self.date_time_field_for_validating.validate(datetime_obj)
+                if len(validation_errors) > 0:
+                    log.error('Invalid assigment of value %r to field "%s": %s', datetime_obj, label, ', '.join(validation_errors))
+                    datetime_obj = None
+
+            event_dict[event_record_key] = datetime_obj
+
         elif isinstance(event_record_field, BooleanField):
             try:
                 event_dict[event_record_key] = bool(obj)
@@ -617,7 +714,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
     def add_calculated_event_entry(self, event_dict, event_record_key, obj):
         """Use this to explicitly add calculated entry values."""
-        event_record_field = EventRecord.get_fields()[event_record_key]
+        event_record_field = JsonEventRecord.get_fields()[event_record_key]
         label = event_record_key
         self._add_event_entry(event_dict, event_record_key, event_record_field, label, obj)
 
@@ -626,7 +723,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    interval = None
+    #interval = None
     event_mapping = None
     PROJECT_NAME = 'tracking_prod'
 
@@ -653,7 +750,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         """Return dictionary of event attributes to the output keys they map to."""
         if self.event_mapping is None:
             self.event_mapping = {}
-            fields = EventRecord.get_fields()
+            fields = JsonEventRecord.get_fields()
             field_keys = fields.keys()
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
@@ -667,6 +764,16 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                 # Skip values that are explicitly calculated rather than copied:
                 elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
                     pass
+
+                # Add new clauses for JSONEventRecord:
+                # Skip values that are explicitly set or calculated:
+                if field_key in ['course_id', 'emitter_type', 'source', 'raw_event']:
+                    pass
+                elif field_key == 'referrer':
+                    add_event_mapping_entry('root.referer')
+                elif field_key == 'user_id':
+                    add_event_mapping_entry('root.context.user_id')
+
                 # Handle special-cases:
                 elif field_key == "currenttime":
                     # Collapse values from either form into a single column.  No event should have both,
@@ -707,10 +814,14 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             return
 
         # Ignore events that begin with a slash (i.e. implicit events).
+        event_url = None
         if event_type.startswith('/'):
-            self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
-            return
+            # self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
+            # return
+            event_url = event_type
+            event_type = 'edx.server.request'
 
+        # TODO: why not use eventlog.get_event_username?  Difference between '' and None?
         username = event.get('username', '').strip()
         # if not username:
         #   return
@@ -726,37 +837,61 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         # Put the fixed value back, so it can be properly mapped.
         event['event'] = event_data
 
+        # Add a check in the payload for a course_id -- it is sometimes there
+        # instead of in context.
+        if not course_id and event_data.get('course_id'):
+            course_id = event_data.get('course_id')
+
         event_source = event.get('event_source')
         if event_source is None:
             self.incr_counter(self.counter_category_name, 'Discard Missing Event Source', 1)
             return
 
-        if (event_source, event_type) in self.known_events:
-            event_category = self.known_events[(event_source, event_type)]
-        else:
-            event_category = 'unknown'
+        # if (event_source, event_type) in self.known_events:
+        #     event_category = self.known_events[(event_source, event_type)]
+        # else:
+        #     event_category = 'unknown'
 
         project_name = self.PROJECT_NAME
 
-        event_dict = {'version': VERSION}
+        # event_dict = {'version': VERSION}
+        event_dict = {}
 
         self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
-        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        # was project
+        self.add_calculated_event_entry(event_dict, 'source', project_name)
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
-        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
-        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+
+        # was event_source
+        self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)
+        # self.add_calculated_event_entry(event_dict, 'event_category', event_category)
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
 
-        self.add_calculated_event_entry(event_dict, 'context_course_id', course_id)
+        # was context_course_id
+        self.add_calculated_event_entry(event_dict, 'course_id', course_id)
         self.add_calculated_event_entry(event_dict, 'username', username)
 
+        self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
+
+        if event_url is not None:
+            self.add_calculated_event_entry(event_dict, 'url', event_url)
+
         self.add_agent_info(event_dict, event.get('agent'))
+
+        # event-mapping has to add only a few values:  user_id, category, url, referer=>referrer.
+        # some are segment-only:  anonymous_id, label.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
 
-        record = EventRecord(**event_dict)
+        # Try to extract course_id information.
+        if course_id is not None:
+            org_id = get_org_id_for_course(course_id)
+            if org_id:
+                self.add_calculated_event_entry(event_dict, 'org_id', org_id)
+
+        record = JsonEventRecord(**event_dict)
 
         key = (date_received, project_name)
 
@@ -793,7 +928,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    interval = None
+    #interval = None
 
     # Project information, pulled from config file.
     project_names = {}
@@ -803,6 +938,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
     counter_category_name = 'Segment Event Exports'
 
+    # TODO: this never actually worked in a cluster.
     def _get_project_name(self, project_id):
         if project_id not in self.project_names:
             if self.config is None:
@@ -828,7 +964,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                         log.warning("Parsable unparseable type for %s time in event: %r", key, event)
                         self.incr_counter(self.counter_category_name, 'Quality Parsable unparseable for {} Time Field'.format(key), 1)
                 except Exception:
-                    log.error("Unparseable %s time from event: %r", key, event)
+
                     self.incr_counter(self.counter_category_name, 'Quality Unparseable {} Time Field'.format(key), 1)
             return event_time
         except KeyError:
@@ -862,7 +998,21 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        return self._get_time_from_segment_event(event, 'receivedAt')
+        if 'receivedAt' in event:
+            return self._get_time_from_segment_event(event, 'receivedAt')
+
+        if 'requestTime' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'requestTime')
+
+        if 'timestamp' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing timestamp for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'timestamp')
+
+        self.incr_counter(self.counter_category_name, 'Neither timestamp, receivedAt nor requestTime present', 1)
+        log.error("Missing event arrival time in event '%r'", event)
+
+        return None
 
     def get_event_emission_time(self, event):
         return self._get_time_from_segment_event(event, 'sentAt')
@@ -885,7 +1035,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         """Return dictionary of event attributes to the output keys they map to."""
         if self.event_mapping is None:
             self.event_mapping = {}
-            fields = EventRecord.get_fields()
+            fields = JsonEventRecord.get_fields()
             field_keys = fields.keys()
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
@@ -900,11 +1050,19 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 # Skip values that are explicitly calculated rather than copied:
                 elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
                     pass
+
+                # Add new clauses for JSONEventRecord:
+                # Skip values that are explicitly set or calculated:
+                if field_key in ['emitter_type', 'source', 'raw_event']:
+                    pass
+
                 # Map values that are top-level:
                 elif field_key in ['channel']:
                     add_event_mapping_entry(u"root.{}".format(field_key))
                 elif field_key in ['anonymous_id']:
                     add_event_mapping_entry(u"root.context.anonymousid")
+                    add_event_mapping_entry(u"root.context.traits.anonymousid")
+                    add_event_mapping_entry(u"root.traits.anonymousid")
                     add_event_mapping_entry("root.anonymousid")
                 elif field_key in ['agent']:
                     add_event_mapping_entry(u"root.context.useragent")
@@ -915,13 +1073,21 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     add_event_mapping_entry(u"root.properties.courseid")
                     add_event_mapping_entry(u"root.properties.course_id")
                     add_event_mapping_entry(u"root.properties.course")
+                    add_event_mapping_entry(u"root.properties.data.course_id")
+                    add_event_mapping_entry(u"root.properties.data.course-id")
+                    add_event_mapping_entry(u"root.properties.context.course_id")                    
                 elif field_key in ['username']:
                     add_event_mapping_entry(u"root.traits.username")
+                    add_event_mapping_entry(u"root.context.traits.username")
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
                 elif field_key in ['client_id', 'host', 'session', 'referer']:
                     add_event_mapping_entry(u"root.properties.context.{}".format(field_key))
                 elif field_key in ['user_id']:
                     add_event_mapping_entry(u"root.context.user_id")
+                    add_event_mapping_entry(u"root.properties.context.user_id")
+                    add_event_mapping_entry(u"root.properties.data.user_id")
+                    add_event_mapping_entry(u"root.context.traits.userid")
+                    add_event_mapping_entry(u"root.traits.userid")
                     # I think this is more often a username than an id.
                     # TODO: figure it out later...  Exception is type=page,
                     # for which it's an id?  No, that's not consistent,
@@ -942,6 +1108,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 elif field_key in ['path', 'referrer', 'search', 'title', 'url', 'variationname', 'variationid', 'experimentid', 'experimentname', 'category', 'label', 'display_name']:
                     add_event_mapping_entry(u"root.properties.{}".format(field_key))
                     add_event_mapping_entry(u"root.context.page.{}".format(field_key))
+                    add_event_mapping_entry(u"root.data.{}".format(field_key))
                     add_event_mapping_entry(u"root.properties.context.page.{}".format(field_key))
                 else:
                     pass
@@ -958,6 +1125,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.incr_counter(self.counter_category_name, 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
+        if segment_type is None and 'action' in event:
+            segment_type = event.get('action').lower()
+
         self.incr_counter(self.counter_category_name, u'Subset Type {}'.format(segment_type), 1)
 
         channel = event.get('channel')
@@ -979,13 +1149,17 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = event.get('properties', {}).get('category')
+            # event_category = event.get('properties', {}).get('category')
             if channel == 'server':
-                event_source = event.get('properties', {}).get('context', {}).get('event_source')
-                if event_source is None:
-                    event_source = 'track-server'
-                elif (event_source, event_type) in self.known_events:
-                    event_category = self.known_events[(event_source, event_type)]
+                event_source = 'track-server'
+                properties = event.get('properties')
+                if properties and properties.get('context'):
+                    source = properties.get('context').get('event_source')
+                    if source:
+                        event_source = source
+
+                # elif (event_source, event_type) in self.known_events:
+                #     event_category = self.known_events[(event_source, event_type)]
                 self.incr_counter(self.counter_category_name, 'Subset Type track And Channel server', 1)
             else:
                 # expect that channel is 'client'.
@@ -994,7 +1168,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         else:
             # type is 'page' or 'identify' or 'screen'
-            event_category = segment_type
+            # event_category = segment_type
             event_type = segment_type
             event_source = channel
 
@@ -1003,22 +1177,69 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
         self.incr_counter(self.counter_category_name, u'Subset Project {}'.format(project_name), 1)
 
-        event_dict = {'version': VERSION}
+        # event_dict = {'version': VERSION}
+        event_dict = {}
         self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
-        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        self.add_calculated_event_entry(event_dict, 'source', project_name)  # was 'project'
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
-        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
-        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)  # was 'event_source'
+        # self.add_calculated_event_entry(event_dict, 'event_category', event_category)
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
 
+        if event_dict.get("event_type") is None:
+            self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
+            return
+
+        # An issue with this logic: if a key exists and contains a value of None, then None will
+        # be returned instead of an empty dict specified as the default, and the next get() will fail.
+        # So check specifically for non-false values.
+        if event.get('context'):
+            self.add_agent_info(event_dict, event.get('context').get('userAgent'))
+        properties = event.get('properties')
+        if properties and properties.get('context'):
+            self.add_agent_info(event_dict, properties.get('context').get('agent'))
+
+        self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
+
+        # event-mapping has to add only a few values:  course_id, user_id, anonymous_id, label, category, url, referrer.
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
 
-        record = EventRecord(**event_dict)
+        # Try to extract course_id information.
+        course_id = event_dict.get('course_id')
+        if course_id is None:
+            # course_id may be stored in 'label', so try to parse what is there.
+            label = event_dict.get('label')
+            if label and is_valid_course_id(label):
+                self.add_calculated_event_entry(event_dict, 'course_id', label)
+                course_id = event_dict.get('course_id')
+
+        if course_id is None:
+            # course_id may be extractable from 'url' in the usual
+            # way, so try to parse what is there.
+            url = event_dict.get('url')
+            course_key = get_course_key_from_url(url)
+            if course_key:
+                course_id = unicode(course_key)
+                self.add_calculated_event_entry(event_dict, 'course_id', course_id)
+            elif url:
+                # course_id may be extractable from 'url' by looking for the
+                # version string and plus-delimiters explicitly anywhere in the URL.
+                match = NEW_COURSE_REGEX.match(url)
+                if match:
+                    course_id_string = match.group('course_id')
+                    if is_valid_course_id(course_id_string):
+                        self.add_calculated_event_entry(event_dict, 'course_id', course_id_string)
+                        course_id = event_dict.get('course_id')
+
+        if course_id is not None:
+            org_id = get_org_id_for_course(course_id)
+            if org_id:
+                self.add_calculated_event_entry(event_dict, 'org_id', org_id)
+
+        record = JsonEventRecord(**event_dict)
         key = (date_received, project_name)
 
         self.incr_counter(self.counter_category_name, 'Output From Mapper', 1)
@@ -1033,7 +1254,7 @@ class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTa
     """Runs all Event Record tasks for a given time interval."""
     # Override superclass to disable this parameter
     # TODO: check if this is redundant, if it's already in the mixin.
-    interval = None
+    #interval = None
 
     def requires(self):
         kwargs = {
@@ -1062,7 +1283,7 @@ class EventRecordTableTask(BareHiveTableTask):
 
     @property
     def columns(self):
-        return EventRecord.get_hive_schema()
+        return JsonEventRecord.get_hive_schema()
 
 
 class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
@@ -1105,16 +1326,26 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
     )
 
     def requires(self):
-        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
-            # should_overwrite = date >= self.overwrite_from_date
-            yield EventRecordPartitionTask(
-                date=date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                warehouse_path=self.warehouse_path,
-                # overwrite=should_overwrite,
-                # overwrite_from_date=self.overwrite_from_date,
-                events_list_file_path=self.events_list_file_path,
-            )
+        kwargs = {
+            'output_root': self.warehouse_path,
+            'events_list_file_path': self.events_list_file_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'interval': self.interval,
+        }
+        yield (
+            TrackingEventRecordDataTask(**kwargs),
+            SegmentEventRecordDataTask(**kwargs),
+        )
+        # for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+        #     # should_overwrite = date >= self.overwrite_from_date
+        #     yield EventRecordPartitionTask(
+        #         date=date,
+        #         n_reduce_tasks=self.n_reduce_tasks,
+        #         warehouse_path=self.warehouse_path,
+        #         # overwrite=should_overwrite,
+        #         # overwrite_from_date=self.overwrite_from_date,
+        #         events_list_file_path=self.events_list_file_path,
+        #     )
             # yield LoadEventRecordToVerticaTask(
             #     date=date,
             #     n_reduce_tasks=self.n_reduce_tasks,
@@ -1185,7 +1416,7 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
 
     @property
     def columns(self):
-        return EventRecord.get_sql_schema()
+        return JsonEventRecord.get_sql_schema()
 
     @property
     def table_partition_key(self):
@@ -1272,7 +1503,8 @@ class PruneEventPartitionsInVertica(EventRecordLoadDownstreamMixin, SchemaManage
             ),
         ]
         # Check for pruning.
-        if self.interval and self.earliest_date and self.retention_interval:
+        # if self.interval and self.earliest_date and self.retention_interval:
+        if False:
             earliest_date_to_retain = self.interval.date_b - self.retention_interval
             split_date = self.earliest_date.split('-')
             earliest_date = datetime.date(int(split_date[0]), int(split_date[1]), int(split_date[2]))
