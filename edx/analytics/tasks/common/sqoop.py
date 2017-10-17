@@ -181,6 +181,16 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseH
             cred = json.load(credentials_file)
         return cred
 
+    def complete(self):
+        """
+        Wrap Task.complete() to check for metadata marker file as well as data.
+        """
+        data_complete = super(SqoopImportTask, self).complete()
+        if data_complete and self.metadata_output().exists():
+            return True
+        else:
+            return False
+
 
 class SqoopImportFromMysql(SqoopImportTask):
     """
@@ -231,6 +241,16 @@ class SqoopImportRunner(luigi.hadoop.JobRunner):
     def run_job(self, job):
         """Runs a SqoopImportTask by shelling out to sqoop."""
         job.remove_output_on_overwrite()
+
+        # Sometimes the job will be run by another workflow running at
+        # the same time, and so this will already become complete.
+        # Sqoop cannot rerun the command line if the output file already
+        # exists -- Hadoop returns a FileAlreadyExistsException error from
+        # org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs().
+        # Just check here first before running, and do nothing if it's already complete.
+        if job.complete():
+            log.warning("Skipping output of %s -- file already exists!", job.metadata_output().path)
+            return
 
         metadata = {
             'start_time': datetime.datetime.utcnow().isoformat()
