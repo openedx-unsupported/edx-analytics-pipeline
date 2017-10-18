@@ -105,19 +105,18 @@ class LoadInternalReportingProgramCourseToBigQuery(WarehouseMixin, BigQueryLoadT
         return ProgramCourseRecord.get_bigquery_schema()
 
 
-class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, OverwriteOutputMixin, luigi.WrapperTask):
+class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, BigQueryLoadDownstreamMixin, luigi.WrapperTask):
 
-    dataset_id = luigi.Parameter()
-    credentials = luigi.Parameter()
     date = luigi.DateParameter()
 
     def requires(self):
         kwargs = {
             'date': self.date,
-            'warehouse_path': self.warehouse_path,
-            'overwrite': self.overwrite,
             'dataset_id': self.dataset_id,
             'credentials': self.credentials,
+            'max_bad_records': self.max_bad_records,
+            'overwrite': self.overwrite,
+            'warehouse_path': self.warehouse_path,
         }
         yield LoadInternalReportingCourseToBigQuery(**kwargs)
         yield LoadInternalReportingCourseSeatToBigQuery(**kwargs)

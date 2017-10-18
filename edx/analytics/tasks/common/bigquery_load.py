@@ -317,9 +317,3 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
             return True
         else:
             return False
-
-
-class BigQueryLoadDailyPartitionTask(BigQueryLoadTask):
-    """Like BigQueryLoadTask, but loads only a date partition into a table, not the entire table."""
-
-
