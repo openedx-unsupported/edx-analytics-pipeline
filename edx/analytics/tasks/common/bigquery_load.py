@@ -91,22 +91,23 @@ class BigQueryTarget(luigi.Target):
         query_string = "DELETE {dataset}.table_updates WHERE target_table='{dataset}.{table}'".format(
             dataset=self.dataset_id, table=self.table
         )
-        query = client.run_sync_query(query_string)
+        query = self.client.run_sync_query(query_string)
         query.use_legacy_sql = False
         query.run()
 
     def clear_marker_table_entry(self):
-        query_string = "DELETE {dataset}.table_updates WHERE update_id='{update_id}'".format(
-            dataset=self.dataset_id, update_id=self.update_id,
+        query_string = "DELETE {dataset}.table_updates WHERE update_id='{update_id}' AND target_table='{dataset}.{table}'".format(
+            dataset=self.dataset_id, update_id=self.update_id, table=self.table
         )
-        query = client.run_sync_query(query_string)
+        query = self.client.run_sync_query(query_string)
         query.use_legacy_sql = False
         query.run()
 
     def exists(self):
-        query_string = "SELECT 1 FROM {dataset}.table_updates WHERE update_id = '{update_id}'".format(
+        query_string = "SELECT 1 FROM {dataset}.table_updates WHERE update_id='{update_id}' AND target_table='{dataset}.{table}'".format(
             dataset=self.dataset_id,
             update_id=self.update_id,
+            table=self.table,
         )
         log.debug(query_string)
 
@@ -129,6 +130,10 @@ class BigQueryLoadDownstreamMixin(OverwriteOutputMixin):
 
 
 class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
+
+    # Regardless whether loading only a partition or an entire table,
+    # we still need a date to use to mark the table.
+    date = luigi.DateParameter()
 
     output_target = None
     required_tasks = None
@@ -162,6 +167,11 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         return ''
 
     @property
+    def partitioning_type(self):
+        """Set to 'DAY' in order to partition by day.  Default is to not partition at all."""
+        return None
+
+    @property
     def field_delimiter(self):
         return "\t"
 
@@ -178,12 +188,12 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         if not dataset.exists():
             dataset.create()
 
-    def create_table(self, client, partitioning_type=None):
+    def create_table(self, client):
         dataset = client.dataset(self.dataset_id)
         table = dataset.table(self.table, self.schema)
         if not table.exists():
-            if partitioning_type:
-                table.partitioning_type = partitioning_type
+            if self.partitioning_type:
+                table.partitioning_type = self.partitioning_type
             if self.table_description:
                 table.description = self.table_description
             if self.table_friendly_name:
@@ -195,14 +205,28 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         if self.overwrite:
             dataset = client.dataset(self.dataset_id)
             table = dataset.table(self.table)
-            if table.exists():
-                table.delete()
-            self.output().clear_marker_table()
+            if self.partitioning_type:
+                # Delete only the specific partition, and clear the marker only for the partition.
+                if table.exists():
+                    partition = self._get_table_partition(dataset, table)
+                    partition.delete()
+                self.output().clear_marker_table_entry()
+            else:
+                # Delete the entire table and all markers related to the table.
+                if table.exists():
+                    table.delete()
+                self.output().clear_marker_table()
 
     def _get_destination_from_source(self, source_path):
         parsed_url = urlparse.urlparse(source_path)
         destination_path = url_path_join('gs://{}'.format(parsed_url.netloc), parsed_url.path)
         return destination_path
+
+    def _get_table_partition(self, dataset, table):
+        date_string = self.date.isoformat()
+        stripped_date = date_string.replace('-', '')
+        partition_name = '{}${}'.format(table.name, stripped_date)
+        return dataset.table(partition_name)
 
     def _copy_data_to_gs(self, source_path, destination_path):
         if self.is_file(source_path):
@@ -260,9 +284,17 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         destination_path = self._get_destination_from_source(source_path)
         self._copy_data_to_gs(source_path, destination_path)
         load_uri = self._get_load_url_from_destination(destination_path)
-        job_id = 'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time()))
 
-        self._run_load_table_job(client, job_id, table, load_uri)
+        if self.partitioning_type:
+            partition = self._get_table_partition(dataset, table)
+            partition.partitioning_type = self.partitioning_type
+            job_id = 'load_{table}_{date_string}_{timestamp}'.format(
+                table=self.table, date_string=self.date.isoformat(), timestamp=int(time.time())
+            )
+            self._run_load_table_job(client, job_id, partition, load_uri)
+        else:
+            job_id = 'load_{table}_{timestamp}'.format(table=self.table, timestamp=int(time.time()))
+            self._run_load_table_job(client, job_id, table, load_uri)
 
         self.output().touch()
 
@@ -278,7 +310,6 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         return self.output_target
 
     def update_id(self):
-        # TODO: define self.date in this class.  This currently assumes the derived class defines self.date.
         return '{task_name}(date={key})'.format(task_name=self.task_family, key=self.date.isoformat())
 
     def is_file(self, path):
@@ -291,43 +322,4 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
 class BigQueryLoadDailyPartitionTask(BigQueryLoadTask):
     """Like BigQueryLoadTask, but loads only a date partition into a table, not the entire table."""
 
-    date = luigi.DateParameter()
 
-    def _get_table_partition(self, dataset, table):
-        date_string = self.date.isoformat()
-        stripped_date = date_string.replace('-', '')
-        partition_name = '{}${}'.format(table.name, stripped_date)
-        return dataset.table(partition_name)
-
-    def init_copy(self, client):
-        self.attempted_removal = True
-        if self.overwrite:
-            # Only delete the data for the specific partition, not the entire table.
-            dataset = client.dataset(self.dataset_id)
-            table = dataset.table(self.table)
-            if table.exists():
-                partition = self._get_table_partition(dataset, table)
-                partition.delete()
-            self.output().clear_marker_table_entry()
-
-    def run(self):
-        client = self.output().client
-        self.create_dataset(client)
-        self.init_copy(client)
-        self.create_table(client, partitioning_type='DAY')
-
-        dataset = client.dataset(self.dataset_id)
-        table = dataset.table(self.table, self.schema)
-
-        source_path = self.input()['source'].path
-        destination_path = self._get_destination_from_source(source_path)
-        self._copy_data_to_gs(source_path, destination_path)
-        load_uri = self._get_load_url_from_destination(destination_path)
-
-        partition = self._get_table_partition(dataset, table)
-        partition.partitioning_type = 'DAY'  # TODO: check if this is actually needed.
-        job_id = 'load_{table}_{date_string}_{timestamp}'.format(table=self.table, date_string=self.date.isoformat(), timestamp=int(time.time()))
-
-        self._run_load_table_job(client, job_id, partition, load_uri)
-
-        self.output().touch()

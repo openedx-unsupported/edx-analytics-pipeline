@@ -2,18 +2,18 @@ import datetime
 import os
 
 import luigi
+from google.cloud import bigquery
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask
+from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask, BigQueryLoadDownstreamMixin
+from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
-from google.cloud import bigquery
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import CourseRecord, ProgramCourseRecord, CourseSeatRecord
 
 
 class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    date = luigi.DateParameter()
 
     @property
     def table(self):
@@ -21,6 +21,7 @@ class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTa
 
     @property
     def schema(self):
+        # Defined in load_internal_reporting_certificates, but not in a Record.
         return [
             bigquery.SchemaField('user_id', 'INTEGER', mode='REQUIRED'),
             bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
@@ -39,14 +40,13 @@ class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTa
 
 class LoadInternalReportingCountryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
-    date = luigi.DateParameter()
-
     @property
     def table(self):
         return 'd_country'
 
     @property
     def schema(self):
+        # Defined in load_internal_reporting_country, but not in a Record.
         return [
             bigquery.SchemaField('country_name', 'STRING'),
             bigquery.SchemaField('user_last_location_country_code', 'STRING', mode='REQUIRED'),
@@ -59,8 +59,6 @@ class LoadInternalReportingCountryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
 class LoadInternalReportingCourseToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
-    date = luigi.DateParameter()
-
     @property
     def insert_source_task(self):
         url = url_path_join(self.hive_partition_path('course_catalog', self.date), 'course_catalog.tsv')
@@ -72,31 +70,10 @@ class LoadInternalReportingCourseToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
     @property
     def schema(self):
-        return [
-            bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('catalog_course', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('catalog_course_title', 'STRING'),
-            bigquery.SchemaField('start_time', 'DATETIME'),
-            bigquery.SchemaField('end_time', 'DATETIME'),
-            bigquery.SchemaField('enrollment_start_time', 'DATETIME'),
-            bigquery.SchemaField('enrollment_end_time', 'DATETIME'),
-            bigquery.SchemaField('content_language', 'STRING'),
-            bigquery.SchemaField('pacing_type', 'STRING'),
-            bigquery.SchemaField('level_type', 'STRING'),
-            bigquery.SchemaField('availability', 'STRING'),
-            bigquery.SchemaField('org_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('partner_short_code', 'STRING'),
-            bigquery.SchemaField('marketing_url', 'STRING'),
-            bigquery.SchemaField('min_effort', 'INTEGER'),
-            bigquery.SchemaField('max_effort', 'INTEGER'),
-            bigquery.SchemaField('announcement_time', 'DATETIME'),
-            bigquery.SchemaField('reporting_type', 'STRING'),
-        ] 
+        return CourseRecord.get_bigquery_schema()
 
 
 class LoadInternalReportingCourseSeatToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    date = luigi.DateParameter()
 
     @property
     def insert_source_task(self):
@@ -109,20 +86,10 @@ class LoadInternalReportingCourseSeatToBigQuery(WarehouseMixin, BigQueryLoadTask
 
     @property
     def schema(self):
-        return [
-            bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('course_seat_type', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('course_seat_price', 'FLOAT', mode='REQUIRED'),
-            bigquery.SchemaField('course_seat_currency', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('course_seat_upgrade_deadline', 'DATETIME'),
-            bigquery.SchemaField('course_seat_credit_provider', 'STRING'),
-            bigquery.SchemaField('course_seat_credit_hours', 'INTEGER'),
-        ]
+        return CourseSeatRecord.get_bigquery_schema()
 
 
 class LoadInternalReportingProgramCourseToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    date = luigi.DateParameter()
 
     @property
     def insert_source_task(self):
@@ -135,17 +102,7 @@ class LoadInternalReportingProgramCourseToBigQuery(WarehouseMixin, BigQueryLoadT
 
     @property
     def schema(self):
-        return [
-            bigquery.SchemaField('program_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('program_type', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('program_title', 'STRING'),
-            bigquery.SchemaField('catalog_course', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('catalog_course_title', 'STRING'),
-            bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('org_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('partner_short_code', 'STRING'),
-            bigquery.SchemaField('program_slot_number', 'INTEGER'),
-        ]
+        return ProgramCourseRecord.get_bigquery_schema()
 
 
 class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, OverwriteOutputMixin, luigi.WrapperTask):
@@ -173,8 +130,6 @@ class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, OverwriteOutp
 
 class LoadUserCourseSummaryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
-    date = luigi.DateParameter()
-
     @property
     def insert_source_task(self):
         return ExternalURL(url=self.hive_partition_path('course_enrollment_summary', self.date))
@@ -185,23 +140,10 @@ class LoadUserCourseSummaryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
     @property
     def schema(self):
-        return [
-            bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('user_id', 'INTEGER', mode='REQUIRED'),
-            bigquery.SchemaField('current_enrollment_mode', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('current_enrollment_is_active', 'STRING', mode='REQUIRED'),
-            bigquery.SchemaField('first_enrollment_mode', 'STRING'),
-            bigquery.SchemaField('first_enrollment_time', 'DATETIME'),
-            bigquery.SchemaField('last_unenrollment_time', 'DATETIME'),
-            bigquery.SchemaField('first_verified_enrollment_time', 'DATETIME'),
-            bigquery.SchemaField('first_credit_enrollment_time', 'DATETIME'),
-            bigquery.SchemaField('end_time', 'DATETIME', mode='REQUIRED'),
-        ]
+        return EnrollmentSummaryRecord.get_bigquery_schema()
 
 
 class LoadInternalReportingUserActivityToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    date = luigi.DateParameter()
 
     def __init__(self, *args, **kwargs):
         super(LoadInternalReportingUserActivityToBigQuery, self).__init__(*args, **kwargs)
@@ -232,6 +174,7 @@ class LoadInternalReportingUserActivityToBigQuery(WarehouseMixin, BigQueryLoadTa
 
     @property
     def schema(self):
+        # Defined in load_internal_reporting_user_activity, but not in a Record.
         return [
             bigquery.SchemaField('user_id', 'INTEGER', mode='REQUIRED'),
             bigquery.SchemaField('course_id', 'STRING', mode='REQUIRED'),
@@ -242,8 +185,6 @@ class LoadInternalReportingUserActivityToBigQuery(WarehouseMixin, BigQueryLoadTa
 
 
 class LoadInternalReportingUserToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    date = luigi.DateParameter()
 
     @property
     def partition(self):
@@ -260,6 +201,8 @@ class LoadInternalReportingUserToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
     @property
     def schema(self):
+        # Defined in load_internal_reporting_user, but not in a Record.
+        # The names of fields here and Vertica is also different than in Hive, with 'user_' prepended to all but 'user_id'.
         return [
             bigquery.SchemaField('user_id', 'INTEGER'),
             bigquery.SchemaField('user_year_of_birth', 'INTEGER'),
@@ -273,7 +216,6 @@ class LoadInternalReportingUserToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
 
 class DailyLoadSubjectsToBigQueryTask(WarehouseMixin, BigQueryLoadTask):
-    date = luigi.DateParameter()
 
     @property
     def insert_source_task(self):
@@ -288,6 +230,7 @@ class DailyLoadSubjectsToBigQueryTask(WarehouseMixin, BigQueryLoadTask):
 
     @property
     def schema(self):
+        # Defined in course_catalog, but not in a Record.
         return [
             bigquery.SchemaField('course_id', 'STRING'),
             bigquery.SchemaField('date', 'DATE'),
@@ -297,52 +240,34 @@ class DailyLoadSubjectsToBigQueryTask(WarehouseMixin, BigQueryLoadTask):
         ]
 
 
-class LoadWarehouseBigQueryTask(WarehouseMixin, luigi.WrapperTask):
+class LoadWarehouseBigQueryTask(BigQueryLoadDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
 
     date = luigi.DateParameter()
-    dataset_id = luigi.Parameter()
-    credentials = luigi.Parameter()
-    overwrite = luigi.BooleanParameter(default=False, significant=False)
 
     def requires(self):
         kwargs = {
+            'date': self.date,
             'dataset_id': self.dataset_id,
             'credentials': self.credentials,
+            'max_bad_records': self.max_bad_records,
             'overwrite': self.overwrite,
             'warehouse_path': self.warehouse_path,
         }
 
-        yield LoadInternalReportingCertificatesToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadInternalReportingCertificatesToBigQuery(**kwargs)
 
-        yield LoadInternalReportingCountryToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadInternalReportingCountryToBigQuery(**kwargs)
 
-        yield LoadInternalReportingCourseCatalogToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadInternalReportingCourseCatalogToBigQuery(**kwargs)
 
-        yield LoadUserCourseSummaryToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadUserCourseSummaryToBigQuery(**kwargs)
 
-        yield LoadInternalReportingUserActivityToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadInternalReportingUserActivityToBigQuery(**kwargs)
 
-        yield LoadInternalReportingUserToBigQuery(
-            date=self.date,
-            **kwargs
-        )
+        yield LoadInternalReportingUserToBigQuery(**kwargs)
 
-        yield DailyLoadSubjectsToBigQueryTask(
-            date=self.date,
-            **kwargs
-        )
+        yield DailyLoadSubjectsToBigQueryTask(**kwargs)
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))

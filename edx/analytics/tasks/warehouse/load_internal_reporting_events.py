@@ -25,7 +25,7 @@ import user_agents
 
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadDailyPartitionTask
+from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, SchemaManagementTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
@@ -1617,7 +1617,7 @@ class LoadEventsIntoWarehouseWorkflow(EventRecordLoadDownstreamMixin, VerticaCop
         )
 
 
-class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadDailyPartitionTask):
+class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadTask):
 
     @property
     def table(self):
@@ -1625,6 +1625,11 @@ class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadDai
             return 'json_event_records'
         else:
             return 'event_records'
+
+    @property
+    def partitioning_type(self):
+        """Set to 'DAY' in order to partition by day."""
+        return 'DAY'
 
     @property
     def schema(self):
@@ -1655,6 +1660,7 @@ class LoadEventRecordIntervalToBigQuery(EventRecordDownstreamMixin, BigQueryLoad
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
                 events_list_file_path=self.events_list_file_path,
+                overwrite=self.overwrite,
                 dataset_id=self.dataset_id,
                 credentials=self.credentials,
                 max_bad_records=self.max_bad_records,
@@ -1662,3 +1668,7 @@ class LoadEventRecordIntervalToBigQuery(EventRecordDownstreamMixin, BigQueryLoad
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))
