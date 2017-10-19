@@ -94,12 +94,12 @@ class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, Te
 
     def test_good_enroll_event(self):
         line = self.create_event_log_line()
-        expected_value = (self.course_id, self.user_id, self.timestamp, ACTIVATED, 'honor')
+        expected_value = (self.encoded_course_id, self.user_id, self.timestamp, ACTIVATED, 'honor')
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
     def test_good_unenroll_event(self):
         line = self.create_event_log_line(event_type=DEACTIVATED)
-        expected_value = (self.course_id, self.user_id, self.timestamp, DEACTIVATED, 'honor')
+        expected_value = (self.encoded_course_id, self.user_id, self.timestamp, DEACTIVATED, 'honor')
         self.assert_single_map_output(line, self.expected_key, expected_value)
 
 

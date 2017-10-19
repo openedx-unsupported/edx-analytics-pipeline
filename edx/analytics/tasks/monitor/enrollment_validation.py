@@ -785,7 +785,8 @@ class CreateEnrollmentValidationEventsTask(MultiOutputMapReduceJobTask):
                 outfile.write(value)
                 outfile.write('\n')
 
-    def output_path_for_key(self, course_id):
+    def output_path_for_key(self, encoded_course_id):
+        course_id = encoded_course_id.decode('utf-8')
         filename_safe_course_id = opaque_key_util.get_filename_safe_course_id(course_id, '_')
         filename = u'{course_id}_enroll_validated_{dumpdate}.log.gz'.format(
             course_id=filename_safe_course_id,
