@@ -76,6 +76,11 @@ class BigQueryTarget(luigi.Target):
             tmp.close()
             os.unlink(tmp.name)
 
+    def marker_table_exists(self):
+        dataset = self.client.dataset(self.dataset_id)
+        table = dataset.table('table_updates')
+        return table.exists()
+
     def create_marker_table(self):
         marker_table_schema = [
             bigquery.SchemaField('update_id', 'STRING'),
@@ -88,6 +93,9 @@ class BigQueryTarget(luigi.Target):
             table.create()
 
     def clear_marker_table(self):
+        if not self.marker_table_exists():
+            return
+
         query_string = "DELETE {dataset}.table_updates WHERE target_table='{dataset}.{table}'".format(
             dataset=self.dataset_id, table=self.table
         )
@@ -96,6 +104,9 @@ class BigQueryTarget(luigi.Target):
         query.run()
 
     def clear_marker_table_entry(self):
+        if not self.marker_table_exists():
+            return
+
         query_string = "DELETE {dataset}.table_updates WHERE update_id='{update_id}' AND target_table='{dataset}.{table}'".format(
             dataset=self.dataset_id, update_id=self.update_id, table=self.table
         )
@@ -104,6 +115,9 @@ class BigQueryTarget(luigi.Target):
         query.run()
 
     def exists(self):
+        if not self.marker_table_exists():
+            return False
+
         query_string = "SELECT 1 FROM {dataset}.table_updates WHERE update_id='{update_id}' AND target_table='{dataset}.{table}'".format(
             dataset=self.dataset_id,
             update_id=self.update_id,
