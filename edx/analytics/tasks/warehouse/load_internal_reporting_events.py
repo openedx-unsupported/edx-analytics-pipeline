@@ -470,16 +470,6 @@ class EventRecordDownstreamMixin(EventRecordClassMixin, WarehouseMixin, MapReduc
 class EventRecordDataDownstreamMixin(EventRecordDownstreamMixin):
 
     """Common parameters and base classes used to pass parameters through the event record workflow."""
-
-    # Required parameter
-    date = luigi.DateParameter(
-        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
-                    ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
-                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
-    )
-
-    # Override superclass to disable this parameter
-    interval = None
     output_root = luigi.Parameter()
 
 
@@ -493,11 +483,6 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
     # This is a placeholder.  It is expected to be overridden in derived classes.
     counter_category_name = 'Event Record Exports'
-
-    def __init__(self, *args, **kwargs):
-        super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
-
-        self.interval = luigi.date_interval.Date.from_date(self.date)
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
@@ -546,25 +531,18 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
     def output_path_for_key(self, key):
         """
-        Output based on date and something else.  What else?  Type?
+        Output based on date and project.
 
         Mix them together by date, but identify with different files for each project/environment.
 
         Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv
         """
-        # If we're only running now with a specific date, then there
-        # is no reason to sort by date_received.
-        # date_received, project = key
-        _date_received, project = key
+        date_received, project = key
 
-        # return url_path_join(
-        #     self.output_root,
-        #     'event_records',
-        #     'dt={date}'.format(date=date_received),
-        #     '{project}.tsv'.format(project=project),
-        # )
         return url_path_join(
             self.output_root,
+            EVENT_TABLE_NAME,
+            'dt={date}'.format(date=date_received),
             '{project}.tsv'.format(project=project),
         )
 
@@ -768,7 +746,6 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    interval = None
     event_mapping = None
     PROJECT_NAME = 'tracking_prod'
 
@@ -975,9 +952,6 @@ class SegmentEventLogSelectionMixin(SegmentEventLogSelectionDownstreamMixin, Eve
 
 class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordDataTask):
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
-
-    # Override superclass to disable this parameter
-    interval = None
 
     # Project information, pulled from config file.
     project_names = {}
@@ -1305,11 +1279,82 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         yield key, record.to_separated_values()
 
 
-class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTask):
-    """Runs all Event Record tasks for a given time interval."""
+##########################
+# Bulk Loading into S3
+##########################
+
+
+class BulkEventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
+    """Compute event information over a range of dates and insert the results into Hive."""
+
+    def requires(self):
+        kwargs = {
+            'output_root': self.warehouse_path,
+            'events_list_file_path': self.events_list_file_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'interval': self.interval,
+            'event_record_type': self.event_record_type,
+        }
+        yield (
+            TrackingEventRecordDataTask(**kwargs),
+            SegmentEventRecordDataTask(**kwargs),
+        )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+##########################
+# Loading into S3 by Date
+##########################
+
+
+class PerDateEventRecordDataDownstreamMixin(EventRecordDataDownstreamMixin):
+
+    """Common parameters and base classes used to pass parameters through the event record workflow."""
+
+    # Required parameter
+    date = luigi.DateParameter(
+        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
+                    ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
+                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
+    )
+
     # Override superclass to disable this parameter
-    # TODO: check if this is redundant, if it's already in the mixin.
     interval = None
+
+
+class PerDateEventRecordDataMixin(PerDateEventRecordDataDownstreamMixin):
+
+    def __init__(self, *args, **kwargs):
+        super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
+        self.interval = luigi.date_interval.Date.from_date(self.date)
+
+    def output_path_for_key(self, key):
+        """
+        Output based on project.
+
+        Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv,
+        but output_root is assumed to be set externally to {warehouse_path}/event_records/dt={CCYY-MM-DD}.
+        """
+        date_received, project = key
+
+        return url_path_join(
+            self.output_root,
+            '{project}.tsv'.format(project=project),
+        )
+
+
+class PerDateTrackingEventRecordDataTask(PerDateEventRecordDataMixin, TrackingEventRecordDataTask):
+    pass
+
+
+class PerDateSegmentEventRecordDataTask(PerDateEventRecordDataMixin, SegmentEventRecordDataTask):
+    pass
+
+
+class PerDateGeneralEventRecordDataTask(PerDateEventRecordDataDownstreamMixin, luigi.WrapperTask):
+    """Runs all Event Record tasks for a given time interval."""
 
     def requires(self):
         kwargs = {
@@ -1318,11 +1363,10 @@ class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTa
             'events_list_file_path': self.events_list_file_path,
             'n_reduce_tasks': self.n_reduce_tasks,
             'date': self.date,
-            # 'warehouse_path': self.warehouse_path,
         }
         yield (
-            TrackingEventRecordDataTask(**kwargs),
-            SegmentEventRecordDataTask(**kwargs),
+            PerDateTrackingEventRecordDataTask(**kwargs),
+            PerDateSegmentEventRecordDataTask(**kwargs),
         )
 
 
@@ -1345,9 +1389,6 @@ class EventRecordTableTask(EventRecordClassMixin, BareHiveTableTask):
 class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
     """The hive table partition for this engagement data."""
 
-    # Required parameter
-    # TODO: these two should already be declared this way in EventRecordDownstreamMixin.
-    # Figure out if they really need to be declared here as well.
     date = luigi.DateParameter()
     interval = None
 
@@ -1366,7 +1407,7 @@ class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
 
     @property
     def data_task(self):
-        return GeneralEventRecordDataTask(
+        return PerDateGeneralEventRecordDataTask(
             event_record_type=self.event_record_type,
             date=self.date,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -1377,7 +1418,7 @@ class EventRecordPartitionTask(EventRecordDownstreamMixin, HivePartitionTask):
 
 
 class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
-    """Compute engagement information over a range of dates and insert the results into Hive and Vertica and whatever else."""
+    """Compute event information over a range of dates and insert the results into Hive."""
 
     interval = luigi.DateIntervalParameter(
         description='The range of received dates for which to create event records.',
@@ -1395,13 +1436,6 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
                 # overwrite_from_date=self.overwrite_from_date,
                 events_list_file_path=self.events_list_file_path,
             )
-            # yield LoadEventRecordToVerticaTask(
-            #     date=date,
-            #     n_reduce_tasks=self.n_reduce_tasks,
-            #     warehouse_path=self.warehouse_path,
-            #     overwrite=should_overwrite,
-            #     overwrite_from_date=self.overwrite_from_date,
-            # )
 
     def output(self):
         return [task.output() for task in self.requires()]
@@ -1417,11 +1451,14 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
                 yield task.data_task
 
 
+##########################
+# Loading into Vertica
+##########################
+
+
 class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask):
 
     # Required parameter
-    # TODO: this should already be declared this way in EventRecordDownstreamMixin.
-    # Figure out if it really needs to be declared here as well.
     date = luigi.DateParameter()
 
     @property
@@ -1436,16 +1473,6 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
         partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
         return ExternalURL(url=partition_location)
 
-        # But this should actually work as well, without the partition property being needed.
-        # WRONG. It really needs the underlying data-generating task.  The partition task's output
-        # itself cannot be opened as a file for reading.
-        # return EventRecordPartitionTask(
-        #     date=self.date,
-        #     n_reduce_tasks=self.n_reduce_tasks,
-        #     warehouse_path=self.warehouse_path,
-        #     events_list_file_path=self.events_list_file_path,
-        # )
-
     @property
     def table(self):
         return EVENT_TABLE_NAME
@@ -1459,8 +1486,7 @@ class LoadDailyEventRecordToVertica(EventRecordDownstreamMixin, VerticaCopyTask)
     @property
     def auto_primary_key(self):
         # The default is to use 'id', which would cause a conflict with field already having that name.
-        # But I don't see that there's any value to having such a column.
-        # return ('row_number', 'AUTO_INCREMENT')
+        # But there seems to be little value in having such a column.
         return None
 
     @property
@@ -1617,6 +1643,11 @@ class LoadEventsIntoWarehouseWorkflow(EventRecordLoadDownstreamMixin, VerticaCop
         )
 
 
+##########################
+# Loading into BigQuery
+##########################
+
+
 class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadTask):
 
     @property
@@ -1637,7 +1668,6 @@ class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadTas
 
     @property
     def insert_source_task(self):
-        # TODO: decide if this should be an external URL, or if we should point to the actual task.
         return ExternalURL(url=self.hive_partition_path(EVENT_TABLE_NAME, self.date))
 
 
@@ -1648,7 +1678,7 @@ class LoadEventRecordIntervalToBigQuery(EventRecordDownstreamMixin, BigQueryLoad
     """
 
     interval = luigi.DateIntervalParameter(
-        description='The range of received dates for which to create event records.',
+        description='The range of dates for which to create event records.',
     )
 
     def requires(self):

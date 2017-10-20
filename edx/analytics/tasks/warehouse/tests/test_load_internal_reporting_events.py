@@ -16,6 +16,8 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_events import (
     JsonEventRecord,
     TrackingEventRecordDataTask,
     SegmentEventRecordDataTask,
+    PerDateTrackingEventRecordDataTask,
+    PerDateSegmentEventRecordDataTask,
     VERSION,
 )
 
@@ -87,7 +89,7 @@ class BaseTrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMi
         if not date:
             date = self.DEFAULT_DATE
         self.task = TrackingEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
             event_record_type=self.EVENT_RECORD_TYPE,
         )
@@ -391,7 +393,7 @@ class BaseSegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMix
         if not date:
             date = self.DEFAULT_DATE
         self.task = SegmentEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
+            interval=luigi.DateIntervalParameter().parse(date),
             output_root='/fake/output',
             event_record_type=self.EVENT_RECORD_TYPE,
         )
@@ -591,3 +593,31 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
         }
         expected_value = JsonEventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(event, expected_key, expected_value)
+
+
+class PerDateTrackingJsonEventRecordTaskMapTest(TrackingJsonEventRecordTaskMapTest):
+
+    def create_task(self, date=None):  # pylint: disable=arguments-differ
+        """Allow arguments to be passed to the task constructor."""
+        if not date:
+            date = self.DEFAULT_DATE
+        self.task = PerDateTrackingEventRecordDataTask(
+            date=luigi.DateParameter().parse(date),
+            output_root='/fake/output',
+            event_record_type=self.EVENT_RECORD_TYPE,
+        )
+        self.task.init_local()
+
+
+class PerDateSegmentJsonEventRecordTaskMapTest(SegmentJsonEventRecordTaskMapTest):
+
+    def create_task(self, date=None):  # pylint: disable=arguments-differ
+        """Allow arguments to be passed to the task constructor."""
+        if not date:
+            date = self.DEFAULT_DATE
+        self.task = PerDateSegmentEventRecordDataTask(
+            date=luigi.DateParameter().parse(date),
+            output_root='/fake/output',
+            event_record_type=self.EVENT_RECORD_TYPE,
+        )
+        self.task.init_local()
