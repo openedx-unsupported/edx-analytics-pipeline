@@ -9,7 +9,7 @@ import luigi
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.enrollments import (
     ACTIVATED, DEACTIVATED, MODE_CHANGED, CourseEnrollmentEventsTask, CourseEnrollmentSummaryTask, CourseEnrollmentTask,
-    ImportCourseSummaryEnrollmentsIntoMysql
+    CourseMetaSummaryEnrollmentIntoMysql
 )
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
@@ -562,13 +562,14 @@ class CourseEnrollmentSummaryTaskReducerTest(ReducerTestMixin, TestCase):
 
 
 class TestImportCourseSummaryEnrollmentsIntoMysql(TestCase):
+    """Test that the correct columns are in the Course Summary Enrollments test set."""
     def test_query(self):
         expected_columns = ('course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time',
                             'pacing_type', 'availability', 'mode', 'count', 'count_change_7_days',
                             'cumulative_count', 'passing_users',)
-        import_task = ImportCourseSummaryEnrollmentsIntoMysql(
+        import_task = CourseMetaSummaryEnrollmentIntoMysql(
             date=datetime(2017, 1, 1), warehouse_path='/tmp/foo'
         )
-        select_clause = import_task.query.partition('FROM')[0]
+        select_clause = import_task.insert_source_task.query().partition('FROM')[0]
         for column in expected_columns:
             assert column in select_clause

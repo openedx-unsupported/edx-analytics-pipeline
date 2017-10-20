@@ -34,7 +34,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch(
             [
-                'CourseEnrollmentTableTask',
+                'CourseEnrollmentPartitionTask',
                 '--interval-end', '2015-04-17',
                 '--n-reduce-tasks', str(self.NUM_REDUCERS),
             ]

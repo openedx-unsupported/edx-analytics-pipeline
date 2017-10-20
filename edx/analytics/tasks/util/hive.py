@@ -421,89 +421,64 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
         raise NotImplementedError
 
 
-class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disable=abstract-method
-    """Creates a hive table from the results of a hive query, given parameters instead of properties."""
-
-    insert_query = luigi.Parameter()
-    table = luigi.Parameter()
-    columns = luigi.Parameter(is_list=True)
-    partition = HivePartitionParameter()
-
-
-class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
-    """Populates a MySQL table with the results of a hive query."""
-
-    overwrite = luigi.BooleanParameter(
-        default=True,
-        description='If True, overwrite the MySQL data.',
-    )
-    hive_overwrite = luigi.BooleanParameter(
-        default=False,
-        description='If True, overwrite the hive data.',
-    )
-
-    SQL_TO_HIVE_TYPE = {
-        'varchar': 'STRING',
-        'datetime': 'TIMESTAMP',
-        'date': 'STRING',
-        'integer': 'INT',
-        'int': 'INT',
-        'double': 'DOUBLE',
-        'tinyint': 'TINYINT',
-        'longtext': 'STRING',
-    }
+class OverwriteAwareHiveQueryDataTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+    """
+    A generalized Data task whose output is a hive table populated from a hive query.
+    """
 
     @property
-    def insert_source_task(self):
-        return HiveTableFromParameterQueryTask(
-            warehouse_path=self.warehouse_path,
-            insert_query=self.query,
-            table=self.table,
-            columns=self.hive_columns,
-            partition=self.partition,
-            overwrite=self.hive_overwrite,
-        )
-
-    def requires(self):
-        # MysqlInsertTask customizes requires() somewhat, so don't clobber that logic. Instead allow subclasses to
-        # extend the requirements with their own.
-        requirements = super(HiveQueryToMysqlTask, self).requires()
-        requirements['other_tables'] = self.required_table_tasks
-        return requirements
-
-    @property
-    def table(self):
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table.  This insert_query()
+        is used as part of the query() function below."""
         raise NotImplementedError
 
     @property
-    def query(self):
-        """Hive query to run."""
+    def hive_partition_task(self):
+        """The HivePartitionTask that needs to be generated."""
         raise NotImplementedError
 
-    @property
-    def columns(self):
-        raise NotImplementedError
+    def query(self):  # pragma: no cover
+        full_insert_query = """
+                    USE {database_name};
+                    INSERT INTO TABLE {table}
+                    PARTITION ({partition.query_spec})
+                    {insert_query};
+                    """.format(database_name=hive_database_name(),
+                               table=self.partition_task.hive_table_task.table,
+                               partition=self.partition,
+                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                               )
+
+        return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """HivePartition object specifying the partition to store the data in."""
-        raise NotImplementedError
+    def partition_task(self):  # pragma: no cover
+        """The task that creates the partition used by this job."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = self.hive_partition_task
+        return self._partition_task
 
     @property
-    def required_table_tasks(self):
-        """List of tasks that generate any tables needed to run the query."""
-        return []
+    def partition(self):  # pragma: no cover
+        """A shorthand for the partition information on the upstream partition task."""
+        return self.partition_task.partition  # pylint: disable=no-member
 
-    @property
-    def hive_columns(self):
-        """Convert MySQL column data types to hive data types and return hive column specs as (name, type) tuples."""
-        hive_cols = []
-        for column in self.columns:
-            column_name, sql_type = column
-            raw_sql_type = sql_type.split(' ')[0]
-            unparam_sql_type = raw_sql_type.split('(')[0]
-            hive_type = self.SQL_TO_HIVE_TYPE[unparam_sql_type.lower()]
+    def output(self):  # pragma: no cover
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root, marker=True)
 
-            hive_cols.append((column_name, hive_type))
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
 
-        return hive_cols
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(OverwriteAwareHiveQueryDataTask, self).run()
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(OverwriteAwareHiveQueryDataTask, self).requires():
+            yield requirement
+        yield self.partition_task

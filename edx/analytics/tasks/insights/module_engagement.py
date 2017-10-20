@@ -19,7 +19,7 @@ from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserProfileTask, ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
 )
-from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentTableTask
+from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentPartitionTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
@@ -1216,7 +1216,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 overwrite=self.overwrite,
                 overwrite_from_date=self.overwrite_from_date,
             ),
-            ExternalCourseEnrollmentTableTask(
+            ExternalCourseEnrollmentPartitionTask(
                 interval_end=self.date
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
