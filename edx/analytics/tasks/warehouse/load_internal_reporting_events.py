@@ -1287,6 +1287,10 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 class BulkEventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
     """Compute event information over a range of dates and insert the results into Hive."""
 
+    interval = luigi.DateIntervalParameter(
+        description='The range of dates for which to create event records.',
+    )
+
     def requires(self):
         kwargs = {
             'output_root': self.warehouse_path,
