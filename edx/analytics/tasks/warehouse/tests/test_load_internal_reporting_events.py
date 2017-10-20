@@ -5,7 +5,7 @@ import json
 import unittest
 
 import ciso8601
-from ddt import ddt, data
+from ddt import ddt, data, unpack
 import luigi
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin
@@ -442,6 +442,20 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
         actual_record = self._get_event_record_from_mapper(kwargs)
         timestamp = getattr(actual_record, 'timestamp')
         self.assertEquals(timestamp, None)
+
+    @data(
+        ({'receivedAt': "2013-12-17T15:38:32.805444Z", 'requestTime': "2014-12-18T15:38:32.805444Z"}, "2013-12-17T15:38:32.805444+00:00"),
+        ({'requestTime': "2014-12-01T15:38:32.805444Z"}, '2014-12-01T15:38:32.805444+00:00'), # default to requestTime
+        ({}, '2013-12-17T15:38:32.796000+00:00'), # default to timestamp
+    )
+    @unpack
+    def test_defaulting_arrival_timestamps(self, kwargs, expected_timestamp):
+        template = self.event_templates['android_screen']
+        del template['receivedAt']
+        line = self.create_event_log_line(template=template, **kwargs)
+        line_json = json.loads(line)
+        timestamp = self.task.get_event_arrival_time(line_json)
+        self.assertEquals(timestamp, expected_timestamp)
 
     def test_android_screen(self):
         template = self.event_templates['android_screen']
