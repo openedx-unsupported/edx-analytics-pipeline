@@ -24,7 +24,6 @@ from edx.analytics.tasks.util.hive import (
     BareHiveTableTask,
     HivePartition,
     HivePartitionTask,
-    HiveQueryToMysqlTask,
     HiveTableTask,
     WarehouseMixin,
     hive_database_name,
@@ -197,6 +196,12 @@ class CourseEnrollmentDownstreamMixin(WarehouseMixin, EventLogSelectionDownstrea
         description='This parameter is used by CourseEnrollmentTask which will overwrite course enrollment '
                     ' events for the most recent n days.'
     )
+
+    @property
+    def query_date(self):
+        """We want to store demographics breakdown from the enrollment numbers of most recent day only."""
+        query_date = self.interval.date_b - datetime.timedelta(days=1)
+        return query_date.isoformat()
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentDownstreamMixin, self).__init__(*args, **kwargs)
@@ -515,6 +520,18 @@ class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
+        parms = {
+            "mapreduce_engine": self.mapreduce_engine,
+            "warehouse_path": self.warehouse_path,
+            "n_reduce_tasks": self.n_reduce_tasks,
+            "source": self.source,
+            "interval": self.interval,
+            "pattern": self.pattern,
+            "output_root": self.partition_location,
+            "overwrite_n_days": self.overwrite_n_days,
+        }
+        log.info("TestAZ: These are the CourseEnrollmentTask parameters: {}".format(parms))
+
         return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
             warehouse_path=self.warehouse_path,
@@ -690,52 +707,57 @@ class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, HiveTabl
         )
 
 
-class EnrollmentTask(CourseEnrollmentDownstreamMixin, HiveQueryToMysqlTask):
-    """Base class for breakdowns of enrollments"""
+class EnrollmentByGenderHiveTableTask(BareHiveTableTask):
+    """
+
+    Creates the Hive table in the local Hive environment.  This is just a descriptor, and does not require any data to
+    be present or real
+    """
+    @property  # pragma: no cover
+    def partition_by(self):
+        return 'dt'
 
     @property
-    def indexes(self):
+    def table(self):  # pragma: no cover
+        return 'course_enrollment_gender_daily'
+
+    @property
+    def columns(self):
         return [
-            ('course_id',),
-            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
-            # then by date.
-            ('course_id', 'date'),
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('gender', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
         ]
 
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
-    @property
-    def required_table_tasks(self):
-        yield (
-            CourseEnrollmentTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                warehouse_path=self.warehouse_path,
-                overwrite_n_days=self.overwrite_n_days,
-            ),
-            ImportAuthUserProfileTask()
-        )
-
-    @property
-    def query_date(self):
-        """We want to store demographics breakdown from the enrollment numbers of most recent day only."""
-        query_date = self.interval.date_b - datetime.timedelta(days=1)
-        return query_date.isoformat()
-
-
-class EnrollmentByGenderTask(EnrollmentTask):
+class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
     """
-    Breakdown of enrollments by gender as reported by the user.
-    Note that we do not filter by the query_date here as insights displays breakdown by gender accross multiple days.
+    Generates the course_enrollment_gender_daily hive partition
+    """
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):  # pragma: no cover
+        return EnrollmentByGenderHiveTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):  # pragma: no cover
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()  # pylint: disable=no-member
+
+
+class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):
+    """
+
+    The job executes the query and writes the output to the indicated destination
+    At the end of this job data is stored on s3 (as defined by the job.output())
     """
 
     @property
-    def query(self):
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         return """
             SELECT
                 ce.`date`,
@@ -751,9 +773,88 @@ class EnrollmentByGenderTask(EnrollmentTask):
                 IF(p.gender != '', p.gender, NULL)
         """
 
+    def query(self):  # pragma: no cover
+        full_insert_query = """
+                    USE {database_name};
+                    INSERT INTO TABLE {table}
+                    PARTITION ({partition.query_spec})
+                    {insert_query};
+                    """.format(database_name=hive_database_name(),
+                               table=self.partition_task.hive_table_task.table,
+                               partition=self.partition,
+                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                               )
+
+        return textwrap.dedent(full_insert_query)
+
     @property
-    def table(self):
+    def partition_task(self):  # pragma: no cover
+        """The task that creates the partition used by this job."""
+        return EnrollmentByGenderHivePartitionTask(
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def partition(self):  # pragma: no cover
+        """A shorthand for the partition information on the upstream partition task."""
+        return self.partition_task.partition  # pylint: disable=no-member
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(EnrollmentByGenderDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+        # the process that generates the source table used by this query
+        yield (
+            CourseEnrollmentTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def output(self):  # pragma: no cover
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
+
+
+class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    Breakdown of enrollments by gender as reported by the user.
+    Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
         return 'course_enrollment_gender_daily'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return EnrollmentByGenderDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
 
     @property
     def columns(self):
@@ -765,13 +866,61 @@ class EnrollmentByGenderTask(EnrollmentTask):
             ('cumulative_count', 'INTEGER')
         ]
 
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
+            # then by date.
+            ('course_id', 'date'),
+        ]
 
-class EnrollmentByBirthYearTask(EnrollmentTask):
-    """Breakdown of enrollments by age as reported by the user"""
+
+class EnrollmentByBirthYearTaskTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_grade_by_mode` Hive storage table."""
 
     @property
-    def query(self):
-        query = """
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_enrollment_birth_year_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('birth_year', 'INT'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_enrollment_birth_year_daily` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByBirthYearTaskTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()
+
+
+class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_birth_year_daily` Hive table."""
+
+    @property
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
+        return """
             SELECT
                 ce.`date`,
                 ce.course_id,
@@ -786,11 +935,91 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
                 ce.course_id,
                 p.year_of_birth
         """.format(date=self.query_date)
-        return query
+
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
 
     @property
-    def table(self):
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = EnrollmentByBirthYearTaskPartitionTask(date=self.interval.date_b,
+                                                                          warehouse_path=self.warehouse_path)
+        return self._partition_task
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(EnrollmentByBirthYearTaskDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+        # the process that generates the source table used by this query
+        yield (
+            CourseEnrollmentTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    Breakdown of enrollments by gender as reported by the user.
+    Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
         return 'course_enrollment_birth_year_daily'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return EnrollmentByBirthYearTaskDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
 
     @property
     def columns(self):
@@ -803,57 +1032,176 @@ class EnrollmentByBirthYearTask(EnrollmentTask):
         ]
 
 
-class EnrollmentByEducationLevelTask(EnrollmentTask):
-    """Breakdown of enrollments by education level as reported by the user"""
+class EnrollmentByEducationLevelTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_enrollment_education_level_daily` Hive storage table."""
 
     @property
-    def query(self):
-        query = """
-            SELECT
-                ce.`date`,
-                ce.course_id,
-                CASE p.level_of_education
-                    WHEN 'el'    THEN 'primary'
-                    WHEN 'jhs'   THEN 'junior_secondary'
-                    WHEN 'hs'    THEN 'secondary'
-                    WHEN 'a'     THEN 'associates'
-                    WHEN 'b'     THEN 'bachelors'
-                    WHEN 'm'     THEN 'masters'
-                    WHEN 'p'     THEN 'doctorate'
-                    WHEN 'p_se'  THEN 'doctorate'
-                    WHEN 'p_oth' THEN 'doctorate'
-                    WHEN 'none'  THEN 'none'
-                    WHEN 'other' THEN 'other'
-                    ELSE NULL
-                END,
-                SUM(ce.at_end),
-                COUNT(ce.user_id)
-            FROM course_enrollment ce
-            LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
-            WHERE ce.`date` = '{date}'
-            GROUP BY
-                ce.`date`,
-                ce.course_id,
-                CASE p.level_of_education
-                    WHEN 'el'    THEN 'primary'
-                    WHEN 'jhs'   THEN 'junior_secondary'
-                    WHEN 'hs'    THEN 'secondary'
-                    WHEN 'a'     THEN 'associates'
-                    WHEN 'b'     THEN 'bachelors'
-                    WHEN 'm'     THEN 'masters'
-                    WHEN 'p'     THEN 'doctorate'
-                    WHEN 'p_se'  THEN 'doctorate'
-                    WHEN 'p_oth' THEN 'doctorate'
-                    WHEN 'none'  THEN 'none'
-                    WHEN 'other' THEN 'other'
-                    ELSE NULL
-                END
-        """.format(date=self.query_date)
-        return query
+    def partition_by(self):
+        return 'dt'
 
     @property
     def table(self):
         return 'course_enrollment_education_level_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('education_level', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_enrollment_education_level_daily` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByEducationLevelTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()
+
+
+class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+
+    @property
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
+        query = """
+                    SELECT
+                        ce.`date`,
+                        ce.course_id,
+                        CASE p.level_of_education
+                            WHEN 'el'    THEN 'primary'
+                            WHEN 'jhs'   THEN 'junior_secondary'
+                            WHEN 'hs'    THEN 'secondary'
+                            WHEN 'a'     THEN 'associates'
+                            WHEN 'b'     THEN 'bachelors'
+                            WHEN 'm'     THEN 'masters'
+                            WHEN 'p'     THEN 'doctorate'
+                            WHEN 'p_se'  THEN 'doctorate'
+                            WHEN 'p_oth' THEN 'doctorate'
+                            WHEN 'none'  THEN 'none'
+                            WHEN 'other' THEN 'other'
+                            ELSE NULL
+                        END,
+                        SUM(ce.at_end),
+                        COUNT(ce.user_id)
+                    FROM course_enrollment ce
+                    LEFT OUTER JOIN auth_userprofile p ON p.user_id = ce.user_id
+                    WHERE ce.`date` = '{date}'
+                    GROUP BY
+                        ce.`date`,
+                        ce.course_id,
+                        CASE p.level_of_education
+                            WHEN 'el'    THEN 'primary'
+                            WHEN 'jhs'   THEN 'junior_secondary'
+                            WHEN 'hs'    THEN 'secondary'
+                            WHEN 'a'     THEN 'associates'
+                            WHEN 'b'     THEN 'bachelors'
+                            WHEN 'm'     THEN 'masters'
+                            WHEN 'p'     THEN 'doctorate'
+                            WHEN 'p_se'  THEN 'doctorate'
+                            WHEN 'p_oth' THEN 'doctorate'
+                            WHEN 'none'  THEN 'none'
+                            WHEN 'other' THEN 'other'
+                            ELSE NULL
+                        END
+                """.format(date=self.query_date)
+        return query
+
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
+    @property
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = EnrollmentByEducationLevelPartitionTask(date=self.interval.date_b,
+                                                                           warehouse_path=self.warehouse_path)
+        return self._partition_task
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(EnrollmentByEducationLevelDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+        # the process that generates the source table used by this query
+        yield (
+            CourseEnrollmentTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class EnrollmentByEducationLevelTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    Breakdown of enrollments by education level as reported by the user
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
+        return 'course_enrollment_education_level_daily'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return EnrollmentByEducationLevelDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
 
     @property
     def columns(self):
@@ -865,12 +1213,60 @@ class EnrollmentByEducationLevelTask(EnrollmentTask):
             ('cumulative_count', 'INTEGER')
         ]
 
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
+            # then by date.
+            ('course_id', 'date'),
+        ]
 
-class EnrollmentByModeTask(EnrollmentTask):
-    """Breakdown of enrollments by mode"""
+
+class EnrollmentByModeTableTask(CourseEnrollmentDownstreamMixin, BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_enrollment_mode_daily` Hive storage table."""
 
     @property
-    def query(self):
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_enrollment_mode_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('date', 'STRING'),
+            ('course_id', 'STRING'),
+            ('mode', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_enrollment_mode_daily` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentByModeTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()
+
+
+class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+
+    @property
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         query = """
             SELECT
                 ce.`date`,
@@ -886,9 +1282,98 @@ class EnrollmentByModeTask(EnrollmentTask):
         """.format(date=self.query_date)
         return query
 
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
     @property
-    def table(self):
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = EnrollmentByModePartitionTask(date=self.interval.date_b,
+                                                                 warehouse_path=self.warehouse_path)
+        return self._partition_task
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(EnrollmentByModeDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+        # the process that generates the source table used by this query
+        yield (
+            CourseEnrollmentTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            EnrollmentByModeTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class EnrollmentByModeTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    Breakdown of enrollments by mode
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
         return 'course_enrollment_mode_daily'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return EnrollmentByModeDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
 
     @property
     def columns(self):
@@ -900,12 +1385,59 @@ class EnrollmentByModeTask(EnrollmentTask):
             ('cumulative_count', 'INTEGER')
         ]
 
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
+            # then by date.
+            ('course_id', 'date'),
+        ]
 
-class EnrollmentDailyTask(EnrollmentTask):
-    """A history of the number of students enrolled in each course at the end of each day"""
+
+class EnrollmentDailyTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_enrollment_daily` Hive storage table."""
 
     @property
-    def query(self):
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'course_enrollment_daily'
+
+    @property
+    def columns(self):
+        return [
+            ('course_id', 'STRING'),
+            ('date', 'STRING'),
+            ('count', 'INT'),
+            ('cumulative_count', 'INT')
+        ]
+
+
+class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_enrollment_daily` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):
+        return EnrollmentDailyTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()
+
+
+class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+
+    @property
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         query = """
             SELECT
                 ce.course_id,
@@ -919,9 +1451,89 @@ class EnrollmentDailyTask(EnrollmentTask):
         """.format(date=self.query_date)
         return query
 
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
     @property
-    def table(self):
+    def partition(self):
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = EnrollmentDailyPartitionTask(date=self.interval.date_b,
+                                                                warehouse_path=self.warehouse_path)
+        return self._partition_task
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(EnrollmentDailyDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+        # the process that generates the source table used by this query
+        yield (
+            CourseEnrollmentTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+            ),
+            ImportAuthUserProfileTask()
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class EnrollmentDailyTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    A history of the number of students enrolled in each course at the end of each day
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
         return 'course_enrollment_daily'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return EnrollmentDailyDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+        )
 
     @property
     def columns(self):
@@ -930,6 +1542,15 @@ class EnrollmentDailyTask(EnrollmentTask):
             ('date', 'DATE NOT NULL'),
             ('count', 'INTEGER'),
             ('cumulative_count', 'INTEGER')
+        ]
+
+    @property
+    def indexes(self):
+        return [
+            ('course_id',),
+            # Note that the order here is extremely important. The API query pattern needs to filter first by course and
+            # then by date.
+            ('course_id', 'date'),
         ]
 
 
@@ -961,16 +1582,44 @@ class CourseSummaryEnrollmentRecord(Record):
     passing_users = IntegerField(nullable=True, description='The count of currently passing learners')
 
 
-class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin,
-                                              HiveQueryToMysqlTask):
-    """Creates the course summary enrollment sql table."""
+class ImportCourseSummaryEnrollmentsTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the `course_meta_summary_enrollment` Hive storage table."""
 
     @property
-    def indexes(self):
-        return [('course_id',)]
+    def partition_by(self):
+        return 'dt'
 
     @property
-    def query(self):
+    def table(self):
+        return 'course_meta_summary_enrollment'
+
+    @property
+    def columns(self):
+        return CourseSummaryEnrollmentRecord.get_hive_schema()
+
+
+class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma: no cover
+    """Creates storage partition for the `course_meta_summary_enrollment` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
+
+    @property
+    def hive_table_task(self):
+        return ImportCourseSummaryEnrollmentsTableTask(warehouse_path=self.warehouse_path)
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()
+
+
+class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin, HiveQueryTask):  # pragma: no cover
+    """Aggregates data from `grades_persistentcoursegrade` into `course_meta_summary_enrollment` Hive table."""
+
+    @property
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         end_date = self.interval.date_b - datetime.timedelta(days=1)
         start_date = end_date - datetime.timedelta(days=7)
 
@@ -1004,39 +1653,38 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
         )
         return query
 
+    def query(self):
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query};
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip()
+        )
+        return textwrap.dedent(full_insert_query)
+
     @property
     def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        """Helper property for partition object on the upstream partition task."""
+        return self.partition_task.partition
 
     @property
-    def table(self):
-        return 'course_meta_summary_enrollment'
+    def partition_task(self):
+        """Returns Task that creates partition on `course_grade_by_mode`."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = ImportCourseSummaryEnrollmentsPartitionTask(date=self.interval.date_b,
+                                                                               warehouse_path=self.warehouse_path)
+        return self._partition_task
 
-    @property
-    def columns(self):
-        return CourseSummaryEnrollmentRecord.get_sql_schema()
-
-    @property
-    def required_table_tasks(self):
-        common_kwargs = {
-            'warehouse_path': self.warehouse_path,
-            'interval': self.interval,
-            'n_reduce_tasks': self.n_reduce_tasks,
-            'overwrite_n_days': self.overwrite_n_days,
-        }
-        # Note this is not exactly correct, as what we really need is
-        # for enrollment-by-mode data to be in Hive.  If we are rerunning
-        # and enrollment-by-mode data has already been calculated, this
-        # requirement will be met but no data actually exists in Hive.
-        # So when the EnrollmentTask-based tasks is refactored to pull out
-        # the loading into Hive, this dependency should change to reflect that.
-        yield EnrollmentByModeTask(
-            mapreduce_engine=self.mapreduce_engine,
-            source=self.source,
-            pattern=self.pattern,
-            **common_kwargs
-        )
+    def requires(self):  # pragma: no cover
+        for requirement in super(ImportCourseSummaryEnrollmentsDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
 
         # We do not propagate the local overwrite value here.
         # The local value comes from the default for HiveQueryToMysqlTask,
@@ -1060,10 +1708,80 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             # loading any data into them
             yield [task.hive_table_task for task in catalog_tasks]
 
+        # These were brought over from the parent HiveToMySQLTask
+        common_kwargs = {
+            'warehouse_path': self.warehouse_path,
+            'interval': self.interval,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'overwrite_n_days': self.overwrite_n_days,
+        }
+
+
+
+        # Note this is not exactly correct, as what we really need is
+        # for enrollment-by-mode data to be in Hive.  If we are rerunning
+        # and enrollment-by-mode data has already been calculated, this
+        # requirement will be met but no data actually exists in Hive.
+        # So when the EnrollmentTask-based tasks is refactored to pull out
+        # the loading into Hive, this dependency should change to reflect that.
+        yield EnrollmentByModeTask(
+            mapreduce_engine=self.mapreduce_engine,
+            source=self.source,
+            pattern=self.pattern,
+            **common_kwargs
+        )
+
         yield CourseGradeByModeDataTask(
             date=self.date,
             **common_kwargs
         )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, MysqlInsertTask):
+    """
+    Creates the course_meta_summary_enrollment sql table.
+
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
+    At the end of this task data has been written to MySQL
+    """
+
+    @property
+    def table(self):  # pragma: no cover
+        return 'course_meta_summary_enrollment'
+
+    @property
+    def insert_source_task(self):  # pragma: no cover
+        return ImportCourseSummaryEnrollmentsDataTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
+            enable_course_catalog=self.enable_course_catalog,
+            date=self.date
+        )
+
+    @property
+    def columns(self):
+        return CourseSummaryEnrollmentRecord.get_sql_schema()
+
+    @property
+    def indexes(self):
+        return [('course_id',)]
 
 
 class CourseProgramMetadataRecord(Record):
@@ -1099,6 +1817,7 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
 
     @property
     def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
 
 
@@ -1107,6 +1826,7 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
 
     @property
     def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         column_names = CourseProgramMetadataRecord.get_fields().keys()
         query = """
         SELECT {columns}
@@ -1237,6 +1957,7 @@ class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
 
     @property
     def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
 
 
@@ -1245,6 +1966,7 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
 
     @property
     def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table."""
         return """
         SELECT   all_enrollments.course_id AS course_id,
                  all_enrollments.mode AS mode,
