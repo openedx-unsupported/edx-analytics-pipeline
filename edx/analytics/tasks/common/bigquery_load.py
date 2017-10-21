@@ -9,16 +9,22 @@ import urlparse
 
 import luigi
 
-from google.cloud import bigquery
-from google.oauth2 import service_account
-from google.cloud.exceptions import NotFound
-
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
 
-
 log = logging.getLogger(__name__)
+
+try:
+    from google.cloud import bigquery
+    from google.oauth2 import service_account
+    from google.cloud.exceptions import NotFound
+    bigquery_available = True  # pylint: disable=invalid-name
+except ImportError:
+    log.warn('Unable to import Bigquery libraries')
+    # On hadoop slave nodes we don't have bigquery libraries installed,
+    # so just fail noisily if we attempt to use these libraries there.
+    bigquery_available = False  # pylint: disable=invalid-name
 
 
 RETRY_LIMIT = 500
@@ -286,6 +292,8 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
             log.debug("   No errors encountered!")
 
     def run(self):
+        self.check_bigquery_availability()
+
         client = self.output().client
         self.create_dataset(client)
         self.init_copy(client)
@@ -331,3 +339,8 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
             return True
         else:
             return False
+
+    def check_bigquery_availability(self):
+        """Call to ensure fast failure if this machine doesn't have the Bigquery libraries available."""
+        if not bigquery_available:
+            raise ImportError('Bigquery library not available')

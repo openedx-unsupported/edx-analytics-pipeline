@@ -5,7 +5,11 @@ import re
 import datetime
 import itertools
 
-from google.cloud.bigquery import SchemaField
+try:
+    from google.cloud.bigquery import SchemaField
+    bigquery_available = True  # pylint: disable=invalid-name
+except ImportError:
+    bigquery_available = False  # pylint: disable=invalid-name
 
 
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
@@ -365,6 +369,9 @@ class Record(object):
 
         Returns: A list of BigQuery SchemaField objects.
         """
+        if not bigquery_available:
+            raise ImportError('Bigquery library not available')
+
         schema = []
         for field_name, field_obj in cls.get_fields().items():
             mode = 'NULLABLE' if field_obj.nullable else 'REQUIRED'
