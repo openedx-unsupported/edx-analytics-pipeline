@@ -116,9 +116,16 @@ class CourseEnrollmentEventsTask(
 
     def multi_output_reducer(self, _date_string, values, output_file):
         self.incr_counter(self.counter_category_name, 'Output Dates with Events', 1)
+
         for value in values:
-            output_file.write('\t'.join([str(field) for field in value]))
-            output_file.write('\n')
+            try:
+                output_file.write('\t'.join([str(field) for field in value]))
+                output_file.write('\n')
+            except UnicodeEncodeError as e:
+                #These messages should be removed once we have tested unicode strings
+                self.incr_counter(self.counter_category_name, 'Discard Enroll Unparseable Unicode', 1)
+                self.incr_counter(self.counter_category_name, 'Discard Enroll Missing Something', 1)
+                log.error(u'\t'.join([unicode(field) for field in value]))
 
     def output_path_for_key(self, key):
         date_string = key
