@@ -112,7 +112,7 @@ class CourseEnrollmentEventsTask(
             return
 
         self.incr_counter(self.counter_category_name, 'Output From Mapper', 1)
-        yield date_string, (course_id, user_id, timestamp, event_type, mode)
+        yield date_string, (course_id.encode('utf8'), user_id, timestamp, event_type, mode)
 
     def multi_output_reducer(self, _date_string, values, output_file):
         self.incr_counter(self.counter_category_name, 'Output Dates with Events', 1)

@@ -40,7 +40,7 @@ class EventExportByCourseBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
         }
         self.default_event_template = 'event'
-        self.expected_key = (self.DATE, self.course_id)
+        self.expected_key = (self.DATE, self.encoded_course_id)
 
 
 class EventExportByCourseMapTest(EventExportByCourseBaseTest):

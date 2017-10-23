@@ -22,7 +22,7 @@ class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixi
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.problem_name = 'Test test test'
         self.saved_tags = {'difficulty': 'Hard', 'learning_outcome': 'Learned everything'}
-        self.usage_key = "block-v1:{course_id}+type@problem+block@ffb8df09604f4e73ac0".format(course_id=self.course_id)
+        self.usage_key = u"block-v1:{course_id}+type@problem+block@ffb8df09604f4e73ac0".format(course_id=self.course_id)
 
         self.event_templates = {
             'tags_distribution_event': {

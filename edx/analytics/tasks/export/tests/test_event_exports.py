@@ -220,7 +220,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_course_url(self):
         event = {
             'event_source': 'server',
-            'event_type': '/courses/{}/content'.format(self.course_id)
+            'event_type': u'/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 
@@ -234,7 +234,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_course_url_with_prefix(self):
         event = {
             'event_source': 'server',
-            'event_type': '/some/garbage/courses/{}/content'.format(self.course_id)
+            'event_type': u'/some/garbage/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 
@@ -294,7 +294,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_page(self):
         event = {
             'event_source': 'browser',
-            'page': 'http://courses.example.com/courses/{}/content'.format(self.course_id)
+            'page': u'http://courses.example.com/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 

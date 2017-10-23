@@ -94,7 +94,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             }
         }
         self.default_event_template = 'play_video'
-        self.default_key = ("test_user", self.course_id.encode('utf8'), self.video_id.encode('utf8'))
+        self.default_key = ("test_user", self.encoded_course_id, self.video_id.encode('utf8'))
 
     @data(
         {'time': "2013-12-01T15:38:32.805444"},
@@ -231,17 +231,17 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
     def test_username_with_newline(self):
         username = 'test_user'
-        key = (username, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
+        key = (username, self.encoded_course_id, self.video_id.encode('utf8'))
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
         self.assert_single_map_output(self.create_event_log_line(username=username + '\n'), key, expected_value)
 
     def test_unicode_username(self):
-        key = (self.UTF8_BYTE_STRING, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
+        key = (self.UTF8_BYTE_STRING, self.encoded_course_id, self.video_id.encode('utf8'))
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
         self.assert_single_map_output(self.create_event_log_line(username=self.UTF8_BYTE_STRING), key, expected_value)
 
     def test_unicode_module_id(self):
-        key = ("test_user", self.course_id.encode('utf8'), self.UTF8_BYTE_STRING)
+        key = ("test_user", self.encoded_course_id, self.UTF8_BYTE_STRING)
         payload = {
             "id": self.UTF8_BYTE_STRING,
             "currentTime": 5,
@@ -251,7 +251,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, 'foo')
         self.assert_single_map_output(self.create_event_log_line(event=event), key, expected_value)
 
-    def test_unicode_course_id(self):
+    def test_unicode_garbage_course_id(self):
         template = self.event_templates['play_video']
         template['context']['course_id'] = self.UTF8_BYTE_STRING
         self.assert_no_map_output_for(self.create_event_log_line(template=template))
