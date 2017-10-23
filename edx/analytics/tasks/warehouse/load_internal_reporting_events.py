@@ -649,6 +649,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 value = None
             else:
                 value = backslash_encode_value(unicode(obj))
+                if '\x00' in value:
+                    value = value.replace('\x00', '\0')
                 # Avoid validation errors later due to length by truncating here.
                 field_length = event_record_field.length
                 value_length = len(value)
