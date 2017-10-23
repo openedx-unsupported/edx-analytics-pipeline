@@ -203,4 +203,3 @@ class SqoopImportFromMysqlTestCase(unittest.TestCase):
         self.assertTrue(task.output().exists.called)
         self.assertTrue(task.output().remove.called)
         self.assertTrue(task.attempted_removal)
-        self.assertTrue(task.complete())
