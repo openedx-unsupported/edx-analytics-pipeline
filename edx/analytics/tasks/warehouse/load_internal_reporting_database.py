@@ -70,6 +70,8 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
                     field_type = field_type.rsplit('(')[0]
                 elif field_type == 'longtext':
                     field_type = 'LONG VARCHAR'
+                elif field_type == 'longblob':
+                    field_type = 'LONG VARBINARY'
                 elif field_type == 'double':
                     field_type = 'DOUBLE PRECISION'
 
