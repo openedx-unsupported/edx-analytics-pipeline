@@ -3,6 +3,8 @@ Support for loading data into a Mysql database.
 """
 import json
 import logging
+import sys
+import traceback
 from itertools import chain
 
 import luigi
@@ -336,6 +338,14 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
             # commit only if both operations completed successfully.
             connection.commit()
+        except RuntimeError:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
+            traceback_list =  traceback.format_exception(exc_type, exc_value, exc_traceback)
+            if "__iter__\n    self._finish()" in traceback_list[5]:
+                log.debug("Luigi raised RuntimeError while calling _finish on input target.")
+            else:
+                connection.rollback()
+                raise
         except:
             connection.rollback()
             raise
