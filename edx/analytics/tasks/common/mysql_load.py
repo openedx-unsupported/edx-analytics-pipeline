@@ -341,6 +341,9 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         except RuntimeError:
             exc_type, exc_value, exc_traceback = sys.exc_info()
             traceback_list =  traceback.format_exception(exc_type, exc_value, exc_traceback)
+            log.debug("========================")
+            log.debug(traceback_list)
+            log.debug("========================")
             if "__iter__\n    self._finish()" in traceback_list[5]:
                 log.debug("Luigi raised RuntimeError while calling _finish on input target.")
             else:
