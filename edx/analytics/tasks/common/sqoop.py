@@ -113,6 +113,10 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseH
         """Return target to which metadata about the task execution can be written."""
         return get_target_from_url(url_path_join(self.destination, METADATA_FILENAME))
 
+    def marker_output(self):
+        """Return target for _SUCCESS marker indicating the task was successfully completed."""
+        return get_target_from_url(url_path_join(self.destination, "_SUCCESS"))
+
     def job_runner(self):
         """Use simple runner that gets args from the job and passes through."""
         return SqoopImportRunner()
@@ -181,6 +185,16 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseH
             cred = json.load(credentials_file)
         return cred
 
+    def complete(self):
+        """
+        Wrap Task.complete() to check for metadata and marker file as well as data.
+        """
+        data_complete = super(SqoopImportTask, self).complete()
+        if data_complete and self.marker_output().exists() and self.metadata_output().exists():
+            return True
+        else:
+            return False
+
 
 class SqoopImportFromMysql(SqoopImportTask):
     """
@@ -230,7 +244,25 @@ class SqoopImportRunner(luigi.hadoop.JobRunner):
 
     def run_job(self, job):
         """Runs a SqoopImportTask by shelling out to sqoop."""
+
+        # First remove output if the overwrite flag is set.
         job.remove_output_on_overwrite()
+
+        # Sometimes the job will be run by another workflow running at
+        # the same time, and so this will already become complete.
+        # Sqoop cannot rerun the command line if the output file already
+        # exists -- Hadoop returns a FileAlreadyExistsException error from
+        # org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs().
+        # Just check here first before running, and do nothing if it's already complete.
+        if job.complete():
+            log.warning("Skipping output of %s -- file already exists!", job.marker_output().path)
+            return
+
+        # And so, if it's not complete but there is partial output, it needs to be removed
+        # before Sqoop can be run.
+        if job.output().exists():
+            log.info("Removing existing partial output for task %s", str(job))
+            job.output().remove()
 
         metadata = {
             'start_time': datetime.datetime.utcnow().isoformat()
