@@ -251,6 +251,11 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
                 is_orphan = False
                 course_path = u''
                 sort_idx = block.get('sort_idx', no_sort_idx)
+                # Make sure display_name does not end with a backslash, or the line
+                # cannot be properly parsed by Vertica.
+                display_name=block.get('display_name')
+                if display_name.endswith('\\'):
+                    display_name = display_name + '.'
 
                 if not is_root:
                     if len(parents) == 0:
@@ -267,7 +272,7 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
                     course_id=course_id,
                     block_id=block.get('id'),
                     block_type=block.get('type'),
-                    display_name=block.get('display_name'),
+                    display_name=display_name,
                     parent_block_id=block.get('parent_block_id'),
                     is_root=is_root,
                     is_orphan=is_orphan,
