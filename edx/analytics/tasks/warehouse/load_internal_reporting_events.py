@@ -64,7 +64,7 @@ class EventRecord(SparseRecord):
     agent = StringField(length=1023, nullable=True, description='')
     # 'agent' string gets parsed into the following:
     agent_type = StringField(length=20, nullable=True, description='')
-    agent_device_name = StringField(length=100, nullable=True, description='')
+    agent_device_name = StringField(length=100, nullable=True, description='', truncate=True)
     agent_os = StringField(length=100, nullable=True, description='')
     agent_browser = StringField(length=100, nullable=True, description='')
     # agent_touch_capable = BooleanField(nullable=True, description='')
@@ -374,14 +374,14 @@ class EventRecordDataDownstreamMixin(EventRecordDownstreamMixin):
     """Common parameters and base classes used to pass parameters through the event record workflow."""
 
     # Required parameter
-    date = luigi.DateParameter(
-        description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
-                    ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
-                    ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
-    )
-
-    # Override superclass to disable this parameter
-    interval = None
+    # date = luigi.DateParameter(
+    #     description='Upper bound date for the end of the interval to analyze. Data produced before 00:00 on this'
+    #                 ' date will be analyzed. This workflow is intended to run nightly and this parameter is intended'
+    #                 ' to be set to "today\'s" date, so that all of yesterday\'s data is included and none of today\'s.'
+    # )
+    #
+    # # Override superclass to disable this parameter
+    # interval = None
     output_root = luigi.Parameter()
 
 
@@ -395,10 +395,10 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
     # This is a placeholder.  It is expected to be overridden in derived classes.
     counter_category_name = 'Event Record Exports'
 
-    def __init__(self, *args, **kwargs):
-        super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
-
-        self.interval = luigi.date_interval.Date.from_date(self.date)
+    # def __init__(self, *args, **kwargs):
+    #     super(BaseEventRecordDataTask, self).__init__(*args, **kwargs)
+    #
+    #     self.interval = luigi.date_interval.Date.from_date(self.date)
 
     # TODO: maintain support for info about events.  We may need something similar to identify events
     # that should -- or should not -- be included in the event dump.
@@ -455,7 +455,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         """
         # If we're only running now with a specific date, then there
         # is no reason to sort by date_received.
-        _date_received, project = key
+        date_received, project = key
 
         # return url_path_join(
         #     self.output_root,
@@ -465,6 +465,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         # )
         return url_path_join(
             self.output_root,
+            'event_records',
+            'dt={date}'.format(date=date_received),
             '{project}.tsv'.format(project=project),
         )
 
@@ -626,7 +628,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    interval = None
+    #interval = None
     event_mapping = None
     PROJECT_NAME = 'tracking_prod'
 
@@ -793,7 +795,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
     """Task to compute event_type and event_source values being encountered on each day in a given time interval."""
 
     # Override superclass to disable this parameter
-    interval = None
+    #interval = None
 
     # Project information, pulled from config file.
     project_names = {}
@@ -862,7 +864,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
-        return self._get_time_from_segment_event(event, 'receivedAt')
+        if 'receivedAt' in event:
+            return self._get_time_from_segment_event(event, 'receivedAt')
+
+        if 'requestTime' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing requestTime for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'requestTime')
+
+        if 'timestamp' in event:
+            self.incr_counter(self.counter_category_name, 'Supplementing timestamp for receivedAt', 1)
+            return self._get_time_from_segment_event(event, 'timestamp')
+
+        self.incr_counter(self.counter_category_name, 'Neither timestamp, receivedAt nor requestTime present', 1)
+        log.error("Missing event arrival time in event '%r'", event)
+
+        return None
+
 
     def get_event_emission_time(self, event):
         return self._get_time_from_segment_event(event, 'sentAt')
@@ -958,6 +975,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.incr_counter(self.counter_category_name, 'Inputs with Dates', 1)
 
         segment_type = event.get('type')
+        if segment_type is None and 'action' in event:
+            segment_type = event.get('action').lower()
+
         self.incr_counter(self.counter_category_name, u'Subset Type {}'.format(segment_type), 1)
 
         channel = event.get('channel')
@@ -979,9 +999,18 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
             # Their 'properties' lack any 'context', having only label and category.
 
-            event_category = event.get('properties', {}).get('category')
+            event_properties = event.get('properties', {})
+            if event_properties is None:
+                event_properties = {}
+
+            event_category = event_properties.get('category')
             if channel == 'server':
-                event_source = event.get('properties', {}).get('context', {}).get('event_source')
+                event_properties_context = event_properties.get('context', {})
+                if event_properties_context is None:
+                    event_properties_context = {}
+
+                event_source = event_properties_context.get('event_source')
+
                 if event_source is None:
                     event_source = 'track-server'
                 elif (event_source, event_type) in self.known_events:
@@ -1012,8 +1041,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         self.add_calculated_event_entry(event_dict, 'timestamp', self.get_event_emission_time(event))
         self.add_calculated_event_entry(event_dict, 'received_at', self.get_event_arrival_time(event))
         self.add_calculated_event_entry(event_dict, 'date', self.convert_date(date_received))
-        self.add_agent_info(event_dict, event.get('context', {}).get('userAgent'))
-        self.add_agent_info(event_dict, event.get('properties', {}).get('context', {}).get('agent'))
+
+        event_context = event.get('context', {})
+        if event_context is None:
+            event_context = {}
+
+        self.add_agent_info(event_dict, event_context.get('userAgent'))
+
+        event_properties = event.get('properties', {})
+        if event_properties is None:
+            event_properties = {}
+
+        event_properties_context = event_properties.get('context', {})
+        if event_properties_context is None:
+            event_properties_context = {}
+
+        self.add_agent_info(event_dict, event_properties_context.get('agent'))
 
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
@@ -1033,7 +1076,7 @@ class GeneralEventRecordDataTask(EventRecordDataDownstreamMixin, luigi.WrapperTa
     """Runs all Event Record tasks for a given time interval."""
     # Override superclass to disable this parameter
     # TODO: check if this is redundant, if it's already in the mixin.
-    interval = None
+    #interval = None
 
     def requires(self):
         kwargs = {
@@ -1105,16 +1148,26 @@ class EventRecordIntervalTask(EventRecordDownstreamMixin, luigi.WrapperTask):
     )
 
     def requires(self):
-        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
-            # should_overwrite = date >= self.overwrite_from_date
-            yield EventRecordPartitionTask(
-                date=date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                warehouse_path=self.warehouse_path,
-                # overwrite=should_overwrite,
-                # overwrite_from_date=self.overwrite_from_date,
-                events_list_file_path=self.events_list_file_path,
-            )
+        kwargs = {
+            'output_root': self.warehouse_path,
+            'events_list_file_path': self.events_list_file_path,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'interval': self.interval,
+        }
+        yield (
+            TrackingEventRecordDataTask(**kwargs),
+            SegmentEventRecordDataTask(**kwargs),
+        )
+        # for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+        #     # should_overwrite = date >= self.overwrite_from_date
+        #     yield EventRecordPartitionTask(
+        #         date=date,
+        #         n_reduce_tasks=self.n_reduce_tasks,
+        #         warehouse_path=self.warehouse_path,
+        #         # overwrite=should_overwrite,
+        #         # overwrite_from_date=self.overwrite_from_date,
+        #         events_list_file_path=self.events_list_file_path,
+        #     )
             # yield LoadEventRecordToVerticaTask(
             #     date=date,
             #     n_reduce_tasks=self.n_reduce_tasks,
