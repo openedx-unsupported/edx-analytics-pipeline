@@ -46,6 +46,7 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
     def __init__(self, *args, **kwargs):
         super(LoadMysqlToVerticaTableTask, self).__init__(*args, **kwargs)
         self.table_schema = []
+        self._mysql_table_columns = None
 
     def requires(self):
         if self.required_tasks is None:
@@ -55,11 +56,17 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
             }
         return self.required_tasks
 
+    @property
+    def mysql_table_columns(self):
+        if self._mysql_table_columns is None:
+            self._mysql_table_columns = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
+        return self._mysql_table_columns
+
     def vertica_compliant_schema(self):
         """Transforms mysql table schema into a vertica compliant schema."""
 
         if not self.table_schema:
-            results = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
+            results = self.mysql_table_columns
             for result in results:
                 field_name = result[0].strip()
                 field_type = result[1].strip()
@@ -95,6 +102,17 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
         return "'NULL'"
 
     @property
+    def can_use_direct_flag(self):
+        results = self.mysql_table_columns
+
+        for result in results:
+            field_type = result[1].strip()
+            if field_type in ['tinyblob', 'blob', 'mediumblob', 'longblob', 'clob']:
+                return False
+
+        return True
+
+    @property
     def enclosed_by(self):
         return "''''"
 
@@ -108,14 +126,24 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
             self.table_name,
             partition_path_spec
         ) + '/'
-        return SqoopImportFromMysql(
-            table_name=self.table_name,
-            credentials=self.db_credentials,
-            database=self.database,
-            destination=destination,
-            overwrite=self.overwrite,
-            mysql_delimiters=True,
-        )
+
+        param_list = {
+            "table_name": self.table_name,
+            "credentials": self.db_credentials,
+            "database": self.database,
+            "destination": destination,
+            "overwrite": self.overwrite,
+            "mysql_delimiters": True
+        }
+        if not self.can_use_direct_flag:
+            param_list["direct"] = False
+            columns = []
+            for (field_name, field_type, field_null) in self.mysql_table_columns:
+                columns.append(field_name.strip())
+                # Error when I tested this with one of our tables it failed with "too many values to unpack".  These changes are *not* tested
+            param_list["columns"] = columns
+
+        return SqoopImportFromMysql(**param_list)
 
     @property
     def default_columns(self):
