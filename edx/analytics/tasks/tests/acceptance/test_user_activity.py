@@ -50,7 +50,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'CourseActivityDailyTask',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--interval', '2014-05-25-' + self.END_DATE.isoformat(),
             '--credentials', self.export_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
@@ -77,7 +77,7 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'CourseActivityMonthlyTask',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--end-date', self.END_DATE.isoformat(),
             '--months', str(2),
             '--credentials', self.export_db.credentials_file_url,
