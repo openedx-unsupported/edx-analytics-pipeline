@@ -434,25 +434,6 @@ class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disabl
     columns = luigi.ListParameter()
     partition = HivePartitionParameter()
 
-    def __init__(self, *args, **kwargs):
-        super(HiveTableFromParameterQueryTask, self).__init__(*args, **kwargs)
-        self.required_table_tasks = None
-
-    def set_required(self, required_table_tasks):
-        log.debug('Setting requirements on %s: %s', self, required_table_tasks)
-        self.required_table_tasks = required_table_tasks
-
-    def run(self):
-        # Use dynamic dependencies here to make sure that the tasks on
-        # which this depends have been run.
-        if self.required_table_tasks is not None:
-            for task in self.required_table_tasks:
-                log.debug('Yielding dependency dynamically at runtime for %s: %s', self, task)                
-                yield task
-
-        # Now actually do the work.
-        super(HiveTableFromParameterQueryTask, self).run()    
-    
 
 class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
     """Populates a MySQL table with the results of a hive query."""
@@ -492,9 +473,12 @@ class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
                 partition=self.partition,
                 overwrite=self.hive_overwrite,
             )
-            self.source_task.set_required(self.required_table_tasks)
-
         return self.source_task
+
+    @property
+    def insert_source_task_dynamically(self):
+        """Declare if task that provides source of data for insertion should be a dynamic dependency."""
+        return True
 
     def requires(self):
         # MysqlInsertTask customizes requires() somewhat, so don't clobber that logic. Instead allow subclasses to
