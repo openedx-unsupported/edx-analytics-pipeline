@@ -346,7 +346,7 @@ class BaseSegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMix
                         "app_name": "edx.mobileapp.android",
                     },
                     "category": "screen",
-                    "label": "Launch",
+                    "label": "Launch\x00",
                 },
                 "writeKey": "dummy_write_key",
                 "projectId": self.DEFAULT_PROJECT,
@@ -453,7 +453,7 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
             'channel': 'server',
             'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
             'category': 'screen',
-            'label': 'Launch',
+            'label': 'Launch\\0',
             'locale': 'en-US',
             'timezone': 'America/New_York',
             'app_name': 'edX',
@@ -557,7 +557,7 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
             'agent_touch_capable': True,
             'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
             'category': 'screen',
-            'label': 'Launch',
+            'label': 'Launch\\0',
             'raw_event': self.get_raw_event(event),
         }
         expected_value = JsonEventRecord(**expected_dict).to_separated_values()
