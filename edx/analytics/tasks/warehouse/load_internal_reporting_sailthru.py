@@ -67,11 +67,9 @@ class DailyPullFromSailthruTask(PullFromSailthruTaskMixin, luigi.Task):
     A task that fetches daily Sailthru blast information and writes to a file.
 
     """
+
     # Date to fetch Sailthru report.
-    # run_date = luigi.DateParameter(
-    #     default=datetime.date.today(),
-    #     description='Default is today.',
-    # )
+    # run_date = luigi.DateParameter(default=datetime.date.today(), description='Default is today.')
 
     REPORT_FORMAT = 'json'
     MAX_NUM_BLASTS = 200
@@ -632,3 +630,279 @@ class IntervalPullFromSailthruTask(PullFromSailthruTaskMixin, WarehouseMixin, lu
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+
+class IntervalPullIncrementalEmailFromSailthruTask(PullFromSailthruTaskMixin, WarehouseMixin, luigi.WrapperTask):
+    """Determines a set of dates to pull, and requires them."""
+
+    # Overwrite parameter definition to make it optional.
+    output_root = luigi.Parameter(
+        default=None,
+        description='URL of location to write output.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(IntervalPullIncrementalEmailFromSailthruTask, self).__init__(*args, **kwargs)
+        # Provide default for output_root at this level.
+        if self.output_root is None:
+            self.output_root = self.warehouse_path
+
+        if self.interval is None:
+            # self.interval = date_interval.Custom(self.interval_start, self.interval_end)
+            # TODO: Make this be yesterday by default.
+            pass
+
+    def requires(self):
+        """Internal method to actually calculate required tasks once."""
+        args = {
+            'api_key': self.api_key,
+            'api_secret': self.api_secret,
+            'output_root': self.output_root,
+            'overwrite': self.overwrite,
+        }
+        for blast_date in self.interval:
+            args['blast_date'] = blast_date
+            yield EmailInfoPerDateFromSailthruTask(**args)
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+class EmailInfoPerDateFromSailthruTask(EmailInfoPerBlastFromSailthruTask):
+    """
+    A task that polls a job ID to see if email information about a blast is ready, and writes to a TSV file.
+
+    The output file should be readable by Hive, and structured according to SailthruBlastEmailRecord.
+
+    """
+    blast_date = luigi.DateParameter()
+
+    def requires(self):
+        args = {
+            'api_key': self.api_key,
+            'api_secret': self.api_secret,
+            'blast_date': self.blast_date,
+            'output_root': self.output_root,
+            'overwrite': self.overwrite,
+        }
+        return RequestEmailInfoPerDateFromSailthruTask(**args)
+
+    def run(self):
+        # Read from input and reformat for output.
+        self.remove_output_on_overwrite()
+        if self.overwrite:
+            # remove the output directory, not just the marker file.
+            output_target = self.output()
+            if not self.complete() and output_target.exists():
+                output_target.remove()
+
+        self.sailthru_client = SailthruClient(self.api_key, self.api_secret)
+
+        number_of_failures = 0
+        # Wait for each job to finish, in the order that they were originally queued, FIFO.
+        with self.input().open('r') as input_file:
+            for line in input_file:
+                data = json.loads(line)
+                output_url = self.get_output_url_from_blast_query(data)
+                blast_id = data.get('blast_id')
+                if output_url:
+                    output_filename = 'sailthru_emails_blast_{}.tsv'.format(blast_id)
+                else:
+                    # If it failed to return a URL, just output a file with an appropriate
+                    # name and continue on.  We raise a failure at the very
+                    # end, however, to indicate that the job failed.
+                    number_of_failures += 1
+                    output_filename = 'sailthru_emails_blast_{}.failure'.format(blast_id)
+
+                output_target = get_target_from_url(url_path_join(self.get_output_path(), output_filename))
+                with output_target.open('w') as output_file:
+                    if output_url:
+                        try:
+                            reader = self.get_output_reader(output_url)
+                        except Exception as exc:
+                            # For now, we will skip these failures, and just move on to see
+                            # how far we get.
+                            print "Unable to access output_url '{}' : {}".format(output_url, exc)
+                            reader = []
+                    else:
+                        reader = []
+                    for output_row in reader:
+                        output_entry = {'blast_id': blast_id, 'email_hash': output_row.get('email hash')}
+                        record = SailthruBlastEmailRecord(**output_entry)
+                        output_file.write(record.to_separated_values())
+                        output_file.write('\n')
+
+        # We do as much as possible (while we're still trying to get this to run) above, and then fail here.
+        if number_of_failures > 0:
+            msg = "Failed to find export_url: {} times".format(number_of_failures)
+            raise Exception(msg)
+
+    def get_output_path(self):
+        date_string = self.blast_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        partition_path_spec = HivePartition('dt', date_string).path_spec
+        output_path = url_path_join(self.output_root, "sailthru_blast_emails", partition_path_spec)
+        return output_path
+
+    def output(self):
+        """
+        Output is set up so it can be read in as a Hive table with partitions.
+
+        The form is {output_root}/sailthru_blast_emails/dt={CCYY-mm-dd}/_SUCCESS (and other files).
+        """
+        output_path = self.get_output_path()
+        return get_target_from_url(output_path, marker=True)
+
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
+
+
+class RequestEmailInfoPerDateFromSailthruTask(RequestEmailInfoPerBlastFromSailthruTask):
+    """
+    A task that reads in a list of blast IDs, and creates a list of job IDs for requests for blast info.
+
+    A separate job will read the list of job IDs and monitor their progress.
+    """
+
+    blast_date = luigi.DateParameter()
+
+    def requires(self):
+        args = {
+            'api_key': self.api_key,
+            'api_secret': self.api_secret,
+            'blast_date': self.blast_date,
+            'output_root': self.output_root,
+            'overwrite': self.overwrite,
+        }
+        return BlastInfoPerDateFromSailthruTask(**args)
+
+    def run(self):
+        # Read from input and reformat for output.
+        self.remove_output_on_overwrite()
+
+        self.sailthru_client = SailthruClient(self.api_key, self.api_secret)
+
+        # Queue up all blasts asynchronously.  And only write output
+        # once each blast completes. They will run 10 at a time, in the order
+        # they are queued.  Of course, if we want to finish most quickly,
+        # we would schedule the large jobs first, and work backwards.
+        schedule_queue = PriorityQueue()
+        with self.input().open('r') as input_file:
+            for line in input_file:
+                info = json.loads(line)
+                blasts = info.get('blasts')
+                for blast in blasts:
+                    blast_id = blast.get('blast_id')  # or 'final_blast_id'?  Looks like copy_blast_id is different.
+                    stats = blast.get('stats', {}).get('total', {})
+                    sent_count = stats.get('count', 0)
+                    priority = sent_count
+                    data = {
+                        'blast_id': blast_id,
+                        'sent_count': sent_count,
+                    }
+                    schedule_queue.put((priority, data))
+
+        # Submit jobs in order of priority, from smallest priority value to largest.
+        # Submit them all.
+        queue = Queue()
+        while not schedule_queue.empty():
+            item = schedule_queue.get()
+            priority, data = item
+            print "Scheduling:  priority '{}' data '{}'".format(priority, data)
+            blast_id = data.get('blast_id')
+            sent_count = data.get('sent_count', 0)
+            # For testing, comment this out to skip over bigger jobs.
+            # if sent_count > 10000:
+            #     continue
+            job_status = self.submit_blast_query_request(blast_id)
+            job_id = job_status.get('job_id')
+            submit_time = datetime.datetime.utcnow()
+            start_time_string = job_status.get('start_time')
+            if start_time_string:
+                # TODO: Figure out if this ever happens.  It may be that such jobs start, but never right away.
+                print "Job {} (blast {}) began execution at {}".format(job_id, blast_id, start_time_string)
+            else:
+                print "Job {} (blast {}) queued up for future execution".format(job_id, blast_id)
+            data = {
+                'job_id': job_id,
+                'blast_id': blast_id,
+                'sent_count': sent_count,
+                'submit_time': submit_time.isoformat(),
+                'start_time': start_time_string,
+            }
+            queue.put(data)
+
+        # Now everything is queued, so wait for each job to finish, in the order
+        # that they were originally queued, FIFO.
+        with self.output().open('w') as output_file:
+            while not queue.empty():
+                data = queue.get()
+                output_line = json.dumps(data)
+                output_file.write(output_line + '\n')
+
+    def output(self):
+        """
+        Output is a log file, listing job IDs for requests for email information about blasts.
+
+        The form is {output_root}/sailthru_blast_email_jobs/dt={CCYY-mm-dd}/sailthru_blast_email_jobs.log
+
+        """
+        date_string = self.blast_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        partition_path_spec = HivePartition('dt', date_string).path_spec
+        filename = "sailthru_blast_emails_jobs.log"
+        url_with_filename = url_path_join(self.output_root, "sailthru_blast_email_jobs", partition_path_spec, filename)
+        return get_target_from_url(url_with_filename)
+
+
+class BlastInfoPerDateFromSailthruTask(PullFromSailthruTaskMixin, luigi.Task):
+    """
+    A task that fetches daily Sailthru blast information and writes to a file.
+
+    """
+
+    # Date to fetch Sailthru report.  This is the date for which the information pertains.
+    # It is not the date on which it was pulled.
+    blast_date = luigi.DateParameter()
+
+    MAX_NUM_BLASTS = 200
+
+    def requires(self):
+        pass
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        sailthru_client = SailthruClient(self.api_key, self.api_secret)
+
+        with self.output().open('w') as output_file:
+
+            end_date = self.blast_date + datetime.timedelta(days=1)
+            request_data = {
+                'status': 'sent',
+                'start_date': self.blast_date.isoformat(),
+                'end_date': end_date.isoformat(),
+                'limit': self.MAX_NUM_BLASTS,
+            }
+            response = sailthru_client.api_get('blast', request_data)
+
+            if not response.is_ok():
+                msg = "Encountered status {} on request to Sailthru for {}".format(
+                    response.get_status_code(), self.blast_date
+                )
+                raise Exception(msg)
+
+            # TODO: decide whether to insert additional information about when the record was pulled.
+            output_file.write(response.get_body(as_dictionary=False))
+            output_file.write('\n')
+
+    def output(self):
+        """
+        Output is in the form {output_root}/sailthru_blast_info/{CCYY-mm}/sailthru_blasts_for_{CCYYmmdd}.json.
+
+        """
+        month_year_string = self.blast_date.strftime('%Y-%m')  # pylint: disable=no-member
+        requesting_date_string = self.blast_date.strftime('%Y%m%d')  # pylint: disable=no-member
+        filename = "sailthru_blasts_for_{date_string}.json".format(date_string=requesting_date_string)
+        url_with_filename = url_path_join(self.output_root, "sailthru_blast_info", month_year_string, filename)
+        return get_target_from_url(url_with_filename)
