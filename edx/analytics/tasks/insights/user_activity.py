@@ -55,8 +55,14 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
         if not course_id:
             return
 
+        user_id = event.get('context', {}).get('user_id')
+        if user_id:
+            user_id = int(user_id)
+        else:
+            user_id = None
+
         for label in self.get_predicate_labels(event):
-            yield self._encode_tuple((course_id, username, date_string, label)), 1
+            yield self._encode_tuple((course_id, username, date_string, label, user_id)), 1
 
     def get_predicate_labels(self, event):
         """Creates labels by applying hardcoded predicates to a single event."""
@@ -140,6 +146,7 @@ class UserActivityTableTask(UserActivityDownstreamMixin, HiveTableTask):
             ('username', 'STRING'),
             ('date', 'STRING'),
             ('category', 'STRING'),
+            ('user_id', INT)
             ('count', 'INT'),
         ]
 
