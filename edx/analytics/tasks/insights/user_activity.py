@@ -146,7 +146,7 @@ class UserActivityTableTask(UserActivityDownstreamMixin, HiveTableTask):
             ('username', 'STRING'),
             ('date', 'STRING'),
             ('category', 'STRING'),
-            ('user_id', INT)
+            ('user_id', 'INT')
             ('count', 'INT'),
         ]
 
