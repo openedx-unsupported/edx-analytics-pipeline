@@ -57,9 +57,9 @@ class UserActivityTask(EventLogSelectionMixin, MapReduceJobTask):
 
         user_id = event.get('context', {}).get('user_id')
         if user_id:
-            user_id = int(user_id)
+            user_id = str(user_id)
         else:
-            user_id = None
+            user_id = ''
 
         for label in self.get_predicate_labels(event):
             yield self._encode_tuple((course_id, username, date_string, label, user_id)), 1
