@@ -13,6 +13,7 @@ import luigi
 from luigi import date_interval
 from sailthru.sailthru_client import SailthruClient
 
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateTimeField, DateField
@@ -241,7 +242,7 @@ class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin
     )
 
     def __init__(self, *args, **kwargs):
-        super(IntervalPullFromSailthruTask, self).__init__(*args, **kwargs)
+        super(BlastStatsFromSailthruTask, self).__init__(*args, **kwargs)
         # Provide default for output_root at this level.
         if self.output_root is None:
             self.output_root = self.warehouse_path
@@ -704,6 +705,90 @@ class IntervalPullIncrementalEmailFromSailthruTask(PullFromSailthruDownstreamMix
         for blast_date in self.interval:
             args['blast_date'] = blast_date
             yield EmailInfoPerDateFromSailthruTask(**args)
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+
+class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, VerticaCopyTask):
+
+    # Required parameter
+    blast_date = luigi.DateParameter()
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.blast_date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        args = {
+            'api_key': self.api_key,
+            'api_secret': self.api_secret,
+            'output_root': self.output_root,
+            'overwrite': self.overwrite,
+            'blast_date': self.blast_date,
+        }
+        return EmailInfoPerDateFromSailthruTask(**args)
+
+    @property
+    def table(self):
+        return 'blast_email_record'
+
+# Just use the default default:  "created"
+#    @property
+#    def default_columns(self):
+#        """List of tuples defining name and definition of automatically-filled columns."""
+#        return None
+
+    @property
+    def auto_primary_key(self):
+        # The default is to use 'id', which would cause a conflict with field already having that name.
+        # But there seems to be little value in having such a column.
+        return None
+
+    @property
+    def columns(self):
+        return SailthruBlastEmailRecord.get_sql_schema()
+
+    @property
+    def table_partition_key(self):
+        return 'blast_date'
+
+
+class LoadBlastEmailRecordIntervalToVertica(PullFromSailthruDownstreamMixin, VerticaCopyTaskMixin, WarehouseMixin, luigi.WrapperTask):
+    """
+    Loads the event records table from Hive into the Vertica data warehouse.
+
+    """
+
+    interval = luigi.DateIntervalParameter(
+        description='The range of received dates for which to create event records.',
+    )
+    # Overwrite parameter definition to make it optional.
+    output_root = luigi.Parameter(
+        default=None,
+        description='URL of location to write output.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(LoadBlastEmailRecordIntervalToVertica, self).__init__(*args, **kwargs)
+        # Provide default for output_root at this level.
+        if self.output_root is None:
+            self.output_root = self.warehouse_path
+
+    def requires(self):
+        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
+            # should_overwrite = date >= self.overwrite_from_date
+            yield LoadDailyBlastEmailRecordToVertica(
+                api_key=self.api_key,
+                api_secret=self.api_secret,
+                overwrite=self.overwrite,
+                blast_date=date,
+                output_root=self.output_root,
+                schema=self.schema,
+                credentials=self.credentials,
+            )
 
     def output(self):
         return [task.output() for task in self.requires()]
