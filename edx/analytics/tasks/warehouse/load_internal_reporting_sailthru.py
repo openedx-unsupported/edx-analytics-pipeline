@@ -62,16 +62,15 @@ class PullFromSailthruDownstreamMixin(OverwriteOutputMixin):
     )
 
 
-class DailyPullFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
+class BlastInfoPerIntervalFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
     """
     A task that fetches daily Sailthru blast information and writes to a file.
 
     """
 
     # Date to fetch Sailthru report.
-    # run_date = luigi.DateParameter(default=datetime.date.today(), description='Default is today.')
+    run_date = luigi.DateParameter(default=datetime.date.today(), description='Default is today.')
 
-    REPORT_FORMAT = 'json'
     MAX_NUM_BLASTS = 200
 
     def requires(self):
@@ -100,27 +99,24 @@ class DailyPullFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
                     raise Exception(msg)
 
                 # TODO: decide whether to insert additional information about when the record was pulled.
+                # i.e. self.run_date
                 output_file.write(response.get_body(as_dictionary=False))
                 output_file.write('\n')
 
     def output(self):
-        """Output is NO LONGER in the form {output_root}/sailthru_raw/{CCYY-mm}/sailthru_blast_{CCYYmmdd}.json.
-
-        Instead, we write to {output_root}/sailthru_raw/sailthru_blast_{CCYYmmdd}_{CCYY-mm-dd-CCYY-mm-dd}.json.
-        At some point, we may clone this to generate an incrmental output *and* a complete output.  The former
-        would be used for finding blast_ids to fetch email addresses for.  The latter would be used for fetching
-        blast statistics.
         """
-        # month_year_string = self.run_date.strftime('%Y-%m')  # pylint: disable=no-member
-        # requesting_date_string = self.run_date.strftime('%Y%m%d')  # pylint: disable=no-member
-        filename = "sailthru_{type}_{interval}.{report_format}".format(
-            type='blast',
-            # date_string=requesting_date_string,
+        Output is in the form:
+
+        {output_root}/sailthru_interval_blast_info/{CCYY-mm}/sailthru_blast_{CCYYmmdd}_{CCYY-mm-dd-CCYY-mm-dd}.json.
+
+        """
+        month_year_string = self.run_date.strftime('%Y-%m')  # pylint: disable=no-member
+        requesting_date_string = self.run_date.strftime('%Y%m%d')  # pylint: disable=no-member
+        filename = "sailthru_blast_{date_string}_{interval}.json".format(
+            date_string=requesting_date_string,
             interval=str(self.interval),
-            report_format=self.REPORT_FORMAT,
         )
-        # url_with_filename = url_path_join(self.output_root, "sailthru_raw", month_year_string, filename)
-        url_with_filename = url_path_join(self.output_root, "sailthru_raw", filename)
+        url_with_filename = url_path_join(self.output_root, "sailthru_interval_blast_info", month_year_string, filename)
         return get_target_from_url(url_with_filename)
 
 
@@ -137,19 +133,20 @@ class SailthruBlastStatsRecord(Record):
     email_unsubscribe_cnt = IntegerField(nullable=False, description='Blast identifier.')
     email_open_cnt = IntegerField(nullable=False, description='Blast identifier.')
     email_click_cnt = IntegerField(nullable=False, description='Blast identifier.')
+    stats_date = DateField(nullable=False, description='The date when the blast was queried.')
 
 
-class DailyStatsFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
+class BlastStatsPerIntervalFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
     """
     A task that reads a local file generated from a daily Sailthru pull, and writes to a TSV file.
 
     The output file should be readable by Hive.
 
     """
-    # run_date = luigi.DateParameter(
-    #     default=datetime.date.today(),
-    #     description='Date to fetch Sailthru report. Default is today.',
-    # )
+    run_date = luigi.DateParameter(
+        default=datetime.date.today(),
+        description='Date to fetch Sailthru report. Default is today.',
+    )
 
     def requires(self):
         args = {
@@ -158,8 +155,9 @@ class DailyStatsFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
             'interval': self.interval,
             'output_root': self.output_root,
             'overwrite': self.overwrite,
+            'run_date': self.run_date,
         }
-        return DailyPullFromSailthruTask(**args)
+        return BlastInfoPerIntervalFromSailthruTask(**args)
 
     def run(self):
         # Read from input and reformat for output.
@@ -197,6 +195,7 @@ class DailyStatsFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
             output_entry['email_unsubscribe_cnt'] = stats.get('optout', 0)
             output_entry['email_open_cnt'] = stats.get('open_total', 0)
             output_entry['email_click_cnt'] = stats.get('click_total', 0)
+            output_entry['stats_date'] = self.run_date
 
             record = SailthruBlastStatsRecord(**output_entry)
 
@@ -208,26 +207,23 @@ class DailyStatsFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
         """
         Output is set up so it can be read in as a Hive table with partitions.
 
-        The form should eventually be {output_root}/sailthru_blast_stats/dt={CCYY-mm-dd}/sailthru_blast.tsv.
+        The form is {output_root}/sailthru_blast_stats/dt={CCYY-mm-dd}/sailthru_blast.tsv.
 
-        For now it is {output_root}/sailthru_blast_stats/sailthru_blast.tsv, where the date is included
-        as part of output_root.  This was just a shortcut.
         """
-        # TODO:  At some point, restore this so that output_root no longer needs today's date,
-        # and can again be warehouse_path or its replacement.
-        # date_string = self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        # partition_path_spec = HivePartition('dt', date_string).path_spec
+        date_string = self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        partition_path_spec = HivePartition('dt', date_string).path_spec
         filename = "sailthru_blast.tsv"
-        # url_with_filename = url_path_join(self.output_root, "sailthru_blast_stats", partition_path_spec, filename)
-        url_with_filename = url_path_join(self.output_root, "sailthru_blast_stats", filename)
+        url_with_filename = url_path_join(self.output_root, "sailthru_blast_stats", partition_path_spec, filename)
         return get_target_from_url(url_with_filename)
 
 
-class IntervalPullFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
+class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
     """Determines a set of dates to pull, and requires them."""
 
-    date = None
-    # interval = luigi.DateIntervalParameter(default=None)
+    run_date = luigi.DateParameter(
+        default=datetime.date.today(),
+        description='Date to fetch Sailthru report. Default is today.',
+    )
     interval_start = luigi.DateParameter(
         default_from_config={'section': 'sailthru', 'name': 'interval_start'},
         significant=False,
@@ -248,11 +244,7 @@ class IntervalPullFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMix
         super(IntervalPullFromSailthruTask, self).__init__(*args, **kwargs)
         # Provide default for output_root at this level.
         if self.output_root is None:
-            # self.output_root = self.warehouse_path
-            # date_string = datetime.datetime.utcnow().date().isoformat()
-            date_string = self.interval_end.isoformat()
-            partition_path_spec = HivePartition('dt', date_string).path_spec
-            self.output_root = url_path_join(self.warehouse_path, partition_path_spec)
+            self.output_root = self.warehouse_path
 
         if self.interval is None:
             self.interval = date_interval.Custom(self.interval_start, self.interval_end)
@@ -265,8 +257,9 @@ class IntervalPullFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMix
             'output_root': self.output_root,
             'overwrite': self.overwrite,
             'interval': self.interval,
+            'run_date': self.run_date,
         }
-        yield DailyStatsFromSailthruTask(**args)
+        yield BlastStatsPerIntervalFromSailthruTask(**args)
 
     def output(self):
         return [task.output() for task in self.requires()]
@@ -313,6 +306,7 @@ class BlastInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Ta
                 raise Exception(msg)
 
             # TODO: decide whether to insert additional information about when the record was pulled.
+            # i.e. self.run_date
             output_file.write(response.get_body(as_dictionary=False))
             output_file.write('\n')
 
