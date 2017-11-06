@@ -266,6 +266,53 @@ class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin
         return [task.output() for task in self.requires()]
 
 
+class LoadBlastStatsRecordToVertica(PullFromSailthruDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+
+    run_date = luigi.DateParameter(
+        default=datetime.date.today(),
+        description='Date to fetch Sailthru report. Default is today.',
+    )
+
+    # Overwrite parameter definition to make it optional.
+    output_root = luigi.Parameter(
+        default=None,
+        description='URL of location to write output.',
+    )
+
+    @property
+    def insert_source_task(self):
+        args = {
+            'api_key': self.api_key,
+            'api_secret': self.api_secret,
+            'output_root': self.output_root,
+            'overwrite': self.overwrite,
+            'run_date': self.blast_date,
+            'interval': self.interval,
+            'warehouse_path': self.warehouse_path,
+        }
+        return BlastStatsFromSailthruTask(**args)
+
+    @property
+    def table(self):
+        return 'blast_stats_record'
+
+# Just use the default default:  "created"
+#    @property
+#    def default_columns(self):
+#        """List of tuples defining name and definition of automatically-filled columns."""
+#        return None
+
+    @property
+    def auto_primary_key(self):
+        # The default is to use 'id', which would cause a conflict with field already having that name.
+        # But there seems to be little value in having such a column.
+        return None
+
+    @property
+    def columns(self):
+        return SailthruBlastStatsRecord.get_sql_schema()
+
+
 #=======================
 # support for incremental blast email pulls
 
