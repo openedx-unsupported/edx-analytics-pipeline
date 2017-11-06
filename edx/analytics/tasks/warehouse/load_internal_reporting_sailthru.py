@@ -286,7 +286,7 @@ class LoadBlastStatsRecordToVertica(PullFromSailthruDownstreamMixin, WarehouseMi
             'api_secret': self.api_secret,
             'output_root': self.output_root,
             'overwrite': self.overwrite,
-            'run_date': self.blast_date,
+            'run_date': self.run_date,
             'interval': self.interval,
             'warehouse_path': self.warehouse_path,
         }
