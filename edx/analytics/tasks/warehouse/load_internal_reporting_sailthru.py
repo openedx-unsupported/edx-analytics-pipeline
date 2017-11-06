@@ -263,7 +263,7 @@ class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin
         yield BlastStatsPerIntervalFromSailthruTask(**args)
 
     def output(self):
-        return [task.output() for task in self.requires()]
+        return self.requires().output()
 
 
 class LoadBlastStatsRecordToVertica(PullFromSailthruDownstreamMixin, WarehouseMixin, VerticaCopyTask):
