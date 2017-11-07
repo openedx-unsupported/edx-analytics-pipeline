@@ -241,7 +241,15 @@ class BlastStatsFromSailthruMixin(PullFromSailthruDownstreamMixin, WarehouseMixi
         description='URL of location to write output.',
     )
 
+    overwrite_dependencies = False
+
     def __init__(self, *args, **kwargs):
+        # We always overwrite the current task, but leave it
+        # up to the overwrite parameter as to whether all
+        # dependent tasks should also be overwritten.
+        self.overwrite_dependencies = self.overwrite
+        self.overwrite = True
+
         super(BlastStatsFromSailthruMixin, self).__init__(*args, **kwargs)
         # Provide default for output_root at this level.
         if self.output_root is None:
@@ -259,7 +267,7 @@ class BlastStatsFromSailthruTask(BlastStatsFromSailthruMixin, luigi.WrapperTask)
             'api_key': self.api_key,
             'api_secret': self.api_secret,
             'output_root': self.output_root,
-            'overwrite': self.overwrite,
+            'overwrite': self.overwrite_dependencies,
             'run_date': self.run_date,
             'interval': self.interval,
         }
@@ -274,7 +282,7 @@ class LoadBlastStatsRecordToVertica(BlastStatsFromSailthruMixin, VerticaCopyTask
             'api_key': self.api_key,
             'api_secret': self.api_secret,
             'output_root': self.output_root,
-            'overwrite': self.overwrite,
+            'overwrite': self.overwrite_dependencies,
             'run_date': self.run_date,
             'interval': self.interval,
         }
