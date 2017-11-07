@@ -13,7 +13,7 @@ import luigi
 from luigi import date_interval
 from sailthru.sailthru_client import SailthruClient
 
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, VerticaCopyPartitionTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateTimeField, DateField
@@ -700,6 +700,8 @@ class EmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Ta
     def get_output_path(self):
         date_string = self.blast_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         partition_path_spec = HivePartition('dt', date_string).path_spec
+        # Make sure that this directory has a trailing slash, so that the downstream Vertica task
+        # knows how to stream from it.
         output_path = url_path_join(self.output_root, "sailthru_blast_emails", partition_path_spec) + '/'
         return output_path
 
@@ -754,15 +756,10 @@ class IntervalPullIncrementalEmailFromSailthruTask(PullFromSailthruDownstreamMix
         return [task.output() for task in self.requires()]
 
 
-class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, VerticaCopyTask):
+class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, VerticaCopyPartitionTask):
 
     # Required parameter
     blast_date = luigi.DateParameter()
-
-    @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.blast_date.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
@@ -798,6 +795,10 @@ class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, Vertic
     @property
     def table_partition_key(self):
         return 'blast_date'
+
+    @property
+    def table_partition_value(self):
+        return self.blast_date.isoformat()
 
 
 class LoadBlastEmailRecordIntervalToVertica(PullFromSailthruDownstreamMixin, VerticaCopyTaskMixin, WarehouseMixin, luigi.WrapperTask):

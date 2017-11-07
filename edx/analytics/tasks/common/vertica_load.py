@@ -595,6 +595,79 @@ class IncrementalVerticaCopyTask(VerticaCopyTask):
         raise NotImplementedError
 
 
+class VerticaCopyPartitionTask(VerticaCopyTask):
+    """
+    A task for copying data into a Vertica database incrementally by partition.
+
+    If overwrite is True, this task only deletes a particular partition of the table being written to
+    and only deletes table_updates row with the same update_id.
+    """
+
+    def init_copy(self, connection):
+        self.attempted_removal = True
+        if self.overwrite:
+            # Before changing the current contents table incrementally, we had to make sure there
+            # were no aggregate projections on it.  Assume for now that the same holds for deleting
+            # partitions.
+            self.drop_aggregate_projections(connection)
+
+            # Drop just the relevant partition being overwritten, not the entire table.
+            query = "SELECT DROP_PARTITION('{schema}.{table}', '{partition}');".format(
+                schema=self.schema,
+                table=self.table,
+                partition=self.table_partition_value,
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
+
+    def init_touch(self, connection):
+        if self.overwrite:
+            # Clear the appropriate rows from the luigi Vertica marker table
+            marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            marker_schema = self.output().marker_schema
+            try:
+                query = "DELETE FROM {marker_schema}.{marker_table} where update_id='{update_id}';".format(
+                    marker_schema=marker_schema,
+                    marker_table=marker_table,
+                    update_id=self.update_id(),
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+            except vertica_python.errors.Error as err:
+                if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
+                    # If so, then our query error failed because the table doesn't exist.
+                    pass
+                else:
+                    raise
+        connection.cursor().flush_to_query_ready()
+
+    @property
+    def table_partition_value(self):
+        """
+        A string that specifies the value of the partition to overwrite.
+        """
+        raise NotImplementedError
+
+    def update_id(self):
+        # Since the marker table is only referenced by update_id, encode the target table and
+        # the particular partition being loaded into the id.
+        return '{task_name} {schema}.{target_table}({partition_key}={partition_value})'.format(
+            task_name=self.task_family,
+            schema=self.schema,
+            target_table=self.table,
+            partition_key=self.table_partition_key,
+            partition_value=self.table_partition_value,
+        )
+
+
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
     """
     Base class for running schema management commands on warehouse.
