@@ -218,7 +218,7 @@ class BlastStatsPerIntervalFromSailthruTask(PullFromSailthruDownstreamMixin, lui
         return get_target_from_url(url_with_filename)
 
 
-class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
+class BlastStatsFromSailthruMixin(PullFromSailthruDownstreamMixin, WarehouseMixin):
     """Determines a set of dates to pull, and requires them."""
 
     run_date = luigi.DateParameter(
@@ -242,13 +242,16 @@ class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin
     )
 
     def __init__(self, *args, **kwargs):
-        super(BlastStatsFromSailthruTask, self).__init__(*args, **kwargs)
+        super(BlastStatsFromSailthruMixin, self).__init__(*args, **kwargs)
         # Provide default for output_root at this level.
         if self.output_root is None:
             self.output_root = self.warehouse_path
 
         if self.interval is None:
             self.interval = date_interval.Custom(self.interval_start, self.interval_end)
+
+
+class BlastStatsFromSailthruTask(BlastStatsFromSailthruMixin, luigi.WrapperTask):
 
     def requires(self):
         """Internal method to actually calculate required tasks once."""
@@ -257,27 +260,13 @@ class BlastStatsFromSailthruTask(PullFromSailthruDownstreamMixin, WarehouseMixin
             'api_secret': self.api_secret,
             'output_root': self.output_root,
             'overwrite': self.overwrite,
-            'interval': self.interval,
             'run_date': self.run_date,
+            'interval': self.interval,
         }
-        yield BlastStatsPerIntervalFromSailthruTask(**args)
-
-    def output(self):
-        return self.requires().output()
+        return BlastStatsPerIntervalFromSailthruTask(**args)
 
 
-class LoadBlastStatsRecordToVertica(PullFromSailthruDownstreamMixin, WarehouseMixin, VerticaCopyTask):
-
-    run_date = luigi.DateParameter(
-        default=datetime.date.today(),
-        description='Date to fetch Sailthru report. Default is today.',
-    )
-
-    # Overwrite parameter definition to make it optional.
-    output_root = luigi.Parameter(
-        default=None,
-        description='URL of location to write output.',
-    )
+class LoadBlastStatsRecordToVertica(BlastStatsFromSailthruMixin, VerticaCopyTask):
 
     @property
     def insert_source_task(self):
@@ -288,9 +277,8 @@ class LoadBlastStatsRecordToVertica(PullFromSailthruDownstreamMixin, WarehouseMi
             'overwrite': self.overwrite,
             'run_date': self.run_date,
             'interval': self.interval,
-            'warehouse_path': self.warehouse_path,
         }
-        return BlastStatsFromSailthruTask(**args)
+        return BlastStatsPerIntervalFromSailthruTask(**args)
 
     @property
     def table(self):
