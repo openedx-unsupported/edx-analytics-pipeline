@@ -244,15 +244,6 @@ class BlastStatsFromSailthruMixin(PullFromSailthruDownstreamMixin, WarehouseMixi
     overwrite_dependencies = False
 
     def __init__(self, *args, **kwargs):
-        log.debug("Overwrite at input is set to %s", self.overwrite)
-
-        # We always overwrite the current task, but leave it
-        # up to the overwrite parameter as to whether all
-        # dependent tasks should also be overwritten.
-        self.overwrite_dependencies = self.overwrite
-        self.overwrite = True
-
-        log.debug("Overwrite before super is set to %s", self.overwrite)
 
         super(BlastStatsFromSailthruMixin, self).__init__(*args, **kwargs)
         # Provide default for output_root at this level.
@@ -262,7 +253,11 @@ class BlastStatsFromSailthruMixin(PullFromSailthruDownstreamMixin, WarehouseMixi
         if self.interval is None:
             self.interval = date_interval.Custom(self.interval_start, self.interval_end)
 
-        log.debug("Overwrite at end of init has been set to %s", self.overwrite)
+        # We always overwrite the current task, but leave it
+        # up to the overwrite parameter as to whether all
+        # dependent tasks should also be overwritten.
+        self.overwrite_dependencies = self.overwrite
+        self.overwrite = True
 
 
 class BlastStatsFromSailthruTask(BlastStatsFromSailthruMixin, luigi.WrapperTask):
@@ -705,7 +700,7 @@ class EmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Ta
     def get_output_path(self):
         date_string = self.blast_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         partition_path_spec = HivePartition('dt', date_string).path_spec
-        output_path = url_path_join(self.output_root, "sailthru_blast_emails", partition_path_spec)
+        output_path = url_path_join(self.output_root, "sailthru_blast_emails", partition_path_spec) + '/'
         return output_path
 
     def output(self):
