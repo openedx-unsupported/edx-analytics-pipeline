@@ -122,18 +122,17 @@ class BlastInfoPerIntervalFromSailthruTask(PullFromSailthruDownstreamMixin, luig
 
 
 class SailthruBlastStatsRecord(Record):
-    # TODO: update descriptions.
     blast_id = IntegerField(nullable=False, description='Blast identifier.')
-    email_subject = StringField(length=564, nullable=False, description='Blast identifier.')
-    email_list = StringField(length=564, nullable=False, description='Blast identifier.')
-    email_campaign_name = StringField(length=564, nullable=False, description='Blast identifier.')
-    email_abtest_name = StringField(length=564, nullable=True, description='Blast identifier.')
-    email_abtest_segment = StringField(length=564, nullable=True, description='Blast identifier.')
-    email_start_time = DateTimeField(nullable=False, description='Blast identifier.')
-    email_sent_cnt = IntegerField(nullable=False, description='Blast identifier.')
-    email_unsubscribe_cnt = IntegerField(nullable=False, description='Blast identifier.')
-    email_open_cnt = IntegerField(nullable=False, description='Blast identifier.')
-    email_click_cnt = IntegerField(nullable=False, description='Blast identifier.')
+    email_subject = StringField(length=564, nullable=False, description='Subject line of email being sent.')
+    email_list = StringField(length=564, nullable=False, description='Name of the email list used.')
+    email_campaign_name = StringField(length=564, nullable=False, description='Name assigned to the blast.')
+    email_abtest_name = StringField(length=564, nullable=True, description='Name of AB test.')
+    email_abtest_segment = StringField(length=564, nullable=True, description='Name of AB test segment.')
+    email_start_time = DateTimeField(nullable=False, description='Time at which delivery was started.')
+    email_sent_cnt = IntegerField(nullable=False, description='Number of users.')
+    email_unsubscribe_cnt = IntegerField(nullable=False, description='Number of users who opted out.')
+    email_open_cnt = IntegerField(nullable=False, description='Total number of beacon impressions (including multiple beacon impressions per user).')
+    email_click_cnt = IntegerField(nullable=False, description='Total number of clicks (including multiple clicks per user).')
     stats_date = DateField(nullable=False, description='The date when the blast was queried.')
 
 
@@ -190,13 +189,17 @@ class BlastStatsPerIntervalFromSailthruTask(PullFromSailthruDownstreamMixin, lui
             else:
                 output_entry['email_start_time'] = None
             stats = blast.get('stats', {}).get('total', {})
-            # ISSUE: don't these change over time?  And if so, do we need separate entries for them, by date when
-            # they were fetched?
             output_entry['email_sent_cnt'] = stats.get('count', 0)
             output_entry['email_unsubscribe_cnt'] = stats.get('optout', 0)
             output_entry['email_open_cnt'] = stats.get('open_total', 0)
             output_entry['email_click_cnt'] = stats.get('click_total', 0)
             output_entry['stats_date'] = self.run_date
+
+            # Values not used from the blast dict include:
+            #   suppress_list, is_google_analytics, is_link_tracking, labels, end_time, status, email_count.
+            # Values not used from the stats dict include:
+            #   beacon, estopens, click, click_multiple_urls, pv, purchase, purchase_price, rev, softbounce,
+            #   hardbounce, spam, confirmed_opens, view.
 
             record = SailthruBlastStatsRecord(**output_entry)
 
@@ -480,24 +483,23 @@ class RequestEmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, l
 
 
 class SailthruBlastEmailRecord(Record):
-    # TODO: update descriptions.
     blast_date = DateField(nullable=False, description='The date when the blast was sent.  Used for partitioning.')
     blast_id = IntegerField(nullable=False, description='Blast identifier.')
-    email_hash = StringField(length=564, nullable=False, description='Email has.')
+    email_hash = StringField(length=564, nullable=False, description='MD5 hash of recipient\'s email address.')
     profile_id = StringField(length=564, nullable=False, description='Profile identifier.')
-    send_time = DateTimeField(nullable=False, description='Send time.')
+    send_time = DateTimeField(nullable=False, description='Time when blast was sent to recipient.')
 
     # These are not needed right now, and it may end up slowing down our output.
     # So commenting these out for now to speed up output.
-    # open_time = DateTimeField(nullable=True, description='Blast identifier.')
-    # click_time = DateTimeField(nullable=True, description='Blast identifier.')
-    # purchase_time = DateTimeField(nullable=True, description='Blast identifier.')
-    # device = StringField(length=564, nullable=True, description='Blast identifier.')
+    # open_time = DateTimeField(nullable=True, description='Time when recipient opened blast.')
+    # click_time = DateTimeField(nullable=True, description='Time when recipient clicked on blast.')
+    # purchase_time = DateTimeField(nullable=True, description='Time when recipient made a purchase.')
+    # device = StringField(length=564, nullable=True, description='Device used.')
 
     # This can get very long, as urls are appended, delimited by a space.  Skipping for now.
-    # first_ten_clicks = StringField(length=564, nullable=True, description='Blast identifier.')
+    # first_ten_clicks = StringField(length=564, nullable=True, description='List of URLs clicked on.')
     # This comes in with more than one datetime, pipe-delimited.  Not sure how to store it, so just skipping it.
-    # first_ten_clicks_time = DateTimeField(nullable=True, description='Blast identifier.')
+    # first_ten_clicks_time = DateTimeField(nullable=True, description='Times when URLS were clicked on.')
 
 
 class EmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Task):
@@ -674,7 +676,6 @@ class EmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, luigi.Ta
                 job_status.get('status'), job_id, blast_id, end_time.isoformat(), job_status.get('expired'),
             )
             # For now, avoid failing here, and instead let it do as much as it can so we can analyze the problem.
-            # (For example, it seems to expire links after two hours, instead of 24 hours as documented.)
             # raise Exception(msg)
             print msg
         
@@ -731,9 +732,7 @@ class IntervalPullIncrementalEmailFromSailthruTask(PullFromSailthruDownstreamMix
             self.output_root = self.warehouse_path
 
         if self.interval is None:
-            # self.interval = date_interval.Custom(self.interval_start, self.interval_end)
-            # TODO: Make this be yesterday by default.
-            pass
+            raise RuntimeError("Missing interval parameter")
 
     def requires(self):
         """Internal method to actually calculate required tasks once."""
@@ -788,12 +787,6 @@ class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, Vertic
     def table(self):
         return 'blast_email_record'
 
-# Just use the default default:  "created"
-#    @property
-#    def default_columns(self):
-#        """List of tuples defining name and definition of automatically-filled columns."""
-#        return None
-
     @property
     def auto_primary_key(self):
         # The default is to use 'id', which would cause a conflict with field already having that name.
@@ -841,7 +834,6 @@ class LoadBlastEmailRecordIntervalToVertica(PullFromSailthruDownstreamMixin, Ver
 
     def requires(self):
         for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
-            # should_overwrite = date >= self.overwrite_from_date
             yield LoadDailyBlastEmailRecordToVertica(
                 api_key=self.api_key,
                 api_secret=self.api_secret,
