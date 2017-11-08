@@ -376,11 +376,6 @@ class RequestEmailInfoPerDateFromSailthruTask(PullFromSailthruDownstreamMixin, l
 
     blast_date = luigi.DateParameter()
 
-    # Choose a value that exceeds the maximum number of recipients of a blast.
-    # This is used to reverse the order of blasts by send_cnt, though were it negative,
-    # it would probably work as well.
-    MAX_COUNT = 100000000
-
     def requires(self):
         args = {
             'api_key': self.api_key,
@@ -761,13 +756,30 @@ class LoadDailyBlastEmailRecordToVertica(PullFromSailthruDownstreamMixin, Vertic
     # Required parameter
     blast_date = luigi.DateParameter()
 
+    overwrite_dependencies = False
+
+    overwrite_vertica = luigi.BooleanParameter(
+        default=False,
+        description='Whether or not to always overwrite data in Vertica; set to False by default.',
+        significant=False
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(LoadDailyBlastEmailRecordToVertica, self).__init__(*args, **kwargs)
+
+        # We always overwrite the current task, but leave it
+        # up to the overwrite parameter as to whether all
+        # dependent tasks should also be overwritten.
+        self.overwrite_dependencies = self.overwrite
+        self.overwrite = self.overwrite_vertica
+
     @property
     def insert_source_task(self):
         args = {
             'api_key': self.api_key,
             'api_secret': self.api_secret,
             'output_root': self.output_root,
-            'overwrite': self.overwrite,
+            'overwrite': self.overwrite_dependencies,
             'blast_date': self.blast_date,
         }
         return EmailInfoPerDateFromSailthruTask(**args)
@@ -815,6 +827,11 @@ class LoadBlastEmailRecordIntervalToVertica(PullFromSailthruDownstreamMixin, Ver
         default=None,
         description='URL of location to write output.',
     )
+    overwrite_vertica = luigi.BooleanParameter(
+        default=False,
+        description='Whether or not to always overwrite data in Vertica; set to False by default.',
+        significant=False
+    )
 
     def __init__(self, *args, **kwargs):
         super(LoadBlastEmailRecordIntervalToVertica, self).__init__(*args, **kwargs)
@@ -829,6 +846,7 @@ class LoadBlastEmailRecordIntervalToVertica(PullFromSailthruDownstreamMixin, Ver
                 api_key=self.api_key,
                 api_secret=self.api_secret,
                 overwrite=self.overwrite,
+                overwrite_vertica=self.overwrite_vertica,
                 blast_date=date,
                 output_root=self.output_root,
                 schema=self.schema,
