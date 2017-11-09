@@ -9,7 +9,7 @@ import logging
 import luigi
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, IncrementalVerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask
 from edx.analytics.tasks.insights.user_activity import CourseActivityWeeklyTask, UserActivityTableTask
 from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
@@ -18,6 +18,58 @@ from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
+
+
+class InternalReportingUserActivityTableTask(BareHiveTableTask):
+
+    @property
+    def table(self):
+        return 'internal_reporting_user_activity'
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def columns(self):
+        return [
+            ('user_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('date', 'STRING'),
+            ('activity_type', 'STRING'),
+            ('number_of_activities', 'INT'),
+        ]
+
+
+class InternalReportingUserActivityPartitionTask(HivePartitionTask):
+
+    def query(self):
+        pass
+
+    def requires(self):
+        yield (
+            ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
+            InternalReportingUserActivityTableTask(
+                warehouse_path=self.warehouse_path,
+                overwrite=True,
+            ),
+            UserActivityPartitionTask(
+                date=self.date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def partition_value(self):
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return InternalReportingUserActivityTableTask(
+            warehouse_path=self.warehouse_path,
+        )
 
 
 class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
