@@ -96,9 +96,8 @@ class InternalReportingUserActivityPartitionTask(HivePartitionTask):
             warehouse_path=self.warehouse_path,
         )
 
-    def run(self):
-        self.remove_output_on_overwrite()
-        super(InternalReportingUserActivityPartitionTask, self).run()
+    def remove_output_on_overwrite(self):
+        super(HivePartitionTask, self).remove_output_on_overwrite()
 
     def output(self):
         return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.date.isoformat()))
