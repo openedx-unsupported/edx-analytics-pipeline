@@ -766,6 +766,10 @@ class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMix
                     'want.',
         significant=False
     )
+    allow_empty_insert = luigi.BooleanParameter(
+        default=False,
+        config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
+    )
 
     @property
     def table(self):
