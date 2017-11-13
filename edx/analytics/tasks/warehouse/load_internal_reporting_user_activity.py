@@ -166,6 +166,7 @@ class LoadInternalReportingUserActivityWorkflow(WarehouseMixin, luigi.WrapperTas
 
         for date in interval:
             yield IncrementalLoadInternalReportingUserActivityToWarehouse(
+                warehouse_path=self.warehouse_path,
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=True
