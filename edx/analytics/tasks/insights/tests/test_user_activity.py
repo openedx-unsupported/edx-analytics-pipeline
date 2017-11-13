@@ -1,4 +1,4 @@
-."""
+"""
 Tests for tasks that collect enrollment events.
 
 """
