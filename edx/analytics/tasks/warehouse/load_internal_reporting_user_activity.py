@@ -7,13 +7,14 @@ import datetime
 import os
 import logging
 import luigi
+import luigi.date_interval
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, IncrementalVerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask
-from edx.analytics.tasks.insights.user_activity import CourseActivityWeeklyTask, UserActivityTableTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.util.url import ExternalURL, url_path_join
+from edx.analytics.tasks.insights.user_activity import CourseActivityWeeklyTask, UserActivityTableTask, UserActivityPartitionTask
+from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition, BareHiveTableTask, HivePartitionTask, hive_database_name
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join, get_target_from_url
 from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
@@ -43,21 +44,45 @@ class InternalReportingUserActivityTableTask(BareHiveTableTask):
 
 class InternalReportingUserActivityPartitionTask(HivePartitionTask):
 
+    date = luigi.DateParameter()
+    n_reduce_tasks = luigi.Parameter()
+
     def query(self):
-        pass
+        query = """
+        USE {database_name};
+        INSERT OVERWRITE TABLE {table} PARTITION ({partition.query_spec})
+        SELECT
+            au.id,
+            uad.course_id,
+            uad.`date`,
+            uad.category,
+            uad.count
+        FROM auth_user au
+        JOIN user_activity_daily uad
+            ON au.username = uad.username;
+        WHERE
+            uad.`date` = "{date}"
+        """.format(
+            database_name=hive_database_name(),
+            table=self.hive_table_task.table,
+            partition=self.partition,
+            date=self.date.isoformat(),
+        )
+
+        return query
 
     def requires(self):
         yield (
             ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
             InternalReportingUserActivityTableTask(
                 warehouse_path=self.warehouse_path,
-                overwrite=True,
+                overwrite=self.overwrite,
             ),
             UserActivityPartitionTask(
                 date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
+                overwrite=False, #change to self.overwrite
             )
         )
 
@@ -71,51 +96,80 @@ class InternalReportingUserActivityPartitionTask(HivePartitionTask):
             warehouse_path=self.warehouse_path,
         )
 
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(InternalReportingUserActivityPartitionTask, self).run()
 
-class AggregateInternalReportingUserActivityTableHive(HiveTableFromQueryTask):
-    """Aggregate the user activity table in Hive."""
-    interval = luigi.DateIntervalParameter()
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.date.isoformat()))
+
+
+class IncrementalLoadInternalReportingUserActivityToWarehouse(WarehouseMixin, IncrementalVerticaCopyTask):
+
+    date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
 
-    def requires(self):
-        """
-        This task reads from auth_user and user_activity_daily, so require that they be
-        loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
-        """
-        return [ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
-                UserActivityTableTask(interval=self.interval, warehouse_path=self.warehouse_path,
-                                      n_reduce_tasks=self.n_reduce_tasks)]
+    @property
+    def record_filter(self):
+        return "date='{date}'".format(
+            date=self.date.isoformat()
+        )
+
+    def update_id(self):
+        return '{task_name}(date={date})'.format(
+            task_name=self.task_family,
+            date=self.date.isoformat(),
+        )
+
+    @property
+    def insert_source_task(self):
+        return InternalReportingUserActivityPartitionTask(
+            date=self.date,
+            n_reduce_tasks=self.n_reduce_tasks,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     @property
     def table(self):
-        return 'internal_reporting_user_activity'
+        return 'f_user_activity_test'
+
+    @property
+    def auto_primary_key(self):
+        return ('row_number', 'AUTO_INCREMENT')
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        return None
 
     @property
     def columns(self):
         return [
-            ('user_id', 'INT'),
-            ('course_id', 'STRING'),
-            ('date', 'STRING'),
-            ('activity_type', 'STRING'),
-            ('number_of_activities', 'INT'),
+            ('user_id', 'INTEGER NOT NULL'),
+            ('course_id', 'VARCHAR(256) NOT NULL'),
+            ('date', 'DATE'),
+            ('activity_type', 'VARCHAR(200)'),
+            ('number_of_activities', 'INTEGER')
         ]
 
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
-    @property
-    def insert_query(self):
-        return """
-            SELECT
-              au.id
-            , uad.course_id
-            , uad.`date`
-            , uad.category
-            , uad.count
-            FROM auth_user au
-            JOIN user_activity_daily uad ON au.username = uad.username
-            """
+class LoadInternalReportingUserActivityWorkflow(WarehouseMixin, luigi.WrapperTask):
+
+    date = luigi.DateParameter()
+    n_reduce_tasks = luigi.Parameter()
+    overwrite_n_days = luigi.IntParameter()
+
+    def requires(self):
+        overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
+        interval = luigi.date_interval.Custom(overwrite_from_date, self.date)
+
+        for date in interval:
+            yield IncrementalLoadInternalReportingUserActivityToWarehouse(
+                date=date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=True
+            )
 
 
 class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTask):

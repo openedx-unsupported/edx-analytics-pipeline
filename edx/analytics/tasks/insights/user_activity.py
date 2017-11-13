@@ -15,7 +15,7 @@ from edx.analytics.tasks.util.hive import WarehouseMixin, HiveTableTask, HivePar
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 from edx.analytics.tasks.util.url import get_target_from_url
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
+from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
 
 log = logging.getLogger(__name__)
 
@@ -178,6 +178,7 @@ class UserActivityPartitionTask(MapReduceJobTaskMixin, HivePartitionTask):
             overwrite=self.overwrite
         )
 
+
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
     pass
@@ -206,7 +207,7 @@ class CourseActivityTableTask(BareHiveTableTask):
 
     @property
     def table(self):
-        return 'course_activity'
+        return 'course_activity_test'
 
     @property
     def partition_by(self):
@@ -237,9 +238,9 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
             COUNT(DISTINCT username) as count
         FROM user_activity_daily act
         JOIN calendar cal
-            ON act.date = cal.date
+            ON act.`date` = cal.`date`
         WHERE
-            "{interval_start}" <= cal.date AND cal.date < "{interval_end}"
+            "{interval_start}" <= cal.`date` AND cal.`date` < "{interval_end}"
         GROUP BY
             act.course_id,
             cal.iso_week_start,
@@ -254,9 +255,11 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
             interval_end=self.interval.date_b.isoformat(),
         )
 
+        return query
+
     @property
     def partition_value(self):
-        return self.date.isoformat()  # pylint: disable=no-member
+        return self.interval.date_b.isoformat()  # pylint: disable=no-member
 
     @property
     def hive_table_task(self):
@@ -280,19 +283,8 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
             )
         )
 
-
-class CourseActivityDataTask(UserActivityDownstreamMixin, luigi.Task):
-
-    def requires(self):
-        return CourseActivityPartitionTask(
-            interval=self.interval,
-            n_reduce_tasks=self.n_reduce_tasks,
-            credentials=self.credentials,
-            overwrite=self.overwrite,
-        )
-
     def output(self):
-        return get_target_from_url(self.requires().partition_location)
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.interval.date_b.isoformat()))
 
 
 class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMysqlInsertTask):
@@ -314,7 +306,7 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMy
 
     @property
     def table(self):
-        return "course_activity"
+        return "course_activity_test"
 
     @property
     def columns(self):
@@ -335,10 +327,10 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMy
 
     @property
     def insert_source_task(self):
-        return CourseActivityDataTask(
+        return CourseActivityPartitionTask(
+            warehouse_path=self.warehouse_path,
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
-            credentials=self.credentials,
             overwrite=True,
         )
 
@@ -349,7 +341,8 @@ class CourseActivityWorkflow(WeeklyIntervalMixin, UserActivityDownstreamMixin, l
         yield InsertToMysqlCourseActivityTask(
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
-            credentials=self.credentials,
+            warehouse_path=self.warehouse_path,
+            #credentials=self.credentials,
         )
 
 
