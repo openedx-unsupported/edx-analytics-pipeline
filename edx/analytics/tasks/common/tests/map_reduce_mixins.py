@@ -51,7 +51,7 @@ class MapperTestMixin(object):
 
         merged_arguments = self.DEFAULT_ARGS.copy()
         merged_arguments.update(kwargs)
-
+        print(merged_arguments)
         for attr in merged_arguments:
             if getattr(self.task_class, attr, None) is None:
                 continue
@@ -60,7 +60,7 @@ class MapperTestMixin(object):
                 new_kwargs[attr] = luigi.DateIntervalParameter().parse(value)
             else:
                 new_kwargs[attr] = value
-
+        print(new_kwargs)
         self.task = self.task_class(**new_kwargs)  # pylint: disable=not-callable
         self.task.init_local()
 
