@@ -59,9 +59,9 @@ class InternalReportingUserActivityPartitionTask(HivePartitionTask):
             uad.count
         FROM auth_user au
         JOIN user_activity_daily uad
-            ON au.username = uad.username;
+            ON au.username = uad.username
         WHERE
-            uad.`date` = "{date}"
+            uad.`date` = "{date}";
         """.format(
             database_name=hive_database_name(),
             table=self.hive_table_task.table,
