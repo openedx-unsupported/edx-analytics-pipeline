@@ -40,8 +40,8 @@ class HistogramTaskFromSqoopParamsMixin(object):
         description='URL of S3 location/directory where the task outputs',
     )
     credentials = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'credentials'},
-        description='Credentials for the edx-platform db',
+        config_path={'section': 'database-export', 'name': 'credentials'},
+        description='Credentials for the analytics db',
     )
     sqoop_overwrite = luigi.BooleanParameter(  # prefixed with sqoop for disambiguation
         default=False,
@@ -135,7 +135,10 @@ class HistogramFromSqoopToMySQLWorkflowBase(
     """
     sqoop_histogram_task = None  # implementers must override default
 
-    import_credentials = luigi.Parameter()  # location of the edx-platform db creds
+    import_credentials = luigi.Parameter(
+        config_path={'section': 'database-import', 'name': 'credentials'},
+        description='Credentials for the readonly edx-platform db',
+    )
 
     overwrite = True  # always overwrite the exported MySQL table.  Independent of sqoop_overwrite, which is for import
 
