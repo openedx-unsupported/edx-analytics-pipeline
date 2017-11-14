@@ -207,6 +207,7 @@ class CourseActivityTableTask(BareHiveTableTask):
 
     @property
     def table(self):
+        # TODO: revert to course_activity
         return 'course_activity_test'
 
     @property
@@ -224,7 +225,12 @@ class CourseActivityTableTask(BareHiveTableTask):
         ]
 
 
-class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
+class CourseWeeklyActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
+
+    overwrite_n_days = luigi.IntParameter(
+        significant=False,
+        default=0,
+    )
 
     def query(self):
         query = """
@@ -276,7 +282,7 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
                 interval=self.interval,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite_n_days=0,
+                overwrite_n_days=self.overwrite_n_days,
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
@@ -290,7 +296,12 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
         return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.interval.date_b.isoformat()))
 
 
-class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMysqlInsertTask):
+class InsertToMysqlCourseWeeklyActivityTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, IncrementalMysqlInsertTask):
+
+    overwrite_n_days = luigi.IntParameter(
+        significant=False,
+        default=0,
+    )
 
     @property
     def record_filter(self):
@@ -309,6 +320,7 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMy
 
     @property
     def table(self):
+        # TODO: revert to course_activity
         return "course_activity_test"
 
     @property
@@ -330,23 +342,41 @@ class InsertToMysqlCourseActivityTask(UserActivityDownstreamMixin, IncrementalMy
 
     @property
     def insert_source_task(self):
-        return CourseActivityPartitionTask(
+        return CourseWeeklyActivityPartitionTask(
             warehouse_path=self.warehouse_path,
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
-            overwrite=True,
+            overwrite_n_days=self.overwrite_n_days,
+            overwrite=False if overwrite_n_days == 0 else True
         )
 
 
-class CourseActivityWorkflow(WeeklyIntervalMixin, UserActivityDownstreamMixin, luigi.WrapperTask):
+class CourseActivityWorkflow(UserActivityDownstreamMixin, luigi.WrapperTask):
+
+    date = luigi.DateParameter()
+    weeks = luigi.IntParameter()
+    overwrite = luigi.BooleanParameter()
+    overwrite_n_days = luigi.IntParameter()
+
+    interval = None
 
     def requires(self):
-        yield InsertToMysqlCourseActivityTask(
-            interval=self.interval,
-            n_reduce_tasks=self.n_reduce_tasks,
-            warehouse_path=self.warehouse_path,
-            #credentials=self.credentials,
-        )
+
+        end_date = self.date
+
+        for _ in xrange(self.weeks):
+
+            yield InsertToMysqlCourseWeeklyActivityTask(
+                end_date=end_date,
+                weeks=1,
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=self.overwrite_n_days,
+                overwrite=self.overwrite,
+                #credentials=self.credentials,
+            )
+
+            end_date = end_date - datetime.timedelta(weeks=1)
 
 
 class CourseActivityTask(UserActivityDownstreamMixin, HiveQueryToMysqlTask):
