@@ -212,6 +212,8 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             ## self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
             return
 
+        video_duration = event_data.get('duration', VIDEO_UNKNOWN_DURATION)
+
         # self.incr_counter(self.counter_category_name, 'Video Events Before Time Check', 1)
 
         current_time = None
@@ -262,7 +264,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         # self.incr_counter(self.counter_category_name, 'Output Video Events from Mapper', 1)
         yield (
             (username.encode('utf8'), course_id.encode('utf8'), encoded_module_id.encode('utf8')),
-            (timestamp, event_type, current_time, old_time, youtube_id)
+            (timestamp, event_type, current_time, old_time, youtube_id, video_duration)
         )
 
     def _check_time_offset(self, time_value, line):
@@ -326,7 +328,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         for event in sorted_events:
             # self.incr_counter(self.counter_category_name, 'Input User_course_video events', 1)
 
-            timestamp, event_type, current_time, old_time, youtube_id = event
+            timestamp, event_type, current_time, old_time, youtube_id, duration = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time is not None:
                 current_time = float(current_time)
@@ -336,8 +338,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             def start_viewing():
                 """Returns a 'viewing' object representing the point where a video began to be played."""
                 # self.incr_counter(self.counter_category_name, 'Viewing Start', 1)
-                video_duration = VIDEO_UNKNOWN_DURATION
-                if youtube_id:
+
+                video_duration = duration
+                # video_duration is set to VIDEO_UNKNOWN_DURATION only when duration is not present in
+                # a video event, In that case fetch duration using youtube API if video is from youtube.
+                if video_duration == VIDEO_UNKNOWN_DURATION and youtube_id:
                     # self.incr_counter(self.counter_category_name, 'Viewing Start with Video Id', 1)
                     video_duration = self.video_durations.get(youtube_id)
                     if not video_duration:
