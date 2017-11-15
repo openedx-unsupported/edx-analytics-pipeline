@@ -76,13 +76,12 @@ class InternalReportingUserActivityPartitionTask(HivePartitionTask):
             ImportAuthUserTask(overwrite=False, destination=self.warehouse_path),
             InternalReportingUserActivityTableTask(
                 warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
             ),
             UserActivityPartitionTask(
                 date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 warehouse_path=self.warehouse_path,
-                overwrite=False, #change to self.overwrite
+                overwrite=self.overwrite, #change to self.overwrite
             )
         )
 
@@ -157,7 +156,13 @@ class LoadInternalReportingUserActivityWorkflow(WarehouseMixin, luigi.WrapperTas
 
     date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter()
-    overwrite_n_days = luigi.IntParameter()
+    overwrite_n_days = luigi.IntParameter(
+        significant=False,
+    )
+    overwrite = luigi.BooleanParameter(
+        default=False,
+        significant=False
+    )
 
     def requires(self):
         overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
@@ -168,7 +173,7 @@ class LoadInternalReportingUserActivityWorkflow(WarehouseMixin, luigi.WrapperTas
                 warehouse_path=self.warehouse_path,
                 date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
-                overwrite=True
+                overwrite=self.overwrite,
             )
 
 
