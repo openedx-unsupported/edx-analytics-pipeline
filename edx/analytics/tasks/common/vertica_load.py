@@ -705,8 +705,8 @@ class LoadTest(VerticaCopyTask):
     @property
     def columns(self):
         return [
-            ('user_id', 'INTEGER NOT NULL'),
             ('course_id', 'VARCHAR(256) NOT NULL'),
+            ('user_name', 'VARCHAR(200)'),
             ('date', 'DATE'),
             ('activity_type', 'VARCHAR(200)'),
             ('number_of_activities', 'INTEGER')
