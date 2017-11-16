@@ -690,7 +690,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
 
 
-class LoadTest(VerticaCopyTask)
+class LoadTest(VerticaCopyTask):
 
     path = luigi.Parameter()
 
