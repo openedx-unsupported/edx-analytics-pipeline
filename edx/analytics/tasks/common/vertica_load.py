@@ -687,3 +687,27 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
     def update_id(self):
         return str(self)
+
+
+
+class LoadTest(VerticaCopyTask)
+
+    path = luigi.Parameter()
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(url=self.path)
+
+    @property
+    def table(self):
+        return 'f_user_activity_load_test'
+
+    @property
+    def columns(self):
+        return [
+            ('user_id', 'INTEGER NOT NULL'),
+            ('course_id', 'VARCHAR(256) NOT NULL'),
+            ('date', 'DATE'),
+            ('activity_type', 'VARCHAR(200)'),
+            ('number_of_activities', 'INTEGER')
+        ]
