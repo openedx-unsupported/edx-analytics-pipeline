@@ -2,7 +2,7 @@
 """Execute tasks on a remote EMR cluster."""
 
 import argparse
-from boto.pyami.config import BotoConfigPath, UserConfigPath as BotoUserConfigPath
+from boto.pyami.config import BotoConfigPath
 import json
 import os
 import pipes
@@ -12,7 +12,6 @@ from urlparse import urlparse, parse_qsl
 import uuid
 
 
-BOTO_FILE_PATH = os.path.join(sys.prefix, '.boto')
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
 ANSIBLE_MAX_RETRY = 3
@@ -111,11 +110,12 @@ def run_task_playbook(inventory, arguments, uid):
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
     code_dir = os.path.join(data_dir, REMOTE_CODE_DIR_BASE)
+    boto_config_path = os.path.join(code_dir, '.boto')
+    boto_user_config_path = os.path.join(os.path.expanduser('~{}'.format(arguments.sudo_user)), '.boto')
     log_dir = os.path.join(REMOTE_LOG_DIR, uid)
-    sudo_user = arguments.sudo_user
 
     env_vars = {}
-    env_vars['BOTO_PATH'] = os.pathsep.join([BotoConfigPath, BotoUserConfigPath, BOTO_FILE_PATH])
+    env_vars['BOTO_PATH'] = os.pathsep.join([BotoConfigPath, boto_user_config_path, boto_config_path])
     if arguments.workflow_profiler:
         env_vars['WORKFLOW_PROFILER'] = arguments.workflow_profiler
         env_vars['WORKFLOW_PROFILER_PATH'] = log_dir
@@ -127,10 +127,8 @@ def run_task_playbook(inventory, arguments, uid):
         data_dir=data_dir,
         code_dir=code_dir,
         task_arguments=' '.join(arguments.launch_task_arguments),
-        log_dir=log_dir,
         bg='nohup ' if not arguments.wait else '',
         end_bg=' &' if not arguments.wait else '',
-        sudo_user=sudo_user,
     )
 
     result = run_remote_shell(inventory, arguments, command)
