@@ -360,7 +360,7 @@ class CourseActivityWorkflow(UserActivityDownstreamMixin, luigi.WrapperTask):
 
         yield InsertToMysqlCourseWeeklyActivityTask(
             end_date=self.date,
-            **kwargs,
+            **kwargs
         )
 
         weeks_to_overwrite = self.overwrite_n_weeks
