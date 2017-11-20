@@ -256,7 +256,7 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
         ]
 
 
-class UserActivityWorkflow(WeeklyIntervalMixin, luigi.WrapperTask):
+class UserActivityWorkflow(WeeklyIntervalMixin, WarehouseMixin, luigi.WrapperTask):
 
     overwrite = luigi.BooleanParameter(
         default=True,
@@ -264,7 +264,6 @@ class UserActivityWorkflow(WeeklyIntervalMixin, luigi.WrapperTask):
     )
     overwrite_n_days = luigi.IntParameter()
     n_reduce_tasks = luigi.Parameter()
-    credentials = luigi.Parameter()
 
     def requires(self):
         yield InternalReportingUserActivityPartitionTask(
@@ -278,7 +277,6 @@ class UserActivityWorkflow(WeeklyIntervalMixin, luigi.WrapperTask):
             weeks=self.weeks,
             n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
-            credentials=self.credentials,
             overwrite_n_days=self.overwrite_n_days,
             overwrite=self.overwrite,
         )
