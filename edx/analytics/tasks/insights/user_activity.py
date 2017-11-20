@@ -208,6 +208,7 @@ class CourseActivityTableTask(BareHiveTableTask):
 class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
 
     overwrite_n_days = luigi.IntParameter()
+    date = luigi.DateParameter()
 
     def query(self):
         query = """
@@ -241,7 +242,7 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
 
     @property
     def partition_value(self):
-        return self.interval.date_b.isoformat()  # pylint: disable=no-member
+        return self.date.isoformat()  # pylint: disable=no-member
 
     @property
     def hive_table_task(self):
@@ -257,7 +258,7 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
             UserActivityTableTask(
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                date=self.interval.date_b
+                date=self.date
             ),
             CalendarTableTask(
                 warehouse_path=self.warehouse_path,
@@ -301,6 +302,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
     def insert_source_task(self):
         return CourseActivityPartitionTask(
             warehouse_path=self.warehouse_path,
+            date=self.end_date,
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite,
