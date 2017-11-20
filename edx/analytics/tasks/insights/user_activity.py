@@ -157,7 +157,7 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
             partition_location = url_path_join(self.table_location, partition.path_spec + '/')
 
             yield UserActivityTask(
-                date=self.date,
+                date=date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 output_root=partition_location,
                 overwrite=True
