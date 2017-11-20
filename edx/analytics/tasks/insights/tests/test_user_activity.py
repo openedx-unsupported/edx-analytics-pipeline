@@ -8,11 +8,11 @@ from unittest import TestCase
 
 from ddt import ddt, data, unpack
 from luigi import date_interval
+import luigi.task
 
 from edx.analytics.tasks.insights.user_activity import (
     UserActivityTask,
-    CourseActivityWeeklyTask,
-    CourseActivityMonthlyTask,
+    InsertToMysqlCourseActivityTask,
     ACTIVE_LABEL,
     PROBLEM_LABEL,
     PLAY_VIDEO_LABEL,
@@ -30,8 +30,11 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
     """
     def setUp(self):
         self.task_class = UserActivityTask
-        self.interval = '2013-12-01-2013-12-31'
-        super(UserActivityTaskMapTest, self).setUp()
+
+        self.date = datetime.date(2013, 12, 17)
+
+        luigi.task.Register.clear_instance_cache()
+        self.create_task(date=self.date)
 
         self.initialize_ids()
 
@@ -164,9 +167,6 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
             ((self.encoded_course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL), 1),
             ((self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
             ((self.encoded_course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL), 1),
-            ((self.encoded_course_id, self.username, '2013-12-24', ACTIVE_LABEL), 1),
-            ((self.encoded_course_id, self.username, '2013-12-24', PROBLEM_LABEL), 1),
-            ((self.encoded_course_id, self.username, '2013-12-16', ACTIVE_LABEL), 1),
         )
         self.assertItemsEqual(outputs, expected)
 
@@ -214,7 +214,7 @@ class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
         self.initialize_ids()
 
     def test_zero_weeks(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 1),
             weeks=0
         )
@@ -222,58 +222,22 @@ class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
             task.interval
 
     def test_single_week(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 1),
             weeks=1
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-23-2013-12-30'))
 
     def test_multi_week(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 6),
             weeks=2
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-23-2014-01-06'))
 
     def test_leap_year(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2012, 2, 29),
             weeks=52
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2011-02-28-2012-02-27'))
-
-
-class CourseActivityMonthlyTaskTest(InitializeOpaqueKeysMixin, TestCase):
-    """Ensure the date interval is computed correctly for monthly tasks."""
-
-    def setUp(self):
-        self.initialize_ids()
-
-    def test_zero_months(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=0
-        )
-        with self.assertRaises(ValueError):
-            task.interval
-
-    def test_single_month(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=1
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-01-2014-01-01'))
-
-    def test_multi_month(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=2
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2013-11-01-2014-01-01'))
-
-    def test_leap_year(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2012, 2, 29),
-            months=12
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2011-02-01-2012-02-01'))

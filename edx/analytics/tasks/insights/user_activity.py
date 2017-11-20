@@ -136,12 +136,15 @@ class UserActivityTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJo
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
-    pass
+
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
 
 
 class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
 
-    overwrite_n_days = luigi.IntParameter()
     date = luigi.DateParameter()
     interval = None
 
@@ -207,7 +210,6 @@ class CourseActivityTableTask(BareHiveTableTask):
 
 class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask):
 
-    overwrite_n_days = luigi.IntParameter()
     date = luigi.DateParameter()
 
     def query(self):
@@ -273,8 +275,6 @@ class CourseActivityPartitionTask(UserActivityDownstreamMixin, HivePartitionTask
 
 
 class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, MysqlInsertTask):
-
-    overwrite_n_days = luigi.IntParameter()
 
     @property
     def table(self):
