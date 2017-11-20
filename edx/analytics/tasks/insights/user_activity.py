@@ -112,12 +112,6 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         else:
             return values[0].encode('utf8')
 
-    def reducer(self, key, values):
-        """Cumulate number of events per key."""
-        num_events = sum(values)
-        if num_events > 0:
-            yield key, num_events
-
     def multi_output_reducer(self, _date_string, values, output_file):
         c = Counter(values)
         for key, num_events in c.iteritems():
