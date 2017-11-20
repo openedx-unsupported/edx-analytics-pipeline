@@ -2,11 +2,12 @@
 
 import datetime
 import logging
+from collections import Counter
 
 import luigi
 import luigi.date_interval
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
@@ -25,7 +26,7 @@ PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
 POST_FORUM_LABEL = "POSTED_FORUM"
 
 
-class UserActivityTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJobTask):
+class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """
     Categorize activity of users.
 
@@ -39,16 +40,7 @@ class UserActivityTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJo
 
     """
 
-    date = luigi.DateParameter()
-    output_root = luigi.Parameter(
-        description='String path to store the output in.',
-    )
-    interval = None
-
-    def __init__(self, *args, **kwargs):
-        super(UserActivityTask, self).__init__(*args, **kwargs)
-
-        self.interval = luigi.date_interval.Date.from_date(self.date)
+    output_root = None
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -65,7 +57,7 @@ class UserActivityTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJo
             return
 
         for label in self.get_predicate_labels(event):
-            yield self._encode_tuple((course_id, username, date_string, label)), 1
+            yield date_string, self._encode_tuple((course_id, username, date_string, label))
 
     def get_predicate_labels(self, event):
         """Creates labels by applying hardcoded predicates to a single event."""
@@ -126,8 +118,22 @@ class UserActivityTask(OverwriteOutputMixin, EventLogSelectionMixin, MapReduceJo
         if num_events > 0:
             yield key, num_events
 
-    def output(self):
-        return get_target_from_url(self.output_root)
+    def multi_output_reducer(self, _date_string, values, output_file):
+        c = Counter(values)
+        for key, num_events in c.iteritems():
+            course_id, username, date_string, label = key
+            value = (course_id, username, date_string, label, num_events)
+            output_file.write('\t'.join([str(field) for field in value]))
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('user_activity_daily', date_string),
+            'user_activity_{date}'.format(
+                date=date_string,
+            )
+        )
 
     def run(self):
         self.remove_output_on_overwrite()
