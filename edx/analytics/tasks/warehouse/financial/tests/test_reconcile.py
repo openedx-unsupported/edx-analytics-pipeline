@@ -1,5 +1,5 @@
 """Tests for Order-transaction reconciliation and reporting."""
-
+import uuid
 from unittest import TestCase
 
 from ddt import data, ddt, unpack
@@ -52,7 +52,10 @@ class ReconciliationTaskMixin(object):
             'refunded_quantity': '0',
             'payment_ref_id': DEFAULT_REF_ID,
             'partner_short_code': 'edx' if kwargs.get('order_processor') != 'shoppingcart' else '',
+            'course_uuid': uuid.uuid4(),
+            'expiration_date': TEST_DATE,
         }
+
         if is_refunded:
             params.update(**{
                 'refunded_amount': '50.00',
@@ -133,7 +136,7 @@ class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, TestCa
     @unpack
     def test_orderitem_mapped_nulls(self, fieldname, expected_value):
         expected_orderitem = self.create_orderitem(**{fieldname: expected_value})
-        params = self.create_orderitem()._asdict()  # pylint: disable=no-member,protected-access
+        params = expected_orderitem._asdict()  # pylint: disable=no-member,protected-access
         params[fieldname] = HIVE_NULL
         input_orderitem = BaseOrderItemRecord(**params)
         line = self._convert_record_to_line(input_orderitem)
