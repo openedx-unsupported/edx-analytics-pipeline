@@ -48,6 +48,8 @@ ORDERITEM_FIELDS = [
     'refunded_quantity',
     'payment_ref_id',  # This is the value to compare with the transactions.
     'partner_short_code',
+    'course_uuid',  # UUID of the course, NOT course run
+    'expiration_date',
 ]
 
 ORDERITEM_FIELD_INDICES = {field_name: index for index, field_name in enumerate(ORDERITEM_FIELDS)}
@@ -156,7 +158,9 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         if len(fields) == len(ORDERITEM_FIELDS):
             # Assume it's an order.
             record_type = OrderItemRecord.__name__
-            key = fields[-2]  # payment_ref_id
+            key_index = ORDERITEM_FIELDS.index('payment_ref_id')
+            key = fields[key_index]
+
             # Convert Hive null values ('\\N') in fields like 'product_detail':
             defaults = (
                 ('product_detail', ''),
@@ -167,6 +171,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 ('voucher_id', None),
                 ('voucher_code', ''),
                 ('partner_short_code', ''),
+                ('course_uuid', None),
+                ('expiration_date', None),
             )
             for field_name, default_value in defaults:
                 index = ORDERITEM_FIELD_INDICES[field_name]
@@ -680,6 +686,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             orderitem.course_id if orderitem else None,
             org_id if org_id is not None else None,
             orderitem.order_processor if orderitem else None,
+            orderitem.course_uuid if orderitem else None,
+            orderitem.expiration_date if orderitem else None,
         ]
         return (OrderTransactionRecord(*result).to_tsv(),)
 
@@ -725,6 +733,8 @@ OrderTransactionRecordBase = namedtuple("OrderTransactionRecord", [  # pylint: d
     "order_course_id",
     "order_org_id",
     "order_processor",
+    "course_uuid",
+    "expiration_date",
 ])
 
 
@@ -795,6 +805,8 @@ class ReconciledOrderTransactionTableTask(ReconcileOrdersAndTransactionsDownstre
             ('order_course_id', 'STRING'),
             ('order_org_id', 'STRING'),
             ('order_processor', 'STRING'),
+            ('course_uuid', 'STRING'),
+            ('expiration_date', 'TIMESTAMP'),
         ]
 
     @property
@@ -969,4 +981,6 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('order_course_id', 'VARCHAR(255)'),  # originally longtext
             ('order_org_id', 'VARCHAR(128)'),  # pulled from course_id
             ('order_processor', 'VARCHAR(32)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
         ]

@@ -9,7 +9,8 @@ from unittest import TestCase
 from mock import Mock, patch
 
 from edx.analytics.tasks.insights.database_imports import (
-    ImportIntoHiveTableTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
+    ImportCourseEntitlementTask, ImportIntoHiveTableTask, ImportPersistentCourseGradeTask,
+    ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 
@@ -48,7 +49,6 @@ class ImportStudentCourseEnrollmentTestCase(TestCase):
         self.assertFalse(task.complete())
 
     def test_no_overwrite(self):
-        # kwargs = {'overwrite': False}
         kwargs = {}
         task = ImportStudentCourseEnrollmentTask(**kwargs)
         with patch('edx.analytics.tasks.insights.database_imports.HivePartitionTarget') as mock_target:
@@ -56,9 +56,11 @@ class ImportStudentCourseEnrollmentTestCase(TestCase):
             # Make MagicMock act more like a regular mock, so that flatten() does the right thing.
             del output.__iter__
             del output.__getitem__
+
             output.exists = Mock(return_value=False)
             self.assertFalse(task.complete())
             self.assertTrue(output.exists.called)
+
             output.exists = Mock(return_value=True)
             self.assertTrue(task.complete())
             self.assertTrue(output.exists.called)
@@ -84,5 +86,28 @@ class ImportPersistentCourseGradeTestCase(TestCase):
             LOCATION 's3://foo/bar/grades_persistentcoursegrade';
             ALTER TABLE `grades_persistentcoursegrade` ADD PARTITION (dt = '2014-07-01');
             """
+        )
+        self.assertEquals(query, expected_query)
+
+
+class ImportCourseEntitlementTaskTestCase(TestCase):
+    @with_luigi_config('database-import', 'destination', 's3://foo/bar')
+    def test_query_with_date(self):
+        dt = '2014-07-01'
+        kwargs = {'import_date': datetime.datetime.strptime(dt, '%Y-%m-%d').date()}
+        task = ImportCourseEntitlementTask(**kwargs)
+        query = task.query()
+        expected_query = textwrap.dedent(
+            """
+            USE default;
+            DROP TABLE IF EXISTS `entitlements_courseentitlement`;
+            CREATE EXTERNAL TABLE `entitlements_courseentitlement` (
+                `id` INT,`uuid` STRING,`course_uuid` STRING,`user_id` INT,`enrollment_course_run_id` INT,`order_number` STRING,`expired_at` TIMESTAMP,`created` TIMESTAMP,`modified` TIMESTAMP
+            )
+            PARTITIONED BY (dt STRING)
+
+            LOCATION 's3://foo/bar/entitlements_courseentitlement';
+            ALTER TABLE `entitlements_courseentitlement` ADD PARTITION (dt = '{dt}');
+            """.format(dt=dt)
         )
         self.assertEquals(query, expected_query)
