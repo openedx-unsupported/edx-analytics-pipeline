@@ -60,7 +60,7 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
     COMPLETE_SOURCE_PATHS = COMPLETE_SOURCE_PATHS_1 + COMPLETE_SOURCE_PATHS_2
     SOURCE = [SOURCE_1, SOURCE_2]
 
-    @patch('edx.analytics.tasks.common.pathutil.boto.connect_s3')
+    @patch('edx.analytics.tasks.util.s3_util.connect_s3')
     def test_requires(self, connect_s3_mock):
         s3_conn_mock = connect_s3_mock.return_value
         bucket_mock = s3_conn_mock.get_bucket.return_value

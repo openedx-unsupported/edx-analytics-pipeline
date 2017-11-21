@@ -103,7 +103,7 @@ class ScalableS3ClientTestCase(TestCase):
     """Tests for ScalableS3Client class."""
 
     def setUp(self):
-        patcher = patch('luigi.s3.boto')
+        patcher = patch('edx.analytics.tasks.util.s3_util.connect_s3')
         patcher.start()
         self.addCleanup(patcher.stop)
 

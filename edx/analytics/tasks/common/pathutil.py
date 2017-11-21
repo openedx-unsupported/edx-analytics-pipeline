@@ -21,7 +21,7 @@ import luigi.task
 from luigi.date_interval import DateInterval
 
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.s3_util import generate_s3_sources, get_s3_bucket_key_names
+from edx.analytics.tasks.util.s3_util import generate_s3_sources, get_s3_bucket_key_names, ScalableS3Client
 from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, url_path_join, get_target_from_url
 
 
@@ -62,7 +62,7 @@ class PathSetTask(luigi.Task):
             if src.startswith('s3'):
                 # connect lazily as needed:
                 if self.s3_conn is None:
-                    self.s3_conn = boto.connect_s3()
+                    self.s3_conn = ScalableS3Client().s3
                 for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include, self.include_zero_length):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
@@ -193,7 +193,7 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_s3_urls(self, source):
         """Recursively list all files inside the source URL directory."""
-        s3_conn = boto.connect_s3()
+        s3_conn = ScalableS3Client().s3
         bucket_name, root = get_s3_bucket_key_names(source)
         bucket = s3_conn.get_bucket(bucket_name)
         for key_metadata in bucket.list(root):
