@@ -520,18 +520,6 @@ class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
 
     def requires(self):
-        parms = {
-            "mapreduce_engine": self.mapreduce_engine,
-            "warehouse_path": self.warehouse_path,
-            "n_reduce_tasks": self.n_reduce_tasks,
-            "source": self.source,
-            "interval": self.interval,
-            "pattern": self.pattern,
-            "output_root": self.partition_location,
-            "overwrite_n_days": self.overwrite_n_days,
-        }
-        log.info("TestAZ: These are the CourseEnrollmentTask parameters: {}".format(parms))
-
         return CourseEnrollmentTask(
             mapreduce_engine=self.mapreduce_engine,
             warehouse_path=self.warehouse_path,
@@ -711,7 +699,7 @@ class EnrollmentByGenderHiveTableTask(BareHiveTableTask):
     """
 
     Creates the Hive table in the local Hive environment.  This is just a descriptor, and does not require any data to
-    be present or real
+    be present or real.
     """
     @property  # pragma: no cover
     def partition_by(self):
@@ -734,7 +722,7 @@ class EnrollmentByGenderHiveTableTask(BareHiveTableTask):
 
 class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
     """
-    Generates the course_enrollment_gender_daily hive partition
+    Generates the course_enrollment_gender_daily hive partition.
     """
     date = luigi.DateParameter()
 
@@ -752,7 +740,7 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
     """
 
     The job executes the query and writes the output to the indicated destination
-    At the end of this job data is stored on s3 (as defined by the job.output())
+    At the end of this job data is stored on s3 (as defined by the job.output()).
     """
 
     @property
@@ -836,9 +824,15 @@ class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     Breakdown of enrollments by gender as reported by the user.
     Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -877,7 +871,7 @@ class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
 
 
 class EnrollmentByBirthYearTaskTableTask(BareHiveTableTask):  # pragma: no cover
-    """Creates the `course_grade_by_mode` Hive storage table."""
+    """Creates the `course_enrollment_birth_year_daily` Hive storage table."""
 
     @property
     def partition_by(self):
@@ -915,7 +909,7 @@ class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no c
 
 
 class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
-    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_birth_year_daily` Hive table."""
+    """Aggregates data from `course_enrollment` into `course_enrollment_birth_year_daily` Hive table."""
 
     @property
     def insert_query(self):
@@ -958,7 +952,7 @@ class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQue
 
     @property
     def partition_task(self):
-        """Returns Task that creates partition on `course_grade_by_mode`."""
+        """Returns Task that creates partition on `course_enrollment_birth_year_daily`."""
         if not hasattr(self, '_partition_task'):
             self._partition_task = EnrollmentByBirthYearTaskPartitionTask(date=self.interval.date_b,
                                                                           warehouse_path=self.warehouse_path)
@@ -1001,9 +995,15 @@ class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask
     Breakdown of enrollments by gender as reported by the user.
     Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -1071,7 +1071,7 @@ class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no 
 
 
 class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
-    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+    """Aggregates data from `course_enrollment` into `course_enrollment_education_level_daily` Hive table."""
 
     @property
     def insert_query(self):
@@ -1141,10 +1141,12 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
 
     @property
     def partition_task(self):
-        """Returns Task that creates partition on `course_grade_by_mode`."""
+        """Returns Task that creates partition on `course_enrollment_education_level_daily`."""
         if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByEducationLevelPartitionTask(date=self.interval.date_b,
-                                                                           warehouse_path=self.warehouse_path)
+            self._partition_task = EnrollmentByEducationLevelPartitionTask(
+                date=self.interval.date_b,
+                warehouse_path=self.warehouse_path
+            )
         return self._partition_task
 
     def requires(self):  # pragma: no cover
@@ -1181,11 +1183,17 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
 
 class EnrollmentByEducationLevelTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
-    Breakdown of enrollments by education level as reported by the user
+    Breakdown of enrollments by education level as reported by the user.
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -1262,7 +1270,7 @@ class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
 
 
 class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
-    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+    """Aggregates data from `course_enrollment` into `course_enrollment_mode_daily` Hive table."""
 
     @property
     def insert_query(self):
@@ -1304,7 +1312,7 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
 
     @property
     def partition_task(self):
-        """Returns Task that creates partition on `course_grade_by_mode`."""
+        """Returns Task that creates partition on `course_enrollment_mode_daily`."""
         if not hasattr(self, '_partition_task'):
             self._partition_task = EnrollmentByModePartitionTask(date=self.interval.date_b,
                                                                  warehouse_path=self.warehouse_path)
@@ -1325,17 +1333,7 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-            ),
-            EnrollmentByModeTableTask(
-                mapreduce_engine=self.mapreduce_engine,
-                n_reduce_tasks=self.n_reduce_tasks,
-                source=self.source,
-                interval=self.interval,
-                pattern=self.pattern,
-                warehouse_path=self.warehouse_path,
-                overwrite_n_days=self.overwrite_n_days,
-            ),
-            ImportAuthUserProfileTask()
+            )
         )
 
     def output(self):
@@ -1355,9 +1353,15 @@ class EnrollmentByModeTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
     Breakdown of enrollments by mode
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -1433,7 +1437,7 @@ class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
 
 
 class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
-    """Aggregates data from `grades_persistentcoursegrade` into `course_enrollment_education_level_daily` Hive table."""
+    """Aggregates data from `course_enrollment` into `course_enrollment_daily` Hive table."""
 
     @property
     def insert_query(self):
@@ -1473,7 +1477,7 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
 
     @property
     def partition_task(self):
-        """Returns Task that creates partition on `course_grade_by_mode`."""
+        """Returns Task that creates partition on `course_enrollment_daily`."""
         if not hasattr(self, '_partition_task'):
             self._partition_task = EnrollmentDailyPartitionTask(date=self.interval.date_b,
                                                                 warehouse_path=self.warehouse_path)
@@ -1494,8 +1498,7 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-            ),
-            ImportAuthUserProfileTask()
+            )
         )
 
     def output(self):
@@ -1513,11 +1516,17 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
 
 class EnrollmentDailyTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
-    A history of the number of students enrolled in each course at the end of each day
+    A history of the number of students enrolled in each course at the end of each day.
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -1615,7 +1624,7 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
 
 
 class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin, HiveQueryTask):  # pragma: no cover
-    """Aggregates data from `grades_persistentcoursegrade` into `course_meta_summary_enrollment` Hive table."""
+    """Aggregates data from the various course_enrollment tables into `course_meta_summary_enrollment` Hive table."""
 
     @property
     def insert_query(self):
@@ -1675,10 +1684,12 @@ class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMi
 
     @property
     def partition_task(self):
-        """Returns Task that creates partition on `course_grade_by_mode`."""
+        """Returns Task that creates partition on `course_meta_summary_enrollment`."""
         if not hasattr(self, '_partition_task'):
-            self._partition_task = ImportCourseSummaryEnrollmentsPartitionTask(date=self.interval.date_b,
-                                                                               warehouse_path=self.warehouse_path)
+            self._partition_task = ImportCourseSummaryEnrollmentsPartitionTask(
+                date=self.interval.date_b,
+                warehouse_path=self.warehouse_path
+            )
         return self._partition_task
 
     def requires(self):  # pragma: no cover
@@ -1686,17 +1697,13 @@ class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMi
             yield requirement
         yield self.partition_task
 
-        # We do not propagate the local overwrite value here.
-        # The local value comes from the default for HiveQueryToMysqlTask,
-        # which is True (so this table is always overwritten in Mysql,
-        # rather than being incrementally updated).  We don't really want
-        # the course's partition data to always be updated.
         catalog_tasks = [
             CoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
                 api_page_size=self.api_page_size,
+                overwrite=self.overwrite,
             ),
         ]
 
@@ -1716,14 +1723,8 @@ class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMi
             'overwrite_n_days': self.overwrite_n_days,
         }
 
-
-
-        # Note this is not exactly correct, as what we really need is
-        # for enrollment-by-mode data to be in Hive.  If we are rerunning
-        # and enrollment-by-mode data has already been calculated, this
-        # requirement will be met but no data actually exists in Hive.
-        # So when the EnrollmentTask-based tasks is refactored to pull out
-        # the loading into Hive, this dependency should change to reflect that.
+        # We are not passing the overwrite flag in to EnrollmentByModeTask because we are defaulting overwrite to True
+        # for all MysqlInsertTask tasks
         yield EnrollmentByModeTask(
             mapreduce_engine=self.mapreduce_engine,
             source=self.source,
@@ -1731,8 +1732,10 @@ class ImportCourseSummaryEnrollmentsDataTask(CourseSummaryEnrollmentDownstreamMi
             **common_kwargs
         )
 
+        # Here we will pass in the overwrite flag
         yield CourseGradeByModeDataTask(
             date=self.date,
+            overwrite=self.overwrite,
             **common_kwargs
         )
 
@@ -1753,9 +1756,15 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
     """
     Creates the course_meta_summary_enrollment sql table.
 
-    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted
-    At the end of this task data has been written to MySQL
+    During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
+    At the end of this task data has been written to MySQL.
     """
+
+    overwrite = luigi.BooleanParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
+        significant=False
+    )
 
     @property
     def table(self):  # pragma: no cover
@@ -1763,6 +1772,9 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def insert_source_task(self):  # pragma: no cover
+        # Because we default the overwrite flag to True in this class we do not want to pass it into
+        # ImportCourseSummaryEnrollmentsDataTask.  This means that the CoursePartitionTask in the data task below will
+        # get the default value (False) no matter what the workflow is called with.
         return ImportCourseSummaryEnrollmentsDataTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -1772,7 +1784,7 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
             warehouse_path=self.warehouse_path,
             overwrite_n_days=self.overwrite_n_days,
             enable_course_catalog=self.enable_course_catalog,
-            date=self.date
+            date=self.date,
         )
 
     @property
@@ -1873,7 +1885,8 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
         )
 
     def output(self):
@@ -1895,8 +1908,7 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
 
     overwrite = luigi.BooleanParameter(
         default=True,
-        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
-                    'want.',
+        description='Whether or not to overwrite existing outputs; set to True by default for now.',
         significant=False
     )
 
@@ -1918,7 +1930,7 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size
+            api_page_size=self.api_page_size,
         )
 
 
@@ -2028,7 +2040,7 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
             destination=self.warehouse_path,
         )
 
-        # this will give us the `course_enrollment` Hive table for the query above
+        # this will give us the `course_enrollment` Hive table for the query above.
         yield CourseEnrollmentTableTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -2054,7 +2066,7 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
 
 @workflow_entry_point
 class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, luigi.WrapperTask):
-    """Import all breakdowns of enrollment into MySQL"""
+    """Import all breakdowns of enrollment into MySQL."""
 
     def requires(self):
         enrollment_kwargs = {
@@ -2066,8 +2078,6 @@ class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, luigi.W
             'overwrite_n_days': self.overwrite_n_days,
         }
 
-        # We do not override overwrite here for now.
-        # We want course_summary to use its own default value.
         course_summary_kwargs = dict({
             'date': self.date,
             'api_root_url': self.api_root_url,
