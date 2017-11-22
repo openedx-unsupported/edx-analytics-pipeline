@@ -213,6 +213,9 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             return
 
         video_duration = event_data.get('duration', VIDEO_UNKNOWN_DURATION)
+        if not video_duration:
+            # events may have a 'duration' value of null, so use the same default for those as well.
+            video_duration = VIDEO_UNKNOWN_DURATION
 
         # self.incr_counter(self.counter_category_name, 'Video Events Before Time Check', 1)
 
