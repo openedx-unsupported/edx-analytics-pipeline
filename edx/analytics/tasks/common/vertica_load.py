@@ -4,6 +4,7 @@ Support for loading data into an HP Vertica database.
 
 from collections import namedtuple
 import logging
+import traceback
 
 import luigi
 import luigi.configuration
@@ -415,19 +416,30 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                             '(column string, type string) tuples (was %r ...)'
                             % (self.columns[0],))
 
-        with self.input()['insert_source'].open('r') as insert_source_file:
-            log.debug("Running stream copy from source file")
-            cursor.copy(
-                "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
-                    schema=self.schema,
-                    table=self.table,
-                    cols=column_names,
-                    delim=self.copy_delimiter,
-                    null=self.copy_null_sequence,
-                    enclosed_by=self.enclosed_by,
-                ),
-                insert_source_file
-            )
+        try:
+            with self.input()['insert_source'].open('r') as insert_source_file:
+                log.debug("Running stream copy from source file")
+                cursor.copy(
+                    "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
+                        schema=self.schema,
+                        table=self.table,
+                        cols=column_names,
+                        delim=self.copy_delimiter,
+                        null=self.copy_null_sequence,
+                        enclosed_by=self.enclosed_by,
+                    ),
+                    insert_source_file
+                )
+                log.debug("Finished stream copy from source file")
+        except RuntimeError:
+            # While calling finish on an input target, Luigi throws a RuntimeError exception if the subprocess command
+            # to read the input returns a non-zero return code. As all of the data's been read already, we choose to ignore
+            # this exception.
+            traceback_str = traceback.format_exc()
+            if "self._finish()" in traceback_str:
+                log.debug("Luigi raised RuntimeError while calling _finish on input target.")
+            else:
+                raise
 
     @property
     def restricted_columns(self):
