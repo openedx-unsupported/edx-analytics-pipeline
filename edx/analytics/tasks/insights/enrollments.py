@@ -268,7 +268,7 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
             event_type,
             mode
         ) = line.split('\t')
-        self.incr_counter(self.counter_category_name, 'Total Events Input', 1)
+
         yield ((course_id, user_id), (timestamp, event_type, mode))
 
     def reducer(self, key, values):
@@ -276,12 +276,10 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
         course_id, user_id = key
 
         increment_counter = lambda counter_name: self.incr_counter(self.counter_category_name, counter_name, 1)
-        increment_counter("Total Users_Courses")
 
-        event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values, increment_counter)
+        event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values)
         for day_enrolled_record in event_stream_processor.days_enrolled():
             yield day_enrolled_record
-            self.incr_counter(self.counter_category_name, 'Total Days Output', 1)
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -388,11 +386,9 @@ class DaysEnrolledForEvents(object):
         # track the previous state in order to easily detect state changes between days.
         if self.first_event.event_type == DEACTIVATED:
             # First event was an unenrollment event, assume the user was enrolled before that moment in time.
-            self.increment_counter("Quality First Event Is Unenrollment")
             log.warning('First event is an unenrollment for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
         elif self.first_event.event_type == MODE_CHANGED:
-            self.increment_counter("Quality First Event Is Mode Change")
             log.warning('First event is a mode change for user %d in course %s on %s',
                         self.user_id, self.course_id, self.first_event.datestamp)
 
@@ -466,23 +462,15 @@ class DaysEnrolledForEvents(object):
         """
         if self.state == ENROLLED and self.event.event_type == DEACTIVATED:
             self.state = UNENROLLED
-            self.increment_counter("Subset Unenrollment")
         elif self.state == UNENROLLED and self.event.event_type == ACTIVATED:
             self.state = ENROLLED
-            self.increment_counter("Subset Enrollment")
         elif self.event.event_type == MODE_CHANGED:
-            if self.mode == self.event.mode:
-                self.increment_counter("Subset Unchanged")
-                self.increment_counter("Subset Unchanged Mode")
-            else:
-                self.increment_counter("Subset Mode Change")
+            pass
         else:
             log.warning(
                 'No state change for %s event. User %d is already in the requested state for course %s on %s.',
                 self.event.event_type, self.user_id, self.course_id, self.event.datestamp
             )
-            self.increment_counter("Subset Unchanged")
-            self.increment_counter("Subset Unchanged Already {}".format("Enrolled" if self.state == ENROLLED else "Unenrolled"))
 
         self.mode = self.event.mode
 
