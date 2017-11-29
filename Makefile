@@ -19,6 +19,12 @@ develop-local: uninstall
 	python setup.py develop
 	python setup.py install_data
 
+docker-build:
+	docker build -t edxops/analytics-pipeline:latest .
+
+docker-shell:
+	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest bash
+
 system-requirements:
 ifeq (,$(wildcard /usr/bin/yum))
 	# This is not great, we can't use these libraries on slave nodes using this method.
@@ -35,6 +41,9 @@ requirements:
 test-requirements: requirements
 	pip install -U -r requirements/test.txt --no-cache-dir
 
+test-docker:
+	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest make develop-local test-local
+
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
@@ -50,6 +59,9 @@ test-acceptance-local:
 
 test-acceptance-local-all:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+
+coverage-docker:
+	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest coverage xml
 
 coverage-local: test-local
 	python -m coverage html

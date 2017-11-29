@@ -2,20 +2,46 @@ language: python
 python:
   - "2.7"
 
+sudo: required
+
+services:
+  - docker
+
 cache: pip
 
-addons:
-  apt:
-    packages:
-      - libblas-dev
-      - liblapack-dev
-      - libatlas-base-dev
+env:
+  global:
+    - secure: NLqmm18NpV3JRwD4CaugXm5cMWgxjdOA88xRFocmmVrduv0QT9JxBZFGebLYmFQOoKNJ23hz6g3EHe1aWfhLYnr1iUYerrwIriSI1wzuqbXJBRN6gO2n3YW+IfG83OLMZkOIMswT8MEdT3JPWVJL3bsocjHp8bYhRCt1KTCMJjY=
+    - secure: aG8l39jaLFWXB5CEOOAR9mJTT3GnqxCl/oFM/7NvTZCBoSWIPIztpFhSAkRE9xSIiKUKXakZcL5H349NLC28jdlHPVsNAaKKt2YNhB6MjmePihp3RPwZGn8c/SjslwY7DPVUKMdWsI7AVNJBH8ab30OPxKwXFAMOiJJza206CYQ=
+
+# Do NOT install Python requirements.
+# Doing so is a waste of time since they won't be used.
+install: true
 
 before_install:
-  - export BOTO_CONFIG=/dev/null
+  # Confirm Docker version and login credentials
+  - docker --version
+  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+
+  # Upgrade Docker
+  - sudo apt-get -y update
+  - sudo apt-get -y install -o Dpkg::Options::="--force-confnew" docker-ce
+  - docker --version
+
+  # Build the image
+  - make docker-build
+
+  # Ensure we have a place to store coverage output
+  - mkdir -p coverage
 
 script:
-  - make test
+  - make test-docker
+  - make coverage-docker
 
 after_success:
-  - bash <(curl -s https://codecov.io/bash)
+  - pip install --upgrade codecov
+  - codecov
+  - if [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "$TRAVIS_BRANCH" == "master" ]; then
+    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
+    docker push edxops/analytics-pipeline:latest;
+    fi
