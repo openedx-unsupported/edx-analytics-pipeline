@@ -10,7 +10,7 @@ from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import CourseRecord, ProgramCourseRecord, CourseSeatRecord
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import CourseRecord, ProgramCourseRecord, CourseSeatRecord, CourseSubjectRecord
 
 
 class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTask):
@@ -89,6 +89,22 @@ class LoadInternalReportingCourseSeatToBigQuery(WarehouseMixin, BigQueryLoadTask
         return CourseSeatRecord.get_bigquery_schema()
 
 
+class LoadInternalReportingCourseSubjectToBigQuery(WarehouseMixin, BigQueryLoadTask):
+
+    @property
+    def insert_source_task(self):
+        url = url_path_join(self.hive_partition_path('course_subject', self.date), 'course_subject.tsv')
+        return ExternalURL(url=url)
+
+    @property
+    def table(self):
+        return 'd_course_subjects'
+
+    @property
+    def schema(self):
+        return CourseSubjectRecord.get_bigquery_schema()
+
+
 class LoadInternalReportingProgramCourseToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
     @property
@@ -120,6 +136,7 @@ class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, BigQueryLoadD
         }
         yield LoadInternalReportingCourseToBigQuery(**kwargs)
         yield LoadInternalReportingCourseSeatToBigQuery(**kwargs)
+        yield LoadInternalReportingCourseSubjectToBigQuery(**kwargs)
         yield LoadInternalReportingProgramCourseToBigQuery(**kwargs)
 
     def complete(self):
@@ -214,31 +231,6 @@ class LoadInternalReportingUserToBigQuery(WarehouseMixin, BigQueryLoadTask):
         ]
 
 
-class DailyLoadSubjectsToBigQueryTask(WarehouseMixin, BigQueryLoadTask):
-
-    @property
-    def insert_source_task(self):
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        url_with_filename = url_path_join(self.warehouse_path, "course_catalog", "subjects",
-                                          partition_path_spec, "subjects.tsv")
-        return ExternalURL(url=url_with_filename)
-
-    @property
-    def table(self):
-        return "d_course_subjects"
-
-    @property
-    def schema(self):
-        # Defined in course_catalog, but not in a Record.
-        return [
-            bigquery.SchemaField('course_id', 'STRING'),
-            bigquery.SchemaField('date', 'DATE'),
-            bigquery.SchemaField('subject_uri', 'STRING'),
-            bigquery.SchemaField('subject_title', 'STRING'),
-            bigquery.SchemaField('subject_language', 'STRING'),
-        ]
-
-
 class LoadWarehouseBigQueryTask(BigQueryLoadDownstreamMixin, WarehouseMixin, luigi.WrapperTask):
 
     date = luigi.DateParameter()
@@ -264,8 +256,6 @@ class LoadWarehouseBigQueryTask(BigQueryLoadDownstreamMixin, WarehouseMixin, lui
         yield LoadInternalReportingUserActivityToBigQuery(**kwargs)
 
         yield LoadInternalReportingUserToBigQuery(**kwargs)
-
-        yield DailyLoadSubjectsToBigQueryTask(**kwargs)
 
     def complete(self):
         # OverwriteOutputMixin changes the complete() method behavior, so we override it.

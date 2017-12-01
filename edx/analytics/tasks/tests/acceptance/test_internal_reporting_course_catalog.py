@@ -2,6 +2,7 @@
 End to end test of the internal reporting d_program_course table loading task.
 """
 
+import datetime
 import os
 import logging
 import pandas
@@ -20,12 +21,16 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
     def setUp(self):
         super(InternalReportingUserCourseLoadAcceptanceTest, self).setUp()
         self.upload_file(
-            os.path.join(self.data_dir, 'input', 'course_catalog.json'),
-            url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt=' + self.DATE, 'course_catalog.json')
+            os.path.join(self.data_dir, 'input', 'courses.json'),
+            url_path_join(self.warehouse_path, 'discovery_api_raw', 'dt=' + self.DATE, 'courses.json')
+        )
+        self.upload_file(
+            os.path.join(self.data_dir, 'input', 'course_runs.json'),
+            url_path_join(self.warehouse_path, 'discovery_api_raw', 'dt=' + self.DATE, 'course_runs.json')
         )
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'programs.json'),
-            url_path_join(self.warehouse_path, 'programs_raw', 'dt=' + self.DATE, 'programs.json')
+            url_path_join(self.warehouse_path, 'discovery_api_raw', 'dt=' + self.DATE, 'programs.json')
         )
 
     @when_vertica_available
@@ -40,6 +45,7 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
         self.validate_program_course()
         self.validate_course_seat()
         self.validate_course()
+        self.validate_course_subjects()
 
     def validate_program_course(self):
         """Validates the output, comparing it to a csv of all the expected output from this workflow."""
@@ -107,3 +113,27 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
             d_course = pandas.DataFrame(response, columns=columns)
 
             self.assert_data_frames_equal(d_course, expected)
+
+    def validate_course_subjects(self):
+        """Validates the output, comparing it to a csv of all the expected output from this workflow."""
+
+        with self.vertica.cursor() as cursor:
+            expected_output_csv = os.path.join(self.data_dir, 'output', 'acceptance_expected_d_course_subjects.csv')
+
+            def convert_date(date_string):
+                """Convert date string to a date object."""
+                return datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
+
+            expected = pandas.read_csv(expected_output_csv, converters={'date': convert_date})
+
+            columns = ['row_number', 'course_id', 'date', 'subject_uri', 'subject_title', 'subject_language']
+
+            cursor.execute("SELECT * FROM {schema}.d_course_subjects;".format(schema=self.vertica.schema_name))
+            response = cursor.fetchall()
+            subjects = pandas.DataFrame(response, columns=columns)
+
+            for frame in (subjects, expected):
+                frame.sort(['row_number'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(subjects, expected)
