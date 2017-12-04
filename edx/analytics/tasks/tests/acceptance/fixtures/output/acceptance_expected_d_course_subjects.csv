@@ -1,0 +1,6 @@
+row_number,course_id,date,subject_uri,subject_title,subject_language
+1,edX/Open_DemoX/edx_demo_course,2016-09-08,/course/subject/acceptance,Acceptance,en
+2,edX/Open_DemoX/edx_demo_course,2016-09-08,/course/subject/testing,Testing,en
+3,course-v1:edX+Open_DemoX+edx_demo_course2,2016-09-08,/course/subject/acceptance,Acceptance,en
+4,course-v1:edX+Open_DemoX+edx_demo_course2,2016-09-08,/course/subject/testing,Testing,en
+5,course-v1:edX+Testing102x+1T2017,2016-09-08,/course/subject/acceptance_testing,Acceptance Testing,en

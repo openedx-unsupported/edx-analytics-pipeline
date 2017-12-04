@@ -9,7 +9,6 @@ from edx.analytics.tasks.common.vertica_load import SchemaManagementTask
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL
 from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
-from edx.analytics.tasks.warehouse.course_catalog import DailyLoadSubjectsToVerticaTask
 from edx.analytics.tasks.warehouse.load_internal_reporting_certificates import LoadInternalReportingCertificatesToWarehouse
 from edx.analytics.tasks.warehouse.load_internal_reporting_country import LoadInternalReportingCountryToWarehouse
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import LoadInternalReportingCourseCatalogToWarehouse
@@ -113,10 +112,6 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
             LoadInternalReportingUserToWarehouse(
                 date=self.date,
                 n_reduce_tasks=self.n_reduce_tasks,
-                **kwargs
-            ),
-            DailyLoadSubjectsToVerticaTask(
-                date=self.date,
                 **kwargs
             ),
         )

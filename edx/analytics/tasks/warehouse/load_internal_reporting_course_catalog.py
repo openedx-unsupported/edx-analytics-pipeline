@@ -12,7 +12,7 @@ from luigi.hive import HiveQueryTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
-from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
+from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField, DateField
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
@@ -59,7 +59,57 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
     )
 
 
-class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+class PullDiscoveryCoursesAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Call the course catalog API and place the resulting JSON into the output file."""
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        client = EdxApiClient()
+        with self.output().open('w') as output_file:
+            short_codes = self.partner_short_codes if self.partner_short_codes else []
+            for partner_short_code in short_codes:
+                params = {
+                    'limit': self.api_page_size,
+                    'partner': partner_short_code,
+                    'exclude_utm': 1,
+                }
+
+                if self.partner_api_urls:
+                    url_index = short_codes.index(partner_short_code)
+
+                    if url_index >= self.partner_api_urls.__len__():
+                        raise luigi.parameter.MissingParameterException(
+                            "Error!  Index of the partner short code from partner_short_codes exceeds the length of "
+                            "partner_api_urls.  These lists are not in sync!!!")
+                    api_root_url = self.partner_api_urls[url_index]
+                elif self.api_root_url:
+                    api_root_url = self.api_root_url
+                else:
+                    raise luigi.parameter.MissingParameterException("Missing either a partner_api_urls or an " +
+                                                                    "api_root_url.")
+
+                url = url_path_join(api_root_url, 'courses') + '/'
+                for response in client.paginated_get(url, params=params):
+                    parsed_response = response.json()
+                    counter = 0
+                    for course in parsed_response.get('results', []):
+                        course['partner_short_code'] = partner_short_code
+                        output_file.write(json.dumps(course))
+                        output_file.write('\n')
+                        counter += 1
+
+                    if counter > 0:
+                        log.info('Wrote %d records to output file', counter)
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('discovery_api_raw', partition_value=self.date), 'courses.json'
+            )
+        )
+
+
+class PullDiscoveryCourseRunsAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
     """Call the course catalog API and place the resulting JSON into the output file."""
 
     def run(self):
@@ -104,12 +154,12 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
     def output(self):
         return get_target_from_url(
             url_path_join(
-                self.hive_partition_path('course_catalog_raw', partition_value=self.date), 'course_catalog.json'
+                self.hive_partition_path('discovery_api_raw', partition_value=self.date), 'course_runs.json'
             )
         )
 
 
-class PullProgramAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+class PullDiscoveryProgramsAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
     """Call the course discovery API and place the resulting JSON into the output file."""
 
     def run(self):
@@ -137,7 +187,87 @@ class PullProgramAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
     def output(self):
         return get_target_from_url(
             url_path_join(
-                self.hive_partition_path('programs_raw', partition_value=self.date), 'programs.json'
+                self.hive_partition_path('discovery_api_raw', partition_value=self.date), 'programs.json'
+            )
+        )
+
+
+class BaseCourseMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Process the information from the API and write it to a tsv."""
+
+    table_name = 'override_me'
+
+    def requires(self):
+        return PullDiscoveryCoursesAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for course_str in input_file:
+                    course = json.loads(course_str)
+                    self.process_course(course, output_file)
+
+    def process_course(self, course_run, output_file):
+        """
+        Given a course_run, write output to the output file.
+
+        Arguments:
+            course_run (dict): A plain-old-python-object that represents the course run.
+            output_file (file-like): A file handle that program mappings can be written to. Must implement write(str).
+        """
+        raise NotImplementedError
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path(self.table_name, partition_value=self.date), '{0}.tsv'.format(self.table_name)
+            )
+        )
+
+
+class BaseCourseRunMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Process the information from the API and write it to a tsv."""
+
+    table_name = 'override_me'
+
+    def requires(self):
+        return PullDiscoveryCourseRunsAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for course_run_str in input_file:
+                    course_run = json.loads(course_run_str)
+                    self.process_course_run(course_run, output_file)
+
+    def process_course_run(self, course_run, output_file):
+        """
+        Given a course_run, write output to the output file.
+
+        Arguments:
+            course_run (dict): A plain-old-python-object that represents the course run.
+            output_file (file-like): A file handle that program mappings can be written to. Must implement write(str).
+        """
+        raise NotImplementedError
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path(self.table_name, partition_value=self.date), '{0}.tsv'.format(self.table_name)
             )
         )
 
@@ -146,7 +276,7 @@ class ProgramCourseOrderDataTask(LoadInternalReportingCourseCatalogMixin, luigi.
     """Process course discovery programs API response and save results to a tsv."""
 
     def requires(self):
-        return PullProgramAPIData(
+        return PullDiscoveryProgramsAPIData(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
@@ -238,46 +368,6 @@ class ProgramCourseRecord(Record):
     program_slot_number = IntegerField(nullable=True)
 
 
-class BaseCourseMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
-    """Process the information from the API and write it to a tsv."""
-
-    table_name = 'override_me'
-
-    def requires(self):
-        return PullCourseCatalogAPIData(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        with self.input().open('r') as input_file:
-            with self.output().open('w') as output_file:
-                for course_run_str in input_file:
-                    course_run = json.loads(course_run_str)
-                    self.process_course_run(course_run, output_file)
-
-    def process_course_run(self, course_run, output_file):
-        """
-        Given a course_run, write output to the output file.
-
-        Arguments:
-            course_run (dict): A plain-old-python-object that represents the course run.
-            output_file (file-like): A file handle that program mappings can be written to. Must implement write(str).
-        """
-        raise NotImplementedError
-
-    def output(self):
-        return get_target_from_url(
-            url_path_join(
-                self.hive_partition_path(self.table_name, partition_value=self.date), '{0}.tsv'.format(self.table_name)
-            )
-        )
-
-
 class ProgramCourseTableTask(BareHiveTableTask):
     """Hive table for program course."""
 
@@ -319,7 +409,7 @@ class ProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePa
         )
 
 
-class ProgramCourseDataTask(BaseCourseMetadataTask):
+class ProgramCourseDataTask(BaseCourseRunMetadataTask):
     """Process the information from the course structure API and write it to a tsv."""
 
     table_name = 'program_course'
@@ -445,7 +535,7 @@ class CourseSeatRecord(Record):
     course_seat_credit_hours = IntegerField(nullable=True)
 
 
-class CourseSeatTask(BaseCourseMetadataTask):
+class CourseSeatTask(BaseCourseRunMetadataTask):
     """Process course seat information from the course structure API and write it to a tsv."""
 
     table_name = 'course_seat'
@@ -550,7 +640,7 @@ class CoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartition
         )
 
 
-class CourseDataTask(BaseCourseMetadataTask):
+class CourseDataTask(BaseCourseRunMetadataTask):
     """Process course information from the course structure API and write it to a tsv."""
 
     table_name = 'course_catalog'
@@ -606,6 +696,69 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogM
         return CourseRecord.get_sql_schema()
 
 
+class CourseSubjectRecord(Record):
+    """Represents course subject categorizations for a course."""
+    course_id = StringField(nullable=False, length=200)
+    date = DateField(nullable=True)
+    subject_uri = StringField(nullable=True, length=200)
+    subject_title = StringField(nullable=True, length=200)
+    subject_language = StringField(nullable=True, length=200)
+
+
+class CourseSubjectTask(BaseCourseMetadataTask):
+    """Process course seat information from the course structure API and write it to a tsv."""
+
+    table_name = 'course_subjects'
+
+    def process_course(self, course, output_file):
+        # Subject information is stored per-course, but needs to be output per-course-run.
+        for course_run in course.get('course_runs', []):
+            course_id = course_run['key']
+            for subject in course.get('subjects', []):
+                uri = None if 'slug' not in subject else '/course/subject/{}'.format(subject.get('slug'))
+                record = CourseSubjectRecord(
+                    course_id=course_id,
+                    date=self.date,
+                    subject_uri=uri,
+                    subject_title=subject.get('name'),
+                    subject_language='en',
+                )
+                output_file.write(record.to_separated_values(sep=u'\t'))
+                output_file.write('\n')
+
+
+class LoadInternalReportingCourseSubjectToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
+    """Loads the course seat tsv into the Vertica data warehouse."""
+
+    @property
+    def insert_source_task(self):
+        return CourseSubjectTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def table(self):
+        return 'd_course_subjects'
+
+    @property
+    def auto_primary_key(self):
+        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
+        return ('row_number', 'AUTO_INCREMENT')
+
+    @property
+    def default_columns(self):
+        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
+        return None
+
+    @property
+    def columns(self):
+        return CourseSubjectRecord.get_sql_schema()
+
+
 class LoadInternalReportingCourseCatalogToWarehouse(
         LoadInternalReportingCourseCatalogMixin,
         VerticaCopyTaskMixin,
@@ -627,6 +780,7 @@ class LoadInternalReportingCourseCatalogToWarehouse(
         yield LoadInternalReportingCourseToWarehouse(**kwargs)
         yield LoadInternalReportingCourseSeatToWarehouse(**kwargs)
         yield LoadInternalReportingProgramCourseToWarehouse(**kwargs)
+        yield LoadInternalReportingCourseSubjectToWarehouse(**kwargs)
 
     def complete(self):
         # OverwriteOutputMixin changes the complete() method behavior, so we override it.
