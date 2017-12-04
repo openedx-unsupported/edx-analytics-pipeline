@@ -512,8 +512,9 @@ class DaysEnrolledForEvents(object):
 class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentTableTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def table(self):
@@ -685,8 +686,9 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
 class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(CourseEnrollmentSummaryTableTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def table(self):
@@ -759,13 +761,12 @@ class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
 
 class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):
     """
-
-    The job executes the query and writes the output to the indicated destination
-    At the end of this job data is stored on s3 (as defined by the job.output()).
+    Executes a hive query to summarize enrollment data and store it in the course_enrollment_gender_daily hive table.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByGenderDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -794,7 +795,7 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
                     """.format(database_name=hive_database_name(),
                                table=self.partition_task.hive_table_task.table,
                                partition=self.partition,
-                               insert_query=self.insert_query.strip(), # pylint: disable=no-member
+                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
                                )
 
         return textwrap.dedent(full_insert_query)
@@ -849,14 +850,14 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
 class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
     Breakdown of enrollments by gender as reported by the user.
-    Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
 
     During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByGenderTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -940,8 +941,9 @@ class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no c
 class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_birth_year_daily` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByBirthYearTaskDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1029,15 +1031,15 @@ class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQue
 
 class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
-    Breakdown of enrollments by gender as reported by the user.
-    Note that we do not filter by the query_date here as insights displays breakdown by gender across multiple days.
+    Breakdown of enrollments by birth year as reported by the user.
 
     During operations: The object at insert_source_task is opened and each row is treated as a row to be inserted.
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByBirthYearTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -1113,8 +1115,9 @@ class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no 
 class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_education_level_daily` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByEducationLevelDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1235,8 +1238,9 @@ class EnrollmentByEducationLevelTask(CourseEnrollmentDownstreamMixin, MysqlInser
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByEducationLevelTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -1320,8 +1324,9 @@ class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
 class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_mode_daily` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByModeDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1365,9 +1370,11 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
     def partition_task(self):
         """Returns Task that creates partition on `course_enrollment_mode_daily`."""
         if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByModePartitionTask(date=self.interval.date_b,
-                                                                 warehouse_path=self.warehouse_path,
-                                                                 overwrite=self.overwrite_hive)
+            self._partition_task = EnrollmentByModePartitionTask(
+                date=self.interval.date_b,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite_hive
+            )
         return self._partition_task
 
     def requires(self):  # pragma: no cover
@@ -1411,8 +1418,9 @@ class EnrollmentByModeTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentByModeTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -1496,8 +1504,9 @@ class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
 class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_daily` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentDailyDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1587,8 +1596,9 @@ class EnrollmentDailyTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(EnrollmentDailyTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -1688,13 +1698,14 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
 
 
 class ImportCourseSummaryEnrollmentsDataTask(
-    CourseSummaryEnrollmentDownstreamMixin,
-    LoadInternalReportingCourseCatalogMixin,
-    HiveQueryTask):  # pragma: no cover
+        CourseSummaryEnrollmentDownstreamMixin,
+        LoadInternalReportingCourseCatalogMixin,
+        HiveQueryTask):  # pragma: no cover
     """Aggregates data from the various course_enrollment tables into `course_meta_summary_enrollment` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(ImportCourseSummaryEnrollmentsDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1794,8 +1805,6 @@ class ImportCourseSummaryEnrollmentsDataTask(
             'overwrite_n_days': self.overwrite_n_days,
         }
 
-        # We are not passing the overwrite flag in to EnrollmentByModeTask because we are defaulting overwrite to True
-        # for all MysqlInsertTask tasks
         yield EnrollmentByModeTask(
             mapreduce_engine=self.mapreduce_engine,
             source=self.source,
@@ -1805,7 +1814,6 @@ class ImportCourseSummaryEnrollmentsDataTask(
             **common_kwargs
         )
 
-        # Here we will pass in the overwrite flag
         yield CourseGradeByModeDataTask(
             date=self.date,
             overwrite=self.overwrite,
@@ -1835,8 +1843,9 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
     At the end of this task data has been written to MySQL.
     """
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(ImportCourseSummaryEnrollmentsIntoMysql, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):  # pragma: no cover
@@ -1913,8 +1922,9 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
 class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Selects from `program_course` and persists results into `course_program_metadata` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(CourseProgramMetadataDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -1987,8 +1997,9 @@ class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMi
                                              MysqlInsertTask):  # pragma: no cover
     """Creates/populates the `course_program_metadata` Result Store table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_mysql
+    def __init__(self, *args, **kwargs):
+        super(CourseProgramMetadataInsertToMysqlTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_mysql
 
     @property
     def table(self):
@@ -2059,8 +2070,9 @@ class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
 class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `grades_persistentcoursegrade` into `course_grade_by_mode` Hive table."""
 
-    def __init__(self):
-        self.overwrite=self.overwrite_hive
+    def __init__(self, *args, **kwargs):
+        super(CourseGradeByModeDataTask, self).__init__(*args, **kwargs)
+        self.overwrite = self.overwrite_hive
 
     @property
     def insert_query(self):
@@ -2125,10 +2137,10 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
         yield self.partition_task
 
         # We need the `grades_persistentcoursegrade` Hive table to exist before we can persist and load data.
-        # TODO what do I do with the overwrite flag here????
         yield ImportPersistentCourseGradeTask(
             import_date=self.date,
             destination=self.warehouse_path,
+            overwrite=self.overwrite_hive,
         )
 
         # this will give us the `course_enrollment` Hive table for the query above.
@@ -2157,7 +2169,7 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
         self.output().touch_marker()
 
 
-# TODO Update run parameters on overwrite_hive and overwrite_mysql
+# TODO Update run parameters and documentation to include overwrite_hive and overwrite_mysql
 @workflow_entry_point
 class ImportEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, luigi.WrapperTask):
     """Import all breakdowns of enrollment into MySQL."""
