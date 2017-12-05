@@ -101,6 +101,8 @@ Notes
 * It *does not* require the "enrollment-reports" section. That section is used to generate static CSV reports.
 * The interval here, should be the beginning of time essentially. It computes enrollment by observing state changes from the beginning of time.
 * ``$FROM_DATE`` can be any string that is accepted by the unix utility ``date``. Here are a few examples: "today", "yesterday", and "2016-05-01".
+* overwrite-mysql controls whether or not the MySQL tables are replaced in a transaction during processing.  Set this flag if you are fully replacing the table, false (default) otherwise
+* overwrite-hive controls whether or not the Hive intermediate table metadata is removed and replaced during processing.  Set this flag if you want the metadata to be fully recreated, false (default) otherwise
 
 Task
 ~~~~
@@ -109,7 +111,9 @@ Task
 
     ImportEnrollmentsIntoMysql --local-scheduler \
       --interval $(date +%Y-%m-%d -d "$FROM_DATE")-$(date +%Y-%m-%d -d "$TO_DATE") \
-      --n-reduce-tasks $NUM_REDUCE_TASKS
+      --n-reduce-tasks $NUM_REDUCE_TASKS \
+      --overwrite-mysql \
+      --overwrite-hive
 
 Incremental implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~

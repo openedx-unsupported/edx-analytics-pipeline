@@ -839,7 +839,7 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
     def output(self):  # pragma: no cover
         output_root = url_path_join(self.warehouse_path,
                                     self.partition_task.hive_table_task.table,
-                                    self.partition.path_spec + '/')
+                                    self.partition.path_spec)
         return get_target_from_url(output_root, marker=True)
 
     def on_success(self):  # pragma: no cover
@@ -1021,7 +1021,7 @@ class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQue
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -1222,7 +1222,7 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -1402,7 +1402,7 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -1580,7 +1580,7 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -1830,7 +1830,7 @@ class ImportCourseSummaryEnrollmentsDataTask(
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -1985,7 +1985,7 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
@@ -2161,7 +2161,7 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec
         )
         return get_target_from_url(output_root, marker=True)
 
