@@ -1853,9 +1853,6 @@ class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamM
 
     @property
     def insert_source_task(self):  # pragma: no cover
-        # Because we default the overwrite flag to True in this class we do not want to pass it into
-        # ImportCourseSummaryEnrollmentsDataTask.  This means that the CoursePartitionTask in the data task below will
-        # get the default value (False) no matter what the workflow is called with.
         return ImportCourseSummaryEnrollmentsDataTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
