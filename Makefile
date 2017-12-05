@@ -72,7 +72,7 @@ coverage-local: test-local
 
 	# Compute pep8 quality
 	diff-quality --violations=pycodestyle --html-report diff_quality_pep8.html
-	pycodestyle --config=.pycodestyle edx > pep8.report || echo "Not pep8 clean"
+	pycodestyle edx > pep8.report || echo "Not pep8 clean"
 
 	# Compute pylint quality
 	pylint -f parseable edx --msg-template "{path}:{line}: [{msg_id}({symbol}), {obj}] {msg}" > pylint.report || echo "Not pylint clean"
