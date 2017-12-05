@@ -1,37 +1,32 @@
 """Compute metrics related to user enrollments in courses"""
 
-import logging
 import datetime
+import logging
 import textwrap
 
 import luigi
+import luigi.task
 from luigi.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
-import luigi.task
 
-from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportPersistentCourseGradeTask
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
-    CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask,
-)
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import (
-    PathSelectionByDateIntervalTask, EventLogSelectionDownstreamMixin, EventLogSelectionMixin,
+    EventLogSelectionDownstreamMixin, EventLogSelectionMixin, PathSelectionByDateIntervalTask
 )
+from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportPersistentCourseGradeTask
 from edx.analytics.tasks.util import eventlog, opaque_key_util
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import (
-    BareHiveTableTask,
-    HivePartition,
-    HivePartitionTask,
-    HiveQueryToMysqlTask,
-    HiveTableTask,
-    WarehouseMixin,
-    hive_database_name,
+    BareHiveTableTask, HivePartition, HivePartitionTask, HiveQueryToMysqlTask, HiveTableTask, WarehouseMixin,
+    hive_database_name
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, StringField, Record
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL, UncheckedExternalURL
+from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
+    CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask
+)
 
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'

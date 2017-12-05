@@ -3,8 +3,9 @@ End to end test of the internal reporting d_program_course table loading task.
 """
 
 import datetime
-import os
 import logging
+import os
+
 import pandas
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available

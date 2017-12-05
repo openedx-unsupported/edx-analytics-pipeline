@@ -5,21 +5,16 @@ import json
 import unittest
 
 import ciso8601
-from ddt import ddt, data, unpack
 import luigi
+from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.warehouse.load_internal_reporting_events import (
-    EventRecord,
-    JsonEventRecord,
-    TrackingEventRecordDataTask,
-    SegmentEventRecordDataTask,
-    PerDateTrackingEventRecordDataTask,
-    PerDateSegmentEventRecordDataTask,
-    VERSION,
+    VERSION, EventRecord, JsonEventRecord, PerDateSegmentEventRecordDataTask, PerDateTrackingEventRecordDataTask,
+    SegmentEventRecordDataTask, TrackingEventRecordDataTask
 )
 
 

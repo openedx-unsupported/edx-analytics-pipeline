@@ -6,23 +6,15 @@ import datetime
 import json
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
+from ddt import data, ddt, unpack
 from luigi import date_interval
-import luigi.task
-
 from mock import Mock, call
 
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.user_activity import (
-    UserActivityTask,
-    InsertToMysqlCourseActivityTask,
-    ACTIVE_LABEL,
-    PROBLEM_LABEL,
-    PLAY_VIDEO_LABEL,
-    POST_FORUM_LABEL,
+    ACTIVE_LABEL, PLAY_VIDEO_LABEL, POST_FORUM_LABEL, PROBLEM_LABEL, InsertToMysqlCourseActivityTask, UserActivityTask
 )
-
-from edx.analytics.tasks.common.tests.map_reduce_mixins import ReducerTestMixin, MapperTestMixin
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 @ddt

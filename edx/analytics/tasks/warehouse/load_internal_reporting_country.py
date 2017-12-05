@@ -7,12 +7,10 @@ import luigi
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.location_per_course import (
-    LastCountryOfUserDownstreamMixin,
-    LastCountryOfUserPartitionTask,
-    InsertToMysqlCourseEnrollByCountryWorkflow,
+    InsertToMysqlCourseEnrollByCountryWorkflow, LastCountryOfUserDownstreamMixin, LastCountryOfUserPartitionTask
 )
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.util.url import url_path_join, ExternalURL
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 

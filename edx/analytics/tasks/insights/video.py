@@ -1,12 +1,12 @@
 """Tasks for aggregating statistics about video viewing."""
-from collections import namedtuple
+import datetime
 import json
 import logging
 import math
 import re
 import textwrap
 import urllib
-import datetime
+from collections import namedtuple
 
 import ciso8601
 import luigi
@@ -14,17 +14,17 @@ from luigi import configuration
 from luigi.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import (WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask,
-                                           HivePartitionTask, hive_database_name)
-from edx.analytics.tasks.util.url import UncheckedExternalURL, url_path_join, get_target_from_url
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField
+from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.util.hive import (
+    BareHiveTableTask, HivePartition, HivePartitionTask, HiveTableTask, WarehouseMixin, hive_database_name
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
+from edx.analytics.tasks.util.record import IntegerField, Record, StringField
+from edx.analytics.tasks.util.url import UncheckedExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

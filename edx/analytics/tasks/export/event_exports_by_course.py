@@ -1,15 +1,14 @@
 """Group events by course and export them for research purposes"""
 
-import logging
 import gzip
+import logging
 
-import luigi
 import luigi.date_interval
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.util import eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)

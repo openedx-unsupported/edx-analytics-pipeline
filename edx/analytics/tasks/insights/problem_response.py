@@ -1,31 +1,29 @@
 """
 Luigi tasks for extracting the latest problem response data from tracking log files.
 """
-import re
-import csv
 import ast
-import json
+import csv
 import datetime
+import json
 import logging
+import re
 import textwrap
+
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-
 from edx.analytics.tasks.insights.answer_dist import ProblemCheckEventMixin, get_problem_check_event
-from edx.analytics.tasks.insights.course_list import TimestampPartitionMixin, CourseListPartitionTask
 from edx.analytics.tasks.insights.course_blocks import CourseBlocksPartitionTask
-
+from edx.analytics.tasks.insights.course_list import CourseListPartitionTask, TimestampPartitionMixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, hive_database_name
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import (
-    Record, StringField, DelimitedStringField, IntegerField, DateTimeField, FloatField, BooleanField,
+    BooleanField, DateTimeField, DelimitedStringField, FloatField, IntegerField, Record, StringField
 )
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 

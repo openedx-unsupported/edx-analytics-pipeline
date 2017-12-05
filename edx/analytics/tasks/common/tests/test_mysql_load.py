@@ -8,15 +8,11 @@ import unittest
 
 import luigi
 import luigi.task
-
-from mock import call
-from mock import MagicMock
-from mock import patch
-from mock import sentinel
+from mock import MagicMock, call, patch, sentinel
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, coerce_for_mysql_connect
-from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
 class InsertToMysqlDummyTable(MysqlInsertTask):

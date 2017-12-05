@@ -1,23 +1,19 @@
 """Computes active users over the last one year."""
 
 import datetime
-import os
 import logging
-import luigi
-import isoweek
 
-from edx.analytics.tasks.common.pathutil import (
-    PathSetTask,
-    EventLogSelectionMixin,
-    EventLogSelectionDownstreamMixin,
-)
-from edx.analytics.tasks.common.vertica_load import IncrementalVerticaCopyTask, VerticaCopyTaskMixin
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, BareHiveTableTask, HivePartitionTask
-from edx.analytics.tasks.util.url import ExternalURL, url_path_join, get_target_from_url
-from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util import eventlog
+import isoweek
+import luigi
+
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.vertica_load import IncrementalVerticaCopyTask, VerticaCopyTaskMixin
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url
+from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
 

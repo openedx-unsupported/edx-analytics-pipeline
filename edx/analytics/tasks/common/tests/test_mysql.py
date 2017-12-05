@@ -8,14 +8,13 @@ import textwrap
 import unittest
 
 import luigi
-
 from mock import MagicMock, patch, sentinel
 from pandas import read_csv
 
 from edx.analytics.tasks.common.mysql_dump import MysqlSelectTask, mysql_datetime
-from edx.analytics.tasks.util.url import ExternalURL
-from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
+from edx.analytics.tasks.util.url import ExternalURL
 
 
 class ConversionTestCase(unittest.TestCase):

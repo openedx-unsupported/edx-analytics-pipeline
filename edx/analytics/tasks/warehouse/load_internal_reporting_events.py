@@ -9,31 +9,31 @@ from event values to column values.
 """
 import datetime
 import json
-from importlib import import_module
 import logging
 import re
+from importlib import import_module
 
 import ciso8601
 import dateutil
 import luigi
-from luigi.configuration import get_config
 import luigi.task
-from luigi.date_interval import DateInterval
 import pytz
 import ua_parser
 import user_agents
+from luigi.configuration import get_config
+from luigi.date_interval import DateInterval
 
-from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin, SchemaManagementTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask, HivePartition
-)
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartition, HivePartitionTask, WarehouseMixin
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
-from edx.analytics.tasks.util.opaque_key_util import is_valid_course_id, get_org_id_for_course, get_course_key_from_url
-from edx.analytics.tasks.util.record import SparseRecord, StringField, DateField, DateTimeField, IntegerField, FloatField, BooleanField
+from edx.analytics.tasks.util.opaque_key_util import get_course_key_from_url, get_org_id_for_course, is_valid_course_id
+from edx.analytics.tasks.util.record import (
+    BooleanField, DateField, DateTimeField, FloatField, IntegerField, SparseRecord, StringField
+)
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)

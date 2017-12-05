@@ -1,19 +1,19 @@
 """Collect information about payments from third-party sources for financial reporting."""
 
 import csv
-import os
 import datetime
 import logging
-import requests
+import os
 
 import luigi
-from luigi.configuration import get_config
+import requests
 from luigi import date_interval
+from luigi.configuration import get_config
 
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
-from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

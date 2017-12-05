@@ -1,26 +1,20 @@
 
+import xml.etree.cElementTree as ET
 from collections import OrderedDict
 from cStringIO import StringIO
-from ddt import ddt, data, unpack
-import xml.etree.cElementTree as ET
+from unittest import TestCase
+
 import httpretty
 import luigi
-from mock import MagicMock, patch, call
-from unittest import TestCase
+from ddt import data, ddt, unpack
+from mock import MagicMock, call, patch
 
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.warehouse.financial.paypal import (
-    PaypalReportRequest,
-    PaypalMalformedResponseError,
-    PaypalApiRequestFailedError,
-    PaypalReportMetadataRequest,
-    ColumnMetadata,
-    PaypalReportDataRequest,
-    PaypalReportResultsRequest,
-    SettlementReportRecord,
-    PaypalTransactionsByDayTask,
-    PaypalTimeoutError
+    ColumnMetadata, PaypalApiRequestFailedError, PaypalMalformedResponseError, PaypalReportDataRequest,
+    PaypalReportMetadataRequest, PaypalReportRequest, PaypalReportResultsRequest, PaypalTimeoutError,
+    PaypalTransactionsByDayTask, SettlementReportRecord
 )
 
 TEST_URL = 'http://test.api/endpoint'

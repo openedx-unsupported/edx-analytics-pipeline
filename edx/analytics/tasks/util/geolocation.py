@@ -4,6 +4,9 @@ import logging
 import tempfile
 
 import luigi
+
+from edx.analytics.tasks.util.url import ExternalURL
+
 try:
     import pygeoip
 except ImportError:
@@ -11,7 +14,6 @@ except ImportError:
     # The module is hopefully exported for tasks that actually use the module.
     pygeoip = NotImplemented
 
-from edx.analytics.tasks.util.url import ExternalURL
 
 UNKNOWN_COUNTRY = "UNKNOWN"
 UNKNOWN_CODE = "UNKNOWN"

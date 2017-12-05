@@ -5,19 +5,17 @@ See the CourseListApiDataTask and CourseListPartitionTask for details.
 """
 
 import datetime
-import logging
 import json
+import logging
+
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
-from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask,
-)
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import Record, StringField, DateTimeField
+from edx.analytics.tasks.util.record import DateTimeField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 

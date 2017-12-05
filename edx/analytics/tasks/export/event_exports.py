@@ -1,20 +1,19 @@
 """Group events by institution and export them for research purposes"""
 
-import logging
 import gzip
+import logging
 from collections import defaultdict
 
 import gnupg
-import luigi
 import luigi.date_interval
 import yaml
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.util.encrypt import make_encrypted_file
 from edx.analytics.tasks.util import eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.url import url_path_join, ExternalURL, get_target_from_url
+from edx.analytics.tasks.util.encrypt import make_encrypted_file
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

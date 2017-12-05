@@ -1,16 +1,15 @@
 """
 Tasks for performing encryption on export files.
 """
-from contextlib import contextmanager
+import datetime
 import logging
 import tempfile
-import datetime
+from contextlib import contextmanager
 
 import gnupg
 
-from edx.analytics.tasks.util.tempdir import make_temp_directory
 from edx.analytics.tasks.util.file_util import copy_file_to_file
-
+from edx.analytics.tasks.util.tempdir import make_temp_directory
 
 log = logging.getLogger(__name__)
 key_cache = {}  # pylint: disable=invalid-name

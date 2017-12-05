@@ -5,7 +5,6 @@ from unittest import TestCase
 from luigi import date_interval
 
 from edx.analytics.tasks.insights.calendar_task import CalendarTask
-
 from edx.analytics.tasks.util.tests.target import FakeTarget
 
 

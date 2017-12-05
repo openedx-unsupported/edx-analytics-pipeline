@@ -4,11 +4,11 @@ import json
 from unittest import TestCase
 
 import luigi
-from ddt import ddt, data, unpack
+from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.data_api.student_engagement import StudentEngagementTask, SUBSECTION_VIEWED_MARKER
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.data_api.student_engagement import SUBSECTION_VIEWED_MARKER, StudentEngagementTask
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class BaseStudentEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):

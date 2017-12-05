@@ -2,8 +2,8 @@
 Tests for tasks that calculate answer distributions.
 
 """
-import json
 import hashlib
+import json
 import math
 import os
 import shutil
@@ -16,13 +16,10 @@ from opaque_keys.edx.locator import CourseLocator
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.answer_dist import (
-    ProblemCheckEventMixin,
-    AnswerDistributionPerCourseMixin,
-    AnswerDistributionOneFilePerCourseTask,
-    try_str_to_float,
+    AnswerDistributionOneFilePerCourseTask, AnswerDistributionPerCourseMixin, ProblemCheckEventMixin, try_str_to_float
 )
-from edx.analytics.tasks.util.tests.config import with_luigi_config, OPTION_REMOVED
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.config import OPTION_REMOVED, with_luigi_config
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):

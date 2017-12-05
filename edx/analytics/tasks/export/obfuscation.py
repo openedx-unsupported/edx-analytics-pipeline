@@ -1,9 +1,9 @@
 """Tasks to obfuscate course data for RDX."""
 
-import json
-import os
 import errno
+import json
 import logging
+import os
 import tarfile
 import urlparse
 
@@ -11,15 +11,14 @@ import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.util.obfuscate_util import ObfuscatorDownstreamMixin
 from edx.analytics.tasks.export.data_obfuscation import ObfuscatedCourseDumpTask
 from edx.analytics.tasks.export.events_obfuscation import ObfuscateCourseEventsTask
+from edx.analytics.tasks.util import opaque_key_util
 from edx.analytics.tasks.util.encrypt import make_encrypted_file
 from edx.analytics.tasks.util.file_util import copy_file_to_file
-from edx.analytics.tasks.util import opaque_key_util
+from edx.analytics.tasks.util.obfuscate_util import ObfuscatorDownstreamMixin
 from edx.analytics.tasks.util.tempdir import make_temp_directory
-from edx.analytics.tasks.util.url import url_path_join, get_target_from_url, ExternalURL
-
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

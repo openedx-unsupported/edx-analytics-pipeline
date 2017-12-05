@@ -8,8 +8,8 @@ import dateutil
 from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.util.record import (
-    Record, StringField, IntegerField, DateField, DateTimeField, FloatField, DelimitedStringField, BooleanField,
-    HiveTsvEncoder, SparseRecord
+    BooleanField, DateField, DateTimeField, DelimitedStringField, FloatField, HiveTsvEncoder, IntegerField, Record,
+    SparseRecord, StringField
 )
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'

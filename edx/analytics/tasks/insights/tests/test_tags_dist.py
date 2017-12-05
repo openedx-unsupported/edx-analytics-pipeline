@@ -3,8 +3,8 @@ from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.insights.tags_dist import TagsDistributionPerCourse
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.insights.tags_dist import TagsDistributionPerCourse
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 

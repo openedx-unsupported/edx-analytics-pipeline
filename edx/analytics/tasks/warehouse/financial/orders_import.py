@@ -1,33 +1,17 @@
 """Import Orders: Shopping Cart Tables from the LMS, Orders from Otto."""
 
-import luigi
 import luigi.hdfs
 
 from edx.analytics.tasks.insights.database_imports import (
-    DatabaseImportMixin,
-    ImportShoppingCartCertificateItem,
-    ImportShoppingCartCourseRegistrationCodeItem,
-    ImportShoppingCartDonation,
-    ImportShoppingCartOrder,
-    ImportShoppingCartOrderItem,
-    ImportShoppingCartPaidCourseRegistration,
-    ImportShoppingCartCoupon,
-    ImportShoppingCartCouponRedemption,
-    ImportEcommercePartner,
-    ImportEcommerceUser,
-    ImportProductCatalog,
-    ImportProductCatalogClass,
-    ImportProductCatalogAttributes,
-    ImportProductCatalogAttributeValues,
-    ImportCurrentOrderState,
-    ImportCurrentOrderLineState,
-    ImportCurrentOrderDiscountState,
-    ImportCouponVoucherIndirectionState,
-    ImportCouponVoucherState,
-    ImportCurrentRefundRefundLineState,
-    ImportAuthUserTask,
+    DatabaseImportMixin, ImportAuthUserTask, ImportCouponVoucherIndirectionState, ImportCouponVoucherState,
+    ImportCurrentOrderDiscountState, ImportCurrentOrderLineState, ImportCurrentOrderState,
+    ImportCurrentRefundRefundLineState, ImportEcommercePartner, ImportEcommerceUser, ImportProductCatalog,
+    ImportProductCatalogAttributes, ImportProductCatalogAttributeValues, ImportProductCatalogClass,
+    ImportShoppingCartCertificateItem, ImportShoppingCartCoupon, ImportShoppingCartCouponRedemption,
+    ImportShoppingCartCourseRegistrationCodeItem, ImportShoppingCartDonation, ImportShoppingCartOrder,
+    ImportShoppingCartOrderItem, ImportShoppingCartPaidCourseRegistration
 )
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, hive_decimal_type
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, hive_decimal_type
 
 
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):

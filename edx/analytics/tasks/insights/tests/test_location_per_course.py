@@ -12,13 +12,10 @@ from mock import Mock, call
 from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.location_per_course import (
-    LastDailyIpAddressOfUserTask,
-    LastCountryOfUserPartitionTask,
-    LastCountryOfUser,
-    QueryLastCountryPerCourseTask,
-    InsertToMysqlLastCountryPerCourseTask,
+    InsertToMysqlLastCountryPerCourseTask, LastCountryOfUser, LastCountryOfUserPartitionTask,
+    LastDailyIpAddressOfUserTask, QueryLastCountryPerCourseTask
 )
-from edx.analytics.tasks.util.geolocation import UNKNOWN_COUNTRY, UNKNOWN_CODE
+from edx.analytics.tasks.util.geolocation import UNKNOWN_CODE, UNKNOWN_COUNTRY
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
 
 

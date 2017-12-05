@@ -7,9 +7,9 @@ import luigi.hdfs
 from mock import patch
 
 from edx.analytics.tasks.util.manifest import (
-    create_manifest_target, convert_to_manifest_input_if_necessary, ManifestInputTargetMixin
+    ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, create_manifest_target
 )
-from edx.analytics.tasks.util.tests.config import with_luigi_config, OPTION_REMOVED
+from edx.analytics.tasks.util.tests.config import OPTION_REMOVED, with_luigi_config
 from edx.analytics.tasks.util.tests.target import FakeTarget
 
 

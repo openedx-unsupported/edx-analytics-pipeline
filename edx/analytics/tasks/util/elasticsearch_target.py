@@ -4,13 +4,14 @@ import datetime
 import hashlib
 import logging
 
+import luigi
+import luigi.configuration
+import luigi.hdfs
+
 try:
     import elasticsearch
 except ImportError:
     elasticsearch = None
-import luigi
-import luigi.configuration
-import luigi.hdfs
 
 
 log = logging.getLogger(__name__)

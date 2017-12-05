@@ -1,18 +1,14 @@
 """Tests for Order-transaction reconciliation and reporting."""
 
-from ddt import ddt, data, unpack
 from unittest import TestCase
 
-from edx.analytics.tasks.util.tests.config import with_luigi_config
+from ddt import data, ddt, unpack
+
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 from edx.analytics.tasks.warehouse.financial.reconcile import (
-    ReconcileOrdersAndTransactionsTask,
-    BaseOrderItemRecord,
-    OrderItemRecord,
-    BaseTransactionRecord,
-    TransactionRecord,
-    OrderTransactionRecord,
-    LOW_ORDER_ID_SHOPPINGCART_ORDERS,
+    LOW_ORDER_ID_SHOPPINGCART_ORDERS, BaseOrderItemRecord, BaseTransactionRecord, OrderItemRecord,
+    OrderTransactionRecord, ReconcileOrdersAndTransactionsTask, TransactionRecord
 )
 
 TEST_DATE = '2015-06-01'

@@ -9,9 +9,9 @@ import unittest
 
 import luigi
 import luigi.hdfs
-from mock import patch, call
+from mock import call, patch
 
-from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
 
 
 class MapReduceJobTaskTest(unittest.TestCase):

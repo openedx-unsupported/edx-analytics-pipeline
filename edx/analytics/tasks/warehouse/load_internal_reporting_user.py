@@ -8,7 +8,7 @@ import luigi
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
 from edx.analytics.tasks.insights.location_per_course import ExternalLastCountryOfUserToHiveTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin
 
 
 class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):

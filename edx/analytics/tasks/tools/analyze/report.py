@@ -3,9 +3,8 @@ import json
 import os
 import subprocess
 import sys
-from string import Template  # pylint: disable=deprecated-module
 import uuid
-
+from string import Template  # pylint: disable=deprecated-module
 
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 

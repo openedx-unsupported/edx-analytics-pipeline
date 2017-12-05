@@ -6,9 +6,9 @@ import json
 import logging
 
 import luigi
+import luigi.configuration
 import luigi.hadoop
 import luigi.hdfs
-import luigi.configuration
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join

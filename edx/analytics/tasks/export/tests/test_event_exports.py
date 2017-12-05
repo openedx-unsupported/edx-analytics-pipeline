@@ -8,10 +8,10 @@ from collections import defaultdict
 from itertools import chain
 from unittest import TestCase
 
-from luigi.date_interval import Year
 import luigi.task
-from mock import MagicMock, patch
 import yaml
+from luigi.date_interval import Year
+from mock import MagicMock, patch
 
 from edx.analytics.tasks.export.event_exports import EventExportTask
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin

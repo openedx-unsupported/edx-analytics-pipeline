@@ -1,9 +1,15 @@
 """Load records into elasticsearch clusters."""
 
-from itertools import islice
 import logging
 import random
 import time
+from itertools import islice
+
+import luigi
+
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
+from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 try:
     import elasticsearch
@@ -11,15 +17,11 @@ try:
     from elasticsearch.exceptions import TransportError
 except ImportError:
     elasticsearch = None
-import luigi
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 try:
     from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 except ImportError:
     AwsHttpConnection = None
-from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 
 log = logging.getLogger(__name__)

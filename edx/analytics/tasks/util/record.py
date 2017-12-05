@@ -1,9 +1,9 @@
 """Tools for working with typed records."""
 
-from collections import OrderedDict
-import re
 import datetime
 import itertools
+import re
+from collections import OrderedDict
 
 try:
     from google.cloud.bigquery import SchemaField

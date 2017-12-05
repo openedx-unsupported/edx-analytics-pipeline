@@ -3,7 +3,7 @@ Tests for encoding/decoding id values.
 """
 from unittest import TestCase
 
-from ddt import ddt, data
+from ddt import data, ddt
 
 import edx.analytics.tasks.util.id_codec as id_codec
 

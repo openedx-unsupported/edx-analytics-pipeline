@@ -8,16 +8,13 @@ import tempfile
 from unittest import TestCase
 from urllib import urlencode
 
-from ddt import ddt, data, unpack
 import httpretty
+from ddt import data, ddt, unpack
 from requests.exceptions import HTTPError
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.insights.course_blocks import (
-    CourseBlocksApiDataTask, PullCourseBlocksApiData,
-)
+from edx.analytics.tasks.insights.course_blocks import CourseBlocksApiDataTask, PullCourseBlocksApiData
 from edx.analytics.tasks.util.tests.helpers import load_fixture
-
 
 log = logging.getLogger(__name__)
 

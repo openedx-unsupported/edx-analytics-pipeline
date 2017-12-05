@@ -4,13 +4,13 @@ Test total events daily report
 
 import os
 import shutil
-from StringIO import StringIO
 import tempfile
 import textwrap
+from StringIO import StringIO
 from unittest import TestCase
 
-from mock import MagicMock
 import pandas
+from mock import MagicMock
 
 from edx.analytics.tasks.monitor.total_events_report import TotalEventsReport
 from edx.analytics.tasks.util.tests.target import FakeTarget

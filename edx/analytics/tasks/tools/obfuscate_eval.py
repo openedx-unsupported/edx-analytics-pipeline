@@ -16,8 +16,6 @@ Makes use of external user information.
 """
 
 import argparse
-from collections import namedtuple, defaultdict
-from cStringIO import StringIO
 import errno
 import glob
 import gzip
@@ -25,18 +23,15 @@ import json
 import logging
 import os
 import sys
+from collections import defaultdict, namedtuple
+from cStringIO import StringIO
 
-from pyinstrument import Profiler
 import cjson
+from pyinstrument import Profiler
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.obfuscate_util import (
-    backslash_encode_value,
-    backslash_decode_value,
-    Obfuscator,
-)
-
+from edx.analytics.tasks.util.obfuscate_util import Obfuscator, backslash_decode_value, backslash_encode_value
 
 log = logging.getLogger(__name__)
 

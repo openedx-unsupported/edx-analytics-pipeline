@@ -10,7 +10,6 @@ import re
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 
-
 log = logging.getLogger(__name__)
 
 

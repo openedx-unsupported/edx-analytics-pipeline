@@ -3,15 +3,15 @@
 import json
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
-from mock import patch, MagicMock, sentinel
+from ddt import data, ddt, unpack
+from mock import MagicMock, patch, sentinel
 
-from edx.analytics.tasks.insights.video import (
-    VIDEO_CODES, VIDEO_UNKNOWN_DURATION, VIDEO_VIEWING_SECONDS_PER_SEGMENT, UserVideoViewingTask, VideoUsageTask,
-    VideoSegmentDetailRecord,
-)
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.insights.video import (
+    VIDEO_CODES, VIDEO_UNKNOWN_DURATION, VIDEO_VIEWING_SECONDS_PER_SEGMENT, UserVideoViewingTask,
+    VideoSegmentDetailRecord, VideoUsageTask
+)
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 @ddt

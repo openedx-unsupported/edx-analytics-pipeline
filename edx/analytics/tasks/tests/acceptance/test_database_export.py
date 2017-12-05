@@ -20,7 +20,6 @@ from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import url_path_join
 
-
 log = logging.getLogger(__name__)
 
 

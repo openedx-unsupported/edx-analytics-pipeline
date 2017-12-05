@@ -8,30 +8,29 @@ Main method for running tasks on a local machine.
 """
 
 import argparse
-from contextlib import contextmanager
 import logging
 import os
 import sys
+from contextlib import contextmanager
 
 import boto
-import filechunkio
-import cjson
-import ciso8601
-import opaque_keys
 import bson
-import pyinstrument
-import stevedore
-import requests
-
+import ciso8601
+import cjson
+import filechunkio
 import luigi
 import luigi.configuration
 import luigi.hadoop
-
-import edx.analytics.tasks
-
+import opaque_keys
+import pyinstrument
+import requests
+import stevedore
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl
 import urllib3.contrib.pyopenssl
+
+import edx.analytics.tasks
+
 urllib3.contrib.pyopenssl.inject_into_urllib3()
 
 

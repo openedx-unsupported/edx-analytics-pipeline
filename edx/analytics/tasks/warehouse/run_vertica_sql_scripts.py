@@ -4,14 +4,12 @@ Support for running multiple SQL scripts against an HP Vertica database in a det
 
 import logging
 from os import path
-import yaml
 
-import luigi
 import luigi.configuration
+import yaml
 
 from edx.analytics.tasks.util.url import ExternalURL
 from edx.analytics.tasks.warehouse.run_vertica_sql_script import BaseVerticaSqlScriptTaskMixin, RunVerticaSqlScriptTask
-
 
 log = logging.getLogger(__name__)
 

@@ -3,11 +3,11 @@ import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
-from edx.analytics.tasks.warehouse.financial.reconcile import (
-    TransactionReportTask, LoadInternalReportingOrderTransactionsToWarehouse
-)
 from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import (
     LoadInternalReportingEdServicesReportToWarehouse
+)
+from edx.analytics.tasks.warehouse.financial.reconcile import (
+    LoadInternalReportingOrderTransactionsToWarehouse, TransactionReportTask
 )
 
 

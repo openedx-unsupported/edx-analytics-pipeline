@@ -1,6 +1,5 @@
-import logging
-import datetime
 import json
+import logging
 import os
 import subprocess
 import tempfile
@@ -9,9 +8,8 @@ import urlparse
 
 import luigi
 
-from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.hive import WarehouseMixin
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 

@@ -49,5 +49,3 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
             (self.COURSE_ID, datetime.datetime(2014, 6, 16, 0, 0), datetime.datetime(2014, 6, 23, 0, 0), 'ATTEMPTED_PROBLEM', 2),
             (self.COURSE_ID, datetime.datetime(2014, 6, 16, 0, 0), datetime.datetime(2014, 6, 23, 0, 0), 'PLAYED_VIDEO', 3),
         ])
-
-

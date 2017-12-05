@@ -8,11 +8,10 @@ import unittest
 
 import luigi
 import luigi.task
-
-from mock import call, MagicMock, patch, sentinel
+from mock import MagicMock, call, patch, sentinel
 
 from edx.analytics.tasks.common.vertica_load import (
-    VerticaCopyTask, VerticaProjection, PROJECTION_TYPE_NORMAL, PROJECTION_TYPE_AGGREGATE
+    PROJECTION_TYPE_AGGREGATE, PROJECTION_TYPE_NORMAL, VerticaCopyTask, VerticaProjection
 )
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 from edx.analytics.tasks.util.tests.target import FakeTarget

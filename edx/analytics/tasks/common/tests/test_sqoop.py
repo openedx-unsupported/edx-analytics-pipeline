@@ -1,10 +1,10 @@
 """Tests for Sqoop import task."""
 
-import textwrap
 import json
+import textwrap
 import unittest
 
-from mock import MagicMock, patch, sentinel, Mock
+from mock import MagicMock, Mock, patch, sentinel
 
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util.tests.target import FakeTarget

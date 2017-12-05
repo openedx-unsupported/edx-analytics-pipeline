@@ -2,12 +2,11 @@
 End to end test of the internal reporting CourseProgramMetadataInsertToMysqlTask.
 """
 
-import os
 import logging
+import os
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.url import url_path_join
-
 
 log = logging.getLogger(__name__)
 
