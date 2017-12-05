@@ -1,15 +1,14 @@
 """Analyze log files produced by launch-task"""
 
 import argparse
-from collections import namedtuple
 import datetime
 import re
 import sys
+from collections import namedtuple
 
-from edx.analytics.tasks.tools.analyze.parser import LogFileParser
 from edx.analytics.tasks.tools.analyze.measure import Measurement
-from edx.analytics.tasks.tools.analyze.report import text_report, json_report, html_report
-
+from edx.analytics.tasks.tools.analyze.parser import LogFileParser
+from edx.analytics.tasks.tools.analyze.report import html_report, json_report, text_report
 
 MESSAGE_START_PATTERN = r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) (?P<level>\w+) (?P<pid>\d+) \[(?P<module>.*?)\] (?P<filename>.*?):(?P<line_no>\d+) - (?P<content>.*)'
 LogMessage = namedtuple('LogMessage', 'timestamp level pid module filename line_no content')  # pylint: disable=invalid-name

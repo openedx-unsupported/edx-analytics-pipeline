@@ -2,16 +2,15 @@
 End to end test of active_users_this_year loading task.
 """
 
+import datetime
 import logging
 import os
-import datetime
 
 import pandas
 
 from edx.analytics.tasks.tests.acceptance import (
-    AcceptanceTestCase, when_vertica_available, read_csv_fixture_as_list, coerce_columns_to_string
+    AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available
 )
-from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 

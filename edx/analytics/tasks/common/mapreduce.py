@@ -4,21 +4,20 @@ Support executing map reduce tasks.
 from __future__ import absolute_import
 
 import gzip
-from hashlib import md5
-import os
-import StringIO
 import logging
 import logging.config
+import os
+import StringIO
+from hashlib import md5
 
 import luigi
-import luigi.hdfs
 import luigi.hadoop
+import luigi.hdfs
 import luigi.task
 from luigi import configuration
 
 from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 

@@ -6,8 +6,7 @@ from unittest import TestCase
 from mock import Mock
 from opaque_keys.edx.locator import CourseLocator
 
-from edx.analytics.tasks.export.database_exports import StudentModulePerCourseTask, STUDENT_MODULE_FIELDS
-
+from edx.analytics.tasks.export.database_exports import STUDENT_MODULE_FIELDS, StudentModulePerCourseTask
 
 STATE_MYSQLDUMP = '\'{\\"answer\\": {\\"code\\": \\"print(\\\'hello world\\\')\\\\r\\\\n\\\\t\\", \\"score\\": 1.0}} ' \
     '\\"msg\\": \\"\\\\n<div class=\\\\\\"test\\\\\\">\\\\nTest\\\\n</div>\\\\n\\", \\"num\\": 100}\''

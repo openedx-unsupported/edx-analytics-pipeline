@@ -4,13 +4,14 @@ import os
 import luigi
 from google.cloud import bigquery
 
+from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask, BigQueryLoadDownstreamMixin
 from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import CourseRecord, ProgramCourseRecord, CourseSeatRecord, CourseSubjectRecord
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
+    CourseRecord, CourseSeatRecord, CourseSubjectRecord, ProgramCourseRecord
+)
 
 
 class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTask):

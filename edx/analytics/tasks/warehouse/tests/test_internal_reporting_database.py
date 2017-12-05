@@ -3,10 +3,12 @@ Tests for internal reporting database tasks.
 """
 from unittest import TestCase
 
+from ddt import data, ddt, unpack
 from mock import patch
-from ddt import ddt, data, unpack
 
-from edx.analytics.tasks.warehouse.load_internal_reporting_database import LoadMysqlToVerticaTableTask, ImportMysqlToVerticaTask
+from edx.analytics.tasks.warehouse.load_internal_reporting_database import (
+    ImportMysqlToVerticaTask, LoadMysqlToVerticaTableTask
+)
 
 
 @ddt

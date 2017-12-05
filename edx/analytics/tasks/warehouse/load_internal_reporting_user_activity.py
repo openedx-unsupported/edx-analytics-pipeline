@@ -3,22 +3,20 @@ Loads the user_activity table into the warehouse through the pipeline via Hive.
 
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
-import datetime
-import os
 import logging
-import luigi
+
 import luigi.date_interval
 
-from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask
 from edx.analytics.tasks.insights.user_activity import InsertToMysqlCourseActivityTask, UserActivityTableTask
-from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition, BareHiveTableTask, HivePartitionTask, \
-    hive_database_name
-from edx.analytics.tasks.util.url import ExternalURL, url_path_join, get_target_from_url
+from edx.analytics.tasks.util.hive import (
+    BareHiveTableTask, HivePartition, HivePartitionTask, WarehouseMixin, hive_database_name
+)
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 from edx.analytics.tasks.util.vertica_target import CredentialFileVerticaTarget
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 

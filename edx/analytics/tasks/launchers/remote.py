@@ -5,10 +5,10 @@ import argparse
 import json
 import os
 import pipes
-from subprocess import Popen, PIPE
 import sys
-from urlparse import urlparse, parse_qsl
 import uuid
+from subprocess import PIPE, Popen
+from urlparse import parse_qsl, urlparse
 
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')

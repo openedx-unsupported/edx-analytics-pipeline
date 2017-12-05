@@ -5,13 +5,12 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
+from luigi.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
-
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

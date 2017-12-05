@@ -7,12 +7,11 @@ import tempfile
 from unittest import TestCase
 from urllib import urlencode
 
-from ddt import ddt, data, unpack
 import httpretty
+from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.course_list import CourseListApiDataTask, PullCourseListApiData
-
 
 log = logging.getLogger(__name__)
 

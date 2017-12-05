@@ -8,7 +8,6 @@ from unittest import TestCase
 
 import luigi
 import luigi.task
-
 from mock import MagicMock, patch, sentinel
 
 from edx.analytics.tasks.util.tests.target import FakeTarget

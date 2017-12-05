@@ -19,8 +19,8 @@ import shutil
 import tempfile
 from unittest import TestCase
 
-from mock import MagicMock
 import pandas
+from mock import MagicMock
 
 from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import CourseSubjectTask

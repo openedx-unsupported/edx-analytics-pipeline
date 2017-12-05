@@ -3,9 +3,8 @@ Utility methods interact with files.
 """
 import logging
 import os
-from contextlib import contextmanager
-
 import sys
+from contextlib import contextmanager
 
 from edx.analytics.tasks.util.url import get_target_from_url
 

@@ -3,13 +3,12 @@
 import datetime
 import unittest
 
+from luigi.date_interval import Month
 from mock import patch
 
-from luigi.date_interval import Month
-
 from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
-from edx.analytics.tasks.util.url import UncheckedExternalURL
 from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.url import UncheckedExternalURL
 
 
 class PathSelectionByDateIntervalTaskTest(unittest.TestCase):

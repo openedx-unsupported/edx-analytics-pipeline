@@ -8,11 +8,10 @@ from cStringIO import StringIO
 
 import luigi
 import pandas
-from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.tests.acceptance import (
-    AcceptanceTestCase, when_vertica_available, when_vertica_not_available, coerce_columns_to_string,
-    read_csv_fixture_as_list
+    AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available,
+    when_vertica_not_available
 )
 from edx.analytics.tasks.util.url import url_path_join
 from edx.analytics.tasks.warehouse.financial.reconcile import LoadInternalReportingOrderTransactionsToWarehouse

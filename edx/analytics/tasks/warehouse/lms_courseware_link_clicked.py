@@ -4,16 +4,13 @@ Tasks for collecting link click data per course, per day, and uploading that dat
 import logging
 from urlparse import urlparse
 
-import luigi
 import luigi.task
-
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 LINK_CLICKED = 'edx.ui.lms.link_clicked'

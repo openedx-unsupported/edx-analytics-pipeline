@@ -6,7 +6,6 @@ import logging
 import traceback
 from itertools import chain
 
-import luigi
 import luigi.configuration
 from luigi.contrib.mysqldb import MySqlTarget
 

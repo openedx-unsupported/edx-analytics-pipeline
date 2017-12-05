@@ -1,8 +1,10 @@
 
 import luigi
 
-from edx.analytics.tasks.warehouse.financial.cybersource import IntervalPullFromCybersourceTask, CybersourceDataValidationTask
-from edx.analytics.tasks.warehouse.financial.paypal import PaypalTransactionsIntervalTask, PaypalDataValidationTask
+from edx.analytics.tasks.warehouse.financial.cybersource import (
+    CybersourceDataValidationTask, IntervalPullFromCybersourceTask
+)
+from edx.analytics.tasks.warehouse.financial.paypal import PaypalDataValidationTask, PaypalTransactionsIntervalTask
 
 
 class PaymentTask(luigi.WrapperTask):

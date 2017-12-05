@@ -1,14 +1,13 @@
 """A canonical calendar that can be joined with other tables to provide information about dates."""
 
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 
-import luigi
 import luigi.configuration
 
 from edx.analytics.tasks.util import Week
-from edx.analytics.tasks.util.hive import HiveTableTask, HivePartition
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 

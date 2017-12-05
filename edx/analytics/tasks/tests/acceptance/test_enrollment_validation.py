@@ -1,15 +1,14 @@
 """Test enrollment validation."""
 
-from collections import defaultdict
 import datetime
 import gzip
 import json
 import logging
 import StringIO
+from collections import defaultdict
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.url import url_path_join
-
 
 log = logging.getLogger(__name__)
 

@@ -4,12 +4,12 @@ import datetime
 import unittest
 
 import ddt
-from elasticsearch import TransportError
 import luigi.hdfs
-from mock import patch, call
+from elasticsearch import TransportError
 from freezegun import freeze_time
+from mock import call, patch
 
-from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask, AwsHttpConnection, IndexingError
+from edx.analytics.tasks.common.elasticsearch_load import AwsHttpConnection, ElasticsearchIndexTask, IndexingError
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
 

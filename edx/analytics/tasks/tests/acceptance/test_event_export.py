@@ -9,9 +9,8 @@ import tempfile
 import textwrap
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.tests.acceptance.services import fs, shell
+from edx.analytics.tasks.tests.acceptance.services import fs
 from edx.analytics.tasks.util.url import url_path_join
-
 
 log = logging.getLogger(__name__)
 

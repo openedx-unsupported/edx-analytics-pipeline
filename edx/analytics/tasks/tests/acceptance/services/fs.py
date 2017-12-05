@@ -1,11 +1,10 @@
-import gnupg
 import gzip
 import os
 import shutil
 import tempfile
-
 from contextlib import contextmanager
 
+import gnupg
 from jinja2 import Template
 
 

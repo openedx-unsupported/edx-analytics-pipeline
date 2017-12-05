@@ -2,7 +2,7 @@
 import textwrap
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
+from ddt import data, ddt, unpack
 from mock import MagicMock
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin

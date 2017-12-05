@@ -9,7 +9,6 @@ from opaque_keys.edx.locator import CourseLocator
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
-
 VALID_COURSE_ID = unicode(CourseLocator(org='org', course='course_id', run='course_run'))
 VALID_LEGACY_COURSE_ID = "org/course_id/course_run"
 INVALID_LEGACY_COURSE_ID = "org:course_id:course_run"

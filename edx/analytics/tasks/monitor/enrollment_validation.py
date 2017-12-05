@@ -9,16 +9,15 @@ import os
 import luigi
 import luigi.task
 
-from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.common.sqoop import METADATA_FILENAME
 from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask
 from edx.analytics.tasks.util import eventlog, opaque_key_util
-from edx.analytics.tasks.util.datetime_util import add_microseconds, mysql_datetime_to_isoformat, ensure_microseconds
+from edx.analytics.tasks.util.datetime_util import add_microseconds, ensure_microseconds, mysql_datetime_to_isoformat
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 from edx.analytics.tasks.util.hive import WarehouseMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
-
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

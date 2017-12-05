@@ -2,27 +2,25 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
-import math
 import csv
 import hashlib
-import html5lib
 import json
+import logging
+import math
 from operator import itemgetter
 
-import luigi
-import luigi.hdfs
+import html5lib
 import luigi.s3
 from luigi.configuration import get_config
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
-import edx.analytics.tasks.util.eventlog as eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
-import logging
 log = logging.getLogger(__name__)
 
 

@@ -2,9 +2,9 @@
 Support for loading data into an HP Vertica database.
 """
 
-from collections import namedtuple
 import logging
 import traceback
+from collections import namedtuple
 
 import luigi
 import luigi.configuration

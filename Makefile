@@ -68,6 +68,8 @@ coverage-local: test-local
 	python -m coverage xml -o coverage.xml
 	diff-cover coverage.xml --html-report diff_cover.html
 
+	isort --check-only --recursive edx/
+
 	# Compute pep8 quality
 	diff-quality --violations=pycodestyle --html-report diff_quality_pep8.html
 	pycodestyle --config=.pycodestyle edx > pep8.report || echo "Not pep8 clean"

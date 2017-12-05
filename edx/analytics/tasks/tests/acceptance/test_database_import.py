@@ -1,8 +1,7 @@
 import os
-from unittest import TestCase
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.util.record import Record, IntegerField, StringField, DateTimeField, FloatField
+from edx.analytics.tasks.util.record import DateTimeField, FloatField, IntegerField, Record, StringField
 
 
 class GradesPersistentCourseGradeRecord(Record):

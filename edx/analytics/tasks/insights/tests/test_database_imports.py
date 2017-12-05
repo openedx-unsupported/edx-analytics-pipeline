@@ -6,10 +6,10 @@ import datetime
 import textwrap
 from unittest import TestCase
 
-from mock import patch, Mock
+from mock import Mock, patch
 
 from edx.analytics.tasks.insights.database_imports import (
-    ImportIntoHiveTableTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask,
+    ImportIntoHiveTableTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 

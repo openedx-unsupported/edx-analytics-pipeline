@@ -7,7 +7,7 @@ import luigi
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportGeneratedCertificatesTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin
 
 log = logging.getLogger(__name__)
 

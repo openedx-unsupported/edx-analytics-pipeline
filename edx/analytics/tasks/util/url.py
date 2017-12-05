@@ -21,7 +21,7 @@ import luigi.s3
 from luigi.hdfs import HdfsTarget
 from luigi.s3 import S3Target
 
-from edx.analytics.tasks.util.s3_util import ScalableS3Client, S3HdfsTarget
+from edx.analytics.tasks.util.s3_util import S3HdfsTarget, ScalableS3Client
 
 
 class MarkerMixin(object):

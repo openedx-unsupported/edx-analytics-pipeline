@@ -1,20 +1,18 @@
 """
 Utility methods for interacting with S3 via boto.
 """
-import os
-import math
 import logging
+import math
+import os
 import time
-
 from fnmatch import fnmatch
 from urlparse import urlparse
 
 from boto import connect_s3
 from boto.s3.key import Key
 from filechunkio import FileChunkIO
-from luigi.s3 import S3Client, AtomicS3File
 from luigi.hdfs import HdfsTarget, Plain
-
+from luigi.s3 import AtomicS3File, S3Client
 
 log = logging.getLogger(__name__)
 

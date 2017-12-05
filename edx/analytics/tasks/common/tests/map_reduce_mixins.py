@@ -1,6 +1,6 @@
 """Utility mixins that simplify tests for map reduce jobs."""
-import json
 import datetime
+import json
 
 import luigi
 import luigi.task

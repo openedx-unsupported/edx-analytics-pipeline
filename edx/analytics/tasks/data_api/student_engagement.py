@@ -5,14 +5,14 @@ import datetime
 import hashlib
 import json
 import logging
+import re
 from itertools import groupby
 from operator import itemgetter
-import re
 
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
@@ -20,11 +20,7 @@ from edx.analytics.tasks.insights.database_imports import (
 from edx.analytics.tasks.insights.enrollments import CourseEnrollmentTableTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
-    HivePartition,
-    HiveQueryToMysqlTask,
-    HiveTableFromQueryTask,
-    HiveTableTask,
-    WarehouseMixin,
+    HivePartition, HiveQueryToMysqlTask, HiveTableFromQueryTask, HiveTableTask, WarehouseMixin
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join

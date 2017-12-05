@@ -4,35 +4,35 @@ Measure student engagement with individual modules in the course.
 See ModuleEngagementWorkflowTask for more extensive documentation.
 """
 
-from collections import defaultdict
 import datetime
 import logging
 import random
+from collections import defaultdict
 
-import luigi
 import luigi.task
 from luigi import date_interval
+
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.insights.database_imports import (
+    ImportAuthUserProfileTask, ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
+)
+from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentTableTask
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateField, FloatField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+
 try:
     import numpy
 except ImportError:
     numpy = None  # pylint: disable=invalid-name
 
-from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
-    ImportAuthUserProfileTask, ImportCourseUserGroupTask
-from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentTableTask
 
-from edx.analytics.tasks.util.decorators import workflow_entry_point
-from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask, hive_database_name
-)
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

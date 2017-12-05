@@ -1,13 +1,12 @@
 """Utilities that are used for performing obfuscation, or what passes for such."""
 
-import re
 import logging
+import re
 
 import luigi
 
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 from edx.analytics.tasks.util.url import ExternalURL
-
 
 log = logging.getLogger(__name__)
 

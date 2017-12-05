@@ -1,8 +1,6 @@
 
 import json
-
-from contextlib import closing
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import mysql.connector
 

@@ -7,16 +7,16 @@ from collections import Counter
 import luigi
 import luigi.date_interval
 
+import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
-import edx.analytics.tasks.util.eventlog as eventlog
-from edx.analytics.tasks.util.hive import WarehouseMixin, BareHiveTableTask, HivePartitionTask, hive_database_name
-from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
 

@@ -2,8 +2,8 @@
 Loads the internal reporting course catalog table into the warehouse through the pipeline.
 """
 
-import json
 import datetime
+import json
 import logging
 
 import luigi
@@ -12,11 +12,10 @@ from luigi.hive import HiveQueryTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
-from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField, DateField
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateField, DateTimeField, FloatField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 # pylint: disable=anomalous-unicode-escape-in-string
 

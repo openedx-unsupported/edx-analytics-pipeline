@@ -7,23 +7,23 @@ https://developer.paypal.com/docs/classic/payflow/reporting/
 """
 
 import datetime
-import os
-import xml.etree.cElementTree as ET
-from cStringIO import StringIO
 import logging
-from collections import namedtuple, OrderedDict
-from decimal import Decimal
+import os
 import time
+import xml.etree.cElementTree as ET
+from collections import OrderedDict, namedtuple
+from cStringIO import StringIO
+from decimal import Decimal
 
 import luigi
+import requests
 from luigi import date_interval
 from luigi.configuration import get_config
-import requests
 
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
-from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 

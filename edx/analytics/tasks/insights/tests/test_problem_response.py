@@ -1,25 +1,25 @@
 """Test problem response data tasks."""
 
-from collections import namedtuple
-from datetime import datetime
-import os
 import json
+import os
 import random
 import re
 import shutil
 import tempfile
+from collections import namedtuple
+from datetime import datetime
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
 import luigi
+from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.problem_response import (
-    ProblemResponseRecord, LatestProblemResponseDataTask, LatestProblemResponseTableTask,
-    ProblemResponseReportTask, LatestProblemResponsePartitionTask,
+    LatestProblemResponseDataTask, LatestProblemResponsePartitionTask, LatestProblemResponseTableTask,
+    ProblemResponseRecord, ProblemResponseReportTask
 )
 from edx.analytics.tasks.util.record import DateTimeField
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class ProblemResponseTestMixin(InitializeOpaqueKeysMixin):

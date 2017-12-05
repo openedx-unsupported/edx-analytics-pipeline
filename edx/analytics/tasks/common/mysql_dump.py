@@ -3,10 +3,10 @@ Gather data using SQL queries run on MySQL databases.
 """
 from __future__ import absolute_import
 
-from contextlib import closing
 import csv
 import datetime
 import json
+from contextlib import closing
 
 import luigi
 import mysql.connector

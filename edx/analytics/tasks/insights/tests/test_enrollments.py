@@ -1,22 +1,17 @@
 """Test enrollment computations"""
 
-from datetime import datetime
 import json
+from datetime import datetime
 from unittest import TestCase
 
 import luigi
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.enrollments import (
-    ACTIVATED,
-    DEACTIVATED,
-    MODE_CHANGED,
-    CourseEnrollmentSummaryTask,
-    CourseEnrollmentTask,
-    CourseEnrollmentEventsTask,
-    ImportCourseSummaryEnrollmentsIntoMysql,
+    ACTIVATED, DEACTIVATED, MODE_CHANGED, CourseEnrollmentEventsTask, CourseEnrollmentSummaryTask, CourseEnrollmentTask,
+    ImportCourseSummaryEnrollmentsIntoMysql
 )
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
