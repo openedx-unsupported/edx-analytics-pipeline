@@ -203,18 +203,59 @@ Engagement
 Notes
 ~~~~~
 
-* Intended to be run weekly
+* Intended to be run weekly or daily.
+* When using a persistent hive metastore, set overwrite_hive to True.
 
 Task
 ~~~~
 
 ::
 
-    CourseActivityWeeklyTask --local-scheduler \
+    InsertToMysqlCourseActivityTask --local-scheduler \
       --end-date $(date +%Y-%m-%d -d "$TO_DATE") \
       --weeks 24 \
       --credentials $CREDENTIALS \
+      --n-reduce-tasks $NUM_REDUCE_TASKS \
+      --overwrite_mysql
+
+Incremental implementation
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On December 05, 2017 we merged a modification of the Engagement workflow to master.  The new code calculates Engagement *incrementally*, rather than entirely from scratch each time.  And it involves a new parameter: ``overwrite_n_days``.
+
+Also, the workflow has been renamed from ``CourseActivityWeeklyTask`` to ``InsertToMysqlCourseActivityTask``.
+
+The workflow now assumes that new Hive-ready data has been written persistently to the ``user_activity`` directory under warehouse_path by UserActivityTask.  The workflow uses the ``overwrite_n_days`` to determine how many days back to repopulate this data. The idea is that before this point, events are not expected to change, but perhaps there might be new events that have arrived in the last few days.  We are currently running the workflow daily with a value of 3, and we define that as an user-activity parameter in our override.cfg file.  You can define it there or on the command line.
+
+This means for us that only the last three days of raw events get scanned nightly.  It is assumed that the previous days' data has been loaded by previous runs, or by performing a historical load.
+
+If this workflow is run weekly, an ``overwrite_n_days`` value of 10 would be more appropriate.
+
+History task
+~~~~~~~~~~~~
+
+To load the historical user-activity counts, you would need to first run:
+
+::
+
+    UserActivityTask --local-scheduler \
+      --interval $(date +%Y-%m-%d -d "$FROM_DATE")-$(date +%Y-%m-%d -d "$TO_DATE") \
       --n-reduce-tasks $NUM_REDUCE_TASKS
+
+or you could run the incremental workflow with an ``overwrite_n_days`` value large enough that it would
+calculate the historical user-activity counts the first time it is ran:
+
+
+::
+
+    InsertToMysqlCourseActivityTask --local-scheduler \
+      --end-date $(date +%Y-%m-%d -d "$TO_DATE") \
+      --weeks 24 \
+      --credentials $CREDENTIALS \
+      --n-reduce-tasks $NUM_REDUCE_TASKS \
+      --overwrite_n_days 169
+
+After the first run, you can change ``overwrite_n_days`` to 3 or 10 depending on how you plan to run it(daily/weekly).
 
 Video
 ~~~~~
