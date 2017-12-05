@@ -717,6 +717,7 @@ class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, HiveTabl
 
 class EnrollmentByGenderHiveTableTask(BareHiveTableTask):
     """
+    Creates the metadata for the course_enrollment_gender_daily hive table
 
     Creates the Hive table in the local Hive environment.  This is just a descriptor, and does not require any data to
     be present or real.
@@ -1689,7 +1690,10 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
 
     @property
     def hive_table_task(self):
-        return ImportCourseSummaryEnrollmentsTableTask(warehouse_path=self.warehouse_path)
+        return ImportCourseSummaryEnrollmentsTableTask(
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     @property
     def partition_value(self):
