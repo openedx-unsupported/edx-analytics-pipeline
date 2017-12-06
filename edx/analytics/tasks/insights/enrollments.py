@@ -754,6 +754,12 @@ class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
             overwrite=self.overwrite,
         )
 
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
+
     @property
     def partition_value(self):  # pragma: no cover
         """ Use a dynamic partition value based on the date parameter. """
@@ -938,6 +944,12 @@ class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no c
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
 
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
+
 
 class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_birth_year_daily` Hive table."""
@@ -1111,6 +1123,12 @@ class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no 
     def partition_value(self):
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
+
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
 
 
 class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
@@ -1321,6 +1339,12 @@ class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
 
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
+
 
 class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_mode_daily` Hive table."""
@@ -1500,6 +1524,12 @@ class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
     def partition_value(self):
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
+
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
 
 
 class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
@@ -1699,6 +1729,12 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
     def partition_value(self):
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
+
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
 
 
 class ImportCourseSummaryEnrollmentsDataTask(
@@ -1919,6 +1955,12 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
 
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
+
 
 class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Selects from `program_course` and persists results into `course_program_metadata` Hive table."""
@@ -2068,6 +2110,12 @@ class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
     def partition_value(self):
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()
+
+    def remove_output_on_overwrite(self):
+        OverwriteOutputMixin.remove_output_on_overwrite(self)
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path(self.hive_table_task.table, self.partition_value))
 
 
 class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
