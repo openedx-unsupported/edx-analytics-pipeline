@@ -94,7 +94,7 @@ class LoadInternalReportingCourseSubjectToBigQuery(WarehouseMixin, BigQueryLoadT
 
     @property
     def insert_source_task(self):
-        url = url_path_join(self.hive_partition_path('course_subject', self.date), 'course_subject.tsv')
+        url = url_path_join(self.hive_partition_path('course_subjects', self.date), 'course_subjects.tsv')
         return ExternalURL(url=url)
 
     @property
