@@ -30,11 +30,11 @@ class MarkerMixin(object):
 
     def exists(self):  # pragma: no cover
         """Completion of this target is based solely on the existence of the marker file."""
-        return self.fs.exists(self.path + "_SUCCESS")
+        return self.fs.exists(self.path + "/_SUCCESS")
 
     def touch_marker(self):  # pragma: no cover
         """Generate the marker file using file system native to the parent Target."""
-        marker = self.__class__(path=self.path + "_SUCCESS")
+        marker = self.__class__(path=self.path + "/_SUCCESS")
         marker.open("w").close()
 
 
