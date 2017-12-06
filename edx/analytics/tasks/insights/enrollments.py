@@ -1973,6 +1973,8 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
         yield self.partition_task
 
         # We need the `program_course` Hive table to exist before we can execute the query to persist and load data.
+        # TODO I have a problem here, the overwrite flag in this case is used also to determine when we are pulling course data....so we always are when we replace the hive setup
+        # however I'm not sure why this guy ran because right now I'm not setting the hive flag...and this data was downloaded yesterday
         yield ProgramCoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
