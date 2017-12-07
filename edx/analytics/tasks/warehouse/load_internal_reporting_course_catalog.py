@@ -306,7 +306,6 @@ class ProgramCoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePa
     def hive_table_task(self):
         return ProgramCourseTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -538,7 +537,6 @@ class CoursePartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartition
     def hive_table_task(self):
         return CourseTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite
         )
 
     @property

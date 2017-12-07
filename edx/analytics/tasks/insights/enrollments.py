@@ -312,7 +312,6 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
         return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
 
     def run(self):
-        #TODO potential candidate fix here
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
@@ -510,14 +509,11 @@ class DaysEnrolledForEvents(object):
         self.mode = self.event.mode
 
 
-# TODO I may also have a problem here but it may be handled by the MR job above
 class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentTableTask, self).__init__(*args, **kwargs)
-        # Overwrite is not needed here because the HiveTableTask automatically deletes if table exists
-        # self.overwrite = self.overwrite_hive
 
     @property
     def table(self):
@@ -686,14 +682,11 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
         return DateTimeField().deserialize_from_string(event.timestamp)
 
 
-#TODO the problem in remove lies in here
 class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     def __init__(self, *args, **kwargs):
         super(CourseEnrollmentSummaryTableTask, self).__init__(*args, **kwargs)
-        #Overwrite is not needed here because the HiveTableTask automatically deletes if table exists
-        #self.overwrite = self.overwrite_hive
 
     @property
     def table(self):
@@ -809,11 +802,13 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
     @property
     def partition_task(self):  # pragma: no cover
         """The task that creates the partition used by this job."""
-        return EnrollmentByGenderHivePartitionTask(
-            date=self.interval.date_b,
-            warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite_hive,
-        )
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = EnrollmentByGenderHivePartitionTask(
+                date=self.interval.date_b,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite_hive,
+            )
+        return self._partition_task
 
     @property
     def partition(self):  # pragma: no cover
@@ -1789,12 +1784,12 @@ class ImportCourseSummaryEnrollmentsDataTask(
         yield self.partition_task
 
         catalog_tasks = [
+            # Currently overwriting is not set up correctly on CoursePartition so let's leave it as default (false).
             CoursePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
                 api_page_size=self.api_page_size,
-                overwrite=self.overwrite_hive,
             ),
         ]
 
@@ -1806,7 +1801,6 @@ class ImportCourseSummaryEnrollmentsDataTask(
             # loading any data into them
             yield [task.hive_table_task for task in catalog_tasks]
 
-        # These were brought over from the parent HiveToMySQLTask
         common_kwargs = {
             'warehouse_path': self.warehouse_path,
             'interval': self.interval,
@@ -1814,7 +1808,7 @@ class ImportCourseSummaryEnrollmentsDataTask(
             'overwrite_n_days': self.overwrite_n_days,
         }
 
-        yield EnrollmentByModeTask(
+        enrollment_by_mode_task = EnrollmentByModeTask(
             mapreduce_engine=self.mapreduce_engine,
             source=self.source,
             pattern=self.pattern,
@@ -1823,13 +1817,24 @@ class ImportCourseSummaryEnrollmentsDataTask(
             **common_kwargs
         )
 
-        yield CourseGradeByModeDataTask(
+        yield enrollment_by_mode_task
+
+        # if not enrollment_by_mode_task.insert_source_task.partition_task.output().exists():
+        yield enrollment_by_mode_task.insert_source_task.partition_task
+
+        course_by_mode_data_task = CourseGradeByModeDataTask(
             date=self.date,
-            overwrite=self.overwrite,
             overwrite_hive=self.overwrite_hive,
             overwrite_mysql=self.overwrite_mysql,
             **common_kwargs
         )
+        # TODO Just testing if this is going to work.  I suspect yes, and if so I'll devise a better solution
+        # THis is weird, this worked below.  However I still have problems with course_meta_summary_enrollment and course_program_metadata
+        # are the requires() blocks automatically handed into this processing blocks inputs()?  Now I'm getting the course_grades_by_mode files are corrupt
+        yield course_by_mode_data_task.partition_task
+        yield course_by_mode_data_task
+
+        # if not course_by_mode_data_task.partition_task.output().exists():
 
     def output(self):
         output_root = url_path_join(
@@ -1842,6 +1847,11 @@ class ImportCourseSummaryEnrollmentsDataTask(
     def on_success(self):
         """Override the success method to touch the _SUCCESS file."""
         self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(ImportCourseSummaryEnrollmentsDataTask, self).run()
+
 
 
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1965,11 +1975,13 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
     @property
     def partition_task(self):
         """Returns Task that creates partition on `course_program_metadata`."""
-        return CourseProgramMetadataPartitionTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite_hive,
-        )
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = CourseProgramMetadataPartitionTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite_hive,
+            )
+        return self._partition_task
 
     def requires(self):
         for requirement in super(CourseProgramMetadataDataTask, self).requires():
@@ -1977,24 +1989,25 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
 
         yield self.partition_task
 
-        # We need the `program_course` Hive table to exist before we can execute the query to persist and load data.
-        # TODO I have a problem here, the overwrite flag in this case is used also to determine when we are pulling course data....so we always are when we replace the hive setup
-        # however I'm not sure why this guy ran because right now I'm not setting the hive flag...and this data was downloaded yesterday
+        # ProgramCoursePartitionTask cannot handle an overwrite flag so lets leave it to the default (false).
         yield ProgramCoursePartitionTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
-            overwrite=self.overwrite_hive,
         )
 
     def output(self):
         output_root = url_path_join(
             self.warehouse_path,
             self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
+            self.partition.path_spec + "/"
         )
         return get_target_from_url(output_root, marker=True)
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(CourseProgramMetadataDataTask, self).run()
 
     def on_success(self):
         """Override the success method to touch the _SUCCESS file."""
@@ -2163,6 +2176,10 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
             overwrite_hive=self.overwrite_hive,
             overwrite_mysql=self.overwrite_mysql,
         )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(CourseGradeByModeDataTask, self).run()
 
     def output(self):
         output_root = url_path_join(
