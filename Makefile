@@ -1,5 +1,5 @@
 
-.PHONY:	requirements test test-requirements .tox
+.PHONY:	requirements test test-requirements .tox upgrade
 
 uninstall:
 	while pip uninstall -y edx.analytics.tasks; do true; done
@@ -35,11 +35,17 @@ endif
 
 requirements:
 	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/default.txt --no-cache-dir
+	pip install -U -r requirements/default.txt --no-cache-dir --upgrade-strategy only-if-needed
 	pip install -U -r requirements/extra.txt --no-cache-dir
 
 test-requirements: requirements
-	pip install -U -r requirements/test.txt --no-cache-dir
+	pip install -U -r requirements/test.txt --no-cache-dir --upgrade-strategy only-if-needed
+
+upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
+	pip-compile --upgrade -o requirements/base.txt requirements/base.in
+	pip-compile --upgrade -o requirements/default.txt requirements/default.in requirements/base.in
+	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in requirements/default.in requirements/base.in
+	pip-compile --upgrade -o requirements/test.txt requirements/test.in requirements/default.in requirements/base.in
 
 test-docker:
 	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest make develop-local test-local
@@ -81,7 +87,9 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	pip install -U -r requirements/docs.txt --no-cache-dir
+	pip install -U -r requirements/pre.txt
+	pip install -U -r requirements/docs.txt --no-cache-dir --upgrade-strategy only-if-needed
+	pip install -U -r requirements/extra.txt --no-cache-dir
 	python setup.py install --force
 
 docs-local:

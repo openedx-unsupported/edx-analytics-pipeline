@@ -1,0 +1,3 @@
+# Requirements for documentation validation
+
+Sphinx==1.5.1
