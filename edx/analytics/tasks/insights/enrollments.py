@@ -758,7 +758,45 @@ class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
         return self.date.isoformat()  # pylint: disable=no-member
 
 
-class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):
+class OverwriteAwareHiveQueryDataTask(OverwriteOutputMixin, HiveQueryTask):
+    @property
+    def partition_task(self):  # pragma: no cover
+        """The task that creates the partition used by this job."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = self.hive_partition_task
+        return self._partition_task
+
+    @property
+    def hive_partition_task(self):
+        raise NotImplementedError
+
+    @property
+    def partition(self):  # pragma: no cover
+        """A shorthand for the partition information on the upstream partition task."""
+        return self.partition_task.partition  # pylint: disable=no-member
+
+    def output(self):  # pragma: no cover
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(OverwriteAwareHiveQueryDataTask, self).run() #TODO how do super calls like this work?
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(OverwriteAwareHiveQueryDataTask, self).requires():
+            yield requirement
+        yield self.partition_task
+
+
+class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):
     """
     Executes a hive query to summarize enrollment data and store it in the course_enrollment_gender_daily hive table.
     """
@@ -800,25 +838,17 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition_task(self):  # pragma: no cover
+    def hive_partition_task(self):  # pragma: no cover
         """The task that creates the partition used by this job."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByGenderHivePartitionTask(
+        return EnrollmentByGenderHivePartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive,
             )
-        return self._partition_task
-
-    @property
-    def partition(self):  # pragma: no cover
-        """A shorthand for the partition information on the upstream partition task."""
-        return self.partition_task.partition  # pylint: disable=no-member
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByGenderDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         # the process that generates the source table used by this query
         yield (
@@ -835,21 +865,6 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
             ),
             ImportAuthUserProfileTask()
         )
-
-    def output(self):  # pragma: no cover
-        output_root = url_path_join(self.warehouse_path,
-                                    self.partition_task.hive_table_task.table,
-                                    self.partition.path_spec + '/')
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):  # pragma: no cover
-        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
-        data file will need to override the base on_success() call to create this marker."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(EnrollmentByGenderDataTask, self).run()
 
 
 class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -943,7 +958,7 @@ class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no c
         return self.date.isoformat()
 
 
-class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_birth_year_daily` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -985,25 +1000,17 @@ class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTa
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_birth_year_daily`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByBirthYearTaskPartitionTask(
+        return EnrollmentByBirthYearTaskPartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive
             )
-        return self._partition_task
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByBirthYearDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         # the process that generates the source table used by this query
         yield (
@@ -1020,22 +1027,6 @@ class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTa
             ),
             ImportAuthUserProfileTask()
         )
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(EnrollmentByBirthYearDataTask, self).run()
 
 
 class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1121,7 +1112,7 @@ class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no 
         return self.date.isoformat()
 
 
-class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_education_level_daily` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -1190,25 +1181,17 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_education_level_daily`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByEducationLevelPartitionTask(
+        return EnrollmentByEducationLevelPartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive
             )
-        return self._partition_task
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByEducationLevelDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         # the process that generates the source table used by this query
         yield (
@@ -1225,22 +1208,6 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
             ),
             ImportAuthUserProfileTask()
         )
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(EnrollmentByEducationLevelDataTask, self).run()
 
 
 class EnrollmentByEducationLevelTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1334,7 +1301,7 @@ class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
         return self.date.isoformat()
 
 
-class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_mode_daily` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -1375,25 +1342,17 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_mode_daily`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentByModePartitionTask(
+        return EnrollmentByModePartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive
             )
-        return self._partition_task
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByModeDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         # the process that generates the source table used by this query
         yield (
@@ -1409,22 +1368,6 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
                 overwrite_mysql=self.overwrite_mysql,
             )
         )
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(EnrollmentByModeDataTask, self).run()
 
 
 class EnrollmentByModeTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1518,7 +1461,7 @@ class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
         return self.date.isoformat()
 
 
-class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_daily` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -1557,25 +1500,17 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_daily`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = EnrollmentDailyPartitionTask(
+        return EnrollmentDailyPartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive,
             )
-        return self._partition_task
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentDailyDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         # the process that generates the source table used by this query
         yield (
@@ -1591,22 +1526,6 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
                 overwrite_mysql=self.overwrite_mysql,
             )
         )
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(EnrollmentDailyDataTask, self).run()
 
 
 class EnrollmentDailyTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1722,9 +1641,9 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
 
 
 class ImportCourseSummaryEnrollmentsDataTask(
-        CourseSummaryEnrollmentDownstreamMixin,
-        LoadInternalReportingCourseCatalogMixin,
-        HiveQueryTask):  # pragma: no cover
+    CourseSummaryEnrollmentDownstreamMixin,
+    LoadInternalReportingCourseCatalogMixin,
+    OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from the various course_enrollment tables into `course_meta_summary_enrollment` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -1783,25 +1702,17 @@ class ImportCourseSummaryEnrollmentsDataTask(
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_meta_summary_enrollment`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = ImportCourseSummaryEnrollmentsPartitionTask(
+        return ImportCourseSummaryEnrollmentsPartitionTask(
                 date=self.interval.date_b,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive,
             )
-        return self._partition_task
 
     def requires(self):  # pragma: no cover
         for requirement in super(ImportCourseSummaryEnrollmentsDataTask, self).requires():
             yield requirement
-        yield self.partition_task
 
         catalog_tasks = [
             # Currently overwriting is not set up correctly on CoursePartition so let's leave it as default (false).
@@ -1863,23 +1774,6 @@ class ImportCourseSummaryEnrollmentsDataTask(
         # has been created
         if not course_by_mode_data_task.partition_task.complete():
             yield course_by_mode_data_task.partition_task
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(ImportCourseSummaryEnrollmentsDataTask, self).run()
-
 
 
 class ImportCourseSummaryEnrollmentsIntoMysql(CourseSummaryEnrollmentDownstreamMixin, MysqlInsertTask):
@@ -1963,7 +1857,7 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
         return self.date.isoformat()
 
 
-class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Selects from `program_course` and persists results into `course_program_metadata` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -1996,26 +1890,17 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_program_metadata`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = CourseProgramMetadataPartitionTask(
+        return CourseProgramMetadataPartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive,
             )
-        return self._partition_task
 
     def requires(self):
         for requirement in super(CourseProgramMetadataDataTask, self).requires():
             yield requirement
-
-        yield self.partition_task
 
         # ProgramCoursePartitionTask cannot handle an overwrite flag so lets leave it to the default (false).
         yield ProgramCoursePartitionTask(
@@ -2024,22 +1909,6 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Hive
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
         )
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + "/"
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(CourseProgramMetadataDataTask, self).run()
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
 
 
 class CourseProgramMetadataInsertToMysqlTask(CourseSummaryEnrollmentDownstreamMixin,
@@ -2116,7 +1985,7 @@ class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
         return self.date.isoformat()
 
 
-class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Aggregates data from `grades_persistentcoursegrade` into `course_grade_by_mode` Hive table."""
 
     def __init__(self, *args, **kwargs):
@@ -2167,23 +2036,17 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
         return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """Helper property for partition object on the upstream partition task."""
-        return self.partition_task.partition
-
-    @property
-    def partition_task(self):
+    def hive_partition_task(self):
         """Returns Task that creates partition on `course_grade_by_mode`."""
-        if not hasattr(self, '_partition_task'):
-            self._partition_task = CourseGradeByModePartitionTask(
+        return CourseGradeByModePartitionTask(
                 date=self.date,
                 warehouse_path=self.warehouse_path,
                 overwrite=self.overwrite_hive,
             )
-        return self._partition_task
 
     def requires(self):
-        yield self.partition_task
+        for requirement in super(CourseGradeByModeDataTask, self).requires():
+            yield requirement
 
         # We need the `grades_persistentcoursegrade` Hive table to exist before we can persist and load data.
         yield ImportPersistentCourseGradeTask(
@@ -2204,22 +2067,6 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, HiveQuer
             overwrite_hive=self.overwrite_hive,
             overwrite_mysql=self.overwrite_mysql,
         )
-
-    def run(self):
-        self.remove_output_on_overwrite()
-        return super(CourseGradeByModeDataTask, self).run()
-
-    def output(self):
-        output_root = url_path_join(
-            self.warehouse_path,
-            self.partition_task.hive_table_task.table,
-            self.partition.path_spec + '/'
-        )
-        return get_target_from_url(output_root, marker=True)
-
-    def on_success(self):
-        """Override the success method to touch the _SUCCESS file."""
-        self.output().touch_marker()
 
 
 # TODO Update run parameters and documentation to include overwrite_hive and overwrite_mysql
