@@ -847,6 +847,10 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask)
         data file will need to override the base on_success() call to create this marker."""
         self.output().touch_marker()
 
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(EnrollmentByGenderDataTask, self).run()
+
 
 class EnrollmentByGenderTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
@@ -939,11 +943,11 @@ class EnrollmentByBirthYearTaskPartitionTask(HivePartitionTask):  # pragma: no c
         return self.date.isoformat()
 
 
-class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
+class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  # pragma: no cover
     """Aggregates data from `course_enrollment` into `course_enrollment_birth_year_daily` Hive table."""
 
     def __init__(self, *args, **kwargs):
-        super(EnrollmentByBirthYearTaskDataTask, self).__init__(*args, **kwargs)
+        super(EnrollmentByBirthYearDataTask, self).__init__(*args, **kwargs)
         self.overwrite = self.overwrite_hive
 
     @property
@@ -997,7 +1001,7 @@ class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQue
         return self._partition_task
 
     def requires(self):  # pragma: no cover
-        for requirement in super(EnrollmentByBirthYearTaskDataTask, self).requires():
+        for requirement in super(EnrollmentByBirthYearDataTask, self).requires():
             yield requirement
         yield self.partition_task
 
@@ -1029,6 +1033,10 @@ class EnrollmentByBirthYearTaskDataTask(CourseEnrollmentDownstreamMixin, HiveQue
         """Override the success method to touch the _SUCCESS file."""
         self.output().touch_marker()
 
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(EnrollmentByBirthYearDataTask, self).run()
+
 
 class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
@@ -1048,7 +1056,7 @@ class EnrollmentByBirthYearTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask
 
     @property
     def insert_source_task(self):  # pragma: no cover
-        return EnrollmentByBirthYearTaskDataTask(
+        return EnrollmentByBirthYearDataTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
@@ -1230,6 +1238,10 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, HiveQu
         """Override the success method to touch the _SUCCESS file."""
         self.output().touch_marker()
 
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(EnrollmentByEducationLevelDataTask, self).run()
+
 
 class EnrollmentByEducationLevelTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
@@ -1410,6 +1422,10 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask): 
         """Override the success method to touch the _SUCCESS file."""
         self.output().touch_marker()
 
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(EnrollmentByModeDataTask, self).run()
+
 
 class EnrollmentByModeTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
     """
@@ -1587,6 +1603,10 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, HiveQueryTask):  
     def on_success(self):
         """Override the success method to touch the _SUCCESS file."""
         self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(EnrollmentDailyDataTask, self).run()
 
 
 class EnrollmentDailyTask(CourseEnrollmentDownstreamMixin, MysqlInsertTask):
