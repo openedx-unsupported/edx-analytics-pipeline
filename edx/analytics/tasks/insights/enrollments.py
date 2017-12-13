@@ -2063,8 +2063,18 @@ class ImportEnrollmentsIntoMysql(MultipleOverwriteMixin, CourseSummaryEnrollment
             'enable_course_catalog': self.enable_course_catalog,
         }, **enrollment_kwargs)
 
+        course_enrollment_summary_args = dict({
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'warehouse_path': self.warehouse_path,
+            'overwrite_n_days': self.overwrite_n_days,
+            'overwrite': self.overwrite_hive,
+        })
+
         yield [
-            CourseEnrollmentSummaryTableTask(**enrollment_kwargs),
+            CourseEnrollmentSummaryTableTask(**course_enrollment_summary_args),
             EnrollmentByGenderTask(**enrollment_kwargs),
             EnrollmentByBirthYearTask(**enrollment_kwargs),
             EnrollmentByEducationLevelTask(**enrollment_kwargs),
