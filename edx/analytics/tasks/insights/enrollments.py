@@ -1818,9 +1818,16 @@ class ImportCourseSummaryEnrollmentsDataTask(
         )
 
         yield enrollment_by_mode_task
-
-        # if not enrollment_by_mode_task.insert_source_task.partition_task.output().exists():
-        yield enrollment_by_mode_task.insert_source_task.partition_task
+        # The course_enrollment_mode_daily hive table is used in this class and in the CourseGradeByModeDataTask class.
+        # CourseGradeByModeDataTask's complete() function only looks to see if data has been inserted into MySQL, and
+        # not if the hive metadata has been created.  If CourseCradeByModeDataTask does not run then the
+        # course_enrollment_mode_daily hive table may not exist, leaving this class to fail it's hive query.
+        # To correct this specific error I'm explicitly checking the hive partition task here.  Note I'm referencing the
+        # partition task and *NOT* the data task.  This will only generate the hive partition metadata.  I'm assuming
+        # that if CourseGradeByModeDataTask returns as completed then the data for course_enrollment_mode_daily already
+        # exists on S3, and the only work that needs to be done is to generate the hive partition metadata.
+        if not enrollment_by_mode_task.insert_source_task.partition_task.complete():
+            yield enrollment_by_mode_task.insert_source_task.partition_task
 
         course_by_mode_data_task = CourseGradeByModeDataTask(
             date=self.date,
@@ -1828,13 +1835,14 @@ class ImportCourseSummaryEnrollmentsDataTask(
             overwrite_mysql=self.overwrite_mysql,
             **common_kwargs
         )
-        # TODO Just testing if this is going to work.  I suspect yes, and if so I'll devise a better solution
-        # THis is weird, this worked below.  However I still have problems with course_meta_summary_enrollment and course_program_metadata
-        # are the requires() blocks automatically handed into this processing blocks inputs()?  Now I'm getting the course_grades_by_mode files are corrupt
-        yield course_by_mode_data_task.partition_task
-        yield course_by_mode_data_task
 
-        # if not course_by_mode_data_task.partition_task.output().exists():
+        yield course_by_mode_data_task
+        # Similar to the comment above.  The course_grade_by_mode hive table is used by the query in this class.
+        # However the CourseGradeByModeDataTask task only verifies that the data exists on S3, and not that the hive
+        # partition also exists.  This check below ensures that hive partition information for course_grade_by_mode
+        # has been created
+        if not course_by_mode_data_task.partition_task.complete():
+            yield course_by_mode_data_task.partition_task
 
     def output(self):
         output_root = url_path_join(
