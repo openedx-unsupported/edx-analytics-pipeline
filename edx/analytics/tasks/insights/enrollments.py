@@ -749,7 +749,6 @@ class EnrollmentByGenderHivePartitionTask(HivePartitionTask):
     def hive_table_task(self):  # pragma: no cover
         return EnrollmentByGenderHiveTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -856,7 +855,6 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, OverwriteAware
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                overwrite=self.overwrite,
             ),
             ImportAuthUserProfileTask()
         )
@@ -944,7 +942,6 @@ class EnrollmentByBirthYearPartitionTask(HivePartitionTask):  # pragma: no cover
     def hive_table_task(self):
         return EnrollmentByBirthYearTaskTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -1013,7 +1010,6 @@ class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, OverwriteAw
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                overwrite=self.overwrite,
             ),
             ImportAuthUserProfileTask()
         )
@@ -1092,8 +1088,6 @@ class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no 
     def hive_table_task(self):
         return EnrollmentByEducationLevelTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite
-
         )
 
     @property
@@ -1189,7 +1183,6 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, Overwr
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                overwrite=self.overwrite,
             ),
             ImportAuthUserProfileTask()
         )
@@ -1277,7 +1270,6 @@ class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
     def hive_table_task(self):
         return EnrollmentByModeTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -1345,7 +1337,6 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHi
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                overwrite=self.overwrite,
             )
         )
 
@@ -1431,7 +1422,6 @@ class EnrollmentDailyPartitionTask(HivePartitionTask):  # pragma: no cover
     def hive_table_task(self):
         return EnrollmentDailyTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -1497,7 +1487,6 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiv
                 pattern=self.pattern,
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=self.overwrite_n_days,
-                overwrite=self.overwrite,
             )
         )
 
@@ -1605,7 +1594,6 @@ class ImportCourseSummaryEnrollmentsPartitionTask(HivePartitionTask):  # pragma:
     def hive_table_task(self):
         return ImportCourseSummaryEnrollmentsTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
@@ -1827,7 +1815,6 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
     def hive_table_task(self):
         return CourseProgramMetadataTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite
         )
 
     @property
@@ -1952,7 +1939,6 @@ class CourseGradeByModePartitionTask(HivePartitionTask):  # pragma: no cover
     def hive_table_task(self):
         return CourseGradeByModeTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
         )
 
     @property
