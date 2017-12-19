@@ -286,7 +286,6 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
             event_type,
             mode
         ) = line.split('\t')
-        self.incr_counter(self.counter_category_name, 'Total Events Input', 1)
         yield ((course_id, user_id), (timestamp, event_type, mode))
 
     def reducer(self, key, values):
@@ -294,12 +293,10 @@ class CourseEnrollmentTask(CourseEnrollmentDownstreamMixin, MapReduceJobTask):
         course_id, user_id = key
 
         increment_counter = lambda counter_name: self.incr_counter(self.counter_category_name, counter_name, 1)
-        increment_counter("Total Users_Courses")
 
         event_stream_processor = DaysEnrolledForEvents(course_id, user_id, self.interval, values, increment_counter)
         for day_enrolled_record in event_stream_processor.days_enrolled():
             yield day_enrolled_record
-            self.incr_counter(self.counter_category_name, 'Total Days Output', 1)
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -619,10 +616,7 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
         most_recent_mode = None
         state = UNENROLLED
 
-        self.incr_counter(self.counter_category_name, 'Total Users_Courses', 1)
         for event in sorted_events:
-            self.incr_counter(self.counter_category_name, 'Total Events', 1)
-
             is_enrolled_mode_change = (state == ENROLLED and event.event_type == MODE_CHANGED)
             is_enrolled_deactivate = (state == ENROLLED and event.event_type == DEACTIVATED)
             is_unenrolled_activate = (state == UNENROLLED and event.event_type == ACTIVATED)
@@ -688,7 +682,6 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
             first_credit_enrollment_time=self.format_timestamp(first_event_by_mode.get('credit')),
             end_time=DateTimeField().deserialize_from_string(self.interval.date_b.isoformat())
         )
-        self.incr_counter(self.counter_category_name, 'Enrollment Summary Output', 1)
         yield record.to_string_tuple()
 
     @staticmethod
