@@ -34,7 +34,7 @@ from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField
 from luigi.hive import HiveQueryTask
-
+from edx.analytics.tasks.util.url import ExternalURL
 log = logging.getLogger(__name__)
 
 SUBSECTION_VIEWED_MARKER = 'marker:last_subsection_viewed'
@@ -764,3 +764,13 @@ class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, MysqlI
             warehouse_path=self.warehouse_path,
             interval_type=self.interval_type
         )
+
+
+class TestExternalTask(luigi.Task):
+    test_path = luigi.Parameter()
+
+    def requires(self):
+        return ExternalURL(self.test_path)
+
+    def run(self):
+        log.debug("Testing simple task with External URL for luigi return codes")
