@@ -18,7 +18,7 @@ from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
 )
-from edx.analytics.tasks.insights.enrollments import CourseEnrollmentTableTask
+from edx.analytics.tasks.insights.enrollments import CourseEnrollmentPartitionTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
     BareHiveTableTask,
@@ -455,7 +455,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
-            CourseEnrollmentTableTask(**kwargs_for_enrollment),
+            CourseEnrollmentPartitionTask(**kwargs_for_enrollment),
         )
         # Only the weekly requires use of the calendar.
         if self.interval_type == "weekly":

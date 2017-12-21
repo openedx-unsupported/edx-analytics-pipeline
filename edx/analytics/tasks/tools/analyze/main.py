@@ -230,7 +230,7 @@ class LuigiTaskDescription(object):
             task_name = match.group('name')
             raw_params = match.group('params')
             param_parser = default_parameter_parser
-            if task_name == 'HiveTableFromQueryTask' or task_name == 'HiveTableFromParameterQueryTask':
+            if task_name == 'HiveTableFromQueryTask':
                 param_parser = hive_parameter_parser
             if task_name == 'SqoopImportFromMysql':
                 param_parser = sqoop_parameter_parser
