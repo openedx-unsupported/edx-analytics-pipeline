@@ -17,6 +17,7 @@ key_cache = {}  # pylint: disable=invalid-name
 
 DEFAULT_HADOOP_COUNTER_FUNC = lambda x: None
 
+
 def get_key_from_target(key_file_target):
     """Get the contents of the key file pointed to by the target"""
 

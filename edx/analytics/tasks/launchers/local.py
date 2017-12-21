@@ -44,8 +44,12 @@ OVERRIDE_CONFIGURATION_FILE = 'override.cfg'
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--additional-config', help='additional configuration file to be loaded after default/override',
-        default=None, action='append')
+    parser.add_argument(
+        '--additional-config',
+        help='additional configuration file to be loaded after default/override',
+        default=None,
+        action='append'
+    )
     arguments, _extra_args = parser.parse_known_args()
 
     # We get a cleaned command-line arguments list, free of the arguments *we* care about, since Luigi will throw
@@ -76,8 +80,7 @@ def main():
             else:
                 log.debug('Configuration file \'%s\' does not exist!', additional_config)
 
-
-    # Tell luigi what dependencies to pass to the Hadoop nodes
+    # Tell luigi what dependencies to pass to the Hadoop nodes:
     # - edx.analytics.tasks is used to load the pipeline code, since we cannot trust all will be loaded automatically.
     # - boto is used for all direct interactions with s3.
     # - cjson is used for all parsing event logs.
@@ -103,19 +106,19 @@ def main():
 
 
 def get_cleaned_command_line_args():
-  """
-  Gets a list of command-line arguments after removing local launcher-specific parameters.
-  """
-  arg_list = sys.argv[1:]
-  modified_arg_list = arg_list
+    """
+    Gets a list of command-line arguments after removing local launcher-specific parameters.
+    """
+    arg_list = sys.argv[1:]
+    modified_arg_list = arg_list
 
-  for i, v in enumerate(arg_list):
-    if v == '--additional-config':
-      # Clear out the flag, and clear out the value attached to it.
-      modified_arg_list[i] = None
-      modified_arg_list[i+1] = None
+    for i, v in enumerate(arg_list):
+        if v == '--additional-config':
+            # Clear out the flag, and clear out the value attached to it.
+            modified_arg_list[i] = None
+            modified_arg_list[i + 1] = None
 
-  return list(filter(lambda x: x is not None, modified_arg_list))
+    return list(filter(lambda x: x is not None, modified_arg_list))
 
 
 @contextmanager

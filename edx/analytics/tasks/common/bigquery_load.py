@@ -28,6 +28,7 @@ except ImportError:
 RETRY_LIMIT = 500
 WAIT_DURATION = 5
 
+
 def wait_for_job(job, check_error_result=True):
     counter = 0
     while True:
@@ -60,13 +61,13 @@ class BigQueryTarget(luigi.Target):
         self.create_marker_table()
         dataset = self.client.dataset(self.dataset_id)
         table = dataset.table('table_updates')
-        table.reload() # Load the schema
+        table.reload()   # Load the schema
 
         # Use a tempfile for loading data into table_updates
         # We deliberately don't use table.insert_data as we cannot use delete on
         # a bigquery table with streaming inserts.
         tmp = tempfile.NamedTemporaryFile(delete=False)
-        table_update_row  = (self.update_id, "{dataset}.{table}".format(dataset=self.dataset_id, table=self.table))
+        table_update_row = (self.update_id, "{dataset}.{table}".format(dataset=self.dataset_id, table=self.table))
         tmp.write(','.join(table_update_row))
         tmp.close()
 
@@ -137,6 +138,7 @@ class BigQueryTarget(luigi.Target):
             return False
 
         return len(query.rows) == 1
+
 
 class BigQueryLoadDownstreamMixin(OverwriteOutputMixin):
 

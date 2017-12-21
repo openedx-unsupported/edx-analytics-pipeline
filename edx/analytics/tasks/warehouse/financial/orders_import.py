@@ -224,7 +224,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
                 -- Partner information
                 LEFT OUTER JOIN partner_partner partner ON partner.id = ol.partner_id
-                
+
                 -- Get course entitlement data
                 LEFT OUTER JOIN entitlements_courseentitlement entitlements ON entitlements.order_number = o.number
                 LEFT OUTER JOIN student_courseenrollment enrollments ON enrollments.id = entitlements.enrollment_course_run_id
@@ -301,7 +301,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
                     -- The partner short code is extracted from the course ID during order reconciliation.
                     '' AS partner_short_code,
-                    
+
                     -- These fields are not relevant to shoppingcart orders
                     NULL AS course_uuid,
                     NULL AS expiration_date

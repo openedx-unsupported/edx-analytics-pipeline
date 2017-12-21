@@ -102,7 +102,7 @@ class TestCourseSubjects(TestCase):
 
     def test_course_no_subjects(self):
         """With a course with no subjects, we expect a row with NULLs."""
-        course_with_no_subjects = [{"course_runs": [ {"key": "foo"} ], "subjects": [{}]}]
+        course_with_no_subjects = [{"course_runs": [{"key": "foo"}], "subjects": [{}]}]
         data = self.run_task(course_with_no_subjects)
         # We expect an entry in the list of courses, since there is a course in the catalog.
         self.assertEquals(data.shape[0], 1)
@@ -119,11 +119,11 @@ class TestCourseSubjects(TestCase):
     def test_course_with_one_subject(self):
         """With a course with one subject, we expect to see that subject."""
         input_data = [
-                {
-                    "course_runs": [ {"key": "foo"} ],
-                    "subjects": [{"slug": "testing", "name": "Testing"}]
-                }
-            ]
+            {
+                "course_runs": [{"key": "foo"}],
+                "subjects": [{"slug": "testing", "name": "Testing"}]
+            }
+        ]
 
         data = self.run_task(input_data)
         # We expect to see this course with the mock_subject information.
@@ -140,14 +140,14 @@ class TestCourseSubjects(TestCase):
     def test_course_with_two_subjects(self):
         """With a course with two subjects, we expect to see both of those subjects."""
         input_data = [
-                {
-                    "course_runs": [ {"key": "foo"} ],
-                    "subjects": [
-                        {"slug": "testing", "name": "Testing"},
-                        {"slug": "bar", "name": "Bar"},
-                    ]
-                }
-            ]
+            {
+                "course_runs": [{"key": "foo"}],
+                "subjects": [
+                    {"slug": "testing", "name": "Testing"},
+                    {"slug": "bar", "name": "Bar"},
+                ]
+            }
+        ]
 
         data = self.run_task(input_data)
         # We expect to see this course with two subjects of information.
@@ -173,11 +173,11 @@ class TestCourseSubjects(TestCase):
     def test_multiple_courses(self):
         """With multiple courses, we expect to see subject information for all of them."""
         input_data = [
-                {
-                    "course_runs": [ {"key": "foo"}, {"key": "bar"} ],
-                    "subjects": [{"slug": "testing", "name": "Testing"}]
-                },
-            ]
+            {
+                "course_runs": [{"key": "foo"}, {"key": "bar"}],
+                "subjects": [{"slug": "testing", "name": "Testing"}]
+            },
+        ]
         data = self.run_task(input_data)
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
@@ -201,15 +201,15 @@ class TestCourseSubjects(TestCase):
     def test_multiple_courses(self):
         """With multiple courses, we expect to see subject information for all of them."""
         input_data = [
-                {
-                    "course_runs": [ {"key": "foo"} ],
-                    "subjects": [{"slug": "testing", "name": "Testing"}]
-                },
-                {
-                    "course_runs": [ {"key": "bar"} ],
-                    "subjects": [{"slug": "testing", "name": "Testing"}]
-                }
-            ]
+            {
+                "course_runs": [{"key": "foo"}],
+                "subjects": [{"slug": "testing", "name": "Testing"}]
+            },
+            {
+                "course_runs": [{"key": "bar"}],
+                "subjects": [{"slug": "testing", "name": "Testing"}]
+            }
+        ]
         data = self.run_task(input_data)
         # We expect to see two courses.
         self.assertEquals(data.shape[0], 2)
@@ -237,14 +237,14 @@ class TestCourseSubjects(TestCase):
             - null values if portions of the subject data are missing
         """
         input_data = [
-                {
-                    "subjects": [{"slug": "testing", "name": "Testing"}]
-                },
-                {
-                    "course_runs": [ {"key": "bar"} ],
-                    "subjects": [{"slug": "testing"}]
-                }
-            ]
+            {
+                "subjects": [{"slug": "testing", "name": "Testing"}]
+            },
+            {
+                "course_runs": [{"key": "bar"}],
+                "subjects": [{"slug": "testing"}]
+            }
+        ]
         data = self.run_task(input_data)
         expected = {
             'course_id': 'bar',

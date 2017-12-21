@@ -73,7 +73,7 @@ def analyze_log_file(filename):
         parser = LogFileParser(log_file, message_pattern=MESSAGE_START_PATTERN, message_factory=create_log_message)
         try:
             return analyze_log(parser)
-        except:
+        except Exception:
             sys.stderr.write('Exception on line {0}\n'.format(parser.line_number))
             raise
 
@@ -188,9 +188,9 @@ def analyze_hadoop_job(starting_message, parser):
     while message:
         message = parser.next_message()
 
-        if ('Job complete:' in message.content or
-            'completed successfully' in message.content or 'Ended Job = ' in message.content):
-            if 'Job complete:' in message.content or 'completed successfully' in message.content:
+        job_complete = ('Job complete:' in message.content or 'completed successfully' in message.content)
+        if job_complete or 'Ended Job = ' in message.content:
+            if job_complete:
                 move_measure = analyze_output_move(parser)
                 if move_measure:
                     yield move_measure
@@ -253,6 +253,7 @@ def sqoop_parameter_parser(raw_params):
     table_param_match = re.search(r'table_name=(?P<name>[\w_]+)', raw_params)
     if table_param_match:
         return {'table': table_param_match.group('name')}
+
 
 if __name__ == '__main__':
     analyze()

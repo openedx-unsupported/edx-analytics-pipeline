@@ -33,7 +33,6 @@ except ImportError:
     numpy = None  # pylint: disable=invalid-name
 
 
-
 log = logging.getLogger(__name__)
 
 
@@ -181,7 +180,7 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         elif event_type == 'play_video':
             entity_type = 'video'
             user_actions.append('viewed')
-            entity_id = event_data.get('id', '').strip() # we have seen id values with leading newlines
+            entity_id = event_data.get('id', '').strip()  # We have seen id values with leading newlines.
         elif event_type.startswith('edx.forum.'):
             entity_type = 'discussion'
             if event_type.endswith('.created'):

@@ -375,7 +375,7 @@ class Record(object):
         schema = []
         for field_name, field_obj in cls.get_fields().items():
             mode = 'NULLABLE' if field_obj.nullable else 'REQUIRED'
-            description=getattr(field_obj, 'description', None)
+            description = getattr(field_obj, 'description', None)
             schema.append(SchemaField(field_name, field_obj.bigquery_type, description=description, mode=mode))
         return schema
 
