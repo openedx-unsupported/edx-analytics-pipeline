@@ -18,10 +18,12 @@ log = logging.getLogger(__name__)
 
 class DatabaseImportMixin(SqoopImportMixin):
     """Provides parameters for accessing RDBMS databases and determining date to assign to Hive partition."""
+
     import_date = luigi.DateParameter(
         default=None,
         description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
     )
+
     def __init__(self, *args, **kwargs):
         super(DatabaseImportMixin, self).__init__(*args, **kwargs)
 

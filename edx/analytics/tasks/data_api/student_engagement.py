@@ -11,8 +11,10 @@ from itertools import groupby
 from operator import itemgetter
 
 import luigi
+from luigi.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.insights.database_imports import (
@@ -21,19 +23,12 @@ from edx.analytics.tasks.insights.database_imports import (
 from edx.analytics.tasks.insights.enrollments import CourseEnrollmentPartitionTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
-    BareHiveTableTask,
-    HivePartition,
-    HiveTableFromQueryTask,
-    HiveTableTask,
-    WarehouseMixin,
-    HivePartitionTask,
+    BareHiveTableTask, HivePartition, HivePartitionTask, HiveTableFromQueryTask, HiveTableTask, WarehouseMixin,
     hive_database_name
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField
-from luigi.hive import HiveQueryTask
 
 log = logging.getLogger(__name__)
 
@@ -46,7 +41,7 @@ class StudentEngagementIntervalTypeRecord(Record):
     """
 
     end_date = DateField(description='End date of the interval being analyzed.')
-    course_id = StringField( nullable=False, length=255, description='Identifier of course run.')
+    course_id = StringField(nullable=False, length=255, description='Identifier of course run.')
     username = StringField(
         nullable=False,
         length=255,
@@ -655,7 +650,7 @@ class StudentEngagementDataTask(StudentEngagementTableDownstreamMixin, HiveQuery
             end_date=self.interval.date_b.isoformat()
         )
 
-    def query(self): # pragma: no cover
+    def query(self):  # pragma: no cover
         full_insert_query = """
         USE {database_name};
 

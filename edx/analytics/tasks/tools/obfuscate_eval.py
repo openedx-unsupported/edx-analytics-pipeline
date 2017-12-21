@@ -150,6 +150,7 @@ def create_directory(output_dir):
         elif exc.errno != errno.EEXIST or os.path.isdir(output_dir):
             raise
 
+
 # These event_type values are known to have the possibility that the
 # user_id in context be different from the user_id in event payload.
 # In these cases, the context user_id represents the user performing the

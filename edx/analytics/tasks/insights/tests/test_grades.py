@@ -6,9 +6,10 @@ from edx.analytics.tasks.insights.enrollments import CourseGradeByModeDataTask, 
 
 
 class TestCourseGradeByModeDataTask(TestCase):
+
     def test_requires(self):
-        """The CourseGradeByModeDataTask should require the CourseGradeByModePartitionTask 
-        and the ImportPersistentCourseGradeTask."""
+        # The CourseGradeByModeDataTask should require the CourseGradeByModePartitionTask
+        # and the ImportPersistentCourseGradeTask.
         a_date = datetime(2017, 1, 1)
         the_warehouse_path = '/tmp/foo'
         data_task = CourseGradeByModeDataTask(date=a_date, warehouse_path=the_warehouse_path)

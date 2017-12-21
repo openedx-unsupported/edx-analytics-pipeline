@@ -42,7 +42,6 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
 
     output_root = None
 
-
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
         if value is None:

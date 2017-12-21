@@ -34,7 +34,7 @@ class VerticaService(object):
             with closing(conn.cursor()) as cur:
                 try:
                     yield cur
-                except:
+                except Exception:
                     conn.rollback()
                     raise
                 else:

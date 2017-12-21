@@ -815,10 +815,10 @@ class EnrollmentByGenderDataTask(CourseEnrollmentDownstreamMixin, OverwriteAware
     def hive_partition_task(self):  # pragma: no cover
         """The task that creates the partition used by this job."""
         return EnrollmentByGenderHivePartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByGenderDataTask, self).requires():
@@ -883,6 +883,7 @@ class EnrollmentByGenderMysqlTask(OverwriteHiveAndMysqlDownstreamMixin, CourseEn
             # then by date.
             ('course_id', 'date'),
         ]
+
 
 class EnrollmentByBirthYearRecord(Record):
     """Summarizes a course's enrollments by birth year and date."""
@@ -957,10 +958,10 @@ class EnrollmentByBirthYearDataTask(CourseEnrollmentDownstreamMixin, OverwriteAw
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_birth_year_daily`."""
         return EnrollmentByBirthYearPartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByBirthYearDataTask, self).requires():
@@ -1045,6 +1046,7 @@ class EnrollmentByEducationLevelTableTask(BareHiveTableTask):  # pragma: no cove
     def columns(self):
         return EnrollmentByEducationLevelRecord.get_hive_schema()
 
+
 class EnrollmentByEducationLevelPartitionTask(HivePartitionTask):  # pragma: no cover
     """Creates storage partition for the `course_enrollment_education_level_daily` Hive table."""
 
@@ -1117,10 +1119,10 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, Overwr
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_education_level_daily`."""
         return EnrollmentByEducationLevelPartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByEducationLevelDataTask, self).requires():
@@ -1145,7 +1147,8 @@ class EnrollmentByEducationLevelDataTask(CourseEnrollmentDownstreamMixin, Overwr
 class EnrollmentByEducationLevelMysqlTask(
     OverwriteHiveAndMysqlDownstreamMixin,
     CourseEnrollmentDownstreamMixin,
-    MysqlInsertTask):
+    MysqlInsertTask
+):
     """
     Breakdown of enrollments by education level as reported by the user.
 
@@ -1260,10 +1263,10 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHi
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_mode_daily`."""
         return EnrollmentByModePartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentByModeDataTask, self).requires():
@@ -1396,10 +1399,10 @@ class EnrollmentDailyDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHiv
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_enrollment_daily`."""
         return EnrollmentDailyPartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(EnrollmentDailyDataTask, self).requires():
@@ -1532,7 +1535,8 @@ class CourseMetaSummaryEnrollmentDataTask(
     OverwriteHiveAndMysqlDownstreamMixin,
     CourseSummaryEnrollmentDownstreamMixin,
     LoadInternalReportingCourseCatalogMixin,
-    OverwriteAwareHiveQueryDataTask):  # pragma: no cover
+    OverwriteAwareHiveQueryDataTask
+):  # pragma: no cover
     """
     Aggregates data from the various course_enrollment tables into `course_meta_summary_enrollment` Hive table.
 
@@ -1585,10 +1589,10 @@ class CourseMetaSummaryEnrollmentDataTask(
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_meta_summary_enrollment`."""
         return CourseMetaSummaryEnrollmentPartitionTask(
-                date=self.interval.date_b,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite_hive,
-            )
+            date=self.interval.date_b,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite_hive,
+        )
 
     def requires(self):  # pragma: no cover
         for requirement in super(CourseMetaSummaryEnrollmentDataTask, self).requires():
@@ -1654,7 +1658,8 @@ class CourseMetaSummaryEnrollmentDataTask(
 class CourseMetaSummaryEnrollmentIntoMysql(
     OverwriteHiveAndMysqlDownstreamMixin,
     CourseSummaryEnrollmentDownstreamMixin,
-    MysqlInsertTask):
+    MysqlInsertTask
+):
     """
     Creates the course_meta_summary_enrollment sql table.
 
@@ -1754,10 +1759,10 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Over
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_program_metadata`."""
         return CourseProgramMetadataPartitionTask(
-                date=self.date,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     def requires(self):
         for requirement in super(CourseProgramMetadataDataTask, self).requires():
@@ -1887,10 +1892,10 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, Overwrit
     def hive_partition_task(self):
         """Returns Task that creates partition on `course_grade_by_mode`."""
         return CourseGradeByModePartitionTask(
-                date=self.date,
-                warehouse_path=self.warehouse_path,
-                overwrite=self.overwrite,
-            )
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            overwrite=self.overwrite,
+        )
 
     def requires(self):
         for requirement in super(CourseGradeByModeDataTask, self).requires():

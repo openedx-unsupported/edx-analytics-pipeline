@@ -346,7 +346,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
             # commit only if both operations completed successfully.
             connection.commit()
-        except:
+        except Exception:
             connection.rollback()
             raise
         finally:

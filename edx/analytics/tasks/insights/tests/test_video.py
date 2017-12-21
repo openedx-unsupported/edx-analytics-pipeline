@@ -41,7 +41,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 23.4398, "code": "87389iouhdfh", "duration": %s}' %(
+                "event": '{"id": "%s", "currentTime": 23.4398, "code": "87389iouhdfh", "duration": %s}' % (
                     self.video_id,
                     self.video_duration
                 ),
@@ -60,7 +60,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 28, "code": "87389iouhdfh", "duration": %s}' %(
+                "event": '{"id": "%s", "currentTime": 28, "code": "87389iouhdfh", "duration": %s}' % (
                     self.video_id,
                     self.video_duration
                 ),
@@ -79,7 +79,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 100, "code": "87389iouhdfh", "duration": %s}' %(
+                "event": '{"id": "%s", "currentTime": 100, "code": "87389iouhdfh", "duration": %s}' % (
                     self.video_id,
                     self.video_duration
                 ),
@@ -98,7 +98,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "old_time": 14, "new_time": 10, "code": "87389iouhdfh", "duration": %s}' %(
+                "event": '{"id": "%s", "old_time": 14, "new_time": 10, "code": "87389iouhdfh", "duration": %s}' % (
                     self.video_id,
                     self.video_duration
                 ),
