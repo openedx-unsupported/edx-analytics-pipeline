@@ -24,7 +24,7 @@ def copy_file_to_file(src_file, output_file, progress=None):
             if progress:
                 try:
                     progress(len(transfer_buffer))
-                except:  # pylint: disable=bare-except
+                except Exception:  # pylint: disable=bare-except
                     pass
         else:
             break

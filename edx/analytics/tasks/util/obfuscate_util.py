@@ -419,6 +419,7 @@ def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
     """Development: Find context phrases that might indicate the presence of an email address nearby."""
     return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
 
+
 # Find names.
 NAME_CONTEXT = re.compile(
     r'\b(hi|hello|sincerely|yours truly|Dear|Mr|Ms|Mrs|regards|cordially|best wishes|cheers|my name)\b',

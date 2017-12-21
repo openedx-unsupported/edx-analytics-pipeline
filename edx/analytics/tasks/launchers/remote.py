@@ -20,6 +20,7 @@ REMOTE_LOG_DIR = '/var/log/analytics-tasks'
 REMOTE_CONFIG_DIR_BASE = 'config'
 REMOTE_CODE_DIR_BASE = 'repo'
 
+
 def main():
     """Parse arguments and run the remote task."""
     parser = argparse.ArgumentParser()
@@ -57,13 +58,13 @@ def main():
 
     # Push in any secure config values that we got.
     if arguments.secure_config:
-      for config_path in arguments.secure_config:
-        # We construct an absolute path here because the parameter that comes in is simply
-        # relative to the checkout of the configuration repository, but the local scheduler
-        # shouldn't have to know that, which in turn makes --additional-config agnostic of
-        # how we're using it for edX's purposes (with a repository).
-        arguments.launch_task_arguments.append('--additional-config')
-        arguments.launch_task_arguments.append(os.path.join(REMOTE_DATA_DIR, uid, REMOTE_CONFIG_DIR_BASE, config_path))
+        for config_path in arguments.secure_config:
+            # We construct an absolute path here because the parameter that comes in is simply
+            # relative to the checkout of the configuration repository, but the local scheduler
+            # shouldn't have to know that, which in turn makes --additional-config agnostic of
+            # how we're using it for edX's purposes (with a repository).
+            arguments.launch_task_arguments.append('--additional-config')
+            arguments.launch_task_arguments.append(os.path.join(REMOTE_DATA_DIR, uid, REMOTE_CONFIG_DIR_BASE, config_path))
 
     if arguments.vagrant_path:
         parse_vagrant_ssh_config(arguments)

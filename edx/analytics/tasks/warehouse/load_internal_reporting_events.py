@@ -871,7 +871,6 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
 
         project_name = self.PROJECT_NAME
 
-
         event_dict = {}
         self.add_calculated_event_entry(event_dict, 'input_file', self.get_map_input_file())
         self.add_calculated_event_entry(event_dict, 'event_type', event_type)
@@ -1079,7 +1078,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     pass
                 # Skip values that are explicitly set or calculated for JSONEventRecord:
                 elif field_key in ['emitter_type', 'source', 'raw_event']:
-                     pass
+                    pass
                 # Map values that are top-level:
                 elif field_key in ['channel']:
                     add_event_mapping_entry(u"root.{}".format(field_key))
@@ -1232,7 +1231,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             self.add_calculated_event_entry(event_dict, 'project', project_name)
             self.add_calculated_event_entry(event_dict, 'event_source', event_source)
             self.add_calculated_event_entry(event_dict, 'event_category', event_category)
-
 
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)

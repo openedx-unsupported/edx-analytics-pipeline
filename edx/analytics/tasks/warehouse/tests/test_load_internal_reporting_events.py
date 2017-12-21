@@ -91,6 +91,7 @@ class BaseTrackingEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMi
         )
         self.task.init_local()
 
+
 @ddt
 class TrackingEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, unittest.TestCase):
     """Test class for emission of tracking log events in EventRecord format."""
@@ -169,6 +170,7 @@ class TrackingEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, unittes
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(event, expected_key, expected_value)
+
 
 @ddt
 class TrackingJsonEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, unittest.TestCase):
@@ -412,8 +414,8 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
 
     @data(
         ({'receivedAt': "2013-12-17T15:38:32.805444Z", 'requestTime': "2014-12-18T15:38:32.805444Z"}, "2013-12-17T15:38:32.805444+00:00"),
-        ({'requestTime': "2014-12-01T15:38:32.805444Z"}, '2014-12-01T15:38:32.805444+00:00'), # default to requestTime
-        ({}, '2013-12-17T15:38:32.796000+00:00'), # default to timestamp
+        ({'requestTime': "2014-12-01T15:38:32.805444Z"}, '2014-12-01T15:38:32.805444+00:00'),  # default to requestTime
+        ({}, '2013-12-17T15:38:32.796000+00:00'),  # default to timestamp
     )
     @unpack
     def test_defaulting_arrival_timestamps(self, kwargs, expected_timestamp):
