@@ -27,7 +27,7 @@ from edx.analytics.tasks.util.hive import (
     WarehouseMixin,
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 
 log = logging.getLogger(__name__)
 
@@ -639,3 +639,12 @@ class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQu
     @property
     def partition(self):
         return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
+
+class TestExternalTask(luigi.Task):
+    test_path = luigi.Parameter()
+
+    def requires(self):
+        return ExternalURL(self.test_path)
+
+    def run(self):
+        log.debug("Testing simple task with External URL for luigi return codes")

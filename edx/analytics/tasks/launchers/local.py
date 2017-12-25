@@ -26,6 +26,7 @@ import requests
 import luigi
 import luigi.configuration
 import luigi.contrib.hadoop
+import luigi.retcodes
 
 import edx.analytics.tasks
 
@@ -95,7 +96,10 @@ def main():
     # Launch Luigi using the default builder
 
     with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
-        luigi.run(cmdline_args)
+        try:
+            luigi.retcodes.run_with_retcodes(cmdline_args)
+        except SystemExit as e:
+            log.debug("Luigi status: {}".format(str(e)))
 
 
 def get_cleaned_command_line_args():
