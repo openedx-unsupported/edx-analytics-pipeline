@@ -19,7 +19,7 @@ from edx.analytics.tasks.util.hive import (
     BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask, WarehouseMixin
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.record import BooleanField, DateField, DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask
@@ -504,10 +504,11 @@ class DaysEnrolledForEvents(object):
 
 class CourseEnrollmentRecord(Record):
     """A user's enrollment history."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
+    date = DateField(nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learner is enrolled in.')
     user_id = IntegerField(description='The user_id of the learner.')
-    at_end = BooleanField(description='An indicator if the learner is still enrolled in the course by this date.')
+    at_end = BooleanField(description='An indicator if the learner is still enrolled in the course at then end of this '
+                                      'date.')
     change = BooleanField(description='')
     mode = StringField(length=255, description='')
 
@@ -741,7 +742,7 @@ class CourseEnrollmentSummaryPartitionTask(CourseEnrollmentDownstreamMixin, Hive
 
 class EnrollmentByGenderRecord(Record):
     """Summarizes a course's enrollment by gender and date."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
+    date = DateField(nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learners are enrolled in.')
     gender = StringField(length=6, description='The gender of the learner.')
     count = IntegerField(description='The number of learners in the course with this gender on this date.')
@@ -887,7 +888,7 @@ class EnrollmentByGenderMysqlTask(OverwriteHiveAndMysqlDownstreamMixin, CourseEn
 
 class EnrollmentByBirthYearRecord(Record):
     """Summarizes a course's enrollments by birth year and date."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
+    date = DateField(length=255, nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learners are enrolled in.')
     birth_year = IntegerField(description='The birth year of the learner.')
     count = IntegerField(description='The number of learners with this birth year enrolled in the course on this date.')
@@ -1021,7 +1022,7 @@ class EnrollmentByBirthYearToMysqlTask(OverwriteHiveAndMysqlDownstreamMixin, Cou
 
 class EnrollmentByEducationLevelRecord(Record):
     """Summarizes a course's enrollment by education level and date."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
+    date = DateField(length=255, nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learners are enrolled in.')
     education_level = StringField(length=16, description='The education level of the learner.')
     count = IntegerField(description='The number of learners with this education level in the course on this date.')
@@ -1195,7 +1196,7 @@ class EnrollmentByEducationLevelMysqlTask(
 
 class EnrollmentByModeRecord(Record):
     """Summarizes a course's enrollment by mode and date."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
+    date = DateField(length=255, nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learners are enrolled in.')
     mode = StringField(length=255, nullable=False, description='The mode of the learner.')
     count = IntegerField(description='The number of learners with this mode in the course on this date.')
@@ -1334,8 +1335,8 @@ class EnrollmentByModeTask(OverwriteHiveAndMysqlDownstreamMixin, CourseEnrollmen
 
 class EnrollmentDailyRecord(Record):
     """Summarizes a course's enrollment by date."""
-    date = StringField(length=255, nullable=False, description='Enrollment date.')
     course_id = StringField(length=255, nullable=False, description='The course the learners are enrolled in.')
+    date = DateField(nullable=False, description='Enrollment date.')
     count = IntegerField(description='The number of learners in the course on this date.')
     cumulative_count = IntegerField(description='The count of learners that ever enrolled in this course on or before '
                                                 'this date.')
