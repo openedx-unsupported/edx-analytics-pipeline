@@ -565,6 +565,8 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
 class ExternalCourseEnrollmentPartitionTask(CourseEnrollmentPartitionTask):
 
     def requires(self):
+        yield self.hive_table_task
+
         yield ExternalURL(
             url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
         )
