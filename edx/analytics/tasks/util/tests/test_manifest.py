@@ -3,7 +3,7 @@
 from unittest import TestCase
 
 import luigi
-import luigi.hdfs
+from luigi.contrib.hdfs.target import HdfsTarget
 from mock import patch
 
 from edx.analytics.tasks.util.manifest import (
@@ -49,7 +49,7 @@ class ManifestInputTargetTest(TestCase):
         self.assertFalse(hasattr(target, 'input_format'))
 
     def test_manifest_file_construction(self):
-        target = create_manifest_target(self.MANIFEST_ID, [luigi.hdfs.HdfsTarget('s3://foo/bar')])
+        target = create_manifest_target(self.MANIFEST_ID, [HdfsTarget('s3://foo/bar')])
         self.assertEquals(target.value, 's3://foo/bar\n')
 
     @with_luigi_config('manifest', 'threshold', 1)

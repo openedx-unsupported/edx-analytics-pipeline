@@ -112,6 +112,14 @@ def modify_target_for_local_server(target):
         return target
 
 
+def as_list_param(value, escape_quotes=True):
+    """Convenience method to convert a single string to a format expected by a Luigi ListParameter."""
+    if escape_quotes:
+        return '[\\"{}\\"]'.format(value)
+    else:
+        return json.dumps([value, ])
+
+
 def coerce_columns_to_string(row):
     # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
     # them into string before comparison with expected output.
@@ -201,7 +209,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'manifest': {
                 'path': url_path_join(self.test_root, 'manifest'),
-                'lib_jar': self.config['oddjob_jar']
+                'lib_jar': self.config['oddjob_jar'],
             },
             'database-import': {
                 'credentials': self.config['credentials_file_url'],
@@ -223,10 +231,12 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': self.test_src
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*tracking.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
             },
             'segment-logs': {
-                'source': self.test_src
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*segment.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
             },
             'course-structure': {
                 'api_root_url': 'acceptance.test',
@@ -264,7 +274,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'schema': schema
             }
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
+            task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
         if 'elasticsearch_connection_class' in self.config:
             task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:

@@ -43,7 +43,7 @@ class HistogramTaskFromSqoopParamsMixin(object):
         config_path={'section': 'database-export', 'name': 'credentials'},
         description='Credentials for the analytics db',
     )
-    sqoop_overwrite = luigi.BooleanParameter(  # prefixed with sqoop for disambiguation
+    sqoop_overwrite = luigi.BoolParameter(  # prefixed with sqoop for disambiguation
         default=False,
         description='Overwrite any existing imports.',
     )

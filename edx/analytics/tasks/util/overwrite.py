@@ -24,7 +24,7 @@ class OverwriteOutputMixin(object):
     Note that this should be included in a task definition *before*
     the Task base class, so that the complete() method is overridden.
     """
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=False,
         description='Whether or not to overwrite existing outputs; set to False by default for now.',
         significant=False

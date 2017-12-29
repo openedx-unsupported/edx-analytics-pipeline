@@ -5,7 +5,7 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
+from luigi.contrib.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
 from luigi.parameter import Parameter
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -328,8 +328,12 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         yield self.hive_table_task
 
     def output(self):
+        # Ugh.  A change in Luigi 1.0.22 (after our 1.0.17 fork) resulted in a change in ApacheHiveCommandClient.table_exists()
+        # behavior, so that it throws an exception when checking for a specific partition when the table doesn't exist.
+        # This means that HivePartitionTarget.exists() will fail, where before it succeeded even if the table did not exist.
+        # So change fail_missing_table=False here.  There is no reason for it anyway.
         return HivePartitionTarget(
-            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=True
+            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
         )
 
     def job_runner(self):
@@ -425,7 +429,6 @@ class OverwriteAwareHiveQueryDataTask(WarehouseMixin, OverwriteOutputMixin, Hive
     """
     A generalized Data task whose output is a hive table populated from a hive query.
     """
-
     @property
     def insert_query(self):
         """The query builder that controls the structure and fields inserted into the new table.  This insert_query()

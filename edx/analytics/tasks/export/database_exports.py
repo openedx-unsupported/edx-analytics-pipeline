@@ -130,7 +130,7 @@ class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
         default=None,
         description='A "where" clause to be passed to Sqoop.',
     )
-    verbose = luigi.BooleanParameter(
+    verbose = luigi.BoolParameter(
         default=False,
         significant=False,
         description='Sqoop prints more information while working.',

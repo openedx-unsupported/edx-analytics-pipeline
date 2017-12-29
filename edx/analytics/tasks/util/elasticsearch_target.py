@@ -6,7 +6,7 @@ import logging
 
 import luigi
 import luigi.configuration
-import luigi.hdfs
+from luigi.contrib.hdfs.target import HdfsTarget
 
 try:
     import elasticsearch
@@ -17,7 +17,7 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 
-class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
+class ElasticsearchTarget(HdfsTarget):
     """
     Represents an index in an elasticsearch cluster.
 

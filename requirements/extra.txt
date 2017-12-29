@@ -4,7 +4,10 @@
 http://cdn.mysql.com/Downloads/Connector-Python/mysql-connector-python-1.2.2.zip  	# GPL v2 with FOSS License Exception
 
 # Putting these here rather than in default.in allows us to avoid using editable mode that pip-compile requires.
-git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
+# git+https://github.com/edx/luigi.git@a73700ca51685974220ef6069d2f078312055444#egg=luigi 		# Apache License 2.0
+# git+https://github.com/spotify/luigi.git@2.3.3#egg=luigi # Apache License 2.0
+git+https://github.com/brianhw/luigi.git@687397af4835e649e1c82000efa1ea551c582e77#egg=luigi # Apache License 2.0
+
 git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
 
 # This was originally separated out from default.in so that it was not included in docs.txt.  Not clear why.

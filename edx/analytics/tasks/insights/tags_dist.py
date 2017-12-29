@@ -3,7 +3,7 @@ Luigi tasks for extracting tags distribution statistics from tracking log files.
 """
 import logging
 
-import luigi.s3
+import luigi
 
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
@@ -157,7 +157,7 @@ class TagsDistributionWorkflow(
     """
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description="Whether or not to overwrite existing outputs",
         significant=False
