@@ -310,14 +310,14 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
     Creates/populates the `course_activity` Result store table.
     """
 
-    overwrite_hive = luigi.BooleanParameter(
+    overwrite_hive = luigi.BoolParameter(
         default=False,
         description='Overwrite the hive data used as source for this task. Users should set this to True '
                     'when using a persistent Hive metastore.',
         significant=False
     )
 
-    overwrite_mysql = luigi.BooleanParameter(
+    overwrite_mysql = luigi.BoolParameter(
         default=False,
         description='Overwrite the table if set to True. Allow users to override this behavior if they '
                     'want.',
