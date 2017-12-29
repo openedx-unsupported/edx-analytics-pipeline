@@ -11,7 +11,7 @@ from itertools import groupby
 from operator import itemgetter
 
 import luigi
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask

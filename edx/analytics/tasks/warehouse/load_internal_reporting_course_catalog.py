@@ -7,7 +7,7 @@ import json
 import logging
 
 import luigi
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
@@ -31,16 +31,14 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
         default=datetime.datetime.utcnow().date(),
         description='Default is today, UTC.',
     )
-    partner_short_codes = luigi.Parameter(
-        default_from_config={'section': 'course-catalog-api', 'name': 'partner_short_codes'},
-        is_list=True,
-        default=None,
+    partner_short_codes = luigi.ListParameter(
+        config_path={'section': 'course-catalog-api', 'name': 'partner_short_codes'},
+        default=list(),
         description="A list of partner short codes that we should fetch data for."
     )
-    partner_api_urls = luigi.Parameter(
-        default_from_config={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
-        is_list=True,
-        default=None,
+    partner_api_urls = luigi.ListParameter(
+        config_path={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
+        default=list(),
         description="A list of API URLs that are associated with the partner_short_codes.  This list must exactly " +
                     "match the ordering of the partner_short_codes list."
     )

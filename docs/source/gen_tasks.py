@@ -7,7 +7,7 @@ import argparse
 import sys
 import time
 import stevedore
-from luigi.task import Register
+from luigi.task_register import Register
 
 
 SPHINX_DIR = os.path.dirname(__file__)
@@ -81,7 +81,7 @@ Back to :doc:`index`
         sys.exit('Unable to write to {file_name}'.format(file_name=tocfile_name))
 
     # For each Task, sorted by class name
-    tasks = Register.get_reg()
+    tasks = Register._get_reg()
     for name in sorted(tasks):
         cls = tasks[name]
         module = cls.__module__

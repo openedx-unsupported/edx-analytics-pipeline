@@ -66,7 +66,7 @@ class ProblemResponseReportWorkflowAcceptanceTest(AcceptanceTestCase):
     def validate_problem_response_report(self):
         """Run the ProblemResponseReportWorkflow task and test the output."""
         marker_path = url_path_join(self.test_out, 'marker-{}'.format(str(time.time())))
-        report_date = self.DATE.strftime('%Y-%m-%d')
+        report_date = self.DATE.strftime('%Y-%m-%dT%H%M%S')
 
         # The test tracking.log file contains problem_check events for 2016-09-06, 09-07, and 09-08.
         # However, to test the interval parameter propagation, we deliberately exclude all but the 2016-09-07 events.

@@ -59,9 +59,9 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
     COMPLETE_SOURCE_PATHS = COMPLETE_SOURCE_PATHS_1 + COMPLETE_SOURCE_PATHS_2
     SOURCE = [SOURCE_1, SOURCE_2]
 
-    @patch('edx.analytics.tasks.util.s3_util.connect_s3')
+    @patch('luigi.contrib.s3.S3Client.s3')
     def test_requires(self, connect_s3_mock):
-        s3_conn_mock = connect_s3_mock.return_value
+        s3_conn_mock = connect_s3_mock
         bucket_mock = s3_conn_mock.get_bucket.return_value
 
         class FakeKey(object):
@@ -96,8 +96,8 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
     def test_default_pattern(self):
         task = PathSelectionByDateIntervalTask(interval=Month.parse('2014-03'))
         self.assertEquals(task.pattern, (
-            r'.*tracking.log-(?P<date>\d{8}).*\.gz',
-            r'.*tracking.notalog-(?P<date>\d{8}).*\.gz',
+            r'.*tracking.log-(?P<date>\\d{8}).*\\.gz',
+            r'.*tracking.notalog-(?P<date>\\d{8}).*\\.gz',
         ))
 
     def test_filtering_of_urls(self):
@@ -192,14 +192,14 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
             'FakeServerGroup/tracking.log-20140401-1396379384.gz',
         ])
 
-    @with_luigi_config('event-logs', 'pattern', 'foobar')
+    @with_luigi_config('event-logs', 'pattern', '["foobar"]')
     def test_pattern_from_config(self):
         task = PathSelectionByDateIntervalTask(
             interval=Month.parse('2014-03')
         )
         self.assertEquals(task.pattern, ('foobar',))
 
-    @with_luigi_config('event-logs', 'pattern', ['foobar'])
+    @with_luigi_config('event-logs', 'pattern', '["foobar"]')
     def test_pattern_override(self):
         task = PathSelectionByDateIntervalTask(
             interval=Month.parse('2014-03'),
