@@ -221,7 +221,7 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
         self.is_complete = False
 
     def should_exclude_table(self, table_name):
-        """Determines whether to exlude a table during the import."""
+        """Determines whether to exclude a table during the import."""
         if any(re.match(pattern, table_name) for pattern in self.exclude):
             return True
         return False
