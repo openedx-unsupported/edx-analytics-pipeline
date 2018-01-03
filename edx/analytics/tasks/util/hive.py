@@ -6,7 +6,7 @@ import textwrap
 import luigi
 from luigi.configuration import get_config
 from luigi.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
-from luigi.parameter import Parameter
+from luigi.parameter import Parameter, BooleanParameter
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -426,6 +426,13 @@ class OverwriteAwareHiveQueryDataTask(WarehouseMixin, OverwriteOutputMixin, Hive
     A generalized Data task whose output is a hive table populated from a hive query.
     """
 
+    overwrite_target_partition = BooleanParameter(
+        significant=False,
+        description='Overwrite the target partition, deleting any existing data.  This will not impact other '
+                    'partitions.  Do not use with incrementally built partitions.',
+        default=True
+    )
+
     @property
     def insert_query(self):
         """The query builder that controls the structure and fields inserted into the new table.  This insert_query()
@@ -437,18 +444,26 @@ class OverwriteAwareHiveQueryDataTask(WarehouseMixin, OverwriteOutputMixin, Hive
         """The HivePartitionTask that needs to be generated."""
         raise NotImplementedError
 
+    @property
+    def data_modification_sql_text(self):
+        """Returns the appropriate SQL text for the chosen overwrite_target_partition strategy."""
+        if self.overwrite_target_partition:
+            return "OVERWRITE"
+        else:
+            return "INTO"
+
     def query(self):  # pragma: no cover
         full_insert_query = """
                     USE {database_name};
-                    INSERT INTO TABLE {table}
+                    INSERT {into_or_overwrite} TABLE {table}
                     PARTITION ({partition.query_spec})
                     {insert_query};
                     """.format(database_name=hive_database_name(),
+                               into_or_overwrite=self.data_modification_sql_text,
                                table=self.partition_task.hive_table_task.table,
                                partition=self.partition,
                                insert_query=self.insert_query.strip(),  # pylint: disable=no-member
                                )
-
         return textwrap.dedent(full_insert_query)
 
     @property
