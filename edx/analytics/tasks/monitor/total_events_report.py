@@ -7,7 +7,7 @@ import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask
+from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask, SparkTotalEventsDailyTask
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url
 
 log = logging.getLogger(__name__)
@@ -73,10 +73,7 @@ class TotalEventsReportWorkflow(MapReduceJobTaskMixin, TotalEventsReport, EventL
     """
 
     def requires(self):
-        return TotalEventsDailyTask(
-            mapreduce_engine=self.mapreduce_engine,
-            lib_jar=self.lib_jar,
-            n_reduce_tasks=self.n_reduce_tasks,
+        return SparkTotalEventsDailyTask(
             source=self.source,
             output_root=self.counts,
             pattern=self.pattern,
