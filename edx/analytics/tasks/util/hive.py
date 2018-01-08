@@ -6,7 +6,7 @@ import textwrap
 import luigi
 from luigi.configuration import get_config
 from luigi.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
-from luigi.parameter import Parameter, BooleanParameter
+from luigi.parameter import BooleanParameter, Parameter
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
