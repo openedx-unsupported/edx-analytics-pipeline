@@ -10,7 +10,9 @@ Examples::
 """
 from __future__ import absolute_import
 
+import logging
 import os
+import time
 import urlparse
 
 import luigi
@@ -23,10 +25,15 @@ from luigi.s3 import S3Target
 
 from edx.analytics.tasks.util.s3_util import S3HdfsTarget, ScalableS3Client
 
+log = logging.getLogger(__name__)
 
 class MarkerMixin(object):
     """This mixin handles Targets that cannot accurately be measured by the existence of data files, and instead need
     another positive marker to indicate Task success."""
+
+    # Check if the marker file is readable after being written, and if not then block for up to 10 minutes until a read
+    # is successful.
+    confirm_marker_file_after_writing = True
 
     def exists(self):  # pragma: no cover
         """Completion of this target is based solely on the existence of the marker file."""
@@ -36,6 +43,20 @@ class MarkerMixin(object):
         """Generate the marker file using file system native to the parent Target."""
         marker = self.__class__(path=self.path + "/_SUCCESS")
         marker.open("w").close()
+
+        if self.confirm_marker_file_after_writing:
+            read_attempts = 10
+            marker_exists = False
+
+            while read_attempts > 0 and not marker_exists:
+                marker_exists = self.exists()
+
+                if not marker_exists:
+                    log.debug("Marker file {} does not exist, sleeping for 60 seconds".format(marker))
+                    time.sleep(60)
+
+            if not marker_exists:
+                log.error("Error Marker file {} should have been created but could not be read!".format(marker))
 
 
 class S3MarkerTarget(MarkerMixin, S3Target):
