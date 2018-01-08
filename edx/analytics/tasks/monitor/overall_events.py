@@ -85,7 +85,8 @@ class SparkTotalEventsDailyTask(EventLogSelectionMixinSpark, PySparkTask):
             .add("session", StringType(), True)
 
         df = spark.read.format('json').load(self.path_targets, schema=event_log_schema)
-        df = df.withColumn('event_date', date_format(to_date(df['time']), 'yyyy-MM-dd'))
+        df = df.filter(df['time'].isNotNull()) \
+            .withColumn('event_date', date_format(to_date(df['time']), 'yyyy-MM-dd'))
         df = df.filter(df['event_date'] == self.lower_bound_date_string).groupBy('event_date').count()
         df.repartition(1).write.csv(self.output().path, mode='overwrite', sep='\t')
         # df.repartition(1).rdd.map(lambda row: '\t'.join(map(str, row))).saveAsTextFile(self.output_dir().path)
