@@ -1,4 +1,5 @@
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, PathSelectionByDateIntervalTask
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from luigi.contrib.spark import PySparkTask
 
 
@@ -59,29 +60,45 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
 
         return event_log_schema
 
+    def get_event_log_dataframe(self, spark, *args, **kwargs):
+        from pyspark.sql.functions import to_date, udf, struct, date_format
+        dataframe = spark.read.format('json').load(self.path_targets, schema=self.get_log_schema())
+        dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
+            .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
+        dataframe = dataframe.filter(dataframe['event_date'] == self.lower_bound_date_string)
+        return dataframe
 
-class SparkJobTask(PySparkTask):
+
+class SparkJobTask(OverwriteOutputMixin, PySparkTask):
     """
     Wrapper for spark task
     """
 
-    # TODO: Implement output overwrite functionality
-
     _spark = None
-    _sc = None
+    _spark_context = None
+    _sql_context = None
+    _hive_context = None
 
     def init_spark(self, sc):
         """
-        Initialize spark context
+        Initialize spark, sql and hive context
         :param sc: Spark context
         """
-        from pyspark.sql import SparkSession
-        spark = SparkSession.builder.getOrCreate()
-        self._sc = sc
-        self._spark = spark
+        from pyspark.sql import SparkSession, SQLContext, HiveContext
+        self._sql_context = SQLContext(sc)
+        self._spark_context = sc
+        self._spark = SparkSession.builder.getOrCreate()
+        self._hive_context = HiveContext(sc)
 
     def spark_job(self):
+        """
+        Spark code for the job
+        """
         raise NotImplementedError
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(SparkJobTask, self).run()
 
     def main(self, sc, *args):
         self.init_spark(sc)

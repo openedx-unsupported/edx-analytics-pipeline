@@ -49,10 +49,7 @@ class SparkTotalEventsDailyTask(EventLogSelectionMixinSpark, SparkJobTask):
         return get_target_from_url(self.output_root)
 
     def spark_job(self):
-        from pyspark.sql.functions import to_date, udf, struct, date_format
-        df = self._spark.read.format('json').load(self.path_targets, schema=self.get_log_schema())
-        df = df.filter(df['time'].isNotNull()) \
-            .withColumn('event_date', date_format(to_date(df['time']), 'yyyy-MM-dd'))
-        df = df.filter(df['event_date'] == self.lower_bound_date_string).groupBy('event_date').count()
+        df = self.get_event_log_dataframe(self._spark)
+        df = df.groupBy('event_date').count()
         df.repartition(1).write.csv(self.output().path, mode='overwrite', sep='\t')
         # df.repartition(1).rdd.map(lambda row: '\t'.join(map(str, row))).saveAsTextFile(self.output_dir().path)

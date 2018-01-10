@@ -9,6 +9,7 @@ from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask, SparkTotalEventsDailyTask
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
 
@@ -66,7 +67,11 @@ class TotalEventsReport(luigi.Task):
                 output_file.write('\n')
 
 
-class TotalEventsReportWorkflow(MapReduceJobTaskMixin, TotalEventsReport, EventLogSelectionDownstreamMixin):
+class TotalEventsReportWorkflow(
+    MapReduceJobTaskMixin,
+    OverwriteOutputMixin,
+    TotalEventsReport,
+    EventLogSelectionDownstreamMixin):
     """
     Generates report for an event count by date for all events.
 
@@ -76,6 +81,7 @@ class TotalEventsReportWorkflow(MapReduceJobTaskMixin, TotalEventsReport, EventL
         return SparkTotalEventsDailyTask(
             source=self.source,
             output_root=self.counts,
+            overwrite=self.overwrite,
             pattern=self.pattern,
             interval=self.interval
         )
