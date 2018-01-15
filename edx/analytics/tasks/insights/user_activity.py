@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import os
 from collections import Counter
 
 import luigi
@@ -152,6 +153,17 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
 
     def output(self):
         return get_target_from_url(self.output_root)
+
+    @property
+    def files(self):
+        """
+        List of files to be placed in the working directory of each executor
+        """
+        files = super(UserActivityTaskSpark, self).files
+        if files is None:
+            files = []
+        files.append(os.path.join(os.path.dirname(os.path.dirname(__file__)), 'common/spark.py'))
+        return files
 
     def spark_job(self):
         from pyspark.sql.functions import udf, struct, split, explode
