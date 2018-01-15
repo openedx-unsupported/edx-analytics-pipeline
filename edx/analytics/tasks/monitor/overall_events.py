@@ -40,9 +40,6 @@ class TotalEventsDailyTask(EventLogSelectionMixin, MapReduceJobTask):
 class SparkTotalEventsDailyTask(EventLogSelectionMixinSpark, SparkJobTask):
     """Produce a dataset for total events within a given time period."""
 
-    driver_memory = '2g'
-    executor_memory = '3g'
-
     output_root = luigi.Parameter()
 
     def output(self):
