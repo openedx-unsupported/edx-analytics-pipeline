@@ -238,6 +238,8 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
     #     return files
 
     def spark_job(self):
+        # adding file to spark context
+        self._spark_context.addPyFile(os.path.realpath(__file__))
         from pyspark.sql.functions import udf, struct, split, explode
         from pyspark.sql.types import ArrayType, StringType
         df = self.get_event_log_dataframe(self._spark)
