@@ -162,7 +162,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         files = super(UserActivityTaskSpark, self).files
         if files is None:
             files = []
-        files.append(os.path.join(os.path.dirname(__file__), '../../../../../../edx/analytics/tasks/common/spark.py'))
+        files.append('/var/lib/analytics-tasks/edx/analytics/tasks/common/spark.py')
         return files
 
     def spark_job(self):
