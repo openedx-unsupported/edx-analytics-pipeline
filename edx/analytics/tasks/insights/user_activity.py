@@ -40,7 +40,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
 
     """
 
-    output_root = None
+    output_root = luigi.Parameter()
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -122,13 +122,14 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             output_file.write('\n')
 
     def output_path_for_key(self, key):
-        date_string = key
-        return url_path_join(
-            self.hive_partition_path('user_activity', date_string),
-            'user_activity_{date}'.format(
-                date=date_string,
-            )
-        )
+        return get_target_from_url(self.output_root)
+        # date_string = key
+        # return url_path_join(
+        #     self.hive_partition_path('user_activity', date_string),
+        #     'user_activity_{date}'.format(
+        #         date=date_string,
+        #     )
+        # )
 
     def run(self):
         # Remove the marker file.
@@ -162,7 +163,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         files = super(UserActivityTaskSpark, self).files
         if files is None:
             files = []
-        files.append('/var/lib/analytics-tasks/repo/edx/analytics/tasks/common/spark.py')
+        files.append('/var/lib/analytics-tasks/automation/repo/edx/analytics/tasks/common/spark.py')
         return files
 
     def spark_job(self):
