@@ -101,6 +101,20 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         """
         raise NotImplementedError
 
+    def _load_external_dependency_on_cluster(self):
+        """creates a zip of luigi and loads it on spark worker nodes"""
+        # TODO: delete zipfile after loading on cluster completes
+        import os
+        import tempfile
+        import shutil
+        import luigi as import_dir_path
+        package_name = 'luigi'
+        tmp_dir = tempfile.mkdtemp()
+        archive_dir = os.path.join(import_dir_path.__path__[0], '../')
+        zipfile_path = shutil.make_archive(os.path.join(tmp_dir, package_name), 'zip', archive_dir, 'luigi/')
+        # add zipfile to spark context
+        self._spark_context.addPyFile(zipfile_path)
+
     def _load_internal_dependency_on_cluster(self):
         """creates a zip of edx dir and loads it on spark worker nodes"""
         # TODO: delete zipfile after loading on cluster completes
@@ -122,6 +136,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
     def main(self, sc, *args):
         self.init_spark(sc)
         self._load_internal_dependency_on_cluster()  # load internal dependency for spark worker nodes on cluster
+        self._load_external_dependency_on_cluster()  # load external dependency for spark worker nodes on cluster
         self.spark_job()
 
 
