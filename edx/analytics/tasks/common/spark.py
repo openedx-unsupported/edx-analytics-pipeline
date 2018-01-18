@@ -135,8 +135,8 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
 
     def main(self, sc, *args):
         self.init_spark(sc)
-        self._load_internal_dependency_on_cluster()  # load internal dependency for spark worker nodes on cluster
-        self._load_external_dependency_on_cluster()  # load external dependency for spark worker nodes on cluster
+        # self._load_internal_dependency_on_cluster()  # load internal dependency for spark worker nodes on cluster
+        # self._load_external_dependency_on_cluster()  # load external dependency for spark worker nodes on cluster
         self.spark_job()
 
 
