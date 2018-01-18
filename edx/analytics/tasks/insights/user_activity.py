@@ -155,9 +155,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         return get_target_from_url(self.output_root)
 
     def spark_job(self):
-        # adding file to spark context
-        self._load_external_dependency_on_cluster()     # all internal imports should be imported after this
-        from tasks.common.spark import get_course_id, get_event_predicate_labels
+        from edx.analytics.tasks.common.spark import get_course_id, get_event_predicate_labels
         from pyspark.sql.functions import udf, struct, split, explode
         from pyspark.sql.types import ArrayType, StringType
         df = self.get_event_log_dataframe(self._spark)

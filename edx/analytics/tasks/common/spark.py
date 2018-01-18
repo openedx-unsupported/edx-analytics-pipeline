@@ -101,18 +101,18 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         """
         raise NotImplementedError
 
-    def _load_external_dependency_on_cluster(self):
-        """creates a zip of analytics dir and loads it on spark worker nodes"""
-        # TODO: remove zipfile after loading on cluster completes
+    def _load_internal_dependency_on_cluster(self):
+        """creates a zip of edx dir and loads it on spark worker nodes"""
+        # TODO: delete zipfile after loading on cluster completes
         import os
         import tempfile
         import shutil
-        import edx.analytics as import_dir_path
+        import edx as import_dir_path
         package_name = 'edx_analytics_tasks'
         tmp_dir = tempfile.mkdtemp()
-        # archive_dir = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-        archive_dir = import_dir_path.__path__[0]  # this is more reasonable than using path with __file__
-        zipfile_path = shutil.make_archive(os.path.join(tmp_dir, package_name), 'zip', archive_dir)
+        archive_dir = os.path.join(import_dir_path.__path__[0], '../')  # more reasonable than using path with __file__
+        zipfile_path = shutil.make_archive(os.path.join(tmp_dir, package_name), 'zip', archive_dir, 'edx/')
+        # add zipfile to spark context
         self._spark_context.addPyFile(zipfile_path)
 
     def run(self):
@@ -121,6 +121,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
 
     def main(self, sc, *args):
         self.init_spark(sc)
+        self._load_internal_dependency_on_cluster()  # load internal dependency for spark worker nodes on cluster
         self.spark_job()
 
 
