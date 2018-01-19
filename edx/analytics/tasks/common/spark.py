@@ -134,8 +134,8 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
             zipfile = ZipFile(zipfile_path, 'w', ZIP_DEFLATED)
             zipdir(mod_path, zipfile, package)
             zipfile.close()
-            if os.path.exists(zipfile_path):
-                self._spark_context.addPyFile(zipfile_path)
+            print '\n LOADING via spark context {}\n'.format(zipfile_path)
+            self._spark_context.addPyFile(zipfile_path)
 
 
     def _load_internal_dependency_on_cluster(self):
