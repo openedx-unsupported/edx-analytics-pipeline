@@ -174,7 +174,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
         result = df.select('course_id', 'username', 'label', df['event_date'].alias('dt')) \
             .groupBy('course_id', 'username', 'dt', 'label').count()
-        #result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
+        result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
