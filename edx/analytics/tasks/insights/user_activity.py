@@ -155,7 +155,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         return get_target_from_url(self.output_root)
 
     def spark_job(self):
-        from edx.analytics.tasks.common.spark import get_course_id, get_event_predicate_labels
+        from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id
         from pyspark.sql.functions import udf, struct, split, explode
         from pyspark.sql.types import ArrayType, StringType
         df = self.get_event_log_dataframe(self._spark)
@@ -174,7 +174,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
         result = df.select('course_id', 'username', 'label', df['event_date'].alias('dt')) \
             .groupBy('course_id', 'username', 'dt', 'label').count()
-        result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
+        #result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
