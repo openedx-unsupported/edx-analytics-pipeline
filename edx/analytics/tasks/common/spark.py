@@ -143,6 +143,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         import shutil
         import edx as import_dir_path
         import luigi
+        import opaque_keys
         tmp_dir = tempfile.mkdtemp()
         # zip edx package
         archive_dir = os.path.join(import_dir_path.__path__[0], '../')
@@ -150,9 +151,13 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         # zip luigi package
         archive_dir = os.path.join(luigi.__path__[0], '../')
         zipfile_luigi = shutil.make_archive(os.path.join(tmp_dir, 'luigi'), 'zip', archive_dir, 'luigi/')
+        # zip opaque_keys package
+        archive_dir = os.path.join(opaque_keys.__path__[0], '../')
+        zipfile_opkeys = shutil.make_archive(os.path.join(tmp_dir, 'opaque_keys'), 'zip', archive_dir, 'opaque_keys/')
         # add zipfile to spark context
         self._spark_context.addPyFile(zipfile_edx)
         self._spark_context.addPyFile(zipfile_luigi)
+        self._spark_context.addPyFile(zipfile_opkeys)
 
     def run(self):
         self.remove_output_on_overwrite()
