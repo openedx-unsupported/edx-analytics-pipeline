@@ -143,7 +143,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         import shutil
         from importlib import import_module
         tmp_dir = tempfile.mkdtemp()
-        packages = ['edx', 'luigi', 'opaque_keys', 'stevedore']
+        packages = ['edx', 'luigi', 'opaque_keys', 'stevedore', 'bson']
         for package in packages:
             module = import_module(package)
             archive_dir = os.path.join(module.__path__[0], '../')
