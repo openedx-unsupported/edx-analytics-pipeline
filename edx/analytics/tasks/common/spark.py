@@ -136,28 +136,19 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
 
 
     def _load_internal_dependency_on_cluster(self):
-        """creates a zip of edx and luigi package and loads it on spark worker nodes"""
+        """creates a zip of package and loads it on spark worker nodes"""
         # TODO: delete zipfile after loading on cluster completes
         import os
         import tempfile
         import shutil
-        import edx as import_dir_path
-        import luigi
-        import opaque_keys
+        from importlib import import_module
         tmp_dir = tempfile.mkdtemp()
-        # zip edx package
-        archive_dir = os.path.join(import_dir_path.__path__[0], '../')
-        zipfile_edx = shutil.make_archive(os.path.join(tmp_dir, 'edx_analytics_tasks'), 'zip', archive_dir, 'edx/')
-        # zip luigi package
-        archive_dir = os.path.join(luigi.__path__[0], '../')
-        zipfile_luigi = shutil.make_archive(os.path.join(tmp_dir, 'luigi'), 'zip', archive_dir, 'luigi/')
-        # zip opaque_keys package
-        archive_dir = os.path.join(opaque_keys.__path__[0], '../')
-        zipfile_opkeys = shutil.make_archive(os.path.join(tmp_dir, 'opaque_keys'), 'zip', archive_dir, 'opaque_keys/')
-        # add zipfile to spark context
-        self._spark_context.addPyFile(zipfile_edx)
-        self._spark_context.addPyFile(zipfile_luigi)
-        self._spark_context.addPyFile(zipfile_opkeys)
+        packages = ['edx', 'luigi', 'opaque_keys', 'stevedore']
+        for package in packages:
+            module = import_module(package)
+            archive_dir = os.path.join(module.__path__[0], '../')
+            zipfile = shutil.make_archive(os.path.join(tmp_dir, package), 'zip', archive_dir, package + '/')
+            self._spark_context.addPyFile(zipfile)
 
     def run(self):
         self.remove_output_on_overwrite()
