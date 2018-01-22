@@ -121,7 +121,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             output_file.write('\n')
 
     def output_path_for_key(self, key):
-        return get_target_from_url(self.output_root)
+        return get_target_from_url(self.output_root).path
         # date_string = key
         # return url_path_join(
         #     self.hive_partition_path('user_activity', date_string),
