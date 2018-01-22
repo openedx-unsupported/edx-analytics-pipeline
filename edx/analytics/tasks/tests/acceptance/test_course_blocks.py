@@ -56,7 +56,7 @@ class CourseBlocksPartitionTaskAcceptanceTest(AcceptanceTestCase):
 
     def validate_partition_task(self):
         """Run the CourseBlocksPartitionTask and test its output."""
-        date = self.DATE.strftime('%Y-%m-%d')
+        date = self.DATE.strftime('%Y-%m-%dT%H%M%S')
         input_root = url_path_join(self.warehouse_path, 'course_list', self.partition)
 
         self.task.launch([
