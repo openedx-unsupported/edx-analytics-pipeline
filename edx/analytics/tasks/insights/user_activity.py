@@ -164,7 +164,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         get_courseid = udf(get_course_id, StringType())
         df = df.filter(
             (df['event_source'] != 'task') &
-            ~ df['event_source'].startswith('edx.course.enrollment.') &
+            ~ df['event_type'].startswith('edx.course.enrollment.') &
             (df['username'] != '')
         )
         # passing complete row to UDF
@@ -172,9 +172,9 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
             .withColumn('course_id', get_courseid(struct([df[x] for x in df.columns])))
         df = df.filter(df['course_id'] != '')
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
-        result = df.select('course_id', 'username', 'label', df['event_date'].alias('dt')) \
-            .groupBy('course_id', 'username', 'dt', 'label').count()
-        result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
+        result = df.select('course_id', 'username', 'label', 'event_date') \
+            .groupBy('course_id', 'username', 'event_date', 'label').count()
+        result.repartition(1).write.partitionBy('event_date').csv(self.output().path, mode='overwrite', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
