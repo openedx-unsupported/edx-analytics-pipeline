@@ -51,26 +51,27 @@ def get_course_id(event, from_url=False):
 
     # Get the course_id from the data, and validate.
     course_id = opaque_key_util.normalize_course_id(get_key_value_from_event(event_context, 'course_id', ''))
-    if course_id:
-        if opaque_key_util.is_valid_course_id(course_id):
-            return course_id
-        else:
-            return ''  # we'll filter out empty course since string is expected
-
+    return course_id
+    # if course_id:
+    #     if opaque_key_util.is_valid_course_id(course_id):
+    #         return course_id
+    #     else:
+    #         return ''  # we'll filter out empty course since string is expected
+    #
     # Try to get the course_id from the URLs in `event_type` (for implicit
     # server events) and `page` (for browser events).
-    if from_url:
-        source = get_key_value_from_event(event, 'event_source')
-
-        if source == 'server':
-            url = get_key_value_from_event(event, 'event_type', '')
-        elif source == 'browser':
-            url = get_key_value_from_event(event, 'page', '')
-        else:
-            url = ''
-
-        course_key = opaque_key_util.get_course_key_from_url(url)
-        if course_key:
-            return unicode(course_key)
-
-    return ''
+    # if from_url:
+    #     source = get_key_value_from_event(event, 'event_source')
+    #
+    #     if source == 'server':
+    #         url = get_key_value_from_event(event, 'event_type', '')
+    #     elif source == 'browser':
+    #         url = get_key_value_from_event(event, 'page', '')
+    #     else:
+    #         url = ''
+    #
+    #     course_key = opaque_key_util.get_course_key_from_url(url)
+    #     if course_key:
+    #         return unicode(course_key)
+    #
+    # return ''

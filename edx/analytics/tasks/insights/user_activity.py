@@ -156,7 +156,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
 
     def spark_job(self):
         from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id
-        from pyspark.sql.functions import udf, struct, split, explode
+        from pyspark.sql.functions import udf, struct, split, explode, lit
         from pyspark.sql.types import ArrayType, StringType
         df = self.get_event_log_dataframe(self._spark)
         # register udfs
@@ -172,9 +172,10 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
             .withColumn('course_id', get_courseid(struct([df[x] for x in df.columns])))
         df = df.filter(df['course_id'] != '')
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
-        result = df.select('course_id', 'username', 'label', 'event_date') \
+        result = df.select('course_id', 'username', 'event_date', 'label') \
             .groupBy('course_id', 'username', 'event_date', 'label').count()
-        result.repartition(1).write.partitionBy('event_date').csv(self.output().path, mode='overwrite', sep='\t')
+        result = result.withColumn('dt', lit(result['event_date']))     # generate extra column for partitioning
+        result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
