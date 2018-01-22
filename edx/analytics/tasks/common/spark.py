@@ -99,42 +99,6 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         """
         raise NotImplementedError
 
-    def _load_external_dependency_on_cluster(self):
-        """creates a zip of packages and loads it on spark worker nodes"""
-        import importlib
-        import os
-        import tempfile
-        from zipfile import ZipFile, ZIP_DEFLATED
-        packages = self.py_packages
-        if not packages:
-            return
-        tmp_dir = tempfile.mkdtemp()
-
-        def zipdir(path, ziphandle, package_name):
-            if os.path.isfile(mod_path):
-                ziphandle.write(path, os.path.basename(path))
-            else:
-                for root, dirs, files in os.walk(path):
-                    for file in files:
-                        ziphandle.write(os.path.join(root, file),
-                                   os.path.relpath(os.path.join(root, file), os.path.join(path, '..')))
-
-        for package in packages:
-            mod = importlib.import_module(package)
-            try:
-                mod_path = mod.__path__[0]
-            except AttributeError:
-                if mod.__file__[-4:] == '.pyc':
-                    mod_path = mod.__file__[:-1]
-                else:
-                    mod_path = mod.__file__
-            zipfile_path = os.path.join(tmp_dir, package + '.zip')
-            zipfile = ZipFile(zipfile_path, 'w', ZIP_DEFLATED)
-            zipdir(mod_path, zipfile, package)
-            zipfile.close()
-            self._spark_context.addPyFile(zipfile_path)
-
-
     def _load_internal_dependency_on_cluster(self):
         """creates a zip of package and loads it on spark worker nodes"""
         # TODO: delete zipfile after loading on cluster completes
@@ -157,5 +121,4 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
     def main(self, sc, *args):
         self.init_spark(sc)
         self._load_internal_dependency_on_cluster()  # load internal dependency for spark worker nodes on cluster
-        # self._load_external_dependency_on_cluster()  # load external dependency for spark worker nodes on cluster
         self.spark_job()
