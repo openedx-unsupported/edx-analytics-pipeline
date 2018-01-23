@@ -16,7 +16,7 @@ import luigi
 import luigi.contrib.hdfs
 import luigi.contrib.hdfs.format
 import luigi.task
-from luigi.date_interval import DateInterval
+from luigi.date_interval import Custom
 
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.s3_util import ScalableS3Client, generate_s3_sources, get_s3_bucket_key_names
@@ -146,7 +146,7 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def __init__(self, *args, **kwargs):
         super(PathSelectionByDateIntervalTask, self).__init__(*args, **kwargs)
-        self.interval = DateInterval(
+        self.interval = Custom(
             self.interval.date_a - self.expand_interval,
             self.interval.date_b + self.expand_interval
         )
