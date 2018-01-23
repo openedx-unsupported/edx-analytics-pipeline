@@ -64,11 +64,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
 
         # Widen the interval to include the latest validation events.
         interval = self.WIDER_DATE_INTERVAL if run_with_validation_events else self.DATE_INTERVAL
-        # source_pattern = as_list_param(r'.*?\\.log-\(?P\<date\>\\d{8}\).*\\.gz')
-        # validation_pattern = r'".*?enroll_validated_\(?P\<date\>\d{8}\)\.log\.gz"'
-        # source_pattern = '[\\".*?\\\\.log-\(?P\<date\>\\\\d{8}\).*\\.gz\\"]'
-        source_pattern = '[\\".*?\\\\\\.log-\(?P\<date\>\\\\\\d{8}\).*\\.gz\\"]'
-        # validation_pattern = '".*?enroll_validated_\(?P\<date\>\d{8}\)\.log\.gz"'
+        source_pattern = '[\\".*?.log-.*.gz\\"]'
         validation_pattern = '".*?enroll_validated_\d{8}\.log\.gz"'
         launch_args = [
             'EnrollmentValidationWorkflow',
@@ -83,7 +79,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
         # An extra source means we're using synthetic events, so we
         # don't want to generate outside the interval in that case.
         if extra_source:
-            launch_args.extend(['--source', json.dumps([self.test_src, extra_source])])
+            launch_args.extend(['--source', '[\\"{}\\",\\"{}\\"]'.format(self.test_src, extra_source)])
         else:
             launch_args.extend(['--source', as_list_param(self.test_src)])
             launch_args.extend(['--generate-before'])
