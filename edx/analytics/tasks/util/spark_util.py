@@ -48,7 +48,7 @@ def get_course_id(event_context, from_url=False):
 
     Don't pass whole event row to any spark UDF as it generates a different output than expected
     """
-    if event_context == '':
+    if event_context == '' or event_context is None:
         # Assume it's old, and not worth logging...
         return ''
 
