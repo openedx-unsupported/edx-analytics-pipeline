@@ -168,9 +168,9 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
             (df['username'] != '')
         )
         # passing complete row to UDF
-        df = df.withColumn('all_labels', get_labels(struct([df[x] for x in df.columns]))) \
-            .withColumn('course_id', get_courseid(struct([df[x] for x in df.columns])))
-        df = df.filter(df['course_id'] != '')
+        df = df.withColumn('all_labels', get_labels(df['event_type'], df['event_source'])) \
+            .withColumn('course_id', get_courseid(df['context']))
+        df = df.filter(df['course_id'] != '')       # remove rows with empty course_id
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
         result = df.select('course_id', 'username', 'event_date', 'label') \
             .groupBy('course_id', 'username', 'event_date', 'label').count()

@@ -3,12 +3,14 @@ import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.constants import PredicateLabels
 
 
-def get_event_predicate_labels(event):
-    """Creates labels by applying hardcoded predicates to a single event."""
+def get_event_predicate_labels(event_type, event_source):
+    """
+    Creates labels by applying hardcoded predicates to a single event.
+
+    Don't pass whole event row to any spark UDF as it generates a different output than expected
+    """
     # We only want the explicit event, not the implicit form.
     # return 'test'
-    event_type = event['event_type']
-    event_source = event['event_source']
 
     labels = PredicateLabels.ACTIVE_LABEL
 
@@ -40,24 +42,25 @@ def get_key_value_from_event(event, key, default_value=None):
     return default_value
 
 
-def get_course_id(event, from_url=False):
-    """Gets course_id from event's data."""
+def get_course_id(event_context, from_url=False):
+    """
+    Gets course_id from event's data.
 
-    # Get the event data:
-    event_context = get_key_value_from_event(event, 'context')
-    if event_context is None:
+    Don't pass whole event row to any spark UDF as it generates a different output than expected
+    """
+    if event_context == '':
         # Assume it's old, and not worth logging...
         return ''
 
     # Get the course_id from the data, and validate.
     course_id = opaque_key_util.normalize_course_id(get_key_value_from_event(event_context, 'course_id', ''))
-    return course_id
-    # if course_id:
-    #     if opaque_key_util.is_valid_course_id(course_id):
-    #         return course_id
-    #     else:
-    #         return ''  # we'll filter out empty course since string is expected
-    #
+    if course_id:
+        if opaque_key_util.is_valid_course_id(course_id):
+            return course_id
+        else:
+            return ''  # we'll filter out empty course since string is expected
+
+    # TODO : make it work with url as well
     # Try to get the course_id from the URLs in `event_type` (for implicit
     # server events) and `page` (for browser events).
     # if from_url:
@@ -74,4 +77,4 @@ def get_course_id(event, from_url=False):
     #     if course_key:
     #         return unicode(course_key)
     #
-    # return ''
+    return ''
