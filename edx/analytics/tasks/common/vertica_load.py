@@ -76,6 +76,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     required_tasks = None
     output_target = None
 
+    restricted_roles = luigi.ListParameter(
+        config_path={'section': 'vertica-export', 'name': 'restricted_roles'},
+        default=[],
+        description='List of roles to which to provide access when a database column is marked as restricted.'
+    )
+
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -448,9 +454,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     def create_access_policies(self, connection):
         cursor = connection.cursor()
         for column in self.restricted_columns:
-            restricted_roles_param = luigi.Parameter(is_list=True, config_path={'section': 'vertica-export', 'name': 'restricted_roles'}, default=[])
-            restricted_roles = ['dbadmin'] + list(restricted_roles_param.value)
-            expression = ' OR '.join(["ENABLED_ROLE('{0}')".format(role) for role in restricted_roles])
+            all_restricted_roles = ['dbadmin'] + list(self.restricted_roles)
+            expression = ' OR '.join(["ENABLED_ROLE('{0}')".format(role) for role in all_restricted_roles])
             statement = """
 CREATE ACCESS POLICY ON {schema}.{table} FOR COLUMN {column}
 CASE WHEN {expression} THEN {column}
@@ -602,8 +607,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
     date = luigi.DateParameter()
 
-    roles = luigi.Parameter(
-        is_list=True,
+    roles = luigi.ListParameter(
         config_path={'section': 'vertica-export', 'name': 'standard_roles'},
     )
 

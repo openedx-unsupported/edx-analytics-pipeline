@@ -45,7 +45,7 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
     )
 
     # Flag indicating whether to output synthetic events or tuples
-    tuple_output = luigi.BooleanParameter(
+    tuple_output = luigi.BoolParameter(
         default=False,
         description='A flag indicating that output should be in the form of tuples, not events. '
         'Default is False (output is events).',
@@ -53,7 +53,7 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
 
     # If set, generates events that occur before the start of the specified interval.
     # Default is incremental validation.
-    generate_before = luigi.BooleanParameter(
+    generate_before = luigi.BoolParameter(
         default=False,
         description='A flag indicating that events should be created preceding the '
         'specified interval. Default behavior is to suppress the generation of events '
@@ -62,7 +62,7 @@ class CourseEnrollmentValidationDownstreamMixin(EventLogSelectionDownstreamMixin
 
     # If set, events are included for transitions that don't result in a
     # change in enrollment state.  (For example, two activations in a row.)
-    include_nonstate_changes = luigi.BooleanParameter(
+    include_nonstate_changes = luigi.BoolParameter(
         default=False,
         description='A flag indicating that events should be created '
         'to fix all transitions, even those that don\'t result in a change in enrollment '

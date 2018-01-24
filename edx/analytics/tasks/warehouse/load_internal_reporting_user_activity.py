@@ -268,13 +268,13 @@ class InternalReportingUserActivityWorkflow(VerticaCopyTaskMixin, WarehouseMixin
 
 class UserActivityWorkflow(WeeklyIntervalMixin, WarehouseMixin, luigi.WrapperTask):
 
-    overwrite_hive = luigi.BooleanParameter(
+    overwrite_hive = luigi.BoolParameter(
         default=False,
         description='Whether or not to overwrite Hive data.',
         significant=False
     )
 
-    overwrite_mysql = luigi.BooleanParameter(
+    overwrite_mysql = luigi.BoolParameter(
         default=False,
         description='Whether or not to overwrite existing outputs in Mysql.',
         significant=False

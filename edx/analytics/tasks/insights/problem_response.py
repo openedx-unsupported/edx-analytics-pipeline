@@ -711,7 +711,7 @@ class ProblemResponseReportWorkflow(ProblemResponseTableMixin,
         description='URL directory where a marker file will be written on task completion.'
                     ' Note that the report task will not run if this marker file exists.',
     )
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=False,
         description='Set to True to force rebuild hive data and reports from tracking logs.'
     )

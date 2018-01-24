@@ -36,7 +36,7 @@ endif
 requirements:
 	pip install -U -r requirements/pre.txt
 	pip install -U -r requirements/default.txt --no-cache-dir --upgrade-strategy only-if-needed
-	pip install -U -r requirements/extra.txt --no-cache-dir
+	pip install -U -r requirements/extra.txt --no-cache-dir --upgrade-strategy only-if-needed
 
 test-requirements: requirements
 	pip install -U -r requirements/test.txt --no-cache-dir --upgrade-strategy only-if-needed
@@ -89,7 +89,7 @@ coverage: test coverage-local
 docs-requirements:
 	pip install -U -r requirements/pre.txt
 	pip install -U -r requirements/docs.txt --no-cache-dir --upgrade-strategy only-if-needed
-	pip install -U -r requirements/extra.txt --no-cache-dir
+	pip install -U -r requirements/extra.txt --no-cache-dir --upgrade-strategy only-if-needed
 	python setup.py install --force
 
 docs-local:
