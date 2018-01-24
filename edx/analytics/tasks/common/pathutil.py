@@ -309,22 +309,3 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
                 log.warn('mapreduce_map_input_file not defined in os.environ, unable to determine input file path')
                 self.incr_counter('Event', 'Missing map_input_file', 1)
                 return ''
-
-
-class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
-    """
-    Extract events corresponding to a specified time interval.
-    """
-    path_targets = None
-
-    def __init__(self, *args, **kwargs):
-        super(EventLogSelectionDownstreamMixin, self).__init__(*args, **kwargs)
-        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        path_targets = PathSelectionByDateIntervalTask(
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            date_pattern=self.date_pattern,
-        ).output()
-        self.path_targets = [task.path for task in path_targets]

@@ -5,13 +5,17 @@ import logging
 from collections import Counter
 
 import luigi
+import luigi.configuration
 import luigi.date_interval
 
 import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.spark import EventLogSelectionMixinSpark, SparkJobTask
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
+from edx.analytics.tasks.util.constants import PredicateLabels
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -20,11 +24,7 @@ from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
 
-ACTIVE_LABEL = "ACTIVE"
-PROBLEM_LABEL = "ATTEMPTED_PROBLEM"
-PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
-POST_FORUM_LABEL = "POSTED_FORUM"
-
+logging.getLogger('boto').setLevel(logging.INFO)
 
 class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """
@@ -75,18 +75,18 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         if event_type.startswith('edx.course.enrollment.'):
             return []
 
-        labels = [ACTIVE_LABEL]
+        labels = [PredicateLabels.ACTIVE_LABEL]
 
         if event_source == 'server':
             if event_type == 'problem_check':
-                labels.append(PROBLEM_LABEL)
+                labels.append(PredicateLabels.PROBLEM_LABEL)
 
             if event_type.startswith('edx.forum.') and event_type.endswith('.created'):
-                labels.append(POST_FORUM_LABEL)
+                labels.append(PredicateLabels.POST_FORUM_LABEL)
 
         if event_source in ('browser', 'mobile'):
             if event_type == 'play_video':
-                labels.append(PLAY_VIDEO_LABEL)
+                labels.append(PredicateLabels.PLAY_VIDEO_LABEL)
 
         return labels
 
@@ -146,6 +146,83 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         return super(UserActivityTask, self).run()
 
 
+class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJobTask):
+    """
+    UserActivityTask converted to spark
+    """
+
+    output_root = luigi.Parameter()
+    marker = luigi.Parameter(
+        config_path={'section': 'map-reduce', 'name': 'marker'},
+        significant=False,
+        description='A URL location to a directory where a marker file will be written on task completion.',
+    )
+
+    def output_dir(self):
+        """
+        Output directory for spark task
+        """
+        return get_target_from_url(self.output_root)
+
+    def output(self):
+        """
+        Marker output path
+
+        There were 2 approaches to verify output from spark multi output task:
+        1) verify partitions for all dates in the interval
+        2) create marker in separate dir just like hadoop multi-mapreduce task
+        Former approach can fail in cases, when there is no data for some dates as spark will not generate empty
+        partitions.
+        Later approach is more consistent.
+        """
+        marker_url = url_path_join(self.marker, str(hash(self)))
+        return get_target_from_url(marker_url, marker=True)
+
+    def output_paths(self):
+        """
+        Output partition paths
+        """
+        return map(
+            lambda date: get_target_from_url(
+                url_path_join(self.output_root, 'dt={}'.format(date.isoformat()))
+            ),
+            self.interval
+        )
+
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        removed_partitions = [target.remove() for target in self.output_paths() if target.exists()]
+        super(UserActivityTaskSpark, self).run()
+
+    def spark_job(self, *args):
+        from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id
+        from pyspark.sql.functions import udf, struct, split, explode, lit
+        from pyspark.sql.types import ArrayType, StringType
+        df = self.get_event_log_dataframe(self._spark)
+        # register udfs
+        get_labels = udf(get_event_predicate_labels, StringType())
+        get_courseid = udf(get_course_id, StringType())
+        df = df.filter(
+            (df['event_source'] != 'task') &
+            ~ df['event_type'].startswith('edx.course.enrollment.') &
+            (df['context.user_id'] != '')
+        )
+        # passing complete row to UDF
+        df = df.withColumn('all_labels', get_labels(df['event_type'], df['event_source'])) \
+            .withColumn('course_id', get_courseid(df['context']))
+        df = df.filter(df['course_id'] != '')  # remove rows with empty course_id
+        df = df.withColumn('label', explode(split(df['all_labels'], ',')))
+        result = df.select('context.user_id', 'course_id', 'event_date', 'label') \
+            .groupBy('user_id', 'course_id', 'event_date', 'label').count()
+        result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
+        result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+
+
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
 
@@ -201,6 +278,138 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
             ('category', 'STRING'),
             ('count', 'INT'),
         ]
+
+
+class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstreamMixin, SparkJobTask):
+    """
+    Spark equivalent of CourseActivityPartitionTask
+    """
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(CourseActivityPartitionTaskSpark, self).run()
+
+    def output(self):
+        return get_target_from_url(self.hive_partition_path('course_activity', self.end_date.isoformat()))
+
+    def get_luigi_configuration(self):
+        options = {}
+        config = luigi.configuration.get_config()
+        options['calendar_interval'] = config.get('calendar', 'interval', '')
+        return options
+
+    def requires(self):
+        required_tasks = [
+            CalendarTableTask(
+                warehouse_path=self.warehouse_path,
+            )
+        ]
+        # bypassing UserActivityTableTask as we're not going to use hive with spark
+        if self.overwrite_n_days > 0:
+            overwrite_from_date = self.end_date - datetime.timedelta(days=self.overwrite_n_days)
+            overwrite_interval = luigi.date_interval.Custom(overwrite_from_date, self.end_date)
+            required_tasks.append(
+                UserActivityTaskSpark(
+                    interval=overwrite_interval,
+                    warehouse_path=self.warehouse_path,
+                    output_root=self.user_activity_hive_table_path(),
+                    overwrite=True,
+                )
+            )
+        yield required_tasks
+
+    def user_activity_hive_table_path(self, *args):
+        return url_path_join(
+            self.warehouse_path,
+            'user_activity_by_user'
+        )
+
+    def calendar_hive_table_path(self, *args):
+        calendar_interval = self.get_config_from_args('calendar_interval', *args, default_value='')
+        # spark returns error when reading data from directories with different partition name at the same level
+        # so hardcoding it to read from date_interval partition
+        return url_path_join(
+            self.warehouse_path,
+            'calendar',
+            'date_interval={}'.format(calendar_interval)
+        )
+
+    def get_user_activity_table_schema(self):
+        from pyspark.sql.types import StructType, StringType
+        schema = StructType().add("user_id", StringType(), True) \
+            .add("course_id", StringType(), True) \
+            .add("date", StringType(), True) \
+            .add("category", StringType(), True) \
+            .add("count", StringType(), True) \
+            .add("dt", StringType(), True)
+        return schema
+
+    def get_calendar_table_schema(self):
+        from pyspark.sql.types import StructType, StringType
+        schema = StructType().add("date", StringType(), True) \
+            .add("year", StringType(), True) \
+            .add("month", StringType(), True) \
+            .add("day", StringType(), True) \
+            .add("iso_weekofyear", StringType(), True) \
+            .add("iso_week_start", StringType(), True) \
+            .add("iso_week_end", StringType(), True) \
+            .add("iso_weekday", StringType(), True) \
+            .add("date_interval", StringType(), True)
+        return schema
+
+    def spark_job(self, *args):
+        user_activity_df = self._spark.read.csv(
+            self.user_activity_hive_table_path(*args),
+            sep='\t',
+            schema=self.get_user_activity_table_schema()
+        )
+        calendar_df = self._spark.read.csv(
+            self.calendar_hive_table_path(*args),
+            sep='\t',
+            schema=self.get_calendar_table_schema()
+        )
+        user_activity_df.createOrReplaceTempView('user_activity_by_user')
+        calendar_df.createOrReplaceTempView('calendar')
+        query = """
+                SELECT
+                    act.course_id as course_id,
+                    CONCAT(cal.iso_week_start, " 00:00:00") as interval_start,
+                    CONCAT(cal.iso_week_end, " 00:00:00") as interval_end,
+                    act.category as label,
+                    COUNT (DISTINCT user_id) as count
+                FROM user_activity_by_user act
+                JOIN calendar cal
+                    ON act.date = cal.date AND act.dt >= "{interval_start}" AND act.dt < "{interval_end}"
+                WHERE
+                    cal.date >= "{interval_start}" AND cal.date < "{interval_end}"
+                GROUP BY
+                    act.course_id,
+                    cal.iso_week_start,
+                    cal.iso_week_end,
+                    act.category
+                """.format(
+            interval_start=self.interval.date_a.isoformat(),
+            interval_end=self.interval.date_b.isoformat(),
+        )
+        result = self._spark.sql(query)
+        result.coalesce(4).write.csv(self.output().path, mode='overwrite', sep='\t')
+        # with dataframe
+        # from pyspark.sql.functions import concat, lit, countDistinct
+        # user_activity_df = user_activity_df.filter(
+        #     (user_activity_df['date'] >= self.interval.date_a.isoformat()) &
+        #     (user_activity_df['date'] < self.interval.date_b.isoformat())
+        # )
+        # calendar_df = calendar_df.filter(
+        #     (calendar_df['date'] >= self.interval.date_a.isoformat()) &
+        #     (calendar_df['date'] < self.interval.date_b.isoformat())
+        # )
+        # joined_df = user_activity_df.join(calendar_df, on=(user_activity_df['date'] == calendar_df['date']))
+        # raw_df = joined_df.withColumn('interval_start', concat(joined_df['iso_week_start'], lit(' 00:00:00'))) \
+        #     .withColumn('interval_end', concat(joined_df['iso_week_end'], lit(' 00:00:00')))
+        # result = raw_df.groupBy('course_id', 'interval_start', 'interval_end', 'category').agg(
+        #     countDistinct('username').alias('count')
+        # )
+
 
 
 class CourseActivityTableTask(BareHiveTableTask):
@@ -334,7 +543,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def table(self):
-        return "course_activity"
+        return "course_activity_spark_trial"
 
     @property
     def columns(self):
@@ -355,11 +564,10 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def insert_source_task(self):
-        return CourseActivityPartitionTask(
+        return CourseActivityPartitionTaskSpark(
             warehouse_path=self.warehouse_path,
             end_date=self.end_date,
             weeks=self.weeks,
-            n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite_hive,
             overwrite_n_days=self.overwrite_n_days,
         )
