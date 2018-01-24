@@ -39,7 +39,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
 
     """
 
-    output_root = luigi.Parameter()
+    output_root = None
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -121,14 +121,13 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             output_file.write('\n')
 
     def output_path_for_key(self, key):
-        return get_target_from_url(self.output_root).path
-        # date_string = key
-        # return url_path_join(
-        #     self.hive_partition_path('user_activity', date_string),
-        #     'user_activity_{date}'.format(
-        #         date=date_string,
-        #     )
-        # )
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('user_activity', date_string),
+            'user_activity_{date}'.format(
+                date=date_string,
+            )
+        )
 
     def run(self):
         # Remove the marker file.
