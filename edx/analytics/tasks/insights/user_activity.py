@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import os
 from collections import Counter
 
 import luigi
@@ -11,19 +12,17 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.spark import EventLogSelectionMixinSpark, SparkJobTask
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
+from edx.analytics.tasks.util.constants import PredicateLabels
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
-
 log = logging.getLogger(__name__)
 
-ACTIVE_LABEL = "ACTIVE"
-PROBLEM_LABEL = "ATTEMPTED_PROBLEM"
-PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
-POST_FORUM_LABEL = "POSTED_FORUM"
 
 
 class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -40,7 +39,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
 
     """
 
-    output_root = None
+    output_root = luigi.Parameter()
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -73,18 +72,18 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         if event_type.startswith('edx.course.enrollment.'):
             return []
 
-        labels = [ACTIVE_LABEL]
+        labels = [PredicateLabels.ACTIVE_LABEL]
 
         if event_source == 'server':
             if event_type == 'problem_check':
-                labels.append(PROBLEM_LABEL)
+                labels.append(PredicateLabels.PROBLEM_LABEL)
 
             if event_type.startswith('edx.forum.') and event_type.endswith('.created'):
-                labels.append(POST_FORUM_LABEL)
+                labels.append(PredicateLabels.POST_FORUM_LABEL)
 
         if event_source in ('browser', 'mobile'):
             if event_type == 'play_video':
-                labels.append(PLAY_VIDEO_LABEL)
+                labels.append(PredicateLabels.PLAY_VIDEO_LABEL)
 
         return labels
 
@@ -122,13 +121,14 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             output_file.write('\n')
 
     def output_path_for_key(self, key):
-        date_string = key
-        return url_path_join(
-            self.hive_partition_path('user_activity', date_string),
-            'user_activity_{date}'.format(
-                date=date_string,
-            )
-        )
+        return get_target_from_url(self.output_root).path
+        # date_string = key
+        # return url_path_join(
+        #     self.hive_partition_path('user_activity', date_string),
+        #     'user_activity_{date}'.format(
+        #         date=date_string,
+        #     )
+        # )
 
     def run(self):
         # Remove the marker file.
@@ -142,6 +142,40 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
                     target.remove()
 
         return super(UserActivityTask, self).run()
+
+
+class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJobTask):
+    """
+    UserActivityTask converted to spark
+    """
+
+    output_root = luigi.Parameter()
+
+    def output(self):
+        return get_target_from_url(self.output_root)
+
+    def spark_job(self):
+        from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id
+        from pyspark.sql.functions import udf, struct, split, explode, lit
+        from pyspark.sql.types import ArrayType, StringType
+        df = self.get_event_log_dataframe(self._spark)
+        # register udfs
+        get_labels = udf(get_event_predicate_labels, StringType())
+        get_courseid = udf(get_course_id, StringType())
+        df = df.filter(
+            (df['event_source'] != 'task') &
+            ~ df['event_type'].startswith('edx.course.enrollment.') &
+            (df['username'] != '')
+        )
+        # passing complete row to UDF
+        df = df.withColumn('all_labels', get_labels(df['event_type'], df['event_source'])) \
+            .withColumn('course_id', get_courseid(df['context']))
+        df = df.filter(df['course_id'] != '')       # remove rows with empty course_id
+        df = df.withColumn('label', explode(split(df['all_labels'], ',')))
+        result = df.select('course_id', 'username', 'event_date', 'label') \
+            .groupBy('course_id', 'username', 'event_date', 'label').count()
+        result = result.withColumn('dt', lit(result['event_date']))     # generate extra column for partitioning
+        result.repartition(1).write.partitionBy('dt').csv(self.output().path, mode='overwrite', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
