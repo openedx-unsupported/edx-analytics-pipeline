@@ -46,6 +46,7 @@ upgrade: ## update the requirements/*.txt files with the latest packages satisfy
 	pip-compile --upgrade -o requirements/default.txt requirements/default.in requirements/base.in
 	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in requirements/default.in requirements/base.in
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in requirements/default.in requirements/base.in
+	echo "-r extra.txt" >> requirements/docs.txt
 
 test-docker:
 	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest make develop-local test-local
@@ -89,7 +90,6 @@ coverage: test coverage-local
 docs-requirements:
 	pip install -U -r requirements/pre.txt
 	pip install -U -r requirements/docs.txt --no-cache-dir --upgrade-strategy only-if-needed
-	pip install -U -r requirements/extra.txt --no-cache-dir --upgrade-strategy only-if-needed
 	python setup.py install --force
 
 docs-local:

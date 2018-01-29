@@ -77,3 +77,4 @@ user-agents==0.3.2
 vertica-python==0.6.11
 wheel==0.30.0
 yarn-api-client==0.2.3
+-r extra.txt
