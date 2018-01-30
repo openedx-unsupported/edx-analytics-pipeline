@@ -59,14 +59,21 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
         if self.required_tasks is None:
             self.required_tasks = {
                 'credentials': ExternalURL(url=self.credentials),
-                'insert_source': self.insert_source_task
             }
+            if not self.insert_source_task_dynamically:
+                self.required_tasks['insert_source'] = self.insert_source_task
+
         return self.required_tasks
 
     @property
     def insert_source_task(self):
         """Defines task that provides source of data for insertion."""
         raise NotImplementedError
+
+    @property
+    def insert_source_task_dynamically(self):
+        """Declare if task that provides source of data for insertion should be a dynamic dependency."""
+        return False
 
     @property
     def table(self):
@@ -170,9 +177,11 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     def rows(self):
         """Return/yield tuples or lists corresponding to each row to be inserted """
         try:
-            with self.input()['insert_source'].open('r') as fobj:
-                for line in fobj:
-                    yield line.strip('\n').split('\t')
+            if self.insert_source_task is not None:
+                input_target = self.insert_source_task.output()
+                with input_target.open('r') as fobj:
+                    for line in fobj:
+                        yield line.strip('\n').split('\t')
         except RuntimeError:
             # While calling finish on an input target, Luigi throws a RuntimeError exception if the subprocess command
             # to read the input returns a non-zero return code. As all of the data's been read already, we choose to ignore
@@ -321,6 +330,14 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
         Normally you don't want to override this.
         """
+        # Use dynamic dependencies here to make sure that the tasks on
+        # which this depends have been run.
+        if self.insert_source_task_dynamically and self.insert_source_task is not None:
+            log.debug('Yielding dependency dynamically at runtime for %s: %s', self, self.insert_source_task)
+            yield self.insert_source_task
+        else:
+            yield []
+
         if not (self.table and self.columns):
             raise Exception("table and columns need to be specified")
 

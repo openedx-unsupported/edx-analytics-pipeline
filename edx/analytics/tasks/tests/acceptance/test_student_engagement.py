@@ -11,7 +11,7 @@ import re
 from pandas import read_csv
 from pandas.util.testing import assert_frame_equal
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
@@ -99,7 +99,7 @@ class StudentEngagementAcceptanceTest(AcceptanceTestCase):
         """Run the CSV-generating task."""
         self.task.launch([
             'StudentEngagementCsvFileTask',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--output-root', url_path_join(self.test_out, interval_type),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--interval', self.interval,
@@ -193,7 +193,7 @@ class PerStudentEngagementAcceptanceTest(AcceptanceTestCase):
     def run_and_check(self, interval_type):
         self.task.launch([
             'StudentEngagementToMysqlTask',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--credentials', self.export_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--interval', '2015-09-01-2015-09-16',

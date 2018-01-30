@@ -23,7 +23,7 @@ import filechunkio
 import idna
 import luigi
 import luigi.configuration
-import luigi.hadoop
+import luigi.contrib.hadoop
 import opaque_keys
 import pyinstrument
 import requests
@@ -90,12 +90,12 @@ def main():
     #   - dependencies of opaque_keys:  bson, stevedore
     # - requests has several dependencies:
     #   - chardet, urllib3, certifi, idna
-    luigi.hadoop.attach(edx.analytics.tasks)
-    luigi.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, chardet, urllib3, certifi, idna, requests)
+    luigi.contrib.hadoop.attach(edx.analytics.tasks)
+    luigi.contrib.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, ciso8601, chardet, urllib3, certifi, idna, requests)
 
     if configuration.getboolean('ccx', 'enabled', default=False):
         import ccx_keys
-        luigi.hadoop.attach(ccx_keys)
+        luigi.contrib.hadoop.attach(ccx_keys)
 
     # TODO: setup logging for tasks or configured logging mechanism
 

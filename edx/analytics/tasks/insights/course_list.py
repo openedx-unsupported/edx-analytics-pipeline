@@ -54,7 +54,7 @@ class TimestampPartitionMixin(object):
 
     It can be used by HivePartitionTasks and tasks which invoke downstream HivePartitionTasks.
     """
-    date = luigi.DateParameter(
+    date = luigi.DateSecondParameter(
         default=datetime.datetime.utcnow(),
         description='Date/time for the data partition.  Default is UTC now.'
                     'Note that though this is a DateParameter, it also supports datetime objects, and so can '

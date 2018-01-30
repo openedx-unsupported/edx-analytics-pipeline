@@ -55,7 +55,9 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
-        final_output_task = LoadInternalReportingOrderTransactionsToWarehouse(import_date=self.UPPER_BOUND_DATE)
+        final_output_task = LoadInternalReportingOrderTransactionsToWarehouse(
+            import_date=luigi.DateParameter().parse(self.UPPER_BOUND_DATE)
+        )
         columns = [x[0] for x in final_output_task.columns]
 
         with self.vertica.cursor() as cursor:

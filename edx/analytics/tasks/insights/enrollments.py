@@ -205,13 +205,13 @@ class CourseEnrollmentDownstreamMixin(WarehouseMixin, EventLogSelectionDownstrea
 
 class OverwriteHiveAndMysqlDownstreamMixin(object):
     """This mixin covers controls when we have both hive and mysql objects eligible for overwriting."""
-    overwrite_hive = luigi.BooleanParameter(
+    overwrite_hive = luigi.BoolParameter(
         default=False,
         description='Whether or not to overwrite the Hive intermediate objects; set to False by default.',
         significant=False
     )
 
-    overwrite_mysql = luigi.BooleanParameter(
+    overwrite_mysql = luigi.BoolParameter(
         default=False,
         description='Whether or not to overwrite the MySQL output objects; set to False by default.',
         significant=False
@@ -1478,7 +1478,7 @@ class EnrollmentDailyMysqlTask(OverwriteHiveAndMysqlDownstreamMixin, CourseEnrol
 class CourseSummaryEnrollmentDownstreamMixin(CourseEnrollmentDownstreamMixin, LoadInternalReportingCourseCatalogMixin):
     """Combines course enrollment and catalog parameters."""
 
-    enable_course_catalog = luigi.BooleanParameter(
+    enable_course_catalog = luigi.BoolParameter(
         config_path={'section': 'course-summary-enrollment', 'name': 'enable_course_catalog'},
         default=False,
         description="Enables course catalog data jobs."

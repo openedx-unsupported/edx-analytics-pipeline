@@ -6,7 +6,7 @@ import logging
 import textwrap
 
 import luigi
-from luigi.hive import HivePartitionTarget, HiveQueryTask
+from luigi.contrib.hive import HivePartitionTarget, HiveQueryTask
 
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql, SqoopImportMixin
 from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type

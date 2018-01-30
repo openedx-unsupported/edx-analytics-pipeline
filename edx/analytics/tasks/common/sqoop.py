@@ -7,8 +7,8 @@ import logging
 
 import luigi
 import luigi.configuration
-import luigi.hadoop
-import luigi.hdfs
+import luigi.contrib.hadoop
+import luigi.contrib.hdfs
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
@@ -57,7 +57,7 @@ class SqoopImportMixin(object):
         significant=False,
         description='The number of map tasks to ask Sqoop to use.',
     )
-    verbose = luigi.BooleanParameter(
+    verbose = luigi.BoolParameter(
         default=False,
         significant=False,
         description='Print more information while working.',
@@ -70,7 +70,7 @@ class SqoopImportMixin(object):
     )
 
 
-class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseHadoopJobTask):
+class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hadoop.BaseHadoopJobTask):
     """
     An abstract task that uses Sqoop to read data out of a database and
     writes it to a file in CSV format.
@@ -82,8 +82,7 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseH
     table_name = luigi.Parameter(
         description='The name of the table to import.',
     )
-    columns = luigi.Parameter(
-        is_list=True,
+    columns = luigi.ListParameter(
         default=[],
         description='A list of column names to be included.  Default is to include all columns.'
     )
@@ -209,11 +208,11 @@ class SqoopImportFromMysql(SqoopImportTask):
     * delimiters optionally enclosed by single quotes (')
 
     """
-    mysql_delimiters = luigi.BooleanParameter(
+    mysql_delimiters = luigi.BoolParameter(
         default=True,
         description='Use standard mysql delimiters (on by default).',
     )
-    direct = luigi.BooleanParameter(
+    direct = luigi.BoolParameter(
         default=True,
         significant=False,
         description='Use mysqldumpi\'s "direct" mode.  Requires that no set of columns be selected.',
@@ -233,13 +232,13 @@ class SqoopImportFromMysql(SqoopImportTask):
         return arglist
 
 
-class SqoopPasswordTarget(luigi.hdfs.HdfsTarget):
+class SqoopPasswordTarget(luigi.contrib.hdfs.HdfsTarget):
     """Defines a temp file in HDFS to hold password."""
     def __init__(self):
         super(SqoopPasswordTarget, self).__init__(is_tmp=True)
 
 
-class SqoopImportRunner(luigi.hadoop.JobRunner):
+class SqoopImportRunner(luigi.contrib.hadoop.JobRunner):
     """Runs a SqoopImportTask by shelling out to sqoop."""
 
     def run_job(self, job):
@@ -274,7 +273,7 @@ class SqoopImportRunner(luigi.hadoop.JobRunner):
             # (using __del__()), but safer to just make sure.
             password_target = SqoopPasswordTarget()
             arglist = job.get_arglist(password_target)
-            luigi.hadoop.run_and_track_hadoop_job(arglist)
+            luigi.contrib.hadoop.run_and_track_hadoop_job(arglist)
         finally:
             password_target.remove()
             metadata['end_time'] = datetime.datetime.utcnow().isoformat()

@@ -4,7 +4,7 @@ End to end test of tags distribution.
 
 import datetime
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.util.url import url_path_join
 
 
@@ -19,7 +19,7 @@ class TagsDistributionAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch([
             'TagsDistributionWorkflow',
-            '--source', self.test_src,
+            '--source', as_list_param(self.test_src),
             '--interval', '2010-01-01-2020-01-01',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--output-root', url_path_join(self.test_out, 'tags_dist_acceptance', ''),

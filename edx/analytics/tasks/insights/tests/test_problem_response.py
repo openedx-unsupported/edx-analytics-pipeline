@@ -614,14 +614,18 @@ class LatestProblemResponsePartitionTaskTest(ProblemResponseTestMixin, TestCase)
 
     def test_partition_value_with_start_end(self):
         self.create_task(
-            interval_start='2013-05-30',
+            interval_start=datetime.strptime('2013-05-30', '%Y-%m-%d'),
             interval_end=self.timestamp,
             partition_format=self.partition_format,
         )
         self.assert_partition_value()
 
-    def test_partition_value_with_interval(self):
-        interval = luigi.date_interval.Custom.parse('2013-05-30-{}'.format(self.timestamp.isoformat()))
+    def test_partition_value_with_no_interval(self):
+        # interval = luigi.date_interval.Custom.parse('2013-05-30-{}'.format(self.timestamp.isoformat()))
+        # TODO: fix this test to actually check what it's supposed to.
+        # The interval calculated using Custom.parse has always been None for strings with more than just a date range,
+        # so the task below has always used default values.
+        interval = None
         self.create_task(
             interval=interval,
             partition_format=self.partition_format,
