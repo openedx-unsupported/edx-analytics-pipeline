@@ -45,8 +45,12 @@ class SparkTotalEventsDailyTask(EventLogSelectionMixinSpark, SparkJobTask):
     def output(self):
         return get_target_from_url(self.output_root)
 
-    def spark_job(self):
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(SparkTotalEventsDailyTask, self).run()
+
+    def spark_job(self, *args):
         df = self.get_event_log_dataframe(self._spark)
         df = df.groupBy('event_date').count()
-        df.repartition(1).write.csv(self.output().path, mode='overwrite', sep='\t')
+        df.coalesce(1).write.csv(self.output().path, mode='overwrite', sep='\t')
         # df.repartition(1).rdd.map(lambda row: '\t'.join(map(str, row))).saveAsTextFile(self.output_dir().path)

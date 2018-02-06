@@ -1,3 +1,4 @@
+import ast
 import json
 import os
 import tempfile
@@ -187,7 +188,10 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         dataframe = spark.read.format('json').load(self.path_targets, schema=self.get_log_schema())
         dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
             .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
-        dataframe = dataframe.filter(dataframe['event_date'] == self.lower_bound_date_string)
+        dataframe = dataframe.filter(
+            (dataframe['event_date'] >= self.lower_bound_date_string) &
+            (dataframe['event_date'] < self.upper_bound_date_string)
+        )
         return dataframe
 
 
@@ -223,7 +227,17 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         """
         raise NotImplementedError
 
-    def _load_internal_dependency_on_cluster(self):
+    def get_config_from_args(self, key, *args, **kwargs):
+        """
+        Returns `value` of `key` after parsing string argument
+        """
+        default_value = kwargs.get('default_value', None)
+        str_arg = args[0]
+        config_dict = ast.literal_eval(str_arg)
+        value = config_dict.get(key, default_value)
+        return value
+
+    def _load_internal_dependency_on_cluster(self, *args):
         """
         creates a zip of package and loads it on spark worker nodes
 
@@ -248,21 +262,43 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         import requests
 
         dependencies_list = []
-        egg_files = luigi.configuration.get_config().get('spark', 'edx_egg_files', None)
-        if isinstance(egg_files, basestring):
-            dependencies_list = json.loads(egg_files)
+        # get cluster dependencies from *args
+        cluster_dependencies = self.get_config_from_args('cluster_dependencies', *args, default_value=None)
+        if cluster_dependencies is not None:
+            cluster_dependencies = json.loads(cluster_dependencies)
+        if isinstance(cluster_dependencies, list):
+            dependencies_list += cluster_dependencies
+
         packages = [edx, luigi, opaque_keys, stevedore, bson, ccx_keys, cjson, boto, filechunkio, ciso8601, chardet,
                     urllib3, certifi, idna, requests]
         self._tmp_dir = tempfile.mkdtemp()
         dependencies_list += create_packages_archive(packages, self._tmp_dir)
-        # dependencies_list.append('s3://edx-analytics-scratch/egg_files/edx_opaque_keys-0.4-py2.7.egg')
         if len(dependencies_list) > 0:
             for file in dependencies_list:
                 self._spark_context.addPyFile(file)
 
-    def run(self):
-        self.remove_output_on_overwrite()
-        super(SparkJobTask, self).run()
+    def get_luigi_configuration(self):
+        """
+        Return luigi configuration as dict for spark task
+
+        luigi configuration cannot be retrieved directly from luigi's get_config method inside spark task
+        """
+
+        return None
+
+    def app_options(self):
+        """
+        List of options that needs to be passed to spark task
+        """
+        options = {}
+        task_config = self.get_luigi_configuration()  # load task dependencies first if any
+        if isinstance(task_config, dict):
+            options = task_config
+        configuration = luigi.configuration.get_config()
+        cluster_dependencies = configuration.get('spark', 'edx_egg_files', None)  # spark worker nodes dependency
+        if cluster_dependencies is not None:
+            options['cluster_dependencies'] = cluster_dependencies
+        return [options]
 
     def _clean(self):
         """Do any cleanup after job here"""
@@ -270,7 +306,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         shutil.rmtree(self._tmp_dir)
 
     def main(self, sc, *args):
-        self.init_spark(sc)
-        self._load_internal_dependency_on_cluster()  # load packages on EMR cluster for spark worker nodes
-        self.spark_job()
-        self._clean()
+        self.init_spark(sc)  # initialize spark contexts
+        self._load_internal_dependency_on_cluster(*args)  # load packages on EMR cluster for spark worker nodes
+        self.spark_job(*args)  # execute spark job
+        self._clean()  # cleanup after spark job
