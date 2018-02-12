@@ -213,7 +213,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         result = df.select('course_id', 'username', 'event_date', 'label') \
             .groupBy('course_id', 'username', 'event_date', 'label').count()
         result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
-        result.coalesce(1).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+        result.coalesce(2).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -388,7 +388,7 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
             interval_end=self.interval.date_b.isoformat(),
         )
         result = self._sql_context.sql(query)
-        result.coalesce(1).write.csv(self.output().path, mode='overwrite', sep='\t')
+        result.coalesce(2).write.csv(self.output().path, mode='overwrite', sep='\t')
         # with dataframe
         # from pyspark.sql.functions import concat, lit, countDistinct
         # user_activity_df = user_activity_df.filter(

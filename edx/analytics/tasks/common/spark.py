@@ -260,6 +260,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         import certifi
         import idna
         import requests
+        import six
 
         dependencies_list = []
         # get cluster dependencies from *args
@@ -270,7 +271,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
             dependencies_list += cluster_dependencies
 
         packages = [edx, luigi, opaque_keys, stevedore, bson, ccx_keys, cjson, boto, filechunkio, ciso8601, chardet,
-                    urllib3, certifi, idna, requests]
+                    urllib3, certifi, idna, requests, six]
         self._tmp_dir = tempfile.mkdtemp()
         dependencies_list += create_packages_archive(packages, self._tmp_dir)
         if len(dependencies_list) > 0:

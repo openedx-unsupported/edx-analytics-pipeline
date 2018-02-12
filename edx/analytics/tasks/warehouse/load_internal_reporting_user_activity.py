@@ -3,13 +3,16 @@ Loads the user_activity table into the warehouse through the pipeline via Hive.
 
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
+import datetime
 import logging
 
 import luigi.date_interval
 
+from edx.analytics.tasks.common.spark import SparkJobTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask
-from edx.analytics.tasks.insights.user_activity import InsertToMysqlCourseActivityTask, UserActivityTableTask
+from edx.analytics.tasks.insights.user_activity import InsertToMysqlCourseActivityTask, UserActivityTableTask, \
+    UserActivityTaskSpark
 from edx.analytics.tasks.util.hive import (
     BareHiveTableTask, HivePartition, HivePartitionTask, WarehouseMixin, hive_database_name
 )
@@ -40,6 +43,111 @@ class InternalReportingUserActivityTableTask(BareHiveTableTask):
             ('activity_type', 'STRING'),
             ('number_of_activities', 'INT'),
         ]
+
+
+class InternalReportingUserActivityPartitionTaskSpark(WarehouseMixin, SparkJobTask):
+    """Spark alternative of InternalReportingUserActivityPartitionTask"""
+
+    date = luigi.DateParameter()
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'user-activity', 'name': 'overwrite_n_days'},
+        significant=False,
+    )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(InternalReportingUserActivityPartitionTaskSpark, self).run()
+
+    def requires(self):
+        required_tasks = [
+            ImportAuthUserTask(overwrite=False, destination=self.warehouse_path)
+        ]
+        if self.overwrite_n_days > 0:
+            overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
+            overwrite_interval = luigi.date_interval.Custom(overwrite_from_date, self.date)
+            required_tasks.append(
+                UserActivityTaskSpark(
+                    interval=overwrite_interval,
+                    warehouse_path=self.warehouse_path,
+                    output_root=self._get_user_activity_hive_table_path(),
+                    overwrite=True,
+                )
+            )
+        yield required_tasks
+
+    def _get_auth_user_hive_table_path(self):
+        import_date = datetime.datetime.utcnow().date() # we only need to join import date's data with user activity
+        return url_path_join(
+            self.warehouse_path,
+            'auth_user',
+            'dt={}'.format(import_date.isoformat())
+        )
+
+    def _get_auth_user_table_schema(self):
+        from pyspark.sql.types import StructType, StringType
+        schema = StructType().add("id", StringType(), True) \
+            .add("username", StringType(), True) \
+            .add("last_login", StringType(), True) \
+            .add("date_joined", StringType(), True) \
+            .add("is_active", StringType(), True) \
+            .add("is_superuser", StringType(), True) \
+            .add("is_staff", StringType(), True) \
+            .add("email", StringType(), True) \
+            .add("dt", StringType(), True)
+        return schema
+
+    def _get_user_activity_hive_table_path(self, *args):
+        return url_path_join(
+            self.warehouse_path,
+            'user_activity'
+        )
+
+    def _get_user_activity_table_schema(self):
+        from pyspark.sql.types import StructType, StringType
+        schema = StructType().add("course_id", StringType(), True) \
+            .add("username", StringType(), True) \
+            .add("date", StringType(), True) \
+            .add("category", StringType(), True) \
+            .add("count", StringType(), True) \
+            .add("dt", StringType(), True)
+        return schema
+
+    def spark_job(self, *args):
+        auth_user_df = self._spark.read.csv(
+            self._get_auth_user_hive_table_path(),
+            schema=self._get_auth_user_table_schema(),
+            sep='\x01',
+            nullValue='\N'
+        )
+        user_activity_df = self._spark.read.csv(
+            self._get_user_activity_hive_table_path(*args),
+            sep='\t',
+            schema=self._get_user_activity_table_schema()
+        )
+        self._sql_context.registerDataFrameAsTable(auth_user_df, 'auth_user')
+        self._sql_context.registerDataFrameAsTable(user_activity_df, 'user_activity')
+        query = """
+            SELECT
+                au.id,
+                ua.course_id,
+                ua.date,
+                ua.category,
+                ua.count
+            FROM auth_user au
+            JOIN user_activity ua
+                ON au.username = ua.username
+        """
+        result = self._sql_context.sql(query)
+        result.coalesce(2).write.csv(self.output().path, mode='overwrite', sep='\t')
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.warehouse_path,
+                'internal_reporting_user_activity',
+                'dt={}'.format(self.date.isoformat())
+            )
+        )
 
 
 class InternalReportingUserActivityPartitionTask(HivePartitionTask):
