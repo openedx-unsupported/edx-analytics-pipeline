@@ -61,7 +61,7 @@ class CourseBlocksDownstreamMixin(TimestampPartitionMixin, WarehouseMixin, Overw
     partition_format = luigi.Parameter(
         config_path={'section': 'course-blocks', 'name': 'partition_format'},
         default='%Y-%m-%d',
-        description='Format string for the course blocks table partition\'s `date` parameter. '
+        description='Format string for the course blocks table partition\'s `datetime` parameter. '
                     'Must result in a filename-safe string, or your partitions will fail to be created.\n'
                     'The default value of "%Y-%m-%d" changes daily, and so causes a new course partition to to be '
                     'created once a day.  For example, use "%Y-%m-%dT%H" to update hourly, though beware of load on '
@@ -89,7 +89,7 @@ class PullCourseBlocksApiData(CourseBlocksDownstreamMixin, luigi.Task):
 
     def requires(self):
         return CourseListApiDataTask(
-            date=self.date,
+            datetime=self.datetime,
             output_root=self.input_root,
             overwrite=self.overwrite,
         )
@@ -185,7 +185,7 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
 
     def requires(self):
         return PullCourseBlocksApiData(
-            date=self.date,
+            datetime=self.datetime,
             input_root=self.input_root,
             overwrite=self.overwrite,
         )
@@ -321,7 +321,7 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
 
 
 class CourseBlocksTableTask(BareHiveTableTask):
-    """Hive table containing the sorted course block data, partitioned on formatted date."""
+    """Hive table containing the sorted course block data, partitioned on formatted datetime."""
 
     @property
     def partition_by(self):
@@ -359,7 +359,7 @@ class CourseBlocksPartitionTask(CourseBlocksDownstreamMixin, MapReduceJobTaskMix
     @property
     def data_task(self):
         return CourseBlocksApiDataTask(
-            date=self.date,
+            datetime=self.datetime,
             input_root=self.input_root,
             output_root=self.output_root,
             overwrite=self.overwrite,

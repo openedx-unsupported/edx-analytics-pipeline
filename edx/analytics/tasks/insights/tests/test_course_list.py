@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import tempfile
+from datetime import datetime
 from unittest import TestCase
 from urllib import urlencode
 
@@ -11,7 +12,9 @@ import httpretty
 from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.insights.course_list import CourseListApiDataTask, PullCourseListApiData
+from edx.analytics.tasks.insights.course_list import (
+    CourseListApiDataTask, CourseListPartitionTask, PullCourseListApiData
+)
 
 log = logging.getLogger(__name__)
 
@@ -245,3 +248,27 @@ class PullCourseListApiDataTest(TestCase):
         with new_task.output().open() as json_input:
             cache_lines = json_input.readlines()
             self.assertEquals(lines, cache_lines)
+
+
+class TimestampPartitionMixinTest(CourseListTestMixin, TestCase):
+    """Tests the TimestampPartitionMixin's formatted partition value."""
+
+    task_class = CourseListPartitionTask
+    timestamp = datetime.utcnow()
+    partition_format = '%Y%m%dT%H%M%S'
+
+    def create_task(self, **kwargs):
+        """Create the task"""
+        self.task = self.task_class(
+            warehouse_path=self.output_dir,
+            datetime=self.timestamp,
+            **kwargs
+        )
+
+    def test_partition_value(self):
+        """Ensure that partition value includes full datetime"""
+        self.create_task(
+            partition_format=self.partition_format,
+        )
+        expected_partition_value = self.timestamp.strftime(self.partition_format)
+        self.assertEquals(self.task.partition_value, expected_partition_value)
