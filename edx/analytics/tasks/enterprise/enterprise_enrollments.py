@@ -21,7 +21,6 @@ from edx.analytics.tasks.enterprise.enterprise_database_imports import (
 )
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserTask,
-    ImportAuthUserProfileTask,
     ImportStudentCourseEnrollmentTask,
     ImportPersistentCourseGradeTask,
 )
@@ -58,9 +57,6 @@ class EnterpriseEnrollmentRecord(Record):
     user_account_creation_timestamp = DateTimeField(description='')
     user_email = StringField(length=255, description='')
     user_username = StringField(length=255, description='')
-    user_age = IntegerField(description='')
-    user_level_of_education = StringField(length=255, description='')
-    user_gender = StringField(length=32, description='The gender of the learner.')
 
 
 class EnterpriseEnrollmentHiveTableTask(BareHiveTableTask):
@@ -140,10 +136,7 @@ class EnterpriseEnrollmentDataTask(
                     course.max_effort AS course_max_effort,
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
-                    auth_user.username AS user_username,
-                    (YEAR(CURRENT_DATE()) - user_profile.year_of_birth) AS user_age,
-                    user_profile.level_of_education AS user_level_of_education,
-                    user_profile.gender AS user_gender
+                    auth_user.username AS user_username
             FROM enterprise_enterprisecourseenrollment enterprise_course_enrollment
             JOIN enterprise_enterprisecustomeruser enterprise_user
                     ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_user.id
@@ -175,8 +168,6 @@ class EnterpriseEnrollmentDataTask(
                     ON enterprise_user.user_id = social_auth.user_id
             JOIN course_catalog course
                     ON enterprise_course_enrollment.course_id = course.course_id
-            JOIN auth_userprofile user_profile
-                    ON enterprise_user.user_id = user_profile.user_id
         """
 
     @property
@@ -195,7 +186,6 @@ class EnterpriseEnrollmentDataTask(
         # the process that generates the source table used by this query
         yield (
             ImportAuthUserTask(),
-            ImportAuthUserProfileTask(),
             ImportEnterpriseCustomerTask(),
             ImportEnterpriseCustomerUserTask(),
             ImportEnterpriseCourseEnrollmentUserTask(),
