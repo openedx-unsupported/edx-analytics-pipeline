@@ -1339,7 +1339,7 @@ class PerDateEventRecordDataMixin(PerDateEventRecordDataDownstreamMixin):
         Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv,
         but output_root is assumed to be set externally to {warehouse_path}/event_records/dt={CCYY-MM-DD}.
         """
-        date_received, project = key
+        _date_received, project = key
 
         return url_path_join(
             self.output_root,

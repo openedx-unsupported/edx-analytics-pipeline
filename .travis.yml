@@ -36,6 +36,7 @@ before_install:
 
 script:
   - make test-docker
+  - make quality-docker
   - make coverage-docker
 
 after_success:

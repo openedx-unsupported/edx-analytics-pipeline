@@ -2,15 +2,11 @@
 Utility methods for interacting with S3 via boto.
 """
 import logging
-import math
 import os
 import time
 from fnmatch import fnmatch
 from urlparse import urlparse
 
-from boto import connect_s3
-from boto.s3.key import Key
-from filechunkio import FileChunkIO
 from luigi.contrib.hdfs.format import Plain
 from luigi.contrib.hdfs.target import HdfsTarget
 from luigi.contrib.s3 import AtomicS3File, S3Client

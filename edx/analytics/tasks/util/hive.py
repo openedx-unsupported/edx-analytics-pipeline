@@ -8,7 +8,6 @@ from luigi.configuration import get_config
 from luigi.contrib.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
 from luigi.parameter import BoolParameter, Parameter
 
-from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
