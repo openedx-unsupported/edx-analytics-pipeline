@@ -139,13 +139,6 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         super(EventLogSelectionDownstreamMixin, self).__init__(*args, **kwargs)
         self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
         self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        path_targets = PathSelectionByDateIntervalTask(
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            date_pattern=self.date_pattern,
-        ).output()
-        self.path_targets = [task.path for task in path_targets]
 
     def get_log_schema(self):
         """
@@ -185,6 +178,13 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
 
     def get_event_log_dataframe(self, spark, *args, **kwargs):
         from pyspark.sql.functions import to_date, udf, struct, date_format
+        path_targets = PathSelectionByDateIntervalTask(
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            date_pattern=self.date_pattern,
+        ).output()
+        self.path_targets = [task.path for task in path_targets]
         dataframe = spark.read.format('json').load(self.path_targets, schema=self.get_log_schema())
         dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
             .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
@@ -206,8 +206,21 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
     _hive_context = None
     _tmp_dir = None
 
-    driver_memory = '2g'
-    executor_memory = '3g'
+    driver_memory = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'driver-memory'},
+        description='Memory for spark driver',
+        significant=False,
+    )
+    executor_memory = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'executor-memory'},
+        description='Memory for each executor',
+        significant=False,
+    )
+    executor_cores = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'executor-cores'},
+        description='No. of cores for each executor',
+        significant=False,
+    )
     always_log_stderr = False  # log stderr if spark fails, True for verbose log
 
     def init_spark(self, sc):
