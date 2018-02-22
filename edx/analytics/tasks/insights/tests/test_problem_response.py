@@ -15,8 +15,7 @@ from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.problem_response import (
-    LatestProblemResponseDataTask, LatestProblemResponsePartitionTask, LatestProblemResponseTableTask,
-    ProblemResponseRecord, ProblemResponseReportTask
+    LatestProblemResponseDataTask, LatestProblemResponseTableTask, ProblemResponseRecord, ProblemResponseReportTask
 )
 from edx.analytics.tasks.util.record import DateTimeField
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
@@ -586,48 +585,3 @@ class ProblemResponseReportTaskReducerTest(ReducerTestMixin, ProblemResponseRepo
         record = test_record_class(list_field=['a', 'b'])
         self.assertEquals(self.task._record_to_string_dict(record),  # pylint: disable=protected-access
                           dict(list_field="['a', 'b']"))
-
-
-class LatestProblemResponsePartitionTaskTest(ProblemResponseTestMixin, TestCase):
-    """Tests the LatestProblemResponsePartitionTask's formatted partition value."""
-
-    task_class = LatestProblemResponsePartitionTask
-
-    timestamp = datetime.utcnow()
-
-    # Only testing to a minute's precision due to issues with interval string parsing, as noted
-    # in partition_format parameter description.
-    partition_format = '%Y%m%dT%H%M'
-
-    def create_task(self, **kwargs):
-        """Create the task"""
-        self.task = self.task_class(
-            warehouse_path=self.output_dir,
-            date=self.timestamp,
-            **kwargs
-        )
-
-    def assert_partition_value(self):
-        """Ensure that datetimes are not filtered down to dates alone, when determining partition value."""
-        expected_partition_value = self.timestamp.strftime(self.partition_format)
-        self.assertEquals(self.task.partition_value, expected_partition_value)
-
-    def test_partition_value_with_start_end(self):
-        self.create_task(
-            interval_start=datetime.strptime('2013-05-30', '%Y-%m-%d'),
-            interval_end=self.timestamp,
-            partition_format=self.partition_format,
-        )
-        self.assert_partition_value()
-
-    def test_partition_value_with_no_interval(self):
-        # interval = luigi.date_interval.Custom.parse('2013-05-30-{}'.format(self.timestamp.isoformat()))
-        # TODO: fix this test to actually check what it's supposed to.
-        # The interval calculated using Custom.parse has always been None for strings with more than just a date range,
-        # so the task below has always used default values.
-        interval = None
-        self.create_task(
-            interval=interval,
-            partition_format=self.partition_format,
-        )
-        self.assert_partition_value()

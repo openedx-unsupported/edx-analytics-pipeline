@@ -48,22 +48,20 @@ class CourseRecord(Record):
 
 class TimestampPartitionMixin(object):
     """
-    This mixin provides its task with a formatted date partition value property.
+    This mixin provides its task with a formatted datetime partition value property.
 
-    The partition value is the `date` parameter, formatted by the `partition_date` parameter.
+    The partition value is the `datetime` parameter, formatted by the `partition_date` parameter.
 
     It can be used by HivePartitionTasks and tasks which invoke downstream HivePartitionTasks.
     """
-    date = luigi.DateSecondParameter(
+    datetime = luigi.DateSecondParameter(
         default=datetime.datetime.utcnow(),
         description='Date/time for the data partition.  Default is UTC now.'
-                    'Note that though this is a DateParameter, it also supports datetime objects, and so can '
-                    'be used to create time-based data partitions.',
     )
     partition_format = luigi.Parameter(
         config_path={'section': 'course-list', 'name': 'partition_format'},
         default='%Y-%m-%d',
-        description='Format string for the course list table partition\'s `date` parameter. '
+        description='Format string for the course list table partition\'s `datetime` parameter. '
                     'Must result in a filename-safe string, or your partitions will fail to be created.\n'
                     'The default value of "%Y-%m-%d" changes daily, and so causes a new course partition to to be '
                     'created once a day.  For example, use "%Y-%m-%dT%H" to update hourly, though beware of load on '
@@ -72,8 +70,8 @@ class TimestampPartitionMixin(object):
 
     @property
     def partition_value(self):
-        """Partition based on the task's date and partition format strings."""
-        return unicode(self.date.strftime(self.partition_format))
+        """Partition based on the task's datetime and partition format strings."""
+        return unicode(self.datetime.strftime(self.partition_format))
 
 
 class CourseListDownstreamMixin(TimestampPartitionMixin, WarehouseMixin, OverwriteOutputMixin):
@@ -145,7 +143,7 @@ class CourseListApiDataTask(CourseListDownstreamMixin, MapReduceJobTask):
     enable_direct_output = True
 
     def requires(self):
-        return PullCourseListApiData(date=self.date, overwrite=self.overwrite)
+        return PullCourseListApiData(datetime=self.datetime, overwrite=self.overwrite)
 
     def mapper(self, line):
         """
@@ -220,7 +218,7 @@ class CourseListApiDataTask(CourseListDownstreamMixin, MapReduceJobTask):
 
 
 class CourseListTableTask(BareHiveTableTask):
-    """Hive table containing the course data, partitioned by date."""
+    """Hive table containing the course data, partitioned by formatted datetime."""
 
     @property
     def partition_by(self):
@@ -253,7 +251,7 @@ class CourseListPartitionTask(CourseListDownstreamMixin, MapReduceJobTaskMixin, 
     @property
     def data_task(self):
         return CourseListApiDataTask(
-            date=self.date,
+            datetime=self.datetime,
             output_root=self.output_root,
             overwrite=self.overwrite,
             mapreduce_engine=self.mapreduce_engine,

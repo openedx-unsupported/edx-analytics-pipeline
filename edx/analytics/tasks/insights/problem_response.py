@@ -91,7 +91,7 @@ class ProblemResponseTableMixin(TimestampPartitionMixin,
         config_path={'section': 'problem-response', 'name': 'partition_format'},
         default='%Y-%m-%d',
         description='Datetime format string for the table partition, which is applied to the configured '
-                    '`date` parameter.  Must result in a filename-safe string, or your partitions will '
+                    '`datetime` parameter.  Must result in a filename-safe string, or your partitions will '
                     'fail to be created.  It results in a combined partition containing: \n'
                     '* {course_id}: a filename-safe version of the configured course_id\n'
                     '* datetime format string:  Adjust this portion to update the data more or less frequently.\n'
@@ -424,7 +424,7 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
     sort_idx=0, and will be sorted in an indeterminate order.
 
     The resulting records are sorted by course_id, course_blocks.sort_idx, and first_attempt_date, and
-    partitioned by formatted date.
+    partitioned by formatted datetime.
     """
     path_delimiter = luigi.Parameter(
         config_path={'section': 'course-blocks', 'name': 'path_delimiter'},
@@ -493,12 +493,12 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
             input_format=self.input_format,
         )
         self.course_list_partition = CourseListPartitionTask(
-            date=self.date,
+            datetime=self.datetime,
             **kwargs
         )
         self.course_blocks_partition = CourseBlocksPartitionTask(
             input_root=self.course_list_partition.output_root,
-            date=self.date,
+            datetime=self.datetime,
             **kwargs
         )
         self.problem_response_partition = LatestProblemResponsePartitionTask(
@@ -506,7 +506,7 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
             interval=self.interval,
             interval_start=self.interval_start,
             interval_end=self.interval_end,
-            date=self.date,
+            datetime=self.datetime,
             source=self.source,
             pattern=self.pattern,
             overwrite=self.overwrite,
@@ -596,7 +596,7 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
         Use the raw data from the problem response location partition as input
         """
         return ProblemResponseLocationPartitionTask(
-            date=self.date,
+            datetime=self.datetime,
             partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,
@@ -722,7 +722,7 @@ class ProblemResponseReportWorkflow(ProblemResponseTableMixin,
         """
         yield ProblemResponseReportTask(
             # ProblemResponseTableMixin
-            date=self.date,
+            datetime=self.datetime,
             partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,
