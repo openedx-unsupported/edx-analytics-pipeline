@@ -545,7 +545,7 @@ class Field(object):
         raise NotImplementedError
 
     @property
-    def biqquery_type(self):
+    def bigquery_type(self):
         """Returns the BigQuery data type for this type of field."""
         raise NotImplementedError
 

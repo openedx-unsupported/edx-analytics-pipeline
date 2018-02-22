@@ -188,7 +188,6 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         with open(org_config_file_path, 'w') as org_config_file:
             org_config_file.write(org_config_text)
 
-
     def validate_exporter_output(self, org_id, exported_filename):
         """
         Preconditions: A complete data package has been uploaded to S3.

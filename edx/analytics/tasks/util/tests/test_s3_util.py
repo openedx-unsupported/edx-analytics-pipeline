@@ -2,7 +2,7 @@
 
 from unittest import TestCase
 
-from mock import MagicMock, patch
+from mock import MagicMock
 
 from edx.analytics.tasks.util import s3_util
 

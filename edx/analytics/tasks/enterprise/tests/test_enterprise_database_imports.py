@@ -7,8 +7,8 @@ import textwrap
 from unittest import TestCase
 
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
-    ImportEnterpriseCustomerTask, ImportEnterpriseCustomerUserTask, ImportEnterpriseCourseEnrollmentUserTask,
-    ImportDataSharingConsentTask, ImportUserSocialAuthTask
+    ImportDataSharingConsentTask, ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask,
+    ImportEnterpriseCustomerUserTask, ImportUserSocialAuthTask
 )
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 

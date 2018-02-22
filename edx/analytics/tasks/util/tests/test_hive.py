@@ -3,8 +3,6 @@
 from datetime import date
 from unittest import TestCase
 
-from mock import sentinel
-
 from edx.analytics.tasks.util import hive
 
 

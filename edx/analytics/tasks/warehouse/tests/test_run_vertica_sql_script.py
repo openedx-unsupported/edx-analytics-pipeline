@@ -24,7 +24,7 @@ class RunVerticaSqlScriptTaskTest(TestCase):
         self.mock_vertica_connector = patcher.start()
         self.addCleanup(patcher.stop)
 
-    def create_task(self, credentials=None, source_script=None):
+    def create_task(self, credentials=None):
         """
         Emulate execution of a generic RunVerticaSqlScriptTask.
         """

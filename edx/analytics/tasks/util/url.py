@@ -27,6 +27,7 @@ from edx.analytics.tasks.util.s3_util import DEFAULT_KEY_ACCESS_POLICY, S3HdfsTa
 
 log = logging.getLogger(__name__)
 
+
 class MarkerMixin(object):
     """This mixin handles Targets that cannot accurately be measured by the existence of data files, and instead need
     another positive marker to indicate Task success."""

@@ -183,7 +183,7 @@ class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
             parts = line.rstrip('\n').split('\t')
             blob = md5(str(i)).hexdigest()  # pseudo-random blob to make sure the input isn't sorted
             lines.append((parts[:-1], blob, line))
-        for k, _, line in sorted(lines):
+        for _, _, line in sorted(lines):
             output.write(line)
         output.seek(0)
         return output

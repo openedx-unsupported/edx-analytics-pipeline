@@ -45,14 +45,14 @@ class ActiveUsersTask(ActiveUsersDownstreamMixin, EventLogSelectionMixin, MapRed
             return
 
         date = datetime.date(*[int(x) for x in date_string.split('-')])
-        iso_year, iso_weekofyear, iso_weekday = date.isocalendar()
+        iso_year, iso_weekofyear, _iso_weekday = date.isocalendar()
         week = isoweek.Week(iso_year, iso_weekofyear)
         start_date = week.monday().isoformat()
         end_date = (week.sunday() + datetime.timedelta(1)).isoformat()
 
         yield (start_date, end_date, username), 1
 
-    def reducer(self, key, values):
+    def reducer(self, key, _values):
         yield key
 
     def output(self):

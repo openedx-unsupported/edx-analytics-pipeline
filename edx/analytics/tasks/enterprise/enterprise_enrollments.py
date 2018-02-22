@@ -1,30 +1,22 @@
 """Compute metrics related to user enrollments in courses"""
 
-import datetime
 import logging
 
 import luigi
 import luigi.task
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.util.hive import (
-    BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask, WarehouseMixin
-)
-from edx.analytics.tasks.util.decorators import workflow_entry_point
-from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
-    ImportEnterpriseCustomerTask,
-    ImportEnterpriseCustomerUserTask,
-    ImportEnterpriseCourseEnrollmentUserTask,
-    ImportDataSharingConsentTask,
-    ImportUserSocialAuthTask,
+    ImportDataSharingConsentTask, ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask,
+    ImportEnterpriseCustomerUserTask, ImportUserSocialAuthTask
 )
 from edx.analytics.tasks.insights.database_imports import (
-    ImportAuthUserTask,
-    ImportStudentCourseEnrollmentTask,
-    ImportPersistentCourseGradeTask,
+    ImportAuthUserTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import OverwriteHiveAndMysqlDownstreamMixin
+from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask
+from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin
 )
