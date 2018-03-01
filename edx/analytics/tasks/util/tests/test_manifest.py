@@ -1,5 +1,8 @@
 """Ensure manifest files are created appropriately."""
 
+import os
+import shutil
+import tempfile
 from unittest import TestCase
 
 import luigi
@@ -7,7 +10,8 @@ from luigi.contrib.hdfs.target import HdfsTarget
 from mock import patch
 
 from edx.analytics.tasks.util.manifest import (
-    ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, create_manifest_target
+    ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, create_manifest_target,
+    remove_manifest_target_if_exists
 )
 from edx.analytics.tasks.util.tests.config import OPTION_REMOVED, with_luigi_config
 from edx.analytics.tasks.util.tests.target import FakeTarget
@@ -81,3 +85,30 @@ class ManifestInputTargetTest(TestCase):
     @with_luigi_config('manifest', 'threshold', OPTION_REMOVED)
     def test_threshold_not_set(self):
         self.assert_no_conversion()
+
+
+temp_rootdir = None
+
+
+class ManifestInputTargetDeletionTest(TestCase):
+    """Ensure manifest files are deleted appropriately."""
+
+    MANIFEST_ID = 'test'
+
+    def setUp(self):
+        temp_rootdir = tempfile.mkdtemp()
+        self.addCleanup(self.cleanup, temp_rootdir)
+
+    def cleanup(self, dirname):
+        """Remove the temp directory only if it exists."""
+        if os.path.exists(dirname):
+            shutil.rmtree(dirname)
+
+    @with_luigi_config(
+        ('manifest', 'path', temp_rootdir),
+    )
+    def test_manifest_file_deletion(self):
+        target = create_manifest_target(self.MANIFEST_ID, [HdfsTarget('s3://foo/bar')])
+        self.assertTrue(target.exists())
+        remove_manifest_target_if_exists(self.MANIFEST_ID)
+        self.assertFalse(target.exists())

@@ -15,7 +15,7 @@ import luigi.contrib.hadoop
 import luigi.task
 from luigi import configuration
 
-from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary
+from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
@@ -126,9 +126,15 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.contrib.hadoop.JobTask):
             'input_format': input_format,
         }
 
+    @property
+    def manifest_id(self):
+        return str(hash(self)).replace('-', 'n')
+
     def input_hadoop(self):
-        manifest_id = str(hash(self)).replace('-', 'n')
-        return convert_to_manifest_input_if_necessary(manifest_id, super(MapReduceJobTask, self).input_hadoop())
+        return convert_to_manifest_input_if_necessary(self.manifest_id, super(MapReduceJobTask, self).input_hadoop())
+
+    def remove_manifest_target_if_exists(self):
+        return remove_manifest_target_if_exists(self.manifest_id)
 
 
 class MapReduceJobRunner(luigi.contrib.hadoop.HadoopJobRunner):

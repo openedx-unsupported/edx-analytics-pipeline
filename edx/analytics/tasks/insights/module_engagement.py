@@ -208,6 +208,8 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
+        if self.overwrite:
+            self.remove_manifest_target_if_exists()
         return super(ModuleEngagementDataTask, self).run()
 
 
