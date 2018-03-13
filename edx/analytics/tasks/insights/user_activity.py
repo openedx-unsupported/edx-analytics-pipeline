@@ -11,7 +11,9 @@ import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.common.spark import EventLogSelectionMixinSpark, SparkJobTask
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
+from edx.analytics.tasks.util.constants import PredicateLabels
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -19,11 +21,6 @@ from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
 log = logging.getLogger(__name__)
-
-ACTIVE_LABEL = "ACTIVE"
-PROBLEM_LABEL = "ATTEMPTED_PROBLEM"
-PLAY_VIDEO_LABEL = "PLAYED_VIDEO"
-POST_FORUM_LABEL = "POSTED_FORUM"
 
 
 class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
@@ -73,18 +70,18 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         if event_type.startswith('edx.course.enrollment.'):
             return []
 
-        labels = [ACTIVE_LABEL]
+        labels = [PredicateLabels.ACTIVE_LABEL]
 
         if event_source == 'server':
             if event_type == 'problem_check':
-                labels.append(PROBLEM_LABEL)
+                labels.append(PredicateLabels.PROBLEM_LABEL)
 
             if event_type.startswith('edx.forum.') and event_type.endswith('.created'):
-                labels.append(POST_FORUM_LABEL)
+                labels.append(PredicateLabels.POST_FORUM_LABEL)
 
         if event_source in ('browser', 'mobile'):
             if event_type == 'play_video':
-                labels.append(PLAY_VIDEO_LABEL)
+                labels.append(PredicateLabels.PLAY_VIDEO_LABEL)
 
         return labels
 
@@ -144,6 +141,76 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         return super(UserActivityTask, self).run()
 
 
+class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJobTask):
+    """
+    UserActivityTask converted to spark
+
+    """
+
+    output_root = None
+    marker = luigi.Parameter(
+        config_path={'section': 'map-reduce', 'name': 'marker'},
+        significant=False,
+        description='A URL location to a directory where a marker file will be written on task completion.',
+    )
+
+    def output_dir(self):
+        """
+        Output directory for spark task
+        """
+        return get_target_from_url(url_path_join(self.warehouse_path, 'user_activity'))
+
+    def output(self):
+        marker_url = url_path_join(self.marker, str(hash(self)))
+        return get_target_from_url(marker_url, marker=True)
+
+    def output_paths(self):
+        """
+        Output partition paths
+        """
+        table_path = url_path_join(self.warehouse_path, 'user_activity')
+        return map(
+            lambda date: get_target_from_url(
+                url_path_join(
+                    table_path, 'dt={}'.format(date.isoformat())
+                )
+            ),
+            self.interval
+        )
+
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        removed_partitions = [target.remove() for target in self.output_paths() if target.exists()]
+        super(UserActivityTaskSpark, self).run()
+
+    def spark_job(self, *args):
+        from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id
+        from pyspark.sql.functions import udf, struct, split, explode, lit
+        from pyspark.sql.types import StringType
+        df = self.get_event_log_dataframe(self._spark)
+        # register udfs
+        get_labels = udf(get_event_predicate_labels, StringType())
+        get_courseid = udf(get_course_id, StringType())
+        df = df.filter(
+            (df['event_source'] != 'task') &
+            ~ df['event_type'].startswith('edx.course.enrollment.') &
+            (df['username'] != '')
+        )
+        df = df.withColumn('all_labels', get_labels(df['event_type'], df['event_source'])) \
+            .withColumn('course_id', get_courseid(df['context']))
+        df = df.filter(df['course_id'] != '')  # remove rows with empty course_id
+        df = df.withColumn('label', explode(split(df['all_labels'], ',')))
+        result = df.select('course_id', 'username', 'event_date', 'label') \
+            .groupBy('course_id', 'username', 'event_date', 'label').count()
+        result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
+        result.coalesce(1).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+
+
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the UserActivityTableTask task."""
 
@@ -169,10 +236,9 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
             overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
             overwrite_interval = luigi.date_interval.Custom(overwrite_from_date, self.date)
 
-            yield UserActivityTask(
+            yield UserActivityTaskSpark(
                 interval=overwrite_interval,
                 warehouse_path=self.warehouse_path,
-                n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=True,
             )
 
