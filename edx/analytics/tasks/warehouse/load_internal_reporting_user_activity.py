@@ -124,8 +124,8 @@ class InternalReportingUserActivityPartitionTaskSpark(WarehouseMixin, SparkJobTa
             sep='\t',
             schema=self._get_user_activity_table_schema()
         )
-        self._sql_context.registerDataFrameAsTable(auth_user_df, 'auth_user')
-        self._sql_context.registerDataFrameAsTable(user_activity_df, 'user_activity')
+        auth_user_df.createOrReplaceTempView('auth_user')
+        user_activity_df.createOrReplaceTempView('user_activity')
         query = """
                     SELECT
                         au.id,
@@ -137,7 +137,7 @@ class InternalReportingUserActivityPartitionTaskSpark(WarehouseMixin, SparkJobTa
                     JOIN user_activity ua
                         ON au.username = ua.username
                 """
-        result = self._sql_context.sql(query)
+        result = self._spark.sql(query)
         result.coalesce(1).write.csv(self.output().path, mode='overwrite', sep='\t')
         # using broadcast join
         # from pyspark.sql.functions import broadcast
@@ -411,9 +411,8 @@ class UserActivityWorkflow(WeeklyIntervalMixin, WarehouseMixin, luigi.WrapperTas
     n_reduce_tasks = luigi.Parameter()
 
     def requires(self):
-        yield InternalReportingUserActivityPartitionTask(
+        yield InternalReportingUserActivityPartitionTaskSpark(
             date=self.end_date,
-            n_reduce_tasks=self.n_reduce_tasks,
             warehouse_path=self.warehouse_path,
             overwrite_n_days=self.overwrite_n_days,
             overwrite=self.overwrite_hive,

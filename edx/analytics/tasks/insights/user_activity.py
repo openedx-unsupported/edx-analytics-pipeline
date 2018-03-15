@@ -213,7 +213,7 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         result = df.select('course_id', 'username', 'event_date', 'label') \
             .groupBy('course_id', 'username', 'event_date', 'label').count()
         result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
-        result.coalesce(2).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+        result.coalesce(1).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -277,16 +277,13 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
     """
     Spark equivalent of CourseActivityPartitionTask
     """
-    output_root = luigi.Parameter()
 
     def run(self):
         self.remove_output_on_overwrite()
         super(CourseActivityPartitionTaskSpark, self).run()
 
     def output(self):
-        return get_target_from_url(
-            url_path_join(self.output_root, 'dt={}'.format(self.end_date.isoformat()))
-        )
+        return get_target_from_url(self.hive_partition_path('course_activity', self.end_date.isoformat()))
 
     def get_luigi_configuration(self):
         options = {}
@@ -364,8 +361,8 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
             sep='\t',
             schema=self.get_calendar_table_schema()
         )
-        self._sql_context.registerDataFrameAsTable(user_activity_df, 'user_activity')
-        self._sql_context.registerDataFrameAsTable(calendar_df, 'calendar')
+        user_activity_df.createOrReplaceTempView('user_activity')
+        calendar_df.createOrReplaceTempView('calendar')
         query = """
                 SELECT
                     act.course_id as course_id,
@@ -387,8 +384,8 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
             interval_start=self.interval.date_a.isoformat(),
             interval_end=self.interval.date_b.isoformat(),
         )
-        result = self._sql_context.sql(query)
-        result.coalesce(2).write.csv(self.output().path, mode='overwrite', sep='\t')
+        result = self._spark.sql(query)
+        result.coalesce(1).write.csv(self.output().path, mode='overwrite', sep='\t')
         # with dataframe
         # from pyspark.sql.functions import concat, lit, countDistinct
         # user_activity_df = user_activity_df.filter(
@@ -558,11 +555,10 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def insert_source_task(self):
-        return CourseActivityPartitionTask(
+        return CourseActivityPartitionTaskSpark(
             warehouse_path=self.warehouse_path,
             end_date=self.end_date,
             weeks=self.weeks,
-            n_reduce_tasks=self.n_reduce_tasks,
             overwrite=self.overwrite_hive,
             overwrite_n_days=self.overwrite_n_days,
         )
