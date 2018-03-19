@@ -8,6 +8,7 @@ from collections import defaultdict
 
 import luigi
 from luigi.contrib.hive import HiveQueryTask
+from luigi.parameter import MissingParameterException
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -183,6 +184,7 @@ class LastCountryOfUserDownstreamMixin(
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
+        default=None,
         config_path={'section': 'location-per-course', 'name': 'interval_start'},
         significant=False,
         description='The start date to extract ip addresses for.  Ignored if `interval` is provided.',
@@ -205,6 +207,8 @@ class LastCountryOfUserDownstreamMixin(
         super(LastCountryOfUserDownstreamMixin, self).__init__(*args, **kwargs)
 
         if not self.interval:
+            if self.interval_start is None:
+                raise MissingParameterException("Either 'interval' or 'interval_start' parameter is required to be specified.")
             self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 

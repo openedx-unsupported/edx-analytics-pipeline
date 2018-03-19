@@ -14,6 +14,40 @@ from edx.analytics.tasks.insights.enrollments import (
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
+class CourseEnrollmentTaskParamTest(TestCase):
+
+    def test_use_interval(self):
+        interval = luigi.DateIntervalParameter().parse('2013-01-01')
+        interval_start = None
+        CourseEnrollmentTask(
+            interval=interval,
+            interval_start=interval_start,
+            output_root="/fake/output",
+            overwrite_n_days=5
+        )
+
+    def test_use_interval_start(self):
+        interval = None
+        interval_start = luigi.DateParameter().parse('2013-01-01')
+        CourseEnrollmentTask(
+            interval=interval,
+            interval_start=interval_start,
+            output_root="/fake/output",
+            overwrite_n_days=5
+        )
+
+    def test_missing_interval(self):
+        interval = None
+        interval_start = None
+        with self.assertRaises(luigi.parameter.MissingParameterException):
+            CourseEnrollmentTask(
+                interval=interval,
+                interval_start=interval_start,
+                output_root="/fake/output",
+                overwrite_n_days=5
+            )
+
+
 class CourseEnrollmentTaskMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
     """
     Tests to verify that event log parsing by mapper works correctly.

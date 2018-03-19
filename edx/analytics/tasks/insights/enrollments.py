@@ -5,7 +5,7 @@ import logging
 
 import luigi
 import luigi.task
-from luigi.parameter import DateIntervalParameter
+from luigi.parameter import DateIntervalParameter, MissingParameterException
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -172,6 +172,7 @@ class CourseEnrollmentDownstreamMixin(WarehouseMixin, EventLogSelectionDownstrea
 
     # Define optional parameters, to be used if 'interval' is not defined.
     interval_start = luigi.DateParameter(
+        default=None,
         config_path={'section': 'enrollments', 'name': 'interval_start'},
         significant=False,
         description='The start date to extract enrollments events for.  Ignored if `interval` is provided.',
@@ -200,6 +201,8 @@ class CourseEnrollmentDownstreamMixin(WarehouseMixin, EventLogSelectionDownstrea
         super(CourseEnrollmentDownstreamMixin, self).__init__(*args, **kwargs)
 
         if not self.interval:
+            if self.interval_start is None:
+                raise MissingParameterException("Either 'interval' or 'interval_start' parameter is required to be specified.")
             self.interval = luigi.date_interval.Custom(self.interval_start, self.interval_end)
 
 
