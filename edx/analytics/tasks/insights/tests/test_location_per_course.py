@@ -7,6 +7,7 @@ import textwrap
 from unittest import TestCase
 
 from luigi.date_interval import Year
+from luigi.parameter import DateIntervalParameter, DateParameter, MissingParameterException
 from mock import Mock, call
 
 from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask
@@ -17,6 +18,34 @@ from edx.analytics.tasks.insights.location_per_course import (
 )
 from edx.analytics.tasks.util.geolocation import UNKNOWN_CODE, UNKNOWN_COUNTRY
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
+
+
+class LastCountryOfUserTaskParamTest(TestCase):
+
+    def test_use_interval(self):
+        interval = DateIntervalParameter().parse('2013-01-01')
+        interval_start = None
+        LastCountryOfUser(
+            interval=interval,
+            interval_start=interval_start,
+        )
+
+    def test_use_interval_start(self):
+        interval = None
+        interval_start = DateParameter().parse('2013-01-01')
+        LastCountryOfUser(
+            interval=interval,
+            interval_start=interval_start,
+        )
+
+    def test_missing_interval(self):
+        interval = None
+        interval_start = None
+        with self.assertRaises(MissingParameterException):
+            LastCountryOfUser(
+                interval=interval,
+                interval_start=interval_start,
+            )
 
 
 class LastDailyIpAddressOfUserMapperTestCase(MapperTestMixin, TestCase):
