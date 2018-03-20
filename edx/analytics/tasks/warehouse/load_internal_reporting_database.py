@@ -29,6 +29,13 @@ class MysqlToWarehouseTaskMixin(WarehouseMixin):
     Parameters for importing a mysql database into the warehouse.
     """
 
+    exclude_field = luigi.ListParameter(
+        default=(),
+        description='List of regular expression patterns for matching "tablename.fieldname" fields that should not be output.',
+    )
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+    )
     db_credentials = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'credentials'},
         description='Path to the external access credentials file.',
@@ -37,8 +44,55 @@ class MysqlToWarehouseTaskMixin(WarehouseMixin):
         config_path={'section': 'database-import', 'name': 'database'}
     )
 
+    def should_exclude_field(self, table_name, field_name):
+        """Determines whether to exclude an individual field during the import, matching against 'table.field'."""
+        full_name = "{}.{}".format(table_name, field_name)
+        if any(re.match(pattern, full_name) for pattern in self.exclude_field):
+            return True
+        return False
 
-class LoadMysqlToVerticaTableTask(MysqlToWarehouseTaskMixin, VerticaCopyTask):
+    @property
+    def field_delimiter(self):
+        """The delimiter in the data to be copied."""
+        # Select a delimiter string that will not occur in field values.  Use the same for Vertica and BigQuery.
+        return '\x01'
+
+    @property
+    def null_marker(self):
+        """The null sequence in the data to be copied."""
+        # Using "NULL" doesn't work, because there are values in several tables
+        # in non-nullable fields that store the string value "NULL" (or "Null" or "null").
+        # As with the field delimiter, we must use something here that we don't expect to
+        # appear in a field value.  (This was an arbitrary but hopefully still readable choice.)
+        # Note that this option only works if "direct" mode is disabled, otherwise it will be ignored
+        # and "NULL" will always be output.  Use the same for Vertica and BigQuery.
+        return 'NNULLL'
+
+    @property
+    def quote_character(self):
+        """The character used to enclose field values to treat as literal when they contain special characters.  Default is none."""
+        # BigQuery does not handle escaping of quotes.  It hews to a narrower standard for CSV
+        # input, which expects quote characters to be doubled as a way of escaping them.
+        # We therefore have to avoid escaping quotes by selecting delimiters and null markers
+        # so they won't appear in field values at all.  We therefore do without any quote character at all.
+        # Use the same for Vertica and BigQuery.
+        return ''
+
+
+class MysqlToVerticaTaskMixin(MysqlToWarehouseTaskMixin):
+    """
+    Parameters for importing a mysql database into Vertica.
+    """
+
+    # Don't use the same source for BigQuery loads as was used for Vertica loads,
+    # until their formats and exclude-field parameters match.
+    warehouse_subdirectory = luigi.Parameter(
+        default='import_mysql_to_vertica',
+        description='Subdirectory under warehouse_path to store intermediate data.'
+    )
+
+
+class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
     """
     Task to import a table from mysql into vertica.
     """
@@ -47,13 +101,10 @@ class LoadMysqlToVerticaTableTask(MysqlToWarehouseTaskMixin, VerticaCopyTask):
         description='The name of the table.',
     )
 
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-    )
-
     def __init__(self, *args, **kwargs):
         super(LoadMysqlToVerticaTableTask, self).__init__(*args, **kwargs)
         self.table_schema = []
+        self.deleted_fields = []
 
     def requires(self):
         if self.required_tasks is None:
@@ -74,7 +125,9 @@ class LoadMysqlToVerticaTableTask(MysqlToWarehouseTaskMixin, VerticaCopyTask):
                 field_null = result[2].strip()
 
                 types_with_parentheses = ['tinyint', 'smallint', 'int', 'bigint', 'datetime']
-                if any(_type in field_type for _type in types_with_parentheses):
+                if field_type == 'tinyint(1)':
+                    field_type = 'BOOLEAN'
+                elif any(_type in field_type for _type in types_with_parentheses):
                     field_type = field_type.rsplit('(')[0]
                 elif field_type == 'longtext':
                     field_type = 'LONG VARCHAR'
@@ -86,43 +139,73 @@ class LoadMysqlToVerticaTableTask(MysqlToWarehouseTaskMixin, VerticaCopyTask):
                 if field_null == "NO":
                     field_type = field_type + " NOT NULL"
 
-                field_name = "\"{}\"".format(field_name)
-
-                self.table_schema.append((field_name, field_type))
+                if self.should_exclude_field(self.table_name, field_name):
+                    self.deleted_fields.append(field_name)
+                else:
+                    field_name = "\"{}\"".format(field_name)
+                    self.table_schema.append((field_name, field_type))
 
         return self.table_schema
 
     @property
     def copy_delimiter(self):
         """The delimiter in the data to be copied."""
-        return "','"
+        return "'{}'".format(self.field_delimiter)
 
     @property
     def copy_null_sequence(self):
         """The null sequence in the data to be copied."""
-        return "'NULL'"
+        return "'{}'".format(self.null_marker)
 
     @property
-    def enclosed_by(self):
-        return "''''"
+    def copy_enclosed_by(self):
+        """The field's enclosing character. Default is empty string."""
+        return "'{}'".format(self.quote_character)
+
+    @property
+    def copy_escape_spec(self):
+        """
+        The escape character to use to have special characters be treated literally.
+
+        Copy's default is backslash if this is a zero-length string.   To disable escaping,
+        use "NO ESCAPE".  To use a different character, use "ESCAPE AS 'char'".
+        """
+        # We disable escaping here, because we trust the (hopefully obscure) delimiters.
+        return "NO ESCAPE"
 
     @property
     def insert_source_task(self):
+        # Get the columns to request from Sqoop, as a side effect of
+        # getting the Vertica columns. The Vertica column names are quoted, so strip the quotes off.
+        column_names = [name[1:-1] for (name, _) in self.columns]
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
         destination = url_path_join(
             self.warehouse_path,
-            "database_import",
+            self.warehouse_subdirectory,
             self.database,
             self.table_name,
             partition_path_spec
         ) + '/'
+        # The arguments here to SqoopImportFromMysql should be the same as for BigQuery.
+        # The old format used mysql_delimiters, and direct mode.  We have now removed direct mode,
+        # and that gives us more choices for other settings.   We have already changed null_string and field termination,
+        # and we hardcode here the replacement of delimiters (like newlines) with spaces
+        # (using Sqoop's --hive-delims-replacement option).
+        # We could also set other SqoopImportTask parameters: escaped_by, enclosed_by, optionally_enclosed_by.
+        # If we wanted to model 'mysql_delimiters=True', we would set escaped-by: \ optionally-enclosed-by: '.
+        # But instead we use the defaults for them, so that there is no escaping or enclosing.
         return SqoopImportFromMysql(
             table_name=self.table_name,
             credentials=self.db_credentials,
             database=self.database,
             destination=destination,
             overwrite=self.overwrite,
-            mysql_delimiters=True,
+            mysql_delimiters=False,
+            fields_terminated_by=self.field_delimiter,
+            null_string=self.null_marker,
+            delimiter_replacement=' ',
+            direct=False,
+            columns=column_names,
         )
 
     @property
@@ -196,7 +279,7 @@ class PostImportDatabaseTask(SchemaManagementTask):
         )
 
 
-class ImportMysqlToVerticaTask(MysqlToWarehouseTaskMixin, luigi.WrapperTask):
+class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
     """Provides entry point for importing a mysql database into Vertica."""
 
     schema = luigi.Parameter(
@@ -207,9 +290,6 @@ class ImportMysqlToVerticaTask(MysqlToWarehouseTaskMixin, luigi.WrapperTask):
         config_path={'section': 'vertica-export', 'name': 'credentials'},
         description='Path to the external access credentials file.',
     )
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-    )
     overwrite = luigi.BoolParameter(
         default=False,
         significant=False,
@@ -217,6 +297,7 @@ class ImportMysqlToVerticaTask(MysqlToWarehouseTaskMixin, luigi.WrapperTask):
 
     exclude = luigi.ListParameter(
         default=(),
+        description='List of regular expression patterns for matching the names of tables that should not be output.',
     )
 
     marker_schema = luigi.Parameter(
@@ -258,10 +339,12 @@ class ImportMysqlToVerticaTask(MysqlToWarehouseTaskMixin, luigi.WrapperTask):
                     db_credentials=self.db_credentials,
                     database=self.database,
                     warehouse_path=self.warehouse_path,
+                    warehouse_subdirectory=self.warehouse_subdirectory,
                     table_name=table_name,
                     overwrite=self.overwrite,
                     date=self.date,
                     marker_schema=self.marker_schema,
+                    exclude_field=self.exclude_field,
                 )
 
         yield PostImportDatabaseTask(
@@ -331,14 +414,8 @@ class MysqlToBigQueryTaskMixin(MysqlToWarehouseTaskMixin):
     Parameters for importing a mysql database into BigQuery.
     """
 
-    exclude_field = luigi.ListParameter(
-        default=(),
-        description='List of regular expression patterns for matching "tablename.fieldname" fields that should not be output.',
-    )
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-    )
-    # Don't use the same source for BigQuery loads as was used for Vertica loads, until their formats match.
+    # Don't use the same source for BigQuery loads as was used for Vertica loads,
+    # until their formats and exclude-field parameters match.
     warehouse_subdirectory = luigi.Parameter(
         default='import_mysql_to_bq',
         description='Subdirectory under warehouse_path to store intermediate data.'
@@ -360,13 +437,6 @@ class LoadMysqlToBigQueryTableTask(MysqlToBigQueryTaskMixin, BigQueryLoadTask):
         self.table_schema = []
         self.deleted_fields = []
 
-    def should_exclude_field(self, field_name):
-        """Determines whether to exclude an individual field during the import, matching against 'table.field'."""
-        full_name = "{}.{}".format(self.table_name, field_name)
-        if any(re.match(pattern, full_name) for pattern in self.exclude_field):
-            return True
-        return False
-
     def get_bigquery_schema(self):
         """Transforms mysql table schema into a vertica compliant schema."""
 
@@ -385,7 +455,7 @@ class LoadMysqlToBigQueryTableTask(MysqlToBigQueryTaskMixin, BigQueryLoadTask):
                 mode = 'REQUIRED' if field_null == 'NO' else 'NULLABLE'
                 description = ''
 
-                if self.should_exclude_field(field_name):
+                if self.should_exclude_field(self.table_name, field_name):
                     self.deleted_fields.append(field_name)
                 else:
                     self.table_schema.append(SchemaField(field_name, bigquery_type, description=description, mode=mode))
@@ -393,35 +463,9 @@ class LoadMysqlToBigQueryTableTask(MysqlToBigQueryTaskMixin, BigQueryLoadTask):
         return self.table_schema
 
     @property
-    def field_delimiter(self):
-        """The delimiter in the data to be copied."""
-        # Select a delimiter string that will not occur in field values.
-        return '\x01'
-
-    @property
-    def null_marker(self):
-        """The null sequence in the data to be copied."""
-        # Using "NULL" doesn't work, because there are values in several tables
-        # in non-nullable fields that store the string value "NULL" (or "Null" or "null").
-        # As with the field delimiter, we must use something here that we don't expect to
-        # appear in a field value.  (This was an arbitrary but hopefully still readable choice.)
-        # Note that this option only works if "direct" mode is disabled, otherwise it will be ignored
-        # and "NULL" will always be output.
-        return 'NNULLL'
-
-    @property
-    def quote_character(self):
-        # BigQuery does not handle escaping of quotes.  It hews to a narrower standard for CSV
-        # input, which expects quote characters to be doubled as a way of escaping them.
-        # We therefore have to avoid escaping quotes by selecting delimiters and null markers
-        # so they won't appear in field values at all.
-        return ''
-
-    @property
     def insert_source_task(self):
         # Make sure yet again that columns have been calculated.
         columns = [field.name for field in self.schema]
-
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
         destination = url_path_join(
             self.warehouse_path,

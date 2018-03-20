@@ -419,9 +419,21 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         return "'\\N'"
 
     @property
-    def enclosed_by(self):
+    def copy_enclosed_by(self):
         """The field's enclosing character. Default is empty string."""
         return "''"
+
+    @property
+    def copy_escape_spec(self):
+        """
+        The escape character to use to have special characters be treated literally.
+
+        Copy's default is backslash if this is a zero-length string.   To disable escaping,
+        use "NO ESCAPE".  To use a different character, use "ESCAPE AS 'char'".
+
+
+        """
+        return ""
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
@@ -438,13 +450,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
             with self.input()['insert_source'].open('r') as insert_source_file:
                 log.debug("Running stream copy from source file")
                 cursor.copy(
-                    "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
+                    "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} {escape_spec} DIRECT ABORT ON ERROR NO COMMIT;".format(
                         schema=self.schema,
                         table=self.table,
                         cols=column_names,
                         delim=self.copy_delimiter,
                         null=self.copy_null_sequence,
-                        enclosed_by=self.enclosed_by,
+                        enclosed_by=self.copy_enclosed_by,
+                        escape_spec=self.copy_escape_spec,
                     ),
                     insert_source_file
                 )

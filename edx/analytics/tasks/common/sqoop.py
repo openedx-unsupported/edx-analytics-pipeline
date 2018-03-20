@@ -99,6 +99,18 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hado
         description='Defines a character to use as replacement for delimiters '
         'that appear within data values, for use with Hive.  Not specified by default.'
     )
+    escaped_by = luigi.Parameter(
+        default=None,
+        description='Defines the character to use on output to escape delimiter values when they appear in field values.',
+    )
+    enclosed_by = luigi.Parameter(
+        default=None,
+        description='Defines the character to use on output to enclose field values.',
+    )
+    optionally_enclosed_by = luigi.Parameter(
+        default=None,
+        description='Defines the character to use on output to enclose field values when they may contain a delimiter.',
+    )
 
     def requires(self):
         return {
@@ -163,7 +175,12 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hado
             arglist.extend(['--fields-terminated-by', self.fields_terminated_by])
         if self.delimiter_replacement is not None:
             arglist.extend(['--hive-delims-replacement', self.delimiter_replacement])
-
+        if self.escaped_by is not None:
+            arglist.extend(['--escaped-by', self.escaped_by])
+        if self.enclosed_by is not None:
+            arglist.extend(['--enclosed-by', self.enclosed_by])
+        if self.optionally_enclosed_by is not None:
+            arglist.extend(['--optionally-enclosed-by', self.optionally_enclosed_by])
         return arglist
 
     def connection_url(self, _cred):
