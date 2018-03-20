@@ -100,8 +100,8 @@ Notes
 * Requires the following sections in config files: hive, database-export, database-import, map-reduce, event-logs, manifest, enrollments. The course-summary-enrollment and course-catalog-api sections are optional.
 * The interval here, should be the beginning of time essentially. It computes enrollment by observing state changes from the beginning of time.
 * ``$FROM_DATE`` can be any string that is accepted by the unix utility ``date``. Here are a few examples: "today", "yesterday", and "2016-05-01".
-* overwrite-mysql controls whether or not the MySQL tables are replaced in a transaction during processing.  Set this flag if you are fully replacing the table, false (default) otherwise.
-* overwrite-hive controls whether or not the Hive intermediate table metadata is removed and replaced during processing.  Set this flag if you want the metadata to be fully recreated, false (default) otherwise.
+* ``overwrite_mysql`` controls whether or not the MySQL tables are replaced in a transaction during processing.  Set this flag if you are fully replacing the table, false (default) otherwise.
+* ``overwrite_hive`` controls whether or not the Hive intermediate table metadata is removed and replaced during processing.  Set this flag if you want the metadata to be fully recreated, false (default) otherwise.
 
 Task
 ~~~~
@@ -207,7 +207,7 @@ Notes
 ~~~~~
 
 * Intended to be run weekly or daily.
-* When using a persistent hive metastore, set overwrite_hive to True.
+* When using a persistent hive metastore, set ``overwrite_hive`` to True.
 
 Task
 ~~~~
@@ -219,7 +219,7 @@ Task
       --weeks 24 \
       --credentials $CREDENTIALS \
       --n-reduce-tasks $NUM_REDUCE_TASKS \
-      --overwrite_mysql
+      --overwrite-mysql
 
 Incremental implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -256,7 +256,7 @@ calculate the historical user-activity counts the first time it is ran:
       --weeks 24 \
       --credentials $CREDENTIALS \
       --n-reduce-tasks $NUM_REDUCE_TASKS \
-      --overwrite_n_days 169
+      --overwrite-n-days 169
 
 After the first run, you can change ``overwrite_n_days`` to 3 or 10 depending on how you plan to run it(daily/weekly).
 
@@ -308,7 +308,7 @@ calculate the historical video counts the first time it is ran:
     InsertToMysqlAllVideoTask --local-scheduler \
       --interval $(date +%Y-%m-%d -d "$FROM_DATE")-$(date +%Y-%m-%d -d "$TO_DATE") \
       --n-reduce-tasks $NUM_REDUCE_TASKS
-      --overwrite_n_days 169
+      --overwrite-n-days 169
 
 After the first run, you can change ``overwrite_n_days`` to 3.
 
