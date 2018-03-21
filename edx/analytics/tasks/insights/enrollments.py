@@ -516,7 +516,7 @@ class CourseEnrollmentRecord(Record):
     mode = StringField(length=255, description='')
 
 
-class CourseEnrollmentTableTask(CourseEnrollmentDownstreamMixin, BareHiveTableTask):
+class CourseEnrollmentTableTask(BareHiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     @property
@@ -698,7 +698,7 @@ class CourseEnrollmentSummaryTask(CourseEnrollmentTask):
         return DateTimeField().deserialize_from_string(event.timestamp)
 
 
-class CourseEnrollmentSummaryTableTask(CourseEnrollmentDownstreamMixin, BareHiveTableTask):
+class CourseEnrollmentSummaryTableTask(BareHiveTableTask):
     """Hive table that stores the set of users enrolled in each course over time."""
 
     @property  # pragma: no cover
@@ -1209,7 +1209,7 @@ class EnrollmentByModeRecord(Record):
                                                 ' on or before this date.')
 
 
-class EnrollmentByModeTableTask(CourseEnrollmentDownstreamMixin, BareHiveTableTask):  # pragma: no cover
+class EnrollmentByModeTableTask(BareHiveTableTask):  # pragma: no cover
     """Creates the `course_enrollment_mode_daily` Hive storage table."""
 
     @property
@@ -1225,7 +1225,7 @@ class EnrollmentByModeTableTask(CourseEnrollmentDownstreamMixin, BareHiveTableTa
         return EnrollmentByModeRecord.get_hive_schema()
 
 
-class EnrollmentByModePartitionTask(CourseEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+class EnrollmentByModePartitionTask(HivePartitionTask):  # pragma: no cover
     """Creates storage partition for the `course_enrollment_mode_daily` Hive table."""
 
     # Define date here, instead of defining many parameters with a downstream mixin.
@@ -1732,8 +1732,11 @@ class CourseProgramMetadataTableTask(BareHiveTableTask):  # pragma: no cover
         return CourseProgramMetadataRecord.get_hive_schema()
 
 
-class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin, HivePartitionTask):  # pragma: no cover
+class CourseProgramMetadataPartitionTask(HivePartitionTask):  # pragma: no cover
     """Creates storage partition for the `course_program_metadata` Hive table."""
+
+    # Define date here, instead of defining many parameters with a downstream mixin.
+    date = luigi.DateParameter()
 
     @property
     def hive_table_task(self):
@@ -1750,6 +1753,9 @@ class CourseProgramMetadataPartitionTask(CourseSummaryEnrollmentDownstreamMixin,
 
 class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, OverwriteAwareHiveQueryDataTask):  # pragma: no cover
     """Selects from `program_course` and persists results into `course_program_metadata` Hive table."""
+
+    # This parameter is not needed for this task.
+    overwrite_n_days = None
 
     @property
     def insert_query(self):
