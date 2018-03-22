@@ -541,7 +541,8 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
     def hive_table_task(self):  # pragma: no cover
         return CourseEnrollmentTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite
+            overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days
         )
 
     @property
@@ -721,6 +722,7 @@ class CourseEnrollmentSummaryPartitionTask(CourseEnrollmentDownstreamMixin, Hive
     def hive_table_task(self):  # pragma: no cover
         return CourseEnrollmentSummaryTableTask(
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
             overwrite=self.overwrite
         )
 
@@ -1235,7 +1237,8 @@ class EnrollmentByModePartitionTask(HivePartitionTask):  # pragma: no cover
     def hive_table_task(self):
         return EnrollmentByModeTableTask(
             warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite
+            overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days
         )
 
     @property
@@ -1271,6 +1274,7 @@ class EnrollmentByModeDataTask(CourseEnrollmentDownstreamMixin, OverwriteAwareHi
         return EnrollmentByModePartitionTask(
             date=self.interval.date_b,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
             overwrite=self.overwrite
         )
 
@@ -1774,6 +1778,7 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Over
             date=self.date,
             warehouse_path=self.warehouse_path,
             overwrite=self.overwrite,
+            overwrite_n_days=self.overwrite_n_days
         )
 
     def requires(self):
@@ -1824,6 +1829,7 @@ class CourseProgramMetadataInsertToMysqlTask(OverwriteHiveAndMysqlDownstreamMixi
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
             overwrite=self.overwrite_hive,
+            overwrite_n_days=self.overwrite_n_days
         )
 
 
