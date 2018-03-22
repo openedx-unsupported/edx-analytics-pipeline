@@ -62,7 +62,7 @@ class SqoopImportTestCase(unittest.TestCase):
                    "fields_terminated_by": fields_terminated_by,
                    "delimiter_replacement": delimiter_replacement,
                    "overwrite": overwrite,
-                  }
+                   }
         # remove options marked as None
         trimmed_kws = {k: v for k, v in kw_args.iteritems() if v is not None}
         task = SqoopImportFromVertica(**trimmed_kws)
