@@ -106,3 +106,26 @@ docs: docs-requirements docs-local
 
 todo:
 	pylint --disable=all --enable=W0511 edx
+
+### Docker commands
+
+dev.build.permissions:
+	chmod +x scripts/hadoop-docker-command.sh scripts/provision.sh
+
+dev.build.analyticstack: dev.build.permissions
+	docker build -t edxops/analyticstack:3.0 .
+
+dev.provision: ## Provision all services with local mounted directories
+	DOCKER_COMPOSE_FILES="-f docker-compose.yml " ./scripts/provision.sh
+
+dev.up:
+	docker-compose up -d
+
+dev.stop:
+	docker-compose stop
+
+dev.down:
+	docker-compose down
+
+shell:
+	docker exec -it edx.devstack.analytics_pipeline /bin/bash

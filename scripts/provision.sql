@@ -1,0 +1,5 @@
+CREATE DATABASE IF NOT EXISTS reports;
+CREATE DATABASE IF NOT EXISTS edx_hive_metastore;
+GRANT ALL PRIVILEGES ON edx_hive_metastore.* TO 'edx_hive'@'%' IDENTIFIED BY 'edx';
+
+FLUSH PRIVILEGES;

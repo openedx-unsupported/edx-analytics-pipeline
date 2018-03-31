@@ -57,8 +57,8 @@ RUN curl -fSL "$HADOOP_URL" -o /var/tmp/$HADOOP_DIST_FILE \
 # HIVE
 RUN curl -fSL "$HIVE_URL" -o /var/tmp/$HIVE_DIST_FILE \
     && tar -xzf /var/tmp/$HIVE_DIST_FILE -C $HIVE_HOME --strip-components=1 \
-    && echo '<configuration><property><name>javax.jdo.option.ConnectionURL</name><value>jdbc:derby:;databaseName=/var/tmp/metastore_db;create=true</value></property></configuration>' > $HIVE_HOME/conf/hive-site.xml \
     && rm -f /var/tmp/$HIVE_DIST_FILE
+ADD scripts/hive-site.xml.template $HIVE_HOME/conf/hive-site.xml
 
 # SPARK
 RUN curl -fSL "$SPARK_URL" -o /var/tmp/$SPARK_DIST_FILE \
@@ -72,6 +72,7 @@ RUN curl -fSL "$SQOOP_URL" -o /var/tmp/$SQOOP_DIST_FILE \
     && tar -xzf /var/tmp/$SQOOP_DIST_FILE -C $SQOOP_HOME --strip-components=1 \
     && tar -xzf /var/tmp/$SQOOP_MYSQL_CONNECTOR_FILE.tar.gz -C /var/tmp/ \
     && cp /var/tmp/$SQOOP_MYSQL_CONNECTOR_FILE/$SQOOP_MYSQL_CONNECTOR_FILE-bin.jar $SQOOP_LIB \
+    && cp /var/tmp/$SQOOP_MYSQL_CONNECTOR_FILE/$SQOOP_MYSQL_CONNECTOR_FILE-bin.jar $HIVE_HOME/lib/ \
     && rm -rf /var/tmp/$SQOOP_DIST_FILE /var/tmp/$SQOOP_MYSQL_CONNECTOR_FILE*
 
 # Edx Hadoop Util Library

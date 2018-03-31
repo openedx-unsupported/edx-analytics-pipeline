@@ -104,7 +104,7 @@ services:
       - ./scripts/hadoop.env
 
   analyticspipelinedocker:
-    image: edxops/analyticstack:2.0
+    image: edxops/analyticstack:3.0
     container_name: edx.devstack.analytics_pipeline
     volumes:
       - .:/edx/app/analytics_pipeline/analytics_pipeline
