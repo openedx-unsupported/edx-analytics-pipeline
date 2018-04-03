@@ -18,7 +18,7 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 # Bring the databases online.
-docker-compose up -d resultstore
+docker-compose up -d resultstore analyticspipelinedocker
 
 # Ensure the MySQL server is online and usable
 echo "Waiting for MySQL"
@@ -36,5 +36,15 @@ echo -e "MySQL ready"
 
 echo -e "${GREEN}Creating databases and users...${NC}"
 docker exec -i edx.devstack.analytics_pipeline.resultstore mysql -uroot mysql < ./scripts/provision.sql
+sleep 20
+
+# initialize hive metastore
+echo -e "${GREEN}Initializing HIVE...${NC}"
+docker exec -i edx.devstack.analytics_pipeline bash -c '/edx/app/hadoop/hive/bin/schematool -dbType mysql -initSchema'
+
+# materialize hadoop directory structure
+sleep 5
+echo -e "${GREEN}Initializing Hadoop directory structure...${NC}"
+docker exec -i -u hadoop edx.devstack.analytics_pipeline bash -c 'sudo /edx/app/hadoop/hadoop/bin/hdfs dfs -chown -R hadoop:hadoop hdfs://namenode:8020/; hdfs dfs -mkdir -p hdfs://namenode:8020/edx-analytics-pipeline/{warehouse,marker,manifest,packages} hdfs://namenode:8020/{spark-warehouse,data} hdfs://namenode:8020/tmp/spark-events;hdfs dfs -copyFromLocal -f /edx/app/hadoop/lib/edx-analytics-hadoop-util.jar hdfs://namenode:8020/edx-analytics-pipeline/packages/;'
 
 echo -e "${GREEN}Provisioning complete!${NC}"

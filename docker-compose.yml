@@ -19,7 +19,7 @@ services:
     environment:
       - CLUSTER_NAME=devstack
     ports:
-      - "50070:50070"
+      - 50070:50070
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
@@ -34,7 +34,7 @@ services:
     depends_on:
       - namenode
     ports:
-      - "50075:50075"
+      - 50075:50075
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
@@ -54,7 +54,7 @@ services:
       - namenode
       - datanode
     ports:
-      - "127.0.0.1:8088:8088"      # resource manager web ui
+      - 8088:8088      # resource manager web ui
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
@@ -76,8 +76,8 @@ services:
       - namenode
       - datanode
     ports:
-      - "127.0.0.1:8042:8042"      # node manager web ui
-      - "127.0.0.1:19888:19888"    # node manager job history server ui
+      - 8042:8042      # node manager web ui
+      - 19888:19888    # node manager job history server ui
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
