@@ -118,9 +118,6 @@ dev.build.analyticstack: dev.build.permissions
 dev.provision: ## Provision all services with local mounted directories
 	DOCKER_COMPOSE_FILES="-f docker-compose.yml " ./scripts/provision.sh
 
-dev.reset:
-	rm -rf .dev
-
 dev.up:
 	docker-compose up -d
 
