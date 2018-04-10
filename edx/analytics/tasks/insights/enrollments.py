@@ -1978,3 +1978,19 @@ class ImportEnrollmentsIntoMysql(OverwriteHiveAndMysqlDownstreamMixin, CourseSum
         ]
         if self.enable_course_catalog:
             yield CourseProgramMetadataInsertToMysqlTask(**course_summary_kwargs)
+        else:
+            # Create an empty 'course_program_metadata' table for insights.
+            # Note that this only ensures that an empty table is created, it does not
+            # write a marker table entry. Subsequent runs with 'enable_course_catalog' set to
+            # True would still work correctly.
+            task = CourseProgramMetadataInsertToMysqlTask(**course_summary_kwargs)
+            # Ensure that the database exists.
+            task.create_database()
+            connection = task.output().connect()
+            try:
+                task.create_table(connection)
+            except Exception:
+                connection.rollback()
+                raise
+            finally:
+                connection.close()
