@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
 
-# This script will provision all of the services. Each service will be setup in the following manner:
-#
-# 1. Migrations run,
-# 2. Tenants—as in multi-tenancy—setup,
-# 3. Service users and OAuth clients setup in LMS,
-# 4. Static assets compiled/collected.
-
-
 set -e
 set -o pipefail
 set -x
