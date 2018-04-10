@@ -109,10 +109,7 @@ todo:
 
 ### Docker commands
 
-dev.build.permissions:
-	chmod +x scripts/hadoop-docker-command.sh scripts/provision.sh
-
-dev.build.analyticstack: dev.build.permissions
+dev.build.analyticstack:
 	docker build -t edxops/analyticstack:3.0 .
 
 dev.provision: ## Provision all services with local mounted directories
