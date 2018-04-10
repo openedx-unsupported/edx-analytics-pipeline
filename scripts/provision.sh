@@ -43,7 +43,6 @@ echo -e "${GREEN}Initializing HIVE...${NC}"
 docker exec -i edx.devstack.analytics_pipeline bash -c '/edx/app/hadoop/hive/bin/schematool -dbType mysql -initSchema'
 
 # materialize hadoop directory structure
-sleep 5
 echo -e "${GREEN}Initializing Hadoop directory structure...${NC}"
 docker exec -i -u hadoop edx.devstack.analytics_pipeline bash -c 'sudo /edx/app/hadoop/hadoop/bin/hdfs dfs -chown -R hadoop:hadoop hdfs://namenode:8020/; hdfs dfs -mkdir -p hdfs://namenode:8020/edx-analytics-pipeline/{warehouse,marker,manifest,packages} hdfs://namenode:8020/{spark-warehouse,data} hdfs://namenode:8020/tmp/spark-events;hdfs dfs -copyFromLocal -f /edx/app/hadoop/lib/edx-analytics-hadoop-util.jar hdfs://namenode:8020/edx-analytics-pipeline/packages/;'
 

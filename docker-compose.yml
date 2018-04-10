@@ -10,7 +10,7 @@ services:
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
       MYSQL_DATABASE: 'reports'
     volumes:
-      - ./.dev/volumes/resultstore:/var/lib/mysql
+      - mysql_data:/var/lib/mysql
 
   namenode:
     image: uhopper/hadoop-namenode:2.7.2
@@ -23,7 +23,7 @@ services:
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
-      - ./.dev/volumes/namenode:/hadoop/dfs/name
+      - namenode_data:/hadoop/dfs/name
 
   datanode:
     image: uhopper/hadoop-datanode:2.7.2
@@ -38,7 +38,7 @@ services:
     command: ["/docker-command.sh"]
     volumes:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
-      - ./.dev/volumes/datanode:/hadoop/dfs/data
+      - datanode_data:/hadoop/dfs/data
 
   resourcemanager:
     image: uhopper/hadoop-resourcemanager:2.7.2
@@ -123,3 +123,9 @@ services:
       SPARK_MASTER_PORT: "7077"
       COMMON_MYSQL_MIGRATE_USER: root
       COMMON_MYSQL_MIGRATE_PASS: ""
+
+volumes:
+  mysql_data:
+  namenode_data:
+  datanode_data:
+
