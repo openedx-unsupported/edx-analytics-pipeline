@@ -1,4 +1,5 @@
-FROM ubuntu:16.04
+FROM edxops/xenial-common:latest
+MAINTAINER edxops
 
 USER root
 ENV BOTO_CONFIG=/dev/null \
