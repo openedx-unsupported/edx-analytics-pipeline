@@ -183,13 +183,21 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         # This has already been checked when getting the event, so just fetch the value.
         timestamp = eventlog.get_event_time_string(event)
 
-        # Strip username to remove trailing newlines that mess up Luigi.
-        username = event.get('username', '').strip()
-        if not username:
-            log.error("Video event without username: %s", event)
-            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing username', 1)
+        # # Strip username to remove trailing newlines that mess up Luigi.
+        # username = event.get('username', '').strip()
+        # if not username:
+        #     log.error("Video event without username: %s", event)
+        #     # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+        #     # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing username', 1)
+        #     return
+
+        user_id = event.get('context', {}).get('user_id')
+        if not user_id:
+            log.error("Video event without user_id in context: %s", event)
             return
+        # Convert user_id to int if str
+        if not isinstance(user_id, int):
+            user_id = int(user_id)
 
         course_id = eventlog.get_course_id(event)
         if course_id is None:
@@ -266,7 +274,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
         # self.incr_counter(self.counter_category_name, 'Output Video Events from Mapper', 1)
         yield (
-            (username.encode('utf8'), course_id.encode('utf8'), encoded_module_id.encode('utf8')),
+            (user_id, course_id.encode('utf8'), encoded_module_id.encode('utf8')),
             (timestamp, event_type, current_time, old_time, youtube_id, video_duration)
         )
 
@@ -315,7 +323,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         Puts the user's video events in chronological order, and identifies pairs of
         play_video/non-play_video events.
         """
-        username, course_id, encoded_module_id = key
+        user_id, course_id, encoded_module_id = key
         # self.incr_counter(self.counter_category_name, 'Input User_course_videos', 1)
 
         sorted_events = sorted(events)
@@ -400,7 +408,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     return None
 
                 return (
-                    username,
+                    user_id,
                     viewing.course_id,
                     viewing.encoded_module_id,
                     viewing.video_duration,
@@ -541,7 +549,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
 
     def mapper(self, line):
         (
-            _username,
+            _user_id,
             _course_id,
             _encoded_module_id,
             _video_duration,
@@ -630,7 +638,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
     def mapper(self, line):
         (
-            username,
+            user_id,
             course_id,
             encoded_module_id,
             video_duration,
@@ -639,7 +647,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             end_offset,
             _reason
         ) = line.split('\t')
-        yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
+        yield ((course_id, encoded_module_id), (user_id, start_offset, end_offset, video_duration))
 
     def reducer(self, key, viewings):
         """
@@ -664,7 +672,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
         video_duration = 0
         for viewing in viewings:
-            username, start_offset, end_offset, duration = viewing
+            user_id, start_offset, end_offset, duration = viewing
 
             # Find the maximum actual video duration, but indicate that
             # it's unknown if any viewing was of a video with unknown duration.
@@ -681,7 +689,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             for segment in xrange(first_segment, last_segment + 1):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
-                users.add(username)
+                users.add(user_id)
                 stats['views'] = stats.get('views', 0) + 1
 
         # If we don't know the duration of the video, just use the final segment that was
