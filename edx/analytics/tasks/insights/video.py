@@ -577,7 +577,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
         date_string = key
         return url_path_join(
             self.hive_partition_path('video_viewing_by_date', date_string),
-            'user_video_viewing_{date}'.format(
+            'video_viewing_{date}'.format(
                 date=date_string,
             ),
         )
