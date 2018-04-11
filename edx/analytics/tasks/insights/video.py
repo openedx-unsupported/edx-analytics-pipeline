@@ -537,7 +537,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
         ))
 
     def requires(self):
-        output_path = self.hive_partition_path('user_video_viewing', self.interval.date_b)
+        output_path = self.hive_partition_path('video_viewing', self.interval.date_b)
         return UserVideoViewingTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
@@ -576,7 +576,7 @@ class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin
     def output_path_for_key(self, key):
         date_string = key
         return url_path_join(
-            self.hive_partition_path('user_video_viewing_by_date', date_string),
+            self.hive_partition_path('video_viewing_by_date', date_string),
             'user_video_viewing_{date}'.format(
                 date=date_string,
             ),
