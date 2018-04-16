@@ -759,7 +759,7 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
 
     @property
     def table(self):
-        return 'video_usage'
+        return 'video_usage_temp'
 
     @property
     def columns(self):  # pragma: no cover
@@ -791,7 +791,7 @@ class VideoTimelineTableTask(BareHiveTableTask):
 
     @property
     def table(self):  # pragma: no cover
-        return 'video_timeline'
+        return 'video_timeline_temp'
 
     @property
     def columns(self):  # pragma: no cover
@@ -826,7 +826,7 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                 segment,
                 num_users,
                 num_views
-            FROM video_usage
+            FROM video_usage_temp
         """
 
     def query(self):  # pragma: no cover
@@ -906,7 +906,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
 
     @property
     def table(self):  # pragma: no cover
-        return 'video_timeline'
+        return 'video_timeline_temp'
 
     @property
     def insert_source_task(self):  # pragma: no cover
@@ -940,7 +940,7 @@ class VideoTableTask(BareHiveTableTask):
 
     @property
     def table(self):  # pragma: no cover
-        return 'video'
+        return 'video_temp'
 
     @property
     def columns(self):  # pragma: no cover
@@ -978,7 +978,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                 users_at_start,
                 users_at_end,
                 sum(num_views) * segment_length
-            FROM video_usage
+            FROM video_usage_temp
             GROUP BY
                 pipeline_video_id,
                 course_id,
@@ -1065,7 +1065,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
 
     @property
     def table(self):  # pragma: no cover
-        return 'video'
+        return 'video_temp'
 
     @property
     def insert_source_task(self):  # pragma: no cover
