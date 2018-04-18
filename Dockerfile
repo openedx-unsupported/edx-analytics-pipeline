@@ -22,7 +22,7 @@ ENV BOTO_CONFIG=/dev/null \
     SPARK_URL=https://archive.apache.org/dist/spark/spark-2.1.0/spark-2.1.0-bin-hadoop2.7.tgz \
     SPARK_DIST_FILE=spark-2.1.0-bin-hadoop2.7.tgz \
     SPARK_HOME=/edx/app/hadoop/spark \
-    LUIGI_CONFIG_PATH=/edx/app/analytics_pipeline/analytics_pipeline/config/docker.cfg \
+    LUIGI_CONFIG_PATH=/edx/app/analytics_pipeline/analytics_pipeline/config/luigi_docker.cfg \
     ANALYTICS_PIPELINE_VENV=/edx/app/analytics_pipeline/venvs \
     BOOTSTRAP=/etc/bootstrap.sh \
     COMMON_BASE_DIR=/edx \
@@ -35,9 +35,11 @@ ENV BOTO_CONFIG=/dev/null \
     ANALYTICS_PIPELINE_OUTPUT_DATABASE_USER='pipeline001' \
     ANALYTICS_PIPELINE_OUTPUT_DATABASE_PASSWORD='password' \
     EDX_PPA_KEY_SERVER='keyserver.ubuntu.com' \
-    EDX_PPA_KEY_ID='69464050'
+    EDX_PPA_KEY_ID='69464050' \
+    GEO_DATA_URL='http://geolite.maxmind.com/download/geoip/database/GeoLiteCountry/GeoIP.dat.gz'
 
-ENV PATH="${PATH}:${JAVA_HOME}/bin:${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${HIVE_HOME}/bin:${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${SQOOP_HOME}/bin" \
+
+ENV PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/edx/app/analytics_pipeline/venvs/analytics_pipeline/bin:${JAVA_HOME}/bin:${HADOOP_HOME}/bin:${HADOOP_HOME}/sbin:${HIVE_HOME}/bin:${SPARK_HOME}/bin:${SPARK_HOME}/sbin:${SQOOP_HOME}/bin" \
     COMMON_DATA_DIR=$COMMON_BASE_DIR/var \
     COMMON_APP_DIR=$COMMON_BASE_DIR/app \
     COMMON_LOG_DIR=$COMMON_BASE_DIR/var/log \
@@ -52,7 +54,7 @@ RUN apt-get update -y && apt-get install -y software-properties-common \
     && apt-get install --no-install-recommends -y \
            python2.7 python2.7-dev python-pip python-apt python-yaml python-jinja2 libmysqlclient-dev libffi-dev libssl-dev \
            libatlas-base-dev libblas-dev liblapack-dev libpq-dev sudo make build-essential git-core \
-           openssh-server openssh-client rsync software-properties-common vim net-tools curl netcat mysql-client \
+           openssh-server openssh-client rsync software-properties-common vim net-tools curl netcat mysql-client-5.6 \
            apt-transport-https ntp acl lynx-cur logrotate rsyslog unzip \
            ack-grep mosh tree screen tmux dnsutils inetutils-telnet \
     && rm -rf /var/lib/apt/lists/*
@@ -123,14 +125,22 @@ RUN pip install $COMMON_PIP_PACKAGES_PIP $COMMON_PIP_PACKAGES_SETUPTOOLS $COMMON
     && chown -R hadoop:hadoop $ANALYTICS_PIPELINE_VENV/analytics_pipeline/ \
     && echo '[hadoop]\nversion: cdh4\ncommand: /edx/app/hadoop/hadoop/bin/hadoop\nstreaming-jar: /edx/app/hadoop/hadoop/share/hadoop/tools/lib/hadoop-streaming-2.7.2.jar' > /etc/luigi/client.cfg
 
+RUN curl -fSL "$GEO_DATA_URL" -o /var/tmp/GeoIP.dat.gz \
+    && gunzip /var/tmp/GeoIP.dat.gz \
+    && mv GeoIP.dat geo.dat
+
 RUN apt-get update && make system-requirements
 USER hadoop
-RUN . $ANALYTICS_PIPELINE_VENV/analytics_pipeline/bin/activate \
+RUN touch /edx/app/hadoop/.bashrc \
+    && echo 'export JAVA_HOME=/usr/lib/jvm/java-8-oracle\nexport HADOOP_HOME=/edx/app/hadoop/hadoop\nexport HIVE_HOME=/edx/app/hadoop/hive\nexport SQOOP_HOME=/edx/app/hadoop/sqoop\nexport SPARK_HOME=/edx/app/hadoop/spark\nexport PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/edx/app/analytics_pipeline/venvs/analytics_pipeline/bin:/usr/lib/jvm/java-8-oracle/bin:/edx/app/hadoop/hadoop/bin:/edx/app/hadoop/hadoop/sbin:/edx/app/hadoop/hive/bin:/edx/app/hadoop/spark/bin:/edx/app/hadoop/spark/sbin:/edx/app/hadoop/sqoop/bin"' > /edx/app/hadoop/.bashrc \
+    && . $ANALYTICS_PIPELINE_VENV/analytics_pipeline/bin/activate \
     && make test-requirements requirements
 
 RUN sudo chown hadoop:hadoop $COMMON_CFG_DIR/edx-analytics-pipeline/ \
-    && echo "{\"username\": \"$COMMON_MYSQL_READ_ONLY_USER\", \"host\": \"resultstore\", \"password\": \"$COMMON_MYSQL_READ_ONLY_PASS\", \"port\": 3306}" > $COMMON_CFG_DIR/edx-analytics-pipeline/input.json \
-    && echo "{\"username\": \"$ANALYTICS_PIPELINE_OUTPUT_DATABASE_USER\", \"host\": \"resultstore\", \"password\": \"$ANALYTICS_PIPELINE_OUTPUT_DATABASE_PASSWORD\", \"port\": 3306}" > $COMMON_CFG_DIR/edx-analytics-pipeline/output.json
+    && echo "{\"username\": \"$COMMON_MYSQL_READ_ONLY_USER\", \"host\": \"mysql\", \"password\": \"$COMMON_MYSQL_READ_ONLY_PASS\", \"port\": 3306}" > $COMMON_CFG_DIR/edx-analytics-pipeline/input.json \
+    && echo "{\"username\": \"$ANALYTICS_PIPELINE_OUTPUT_DATABASE_USER\", \"host\": \"mysql\", \"password\": \"$ANALYTICS_PIPELINE_OUTPUT_DATABASE_PASSWORD\", \"port\": 3306}" > $COMMON_CFG_DIR/edx-analytics-pipeline/output.json \
+    && echo "{\"username\": \"dbadmin\", \"host\": \"vertica\", \"password\": \"\", \"port\": 5433}" > $COMMON_CFG_DIR/edx-analytics-pipeline/warehouse.json \
+    && echo "{\"connection_user\": \"hadoop\",\n\"credentials_file_url\": \"/edx/etc/edx-analytics-pipeline/output.json\",\n\"exporter_output_bucket\": \"\",\n\"geolocation_data\": \"hdfs://namenode:8020/edx-analytics-pipeline/geo.dat\",\n\"hive_user\": \"hadoop\",\n\"host\": \"HOSTNAME\",\n\"identifier\": \"local-devstack\",\n\"manifest_input_format\": \"org.edx.hadoop.input.ManifestTextInputFormat\",\n\"oddjob_jar\": \"hdfs://namenode:8020/edx-analytics-pipeline/packages/edx-analytics-hadoop-util.jar\",\n\"tasks_branch\": \"origin/HEAD\",\n\"tasks_log_path\": \"/tmp/acceptance/\",\n\"tasks_repo\": \"/edx/app/analytics_pipeline/analytics_pipeline\",\n\"tasks_output_url\": \"hdfs://namenode:8020/tmp/acceptance-test-output/\",\n\"vertica_creds_url\": \"/edx/etc/edx-analytics-pipeline/warehouse.json\",\n\"elasticsearch_host\": \"http://elasticsearch:9200/\",\n\"wheel_url\": \"https://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Ubuntu/precise\",\n\"is_remote\": \"false\" }" > $COMMON_CFG_DIR/edx-analytics-pipeline/acceptance.json
 
 WORKDIR /edx/app/analytics_pipeline/analytics_pipeline
 

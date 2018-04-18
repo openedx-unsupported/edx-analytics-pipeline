@@ -4,7 +4,7 @@
 
 bash $HADOOP_HOME/etc/hadoop/hadoop-env.sh
 . /edx/app/analytics_pipeline/venvs/analytics_pipeline/bin/activate && make develop-local
-#service mysql restart
+sed -i s/HOSTNAME/$HOSTNAME/ /edx/etc/edx-analytics-pipeline/acceptance.json
 
 # installing libraries if any - (resource urls added comma separated to the ACP system variable)
 cd $HADOOP_HOME/share/hadoop/common ; for cp in ${ACP//,/ }; do  echo == $cp; curl -LO $cp ; done; cd -

@@ -10,11 +10,11 @@ YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
 # Bring the databases online.
-docker-compose up -d resultstore analyticspipelinedocker
+docker-compose up -d mysql analyticspipeline
 
 # Ensure the MySQL server is online and usable
 echo "Waiting for MySQL"
-until docker exec -i edx.devstack.analytics_pipeline.resultstore mysql -uroot -se "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = 'root')" &> /dev/null
+until docker exec -i edx.devstack.analytics_pipeline.mysql mysql -uroot -se "SELECT EXISTS(SELECT 1 FROM mysql.user WHERE user = 'root')" &> /dev/null
 do
   printf "."
   sleep 1
@@ -27,8 +27,8 @@ sleep 20
 echo -e "MySQL ready"
 
 echo -e "${GREEN}Creating databases and users...${NC}"
-docker exec -i edx.devstack.analytics_pipeline.resultstore mysql -uroot mysql < ./scripts/provision.sql
-sleep 20
+docker exec -i edx.devstack.analytics_pipeline.mysql mysql -uroot mysql < ./scripts/provision.sql
+sleep 3
 
 # initialize hive metastore
 echo -e "${GREEN}Initializing HIVE...${NC}"
@@ -44,6 +44,6 @@ done
 sleep 30 # for datanode & other services to activate
 echo -e "${GREEN}Namenode is ready!${NC}"
 
-docker exec -i -u hadoop edx.devstack.analytics_pipeline bash -c 'sudo /edx/app/hadoop/hadoop/bin/hdfs dfs -chown -R hadoop:hadoop hdfs://namenode:8020/; hdfs dfs -mkdir -p hdfs://namenode:8020/edx-analytics-pipeline/{warehouse,marker,manifest,packages} hdfs://namenode:8020/{spark-warehouse,data} hdfs://namenode:8020/tmp/spark-events;hdfs dfs -copyFromLocal -f /edx/app/hadoop/lib/edx-analytics-hadoop-util.jar hdfs://namenode:8020/edx-analytics-pipeline/packages/;'
+docker exec -i -u hadoop edx.devstack.analytics_pipeline bash -c 'sudo /edx/app/hadoop/hadoop/bin/hdfs dfs -chown -R hadoop:hadoop hdfs://namenode:8020/; hdfs dfs -mkdir -p hdfs://namenode:8020/edx-analytics-pipeline/{warehouse,marker,manifest,packages} hdfs://namenode:8020/{spark-warehouse,data} hdfs://namenode:8020/tmp/spark-events;hdfs dfs -copyFromLocal -f /edx/app/hadoop/lib/edx-analytics-hadoop-util.jar hdfs://namenode:8020/edx-analytics-pipeline/packages/; hdfs dfs -put /var/tmp/geo.dat /edx-analytics-pipeline/;'
 
 echo -e "${GREEN}Provisioning complete!${NC}"
