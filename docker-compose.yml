@@ -1,14 +1,13 @@
 version: '2'
 services:
 
-  resultstore:
+  mysql:
     image: mysql:5.6
-    container_name: edx.devstack.analytics_pipeline.resultstore
+    container_name: edx.devstack.analytics_pipeline.mysql
     command: mysqld --character-set-server=utf8 --collation-server=utf8_bin
     environment:
       MYSQL_ROOT_PASSWORD: ""
       MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
-      MYSQL_DATABASE: 'reports'
     volumes:
       - mysql_data:/var/lib/mysql
 
@@ -103,29 +102,44 @@ services:
     env_file:
       - ./scripts/hadoop.env
 
-  analyticspipelinedocker:
+  elasticsearch:
+    container_name: edx.devstack.elasticsearch
+    image: edxops/elasticsearch:devstack
+    volumes:
+      - elasticsearch_data:/usr/share/elasticsearch/data
+      - elasticsearch_data:/usr/share/elasticsearch/logs
+
+  vertica:
+    image: sumitchawla/vertica:latest
+    container_name: edx.devstack.analytics_pipeline.vertica
+    volumes:
+      - vertica_data:/home/dbadmin/docker
+
+  analyticspipeline:
     image: edxops/analyticstack:3.0
     container_name: edx.devstack.analytics_pipeline
     volumes:
       - .:/edx/app/analytics_pipeline/analytics_pipeline
     command: ["/etc/bootstrap.sh", "-d"]
     depends_on:
-      - resultstore
+      - mysql
       - namenode
       - resourcemanager
       - nodemanager
       - datanode
       - sparkworker
+      - elasticsearch
+      - vertica
     environment:
       HADOOP_COMMON_RESOURCE_MANAGER_HOST: "resourcemanager"
       HADOOP_DEFAULT_FS: "hdfs://namenode:8020"
       SPARK_MASTER_HOST: "spark://sparkmaster:7077"
       SPARK_MASTER_PORT: "7077"
-      COMMON_MYSQL_MIGRATE_USER: root
-      COMMON_MYSQL_MIGRATE_PASS: ""
 
 volumes:
   mysql_data:
   namenode_data:
   datanode_data:
+  vertica_data:
+  elasticsearch_data:
 
