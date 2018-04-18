@@ -97,6 +97,12 @@ class BigQueryTarget(luigi.Target):
         if not table.exists():
             table.create()
 
+    def delete_marker_table(self):
+        dataset = self.client.dataset(self.dataset_id)
+        table = dataset.table('table_updates')
+        if table.exists():
+            table.delete()
+
     def clear_marker_table(self):
         if not self.marker_table_exists():
             return
@@ -154,6 +160,12 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
     # Regardless whether loading only a partition or an entire table,
     # we still need a date to use to mark the table.
     date = luigi.DateParameter()
+
+    skip_clear_marker = luigi.BoolParameter(
+        default=False,
+        description='Set this when pre-deleting the marker table, to avoid quota issues with clearing entries.',
+        significant=False,
+    )
 
     output_target = None
     required_tasks = None
@@ -233,12 +245,14 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
                 if table.exists():
                     partition = self._get_table_partition(dataset, table)
                     partition.delete()
-                self.output().clear_marker_table_entry()
+                if not self.skip_clear_marker:
+                    self.output().clear_marker_table_entry()
             else:
                 # Delete the entire table and all markers related to the table.
                 if table.exists():
                     table.delete()
-                self.output().clear_marker_table()
+                if not self.skip_clear_marker:
+                    self.output().clear_marker_table()
 
     def _get_destination_from_source(self, source_path):
         parsed_url = urlparse.urlparse(source_path)
@@ -257,6 +271,13 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
         else:
             log.debug(" ".join(['gsutil', '-m', 'rsync', source_path, destination_path]))
             return_code = subprocess.call(['gsutil', '-m', 'rsync', source_path, destination_path])
+            if return_code == 0:
+                # Remove any files that were copied whose names have leading underscores, since
+                # these files cannot be uploaded to BigQuery.  It is easier to remove them here
+                # than to exclude them either in the rsync or in the load steps.
+                underscore_path = url_path_join(destination_path, '_*')
+                log.debug(" ".join(['gsutil', 'rm', underscore_path]))
+                return_code = subprocess.call(['gsutil', 'rm', underscore_path])
 
         if return_code != 0:
             raise RuntimeError('Error while syncing {source} to {destination}'.format(
