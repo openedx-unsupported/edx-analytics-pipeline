@@ -12,7 +12,7 @@ services:
       - mysql_data:/var/lib/mysql
 
   namenode:
-    image: uhopper/hadoop-namenode:2.7.2
+    image: edxops/hadoop-namenode:2.7.2
     container_name: edx.devstack.analytics_pipeline.namenode
     hostname: namenode
     environment:
@@ -25,7 +25,7 @@ services:
       - namenode_data:/hadoop/dfs/name
 
   datanode:
-    image: uhopper/hadoop-datanode:2.7.2
+    image: edxops/hadoop-datanode:2.7.2
     container_name: edx.devstack.analytics_pipeline.datanode
     hostname: datanode
     environment:
@@ -40,7 +40,7 @@ services:
       - datanode_data:/hadoop/dfs/data
 
   resourcemanager:
-    image: uhopper/hadoop-resourcemanager:2.7.2
+    image: edxops/hadoop-resourcemanager:2.7.2
     container_name: edx.devstack.analytics_pipeline.resourcemanager
     hostname: resourcemanager
     environment:
@@ -59,7 +59,7 @@ services:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
 
   nodemanager:
-    image: uhopper/hadoop-nodemanager:2.7.2
+    image: edxops/hadoop-nodemanager:2.7.2
     container_name: edx.devstack.analytics_pipeline.nodemanager
     hostname: nodemanager
     environment:
@@ -82,17 +82,22 @@ services:
       - ./scripts/hadoop-docker-command.sh:/docker-command.sh
 
   sparkmaster:
-    image: bde2020/spark-master:2.1.0-hadoop2.7
+    image: edxops/spark-master:2.1.0-hadoop2.7
     container_name: edx.devstack.analytics_pipeline.sparkmaster
+    hostname: sparkmaster
     ports:
       - 127.0.0.1:8080:8080
       - 127.0.0.1:7077:7077
+      - 127.0.0.1:6066:6066
+      - 127.0.0.1:18080:18080
+      - 127.0.0.1:4040:4040
     env_file:
       - ./scripts/hadoop.env
 
   sparkworker:
     image: bde2020/spark-worker:2.1.0-hadoop2.7
     container_name: edx.devstack.analytics_pipeline.sparkworker
+    hostname: sparkworker
     depends_on:
       - sparkmaster
     environment:
@@ -104,6 +109,7 @@ services:
 
   elasticsearch:
     container_name: edx.devstack.elasticsearch
+    hostname: elasticsearch
     image: edxops/elasticsearch:devstack
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
@@ -111,6 +117,7 @@ services:
 
   vertica:
     image: sumitchawla/vertica:latest
+    hostname: vertica
     container_name: edx.devstack.analytics_pipeline.vertica
     volumes:
       - vertica_data:/home/dbadmin/docker
@@ -118,6 +125,7 @@ services:
   analyticspipeline:
     image: edxops/analyticstack:3.0
     container_name: edx.devstack.analytics_pipeline
+    hostname: analyticspipeline
     volumes:
       - .:/edx/app/analytics_pipeline/analytics_pipeline
     command: ["/etc/bootstrap.sh", "-d"]
