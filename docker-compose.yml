@@ -85,6 +85,8 @@ services:
     image: edxops/spark-master:2.1.0-hadoop2.7
     container_name: edx.devstack.analytics_pipeline.sparkmaster
     hostname: sparkmaster
+    depends_on:
+      - namenode
     ports:
       - 127.0.0.1:8080:8080
       - 127.0.0.1:7077:7077
