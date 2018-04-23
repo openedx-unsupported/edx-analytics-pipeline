@@ -267,20 +267,19 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
 
     def _copy_data_to_gs(self, source_path, destination_path):
         if self.is_file(source_path):
-            return_code = subprocess.call(['gsutil', 'cp', source_path, destination_path])
+            command = ['gsutil', 'cp', source_path, destination_path]
         else:
-            log.debug(" ".join(['gsutil', '-m', 'rsync', source_path, destination_path]))
-            return_code = subprocess.call(['gsutil', '-m', 'rsync', source_path, destination_path])
-            if return_code == 0:
-                # Remove any files that were copied whose names have leading underscores, since
-                # these files cannot be uploaded to BigQuery.  It is easier to remove them here
-                # than to exclude them either in the rsync or in the load steps.
-                underscore_path = url_path_join(destination_path, '_*')
-                log.debug(" ".join(['gsutil', 'rm', underscore_path]))
-                return_code = subprocess.call(['gsutil', 'rm', underscore_path])
+            # Exclude any files which should not be uploaded to
+            # BigQuery.  It is easier to remove them here than in the
+            # load steps.  The pattern is a Python regular expression.
+            exclusion_pattern = ".*_SUCCESS$|.*_metadata$"
+            command = ['gsutil', '-m', 'rsync', '-x', exclusion_pattern, source_path, destination_path]
 
+        log.debug(" ".join(command))
+        return_code = subprocess.call(command)
         if return_code != 0:
-            raise RuntimeError('Error while syncing {source} to {destination}'.format(
+            raise RuntimeError('Error {code} while syncing {source} to {destination}'.format(
+                code=return_code,
                 source=source_path,
                 destination=destination_path,
             ))
