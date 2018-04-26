@@ -30,6 +30,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         self.initialize_ids()
 
         self.username = "test_user"
+        self.user_id = 21
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.expected_date_string = '2013-12-17'
         self.event_type = "edx.dummy.event"
@@ -43,7 +44,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
                 "context": {
                     "course_id": self.course_id,
                     "org_id": self.org_id,
-                    "user_id": 21,
+                    "user_id": self.user_id,
                 },
                 "time": "{0}+00:00".format(self.timestamp),
                 "ip": "127.0.0.1",
@@ -80,32 +81,24 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         line = self.create_event_log_line(context={"course_id": ";;;;bad/id/val"})
         self.assert_no_map_output_for(line)
 
-    def test_empty_username(self):
-        line = self.create_event_log_line(username='')
-        self.assert_no_map_output_for(line)
-
-    def test_whitespace_username(self):
-        line = self.create_event_log_line(username='   ')
-        self.assert_no_map_output_for(line)
-
     def test_good_dummy_event(self):
         line = self.create_event_log_line()
         event = tuple(self.task.mapper(line))
-        expected = ((self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),)
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),)
         self.assertEquals(event, expected)
 
     def test_play_video_event(self):
         line = self.create_event_log_line(event_source='browser', event_type='play_video')
         event = tuple(self.task.mapper(line))
-        expected = ((self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),
-                    (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL)))
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                    (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)))
         self.assertEquals(event, expected)
 
     def test_problem_event(self):
         line = self.create_event_log_line(event_source='server', event_type='problem_check')
         event = tuple(self.task.mapper(line))
-        expected = ((self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),
-                    (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, PROBLEM_LABEL)))
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                    (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PROBLEM_LABEL)))
         self.assertEquals(event, expected)
 
     @data(('edx.forum.thread.created', True), ('edx.forum.response.created', True), ('edx.forum.comment.created', True),
@@ -115,11 +108,11 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         line = self.create_event_log_line(event_source='server', event_type=event_type)
         event = tuple(self.task.mapper(line))
         if is_labeled_forum:
-            expected = ((self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),
-                        (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, POST_FORUM_LABEL)))
+            expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                        (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, POST_FORUM_LABEL)))
         else:
             # The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
-            expected = ((self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),)
+            expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),)
         self.assertEquals(event, expected)
 
     def test_exclusion_of_events_by_source(self):
@@ -154,13 +147,13 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
                 outputs.append(output)
 
         expected = (
-            (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),
-            (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL)),
-            (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, ACTIVE_LABEL)),
-            (self.expected_date_string, (self.encoded_course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL)),
-            ('2013-12-24', (self.encoded_course_id, self.username, '2013-12-24', ACTIVE_LABEL)),
-            ('2013-12-24', (self.encoded_course_id, self.username, '2013-12-24', PROBLEM_LABEL)),
-            ('2013-12-16', (self.encoded_course_id, self.username, '2013-12-16', ACTIVE_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)),
+            ('2013-12-24', (str(self.user_id), self.encoded_course_id, '2013-12-24', ACTIVE_LABEL)),
+            ('2013-12-24', (str(self.user_id), self.encoded_course_id, '2013-12-24', PROBLEM_LABEL)),
+            ('2013-12-16', (str(self.user_id), self.encoded_course_id, '2013-12-16', ACTIVE_LABEL)),
         )
         self.assertItemsEqual(outputs, expected)
 
@@ -179,14 +172,14 @@ class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMi
         super(UserActivityPerIntervalReduceTest, self).setUp()
 
         self.initialize_ids()
-        self.username = 'test_user'
+        self.user_id = '21'
 
     def test_multiple(self):
         values = (
-            (self.encoded_course_id, self.username, '2013-12-01', ACTIVE_LABEL),
-            (self.encoded_course_id, self.username, '2013-12-01', ACTIVE_LABEL),
-            (self.encoded_course_id, self.username, '2013-12-01', PLAY_VIDEO_LABEL),
-            (self.encoded_course_id, self.username, '2013-12-01', PLAY_VIDEO_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL),
         )
 
         mock_output_file = Mock()
@@ -194,9 +187,9 @@ class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMi
         self.task.multi_output_reducer('2013-12-01', values, mock_output_file)
         self.assertEquals(len(mock_output_file.write.mock_calls), 4)
 
-        expected_string = '\t'.join((self.encoded_course_id, self.username, '2013-12-01', ACTIVE_LABEL, '2'))
+        expected_string = '\t'.join((self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL, '2'))
         self.assertIn(call(expected_string), mock_output_file.write.mock_calls)
-        expected_string = '\t'.join((self.encoded_course_id, self.username, '2013-12-01', PLAY_VIDEO_LABEL, '2'))
+        expected_string = '\t'.join((self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL, '2'))
         self.assertIn(call(expected_string), mock_output_file.write.mock_calls)
 
 
