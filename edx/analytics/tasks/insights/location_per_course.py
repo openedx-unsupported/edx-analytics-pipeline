@@ -15,7 +15,7 @@ from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import (
     EventLogSelectionDownstreamMixin, EventLogSelectionMixin, PathSelectionByDateIntervalTask
 )
-from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask, ImportStudentCourseEnrollmentTask
+from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.geolocation import GeolocationDownstreamMixin, GeolocationMixin
@@ -35,7 +35,7 @@ class LastIpAddressRecord(Record):
     """
     timestamp = StringField(description='Timestamp of last event by user in a course.')
     ip_address = StringField(description='IP address recorded on last event by user in a course.')
-    username = StringField(description='Username recorded on last event by user in a course.')
+    user_id = IntegerField(description='User ID recorded on last event by user in a course.')
     course_id = StringField(description='Course ID recorded on last event by user in a course.')
 
 
@@ -64,8 +64,8 @@ class LastDailyIpAddressOfUserTask(
             return
         event, date_string = value
 
-        username = eventlog.get_event_username(event)
-        if not username:
+        user_id = event.get('context', {}).get('user_id')
+        if not user_id:
             return
 
         # Get timestamp instead of date string, so we get the latest ip
@@ -76,7 +76,7 @@ class LastDailyIpAddressOfUserTask(
 
         ip_address = event.get('ip')
         if not ip_address:
-            log.warning("No ip_address found for user '%s' on '%s'.", username, timestamp)
+            log.warning("No ip_address found for user '%s' on '%s'.", user_id, timestamp)
             return
 
         # Get the course_id from context, if it happens to be present.
@@ -97,7 +97,7 @@ class LastDailyIpAddressOfUserTask(
         # When looking at location for user in a course, we don't want to have
         # an output file per course per date, so just use date as the key,
         # and have a single file representing all events on the date.
-        yield date_string, (timestamp, ip_address, course_id, username)
+        yield date_string, (timestamp, ip_address, course_id, user_id)
 
     def multi_output_reducer(self, _date_string, values, output_file):
         # All values are for a given date, but we want to find the last ip_address
@@ -105,12 +105,12 @@ class LastDailyIpAddressOfUserTask(
         last_ip = defaultdict()
         last_timestamp = defaultdict()
         for value in values:
-            (timestamp, ip_address, course_id, username) = value
+            (timestamp, ip_address, course_id, user_id) = value
 
-            # We are storing different IP addresses depending on the username
+            # We are storing different IP addresses depending on the user_id
             # *and* the course.  This anticipates a future requirement to provide
             # different countries depending on which course.
-            last_key = (username, course_id)
+            last_key = (user_id, course_id)
 
             last_time = last_timestamp.get(last_key, '')
             if timestamp > last_time:
@@ -120,8 +120,8 @@ class LastDailyIpAddressOfUserTask(
         # Now output the resulting "last" values for each key.
         for last_key, ip_address in last_ip.iteritems():
             timestamp = last_timestamp[last_key]
-            username, course_id = last_key
-            value = [timestamp, ip_address, username, course_id]
+            user_id, course_id = last_key
+            value = [timestamp, ip_address, user_id, course_id]
             record = LastIpAddressRecord(*value)
             output_file.write(record.to_separated_values())
             output_file.write('\n')
@@ -327,11 +327,11 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
     def mapper(self, line):
         record = LastIpAddressRecord.from_tsv(line)
 
-        # Output all events for a username, regardless of course (for now).
+        # Output all events for a user_id, regardless of course (for now).
         # (When including course_id, it should be included in the value, not the key.
         # That way we can provide an appropriate default value for the user for
         # their latest ip_address in any (or in no) course.)
-        yield record.username, (record.timestamp, record.ip_address)
+        yield record.user_id, (record.timestamp, record.ip_address)
 
     def reducer(self, key, values):
         """Outputs country for last ip address associated with a user."""
@@ -341,7 +341,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
 
         # We assume the timestamp values (strings) are in ISO
         # representation, so that they can be compared as strings.
-        username = key
+        user_id = key
         last_ip = None
         last_timestamp = ""
         for timestamp, ip_address in values:
@@ -352,19 +352,19 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         if not last_ip:
             return
 
-        debug_message = u"user '{}' on '{}'".format(username, last_timestamp)
+        debug_message = u"user '{}' on '{}'".format(user_id, last_timestamp)
         country = self.get_country_name(last_ip, debug_message)
         code = self.get_country_code(last_ip, debug_message)
 
-        # Add the username for debugging purposes.  (Not needed for counts.)
-        yield (country.encode('utf8'), code.encode('utf8')), username.encode('utf8')
+        # Add the user_id for debugging purposes.  (Not needed for counts.)
+        yield (country.encode('utf8'), code.encode('utf8')), user_id
 
 
 class LastCountryOfUserRecord(Record):
-    """For a given username, stores information about last country."""
+    """For a given user_id, stores information about last country."""
     country_name = StringField(length=255, description="Name of last country.")
     country_code = StringField(length=10, description="Code for last country.")
-    username = StringField(length=255, description="Username of user with country information.")
+    user_id = IntegerField(description="User ID of user with country information.")
 
 
 class LastCountryOfUserTableTask(BareHiveTableTask):
@@ -442,35 +442,6 @@ class ExternalLastCountryOfUserToHiveTask(LastCountryOfUserPartitionTask):
         return ExternalURL(url.rstrip('/') + '/')
 
 
-class InsertToMysqlLastCountryOfUserTask(LastCountryOfUserDownstreamMixin, MysqlInsertTask):
-    """
-    Copy the last_country_of_user table from Map-Reduce into MySQL.
-    """
-    @property
-    def table(self):
-        return "last_country_of_user"
-
-    @property
-    def columns(self):
-        return LastCountryOfUserRecord.get_sql_schema()
-
-    @property
-    def insert_source_task(self):
-        return LastCountryOfUser(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.n_reduce_tasks,
-            source=self.source,
-            pattern=self.pattern,
-            warehouse_path=self.warehouse_path,
-            interval=self.interval,
-            interval_start=self.interval_start,
-            interval_end=self.interval_end,
-            overwrite_n_days=self.overwrite_n_days,
-            geolocation_data=self.geolocation_data,
-            overwrite=self.overwrite,
-        )
-
-
 class LastCountryPerCourseRecord(Record):
     """For a given course, stores aggregates about last country."""
     date = DateField(nullable=False, description="Date of course enrollment data.")
@@ -510,8 +481,7 @@ class QueryLastCountryPerCourseTask(
                 sum(if(sce.is_active, 1, 0)),
                 count(sce.user_id)
             FROM student_courseenrollment sce
-            LEFT OUTER JOIN auth_user au on sce.user_id = au.id
-            LEFT OUTER JOIN last_country_of_user uc on au.username = uc.username
+            LEFT OUTER JOIN last_country_of_user uc on sce.user_id = uc.user_id
             GROUP BY sce.dt, sce.course_id, uc.country_code;
         """)
 
@@ -561,7 +531,6 @@ class QueryLastCountryPerCourseTask(
                 overwrite=self.overwrite,
             ),
             ImportStudentCourseEnrollmentTask(**kwargs_for_db_import),
-            ImportAuthUserTask(**kwargs_for_db_import),
         )
 
 
@@ -602,41 +571,4 @@ class InsertToMysqlLastCountryPerCourseTask(
             overwrite_n_days=self.overwrite_n_days,
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
-        )
-
-
-@workflow_entry_point
-class InsertToMysqlCourseEnrollByCountryWorkflow(
-        LastCountryOfUserDownstreamMixin,
-        luigi.WrapperTask):
-    """
-    Write last-country information to Mysql.
-
-    Includes LastCountryOfUser and LastCountryPerCourse.
-    """
-
-    # Because this has OverwriteOutputMixin and WrapperTask, we have to redefine complete() to
-    # work correctly.
-    def run(self):
-        if self.overwrite:
-            self.attempted_removal = True
-        super(InsertToMysqlCourseEnrollByCountryWorkflow, self).run()
-
-    def requires(self):
-        kwargs = {
-            'warehouse_path': self.warehouse_path,
-            'n_reduce_tasks': self.n_reduce_tasks,
-            'source': self.source,
-            'pattern': self.pattern,
-            'interval': self.interval,
-            'interval_start': self.interval_start,
-            'interval_end': self.interval_end,
-            'overwrite_n_days': self.overwrite_n_days,
-            'geolocation_data': self.geolocation_data,
-            'overwrite': self.overwrite,
-        }
-
-        yield (
-            InsertToMysqlLastCountryOfUserTask(**kwargs),
-            InsertToMysqlLastCountryPerCourseTask(**kwargs),
         )
