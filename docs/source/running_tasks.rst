@@ -160,7 +160,7 @@ Task
 
 ::
 
-    InsertToMysqlCourseEnrollByCountryWorkflow --local-scheduler \
+    InsertToMysqlLastCountryPerCourseTask --local-scheduler \
      --interval $(date +%Y-%m-%d -d "$FROM_DATE")-$(date +%Y-%m-%d -d "$TO_DATE") \
      --course-country-output $INTERMEDIATE_OUTPUT_ROOT/$(date +%Y-%m-%d -d "$TO_DATE")/country_course \
      --n-reduce-tasks $NUM_REDUCE_TASKS \
@@ -171,7 +171,7 @@ Incremental implementation
 
 On November 19, 2016 we merged a modification of the Location workflow to master.  The new code calculates Location *incrementally*, rather than entirely from scratch each time.  And it involves a new parameter: ``overwrite_n_days``.
 
-The workflow now assumes that new Hive-ready data has been written persistently to the ``last_ip_of_user`` directory under warehouse_path by LastDailyIpAddressOfUserTask.  The workflow uses the ``overwrite_n_days`` to determine how many days back to repopulate this data. The idea is that before this point, events are not expected to change, but perhaps there might be new events that have arrived in the last few days.  We are currently running with a value of 3, and we define that as an enrollment parameter in our override.cfg file.  You can define it there (as ``overwrite_n_days`` in the ``[location-per-course]`` section) or on the command line (as ``--overwrite-n-days``).
+The workflow now assumes that new Hive-ready data has been written persistently to the ``last_ip_of_user_id`` directory under warehouse_path by LastDailyIpAddressOfUserTask.(Before May 9,2018, this used the ``last_ip_of_user`` directory for output.) The workflow uses the ``overwrite_n_days`` to determine how many days back to repopulate this data. The idea is that before this point, events are not expected to change, but perhaps there might be new events that have arrived in the last few days.  We are currently running with a value of 3, and we define that as an enrollment parameter in our override.cfg file.  You can define it there (as ``overwrite_n_days`` in the ``[location-per-course]`` section) or on the command line (as ``--overwrite-n-days``).
 
 This means for us that only the last three days of raw events get scanned daily.  It is assumed that the previous days' data has been loaded by previous runs, or by performing a historical load.
 
@@ -179,7 +179,7 @@ Another change is to allow the interval start to be defined in configuration (as
 
 ::
 
-    InsertToMysqlCourseEnrollByCountryWorkflow --local-scheduler \
+    InsertToMysqlLastCountryPerCourseTask --local-scheduler \
      --interval-end $(date +%Y-%m-%d -d "$TO_DATE") \
      --course-country-output $INTERMEDIATE_OUTPUT_ROOT/$(date +%Y-%m-%d -d "$TO_DATE")/country_course \
      --n-reduce-tasks $NUM_REDUCE_TASKS \
