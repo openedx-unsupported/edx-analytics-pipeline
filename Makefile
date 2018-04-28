@@ -54,18 +54,18 @@ test-docker:
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
-	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
+	LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
 
 test: test-requirements develop test-local
 
 test-acceptance: test-requirements
-	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
+	LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
 test-acceptance-local:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
 
 test-acceptance-local-all:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 quality-docker:
 	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest isort --check-only --recursive edx/
@@ -106,3 +106,23 @@ docs: docs-requirements docs-local
 
 todo:
 	pylint --disable=all --enable=W0511 edx
+
+### Docker commands
+
+dev.build.analyticstack:
+	docker build -t edxops/analyticstack:3.0 .
+
+dev.provision: ## Provision all services with local mounted directories
+	DOCKER_COMPOSE_FILES="-f docker-compose.yml " ./scripts/provision.sh
+
+dev.up:
+	docker-compose up -d
+
+dev.stop:
+	docker-compose stop
+
+dev.down:
+	docker-compose down
+
+shell:
+	docker exec -it edx.devstack.analytics_pipeline /bin/bash
