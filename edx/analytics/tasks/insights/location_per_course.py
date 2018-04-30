@@ -129,7 +129,7 @@ class LastDailyIpAddressOfUserTask(
     def output_path_for_key(self, key):
         date_string = key
         return url_path_join(
-            self.hive_partition_path('last_ip_of_user', date_string),
+            self.hive_partition_path('last_ip_of_user_id', date_string),
             'last_ip_of_user_{date}'.format(date=date_string),
         )
 
@@ -277,7 +277,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
             # last IP address for users per course in that month.  This code wouldn't
             # care.
             path_selection_interval = luigi.date_interval.Custom(self.interval.date_a, self.overwrite_from_date)
-            last_ip_of_user_root = url_path_join(self.warehouse_path, 'last_ip_of_user')
+            last_ip_of_user_root = url_path_join(self.warehouse_path, 'last_ip_of_user_id')
             path_selection_task = PathSelectionByDateIntervalTask(
                 source=[last_ip_of_user_root],
                 pattern=[LastDailyIpAddressOfUserTask.FILEPATH_PATTERN],
@@ -303,7 +303,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
 
     def output_url(self):
         """Return URL for output."""
-        return self.hive_partition_path('last_country_of_user', self.interval.date_b)  # pylint: disable=no-member
+        return self.hive_partition_path('last_country_of_user_id', self.interval.date_b)  # pylint: disable=no-member
 
     def output(self):
         return get_target_from_url(self.output_url())
@@ -376,7 +376,7 @@ class LastCountryOfUserTableTask(BareHiveTableTask):
 
     @property
     def table(self):
-        return 'last_country_of_user'
+        return 'last_country_of_user_id'
 
     @property
     def columns(self):
@@ -481,7 +481,7 @@ class QueryLastCountryPerCourseTask(
                 sum(if(sce.is_active, 1, 0)),
                 count(sce.user_id)
             FROM student_courseenrollment sce
-            LEFT OUTER JOIN last_country_of_user uc on sce.user_id = uc.user_id
+            LEFT OUTER JOIN last_country_of_user_id uc on sce.user_id = uc.user_id
             GROUP BY sce.dt, sce.course_id, uc.country_code;
         """)
 
