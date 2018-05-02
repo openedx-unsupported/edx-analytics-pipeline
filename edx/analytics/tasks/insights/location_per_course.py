@@ -500,7 +500,7 @@ class QueryLastCountryPerCourseTask(
     @property
     def table(self):
         """Provides name of Hive database table."""
-        return 'course_enrollment_location_current'
+        return 'course_enrollment_location_current_temp'
 
     @property
     def table_location(self):
@@ -542,7 +542,7 @@ class InsertToMysqlLastCountryPerCourseTask(
     """
     @property
     def table(self):
-        return "course_enrollment_location_current"
+        return "course_enrollment_location_current_temp"
 
     @property
     def columns(self):
