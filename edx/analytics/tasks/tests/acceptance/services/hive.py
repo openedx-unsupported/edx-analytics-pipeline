@@ -1,5 +1,6 @@
 from edx.analytics.tasks.tests.acceptance.services import shell
 
+
 class HiveService(object):
 
     def __init__(self, task, config, database_name):
