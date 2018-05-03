@@ -5,7 +5,7 @@ import sys
 log = logging.getLogger(__name__)
 
 
-def run(command):
+def run(command, env=None):
     """Execute a subprocess and log the command before running it."""
     try:
         log.info('Running subprocess {0}'.format(subprocess.list2cmdline(command)))
@@ -13,8 +13,15 @@ def run(command):
         log.info('Running subprocess {0}'.format(command))
     buf = []
 
+    params = {
+        'args': command,
+        'stdout': subprocess.PIPE,
+        'stderr': subprocess.STDOUT
+    }
+    if env is not None:
+        params['env'] = env
     # Execute the process gathering the output from stdout
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    proc = subprocess.Popen(**params)
 
     # Read all output from the process, this loop should only exit after the process has
     # terminated and all output has been read from the stdout pipe.

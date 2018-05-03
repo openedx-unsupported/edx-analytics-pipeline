@@ -20,9 +20,10 @@ class TargetFromUrlTestCase(TestCase):
             self.assertEquals(target.path, test_url)
 
     def test_hdfs_scheme(self):
-        target = url.get_target_from_url('hdfs:///foo/bar')
+        path = 'hdfs:///foo/bar'
+        target = url.get_target_from_url(path)
         self.assertIsInstance(target, HdfsTarget)
-        self.assertEquals(target.path, '/foo/bar')
+        self.assertEquals(target.path, path)
 
     def test_file_scheme(self):
         path = '/foo/bar'
