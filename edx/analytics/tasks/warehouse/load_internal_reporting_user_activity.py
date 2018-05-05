@@ -1,6 +1,5 @@
 """
 Loads the user_activity table into the warehouse through the pipeline via Hive.
-
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
 import logging
@@ -24,7 +23,6 @@ log = logging.getLogger(__name__)
 class LoadInternalReportingUserActivityToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
     Loads the user activity table from Hive into the Vertica data warehouse.
-
     """
     date = luigi.DateParameter()
     n_reduce_tasks = luigi.Parameter(
