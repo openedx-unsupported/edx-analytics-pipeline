@@ -45,8 +45,10 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             return
         event, date_string = value
 
-        username = event.get('username', '').strip()
-        if not username:
+        user_id = event.get('context', {}).get('user_id')
+        if not user_id:
+            self.incr_counter('UserActivity', 'Discard Missing User ID', 1)
+            log.error("User-Activity: event without user_id in context: %s", event)
             return
 
         course_id = eventlog.get_course_id(event)
@@ -54,7 +56,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             return
 
         for label in self.get_predicate_labels(event):
-            yield date_string, self._encode_tuple((course_id, username, date_string, label))
+            yield date_string, self._encode_tuple((str(user_id), course_id, date_string, label))
 
     def get_predicate_labels(self, event):
         """Creates labels by applying hardcoded predicates to a single event."""
@@ -111,15 +113,15 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         counter = Counter(values)
 
         for key, num_events in counter.iteritems():
-            course_id, username, date_string, label = key
-            value = (course_id, username, date_string, label, num_events)
+            user_id, course_id, date_string, label = key
+            value = (user_id, course_id, date_string, label, num_events)
             output_file.write('\t'.join([str(field) for field in value]))
             output_file.write('\n')
 
     def output_path_for_key(self, key):
         date_string = key
         return url_path_join(
-            self.hive_partition_path('user_activity', date_string),
+            self.hive_partition_path('user_activity_by_user', date_string),
             'user_activity_{date}'.format(
                 date=date_string,
             )
@@ -203,17 +205,17 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         df = df.filter(
             (df['event_source'] != 'task') &
             ~ df['event_type'].startswith('edx.course.enrollment.') &
-            (df['username'] != '')
+            (df['context.user_id'] != '')
         )
         # passing complete row to UDF
         df = df.withColumn('all_labels', get_labels(df['event_type'], df['event_source'])) \
             .withColumn('course_id', get_courseid(df['context']))
         df = df.filter(df['course_id'] != '')  # remove rows with empty course_id
         df = df.withColumn('label', explode(split(df['all_labels'], ',')))
-        result = df.select('course_id', 'username', 'event_date', 'label') \
-            .groupBy('course_id', 'username', 'event_date', 'label').count()
+        result = df.select('context.user_id', 'course_id', 'event_date', 'label') \
+            .groupBy('user_id', 'course_id', 'event_date', 'label').count()
         result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
-        result.coalesce(1).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+        result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class UserActivityDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
@@ -256,7 +258,7 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
 
     @property
     def table(self):
-        return 'user_activity'
+        return 'user_activity_by_user'
 
     @property
     def partition_by(self):
@@ -265,8 +267,8 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
     @property
     def columns(self):
         return [
+            ('user_id', 'INT'),
             ('course_id', 'STRING'),
-            ('username', 'STRING'),
             ('date', 'STRING'),
             ('category', 'STRING'),
             ('count', 'INT'),
@@ -314,7 +316,7 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
     def user_activity_hive_table_path(self, *args):
         return url_path_join(
             self.warehouse_path,
-            'user_activity'
+            'user_activity_by_user'
         )
 
     def calendar_hive_table_path(self, *args):
@@ -329,8 +331,8 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
 
     def get_user_activity_table_schema(self):
         from pyspark.sql.types import StructType, StringType
-        schema = StructType().add("course_id", StringType(), True) \
-            .add("username", StringType(), True) \
+        schema = StructType().add("user_id", StringType(), True) \
+            .add("course_id", StringType(), True) \
             .add("date", StringType(), True) \
             .add("category", StringType(), True) \
             .add("count", StringType(), True) \
@@ -361,7 +363,7 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
             sep='\t',
             schema=self.get_calendar_table_schema()
         )
-        user_activity_df.createOrReplaceTempView('user_activity')
+        user_activity_df.createOrReplaceTempView('user_activity_by_user')
         calendar_df.createOrReplaceTempView('calendar')
         query = """
                 SELECT
@@ -369,8 +371,8 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
                     CONCAT(cal.iso_week_start, " 00:00:00") as interval_start,
                     CONCAT(cal.iso_week_end, " 00:00:00") as interval_end,
                     act.category as label,
-                    COUNT (DISTINCT username) as count
-                FROM user_activity act
+                    COUNT (DISTINCT user_id) as count
+                FROM user_activity_by_user act
                 JOIN calendar cal
                     ON act.date = cal.date AND act.dt >= "{interval_start}" AND act.dt < "{interval_end}"
                 WHERE
@@ -385,7 +387,7 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
             interval_end=self.interval.date_b.isoformat(),
         )
         result = self._spark.sql(query)
-        result.coalesce(1).write.csv(self.output().path, mode='overwrite', sep='\t')
+        result.coalesce(4).write.csv(self.output().path, mode='overwrite', sep='\t')
         # with dataframe
         # from pyspark.sql.functions import concat, lit, countDistinct
         # user_activity_df = user_activity_df.filter(
@@ -445,8 +447,8 @@ class CourseActivityPartitionTask(WeeklyIntervalMixin, UserActivityDownstreamMix
             CONCAT(cal.iso_week_start, ' 00:00:00') as interval_start,
             CONCAT(cal.iso_week_end, ' 00:00:00') as interval_end,
             act.category as label,
-            COUNT(DISTINCT username) as count
-        FROM user_activity act
+            COUNT(DISTINCT user_id) as count
+        FROM user_activity_by_user act
         JOIN calendar cal
             ON act.`date` = cal.`date` AND act.dt >= "{interval_start}" AND act.dt < "{interval_end}"
         WHERE
