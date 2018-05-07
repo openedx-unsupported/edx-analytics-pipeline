@@ -115,18 +115,8 @@ todo:
 	pylint --disable=all --enable=W0511 edx
 
 # for docker devstack
-docker-test-local:
-	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
-	rm -rf .coverage
-	LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
-
-docker-test: test-requirements develop docker-test-local
-
-docker-test-acceptance: test-requirements
-	LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
-
 docker-test-acceptance-local:
-	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
 
 docker-test-acceptance-local-all:
-	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
