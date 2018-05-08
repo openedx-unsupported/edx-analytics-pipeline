@@ -33,6 +33,7 @@ class TestEnterpriseEnrollmentMysqlTask(TestCase):
             'user_account_creation_timestamp',
             'user_email',
             'user_username',
+            'course_key',
         )
         import_task = EnterpriseEnrollmentMysqlTask(
             date=datetime(2017, 1, 1), warehouse_path='/tmp/foo'
