@@ -76,7 +76,7 @@ class TaskService(object):
                 command = [
                     '/bin/bash',
                     '-c',
-                    '. ~/.bashrc && {0} {1} --local-scheduler'.format(
+                    '. ~/.bashrc && . /edx/app/analytics_pipeline/venvs/analytics_pipeline/bin/activate && {0} {1} --local-scheduler'.format(
                         os.getenv('LAUNCH_TASK', 'launch-task'),
                         ' '.join(task_args))
                 ]
