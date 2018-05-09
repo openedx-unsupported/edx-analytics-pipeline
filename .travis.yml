@@ -19,17 +19,16 @@ env:
 install: true
 
 before_install:
-  # Confirm Docker version and login credentials
+  # Confirm Docker version
   - docker --version
-  - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
 
   # Upgrade Docker
   - sudo apt-get -y update
   - sudo apt-get -y install -o Dpkg::Options::="--force-confnew" docker-ce
   - docker --version
 
-  # Build the image
-  - make docker-build
+  # Pull the docker image
+  - make docker-pull
 
   # Ensure we have a place to store coverage output
   - mkdir -p coverage
@@ -42,7 +41,3 @@ script:
 after_success:
   - pip install --upgrade codecov
   - codecov
-  - if [ "$TRAVIS_PULL_REQUEST" == "false" ] && [ "$TRAVIS_BRANCH" == "master" ]; then
-    docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD";
-    docker push edxops/analytics-pipeline:latest;
-    fi

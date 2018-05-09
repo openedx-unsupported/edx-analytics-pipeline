@@ -19,11 +19,11 @@ develop-local: uninstall
 	python setup.py develop
 	python setup.py install_data
 
-docker-build:
-	docker build -t edxops/analytics-pipeline:latest .
+docker-pull:
+	docker pull edxops/analytics_pipeline:latest
 
 docker-shell:
-	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest bash
+	docker run -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest bash
 
 system-requirements:
 ifeq (,$(wildcard /usr/bin/yum))
@@ -41,6 +41,10 @@ requirements:
 test-requirements: requirements
 	pip install -U -r requirements/test.txt --no-cache-dir --upgrade-strategy only-if-needed
 
+reset-virtualenv:
+	# without bash, environment variables are not available
+	bash -c 'virtualenv --clear ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline'
+
 upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
 	pip-compile --upgrade -o requirements/base.txt requirements/base.in
 	pip-compile --upgrade -o requirements/default.txt requirements/default.in requirements/base.in
@@ -48,8 +52,11 @@ upgrade: ## update the requirements/*.txt files with the latest packages satisfy
 	pip-compile --upgrade -o requirements/test.txt requirements/test.in requirements/default.in requirements/base.in
 	echo "-r extra.txt" >> requirements/docs.txt
 
+test-docker-local:
+	docker run -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local test-local
+
 test-docker:
-	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest make develop-local test-local
+	docker run -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local test-local
 
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
@@ -68,11 +75,11 @@ test-acceptance-local-all:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 quality-docker:
-	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest isort --check-only --recursive edx/
-	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest pycodestyle edx
+	docker run -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest isort --check-only --recursive edx/
+	docker run -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest pycodestyle edx
 
 coverage-docker:
-	docker run -v `(pwd)`:/edx/app/analytics-pipeline -it edxops/analytics-pipeline:latest coverage xml
+	docker run -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest coverage xml
 
 coverage-local: test-local
 	python -m coverage html
