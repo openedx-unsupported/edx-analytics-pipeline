@@ -14,7 +14,7 @@ def run(command, env=None):
     buf = []
 
     # Execute the process gathering the output from stdout
-    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+    proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     # Read all output from the process, this loop should only exit after the process has
     # terminated and all output has been read from the stdout pipe.
