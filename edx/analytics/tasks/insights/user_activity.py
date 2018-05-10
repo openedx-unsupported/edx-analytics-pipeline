@@ -536,7 +536,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def table(self):
-        return "course_activity"
+        return "course_activity_spark_trial"
 
     @property
     def columns(self):
