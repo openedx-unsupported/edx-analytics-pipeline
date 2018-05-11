@@ -84,19 +84,19 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2016, 3, 22, 21, 4, 8), 'no-id-professional', 1, 'Pass', 1,
              datetime.datetime(2017, 5, 9, 16, 27, 34), 'ron', 1, 'All about acceptance testing Part 3!',
              datetime.datetime(2016, 12, 1, 0, 0), datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
-             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test2@example.com', 'test_user2', 'edX+Testing102x'],
+             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test2@example.com', 'test_user2', 'edX+Testing102'],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'course-v1:edX+Testing102x+1T2017',
              datetime.datetime(2016, 3, 22, 21, 8, 8), 'credit', 0, '', 0, None, 'harry', 1,
              'All about acceptance testing Part 3!', datetime.datetime(2016, 12, 1, 0, 0),
              datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
-             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX+Testing102x'],
+             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX+Testing102'],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'edX/Open_DemoX/edx_demo_course',
              datetime.datetime(2014, 6, 27, 16, 2, 38), 'verified', 1, 'Pass', 1,
              datetime.datetime(2017, 5, 9, 16, 27, 35), 'harry', 1, 'All about acceptance testing!',
              datetime.datetime(2016, 9, 1, 0, 0), datetime.datetime(2016, 12, 1, 0, 0), 'instructor_paced', '13', 2, 4,
-             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX/Open_DemoX'],
+             datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX+Open_DemoX'],
         ]
 
         return [tuple(row) for row in expected]
