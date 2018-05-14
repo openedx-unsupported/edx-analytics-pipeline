@@ -11,12 +11,13 @@ from edx.analytics.tasks.enterprise.enterprise_database_imports import (
     ImportEnterpriseCustomerUserTask, ImportUserSocialAuthTask
 )
 from edx.analytics.tasks.insights.database_imports import (
-    ImportAuthUserTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
+    ImportAuthUserProfileTask, ImportAuthUserTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import OverwriteHiveAndMysqlDownstreamMixin
+from edx.analytics.tasks.insights.user_activity import UserActivityTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask
-from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.record import BooleanField, DateField, DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin
 )
@@ -50,6 +51,8 @@ class EnterpriseEnrollmentRecord(Record):
     user_email = StringField(length=255, description='')
     user_username = StringField(length=255, description='')
     course_key = StringField(length=255, description='')
+    user_country_code = StringField(length=2, description='')
+    last_activity_date = DateField(description='')
 
 
 class EnterpriseEnrollmentHiveTableTask(BareHiveTableTask):
@@ -130,7 +133,9 @@ class EnterpriseEnrollmentDataTask(
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
                     auth_user.username AS user_username,
-                    course.catalog_course AS course_key
+                    course.catalog_course AS course_key,
+                    user_profile.country AS user_country_code,
+                    user_activity.latest_date AS last_activity_date
             FROM enterprise_enterprisecourseenrollment enterprise_course_enrollment
             JOIN enterprise_enterprisecustomeruser enterprise_user
                     ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_user.id
@@ -141,6 +146,21 @@ class EnterpriseEnrollmentDataTask(
                     AND enterprise_user.user_id = enrollment.user_id
             JOIN auth_user auth_user
                     ON enterprise_user.user_id = auth_user.id
+            JOIN auth_userprofile user_profile
+                    ON enterprise_user.user_id = user_profile.user_id
+            LEFT JOIN (
+                    SELECT
+                        user_id,
+                        course_id,
+                        MAX(`date`) AS latest_date
+                    FROM
+                        user_activity_by_user
+                    GROUP BY
+                        user_id,
+                        course_id
+                ) user_activity
+                    ON enterprise_course_enrollment.course_id = user_activity.course_id
+                    AND enterprise_user.user_id = user_activity.user_id
             LEFT JOIN consent_datasharingconsent consent
                     ON auth_user.username =  consent.username
                     AND enterprise_course_enrollment.course_id = consent.course_id
@@ -180,6 +200,7 @@ class EnterpriseEnrollmentDataTask(
         # the process that generates the source table used by this query
         yield (
             ImportAuthUserTask(),
+            ImportAuthUserProfileTask(),
             ImportEnterpriseCustomerTask(),
             ImportEnterpriseCustomerUserTask(),
             ImportEnterpriseCourseEnrollmentUserTask(),
@@ -192,6 +213,11 @@ class EnterpriseEnrollmentDataTask(
                 warehouse_path=self.warehouse_path,
                 api_root_url=self.api_root_url,
                 api_page_size=self.api_page_size,
+            ),
+            UserActivityTableTask(
+                warehouse_path=self.warehouse_path,
+                overwrite_n_days=0,
+                date=self.date
             ),
         )
 
