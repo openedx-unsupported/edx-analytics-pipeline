@@ -134,8 +134,8 @@ def get_target_class_from_url(url, marker=False):
     kwargs = {}
     if issubclass(target_class, HdfsTarget) and url.endswith('/'):
         kwargs['format'] = hdfs_format.PlainDir
-    if issubclass(target_class, luigi.LocalTarget) or parsed_url.scheme == 'hdfs':
-        # LocalTarget and HdfsTarget both expect paths without any scheme, netloc etc, just bare paths. So strip
+    if issubclass(target_class, luigi.LocalTarget):
+        # LocalTarget expect paths without any scheme, netloc etc, just bare paths. So strip
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
     if issubclass(target_class, S3Target):
