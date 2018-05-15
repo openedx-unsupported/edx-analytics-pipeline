@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 
 class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, HiveTableFromQueryTask):
-    """Loads internal_reporting_d_country Hive table from last_country_of_user Hive table."""
+    """Loads internal_reporting_d_country Hive table from last_country_of_user_id Hive table."""
 
     def requires(self):
         return LastCountryOfUserPartitionTask(
@@ -53,7 +53,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
             SELECT
               collect_set(lcu.country_name)[0]
             , lcu.country_code as user_last_location_country_code
-            FROM last_country_of_user lcu
+            FROM last_country_of_user_id lcu
             GROUP BY lcu.country_code
             """
 
