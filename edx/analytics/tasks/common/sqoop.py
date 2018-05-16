@@ -283,3 +283,79 @@ class SqoopImportRunner(luigi.contrib.hadoop.JobRunner):
             except Exception:
                 log.exception("Unable to dump metadata information.")
                 pass
+
+
+class SqoopImportFromVertica(SqoopImportTask):
+    """
+    An abstract task that uses Sqoop to read data out of a Vertica database and writes it to a file in CSV format.
+
+    * fields delimited by comma
+    * lines delimited by \n
+    * delimiters escaped by backslash
+    * fields optionally enclosed by single quotes (')
+    """
+    # Direct does not exist for the Vertica connector and so columns is now required
+    direct = luigi.BoolParameter(
+        default=None
+    )
+    columns = luigi.ListParameter(
+        description='A list of column names to be included.  Default is to include all columns.',
+    )
+    schema_name = luigi.Parameter(
+        description=''
+    )
+    null_string = luigi.Parameter(
+        default=None,
+        description='String to use to represent NULL values in output data.',
+    )
+    fields_terminated_by = luigi.Parameter(
+        default=',',
+        description='Defines the file separator to use on output.',
+    )
+    delimiter_replacement = luigi.Parameter(
+        default='\\',
+        description='Defines a character to use as replacement for delimiters '
+        'that appear within data values, for use with Hive.  Not specified by default.'
+    )
+
+    def connection_url(self, cred):
+        """Construct connection URL from provided credentials."""
+        return 'jdbc:vertica://{host}/{database}'.format(host=cred['host'], database=self.database)
+
+    def import_args(self):
+        if self.columns is None or len(self.columns) == 0:
+            raise RuntimeError('Error Vertica\'s connector requires specific columns listed or a wild card be present. '
+                               ' No columns were supplied.')
+
+        arglist = [
+            '--target-dir', self.destination,
+            '--driver', 'com.vertica.jdbc.Driver',
+        ]
+
+        if self.where is not None:
+            where_qry = "({}) and $CONDITIONS".format(self.where)
+        else:
+            where_qry = "$CONDITIONS"
+
+        select_qry = "SELECT {columns} FROM {schema}.{table} WHERE {where_qry}".format(columns=self.columns,
+                                                                                       schema=self.schema_name,
+                                                                                       table=self.table_name,
+                                                                                       where_qry=where_qry)
+        arglist.extend(['--query', str(select_qry)])
+
+        if self.num_mappers is not None:
+            arglist.extend(['--num-mappers', str(self.num_mappers)])
+        else:
+            arglist.extend(['--num-mappers', '1'])
+        if self.verbose:
+            arglist.append('--verbose')
+        if self.null_string is not None:
+            arglist.extend(['--null-string', self.null_string, '--null-non-string', self.null_string])
+        if self.fields_terminated_by is not None:
+            arglist.extend(['--fields-terminated-by', self.fields_terminated_by])
+        arglist.extend(['--lines-terminated-by', '\n'])
+        if self.delimiter_replacement is not None:
+            arglist.extend(['--escaped-by', self.delimiter_replacement])
+        arglist.extend(['--optionally-enclosed-by', '\''])
+
+        return arglist
