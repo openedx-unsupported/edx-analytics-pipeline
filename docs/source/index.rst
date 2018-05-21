@@ -13,6 +13,9 @@ This guide provides information about the edX data pipeline.
 
    running_tasks.rst
    faq.rst	     
+   running_acceptance_tests_in_docker.rst
+   running_spark_tasks.rst
+   troubleshooting_docker_analyticstack.rst
 
 The following documentation is generated dynamically from comments in the code. There is detailed documentation for every Luigi task.
 

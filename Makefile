@@ -120,3 +120,17 @@ docker-test-acceptance-local:
 
 docker-test-acceptance-local-all:
 	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+
+generate-spark-egg-files:
+	# edx-opaque-keys egg
+	mkdir -p /var/tmp/edx_egg_files/
+	curl -fSL https://files.pythonhosted.org/packages/63/86/d4bf9c7e7a720125b0572c43dda002f72be2cc66313be601cd7b6cccb2ad/edx-opaque-keys-0.4.tar.gz -o /var/tmp/edx-opaque-keys.tar.gz
+	cd /var/tmp/ && mkdir -p /var/tmp/edx-opaque-keys/ && tar --strip-components=1 -xzf /var/tmp/edx-opaque-keys.tar.gz -C /var/tmp/edx-opaque-keys/
+	cd /var/tmp/edx-opaque-keys && python setup.py bdist_egg
+	cp /var/tmp/edx-opaque-keys/dist/edx_opaque_keys-0.4-py2.7.egg /var/tmp/edx_egg_files/edx_opaque_keys.egg
+
+	# edx-ccx-keys agg
+	curl -fSL https://files.pythonhosted.org/packages/a4/03/444d30a3859e36ef2273ae6254c011e1fb3a02f4e3dba16008ecf0b4bdb3/edx-ccx-keys-0.2.1.tar.gz -o /var/tmp/edx-ccx-keys.tar.gz
+	cd /var/tmp/ && mkdir -p /var/tmp/edx-ccx-keys/  && tar --strip-components=1 -xzf /var/tmp/edx-ccx-keys.tar.gz -C /var/tmp/edx-ccx-keys/
+	cd /var/tmp/edx-ccx-keys && python setup.py bdist_egg
+	cp /var/tmp/edx-ccx-keys/dist/edx_ccx_keys-0.2.1-py2.7.egg  /var/tmp/edx_egg_files/edx_ccx_keys.egg
