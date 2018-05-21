@@ -227,6 +227,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
                 -- Get course entitlement data
                 LEFT OUTER JOIN entitlements_courseentitlement entitlements ON entitlements.order_number = o.number
+                    AND entitlements.course_uuid = REPLACE(cuval.value_text, "-", "")
                 LEFT OUTER JOIN student_courseenrollment enrollments ON enrollments.id = entitlements.enrollment_course_run_id
 
                 -- Only process complete orders
