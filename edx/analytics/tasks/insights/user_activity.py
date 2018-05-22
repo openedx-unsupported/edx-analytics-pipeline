@@ -26,6 +26,7 @@ log = logging.getLogger(__name__)
 
 logging.getLogger('boto').setLevel(logging.INFO)
 
+
 class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMixin, MultiOutputMapReduceJobTask):
     """
     Categorize activity of users.
@@ -409,7 +410,6 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
         # result = raw_df.groupBy('course_id', 'interval_start', 'interval_end', 'category').agg(
         #     countDistinct('username').alias('count')
         # )
-
 
 
 class CourseActivityTableTask(BareHiveTableTask):

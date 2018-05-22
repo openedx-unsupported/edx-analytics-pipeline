@@ -11,9 +11,7 @@ from luigi import date_interval
 from mock import Mock, call
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.insights.user_activity import (
-    InsertToMysqlCourseActivityTask, UserActivityTask
-)
+from edx.analytics.tasks.insights.user_activity import InsertToMysqlCourseActivityTask, UserActivityTask
 from edx.analytics.tasks.util.constants import PredicateLabels
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
