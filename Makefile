@@ -9,8 +9,8 @@ install: requirements uninstall
 	python setup.py install --force
 
 bootstrap: uninstall
-	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/base.txt --no-cache-dir
+	pip install -r requirements/pip.txt
+	pip install -r requirements/base.txt --no-cache-dir
 	python setup.py install --force
 
 develop: requirements develop-local
@@ -34,23 +34,24 @@ else
 endif
 
 requirements:
-	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/default.txt --no-cache-dir --upgrade-strategy only-if-needed
-	pip install -U -r requirements/extra.txt --no-cache-dir --upgrade-strategy only-if-needed
+	pip install -r requirements/pip.txt
+	pip install -r requirements/default.txt --no-cache-dir
+	pip install -r requirements/extra.txt --no-cache-dir
 
 test-requirements: requirements
-	pip install -U -r requirements/test.txt --no-cache-dir --upgrade-strategy only-if-needed
+	pip install -r requirements/test.txt --no-cache-dir
 
 reset-virtualenv:
 	# without bash, environment variables are not available
 	bash -c 'virtualenv --clear ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline'
 
 upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
-	pip-compile --upgrade -o requirements/base.txt requirements/base.in
-	pip-compile --upgrade -o requirements/default.txt requirements/default.in requirements/base.in
-	pip-compile --upgrade -o requirements/docs.txt requirements/docs.in requirements/default.in requirements/base.in
-	pip-compile --upgrade -o requirements/test.txt requirements/test.in requirements/default.in requirements/base.in
-	echo "-r extra.txt" >> requirements/docs.txt
+	pip install -qr requirements/pip-tools.txt
+	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/pip-tools.txt requirements/pip-tools.in
+	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/base.txt requirements/base.in
+	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/default.txt requirements/default.in
+	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
+	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/test.txt requirements/test.in
 
 test-docker-local:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local test-local
@@ -99,8 +100,8 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	pip install -U -r requirements/pre.txt
-	pip install -U -r requirements/docs.txt --no-cache-dir --upgrade-strategy only-if-needed
+	pip install -r requirements/pip.txt
+	pip install -r requirements/docs.txt --no-cache-dir
 	python setup.py install --force
 
 docs-local:
