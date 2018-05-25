@@ -141,13 +141,13 @@ class EnterpriseEnrollmentDataTask(
                     AND enterprise_user.user_id = enrollment.user_id
             JOIN auth_user auth_user
                     ON enterprise_user.user_id = auth_user.id
-            JOIN consent_datasharingconsent consent
+            LEFT JOIN consent_datasharingconsent consent
                     ON auth_user.username =  consent.username
                     AND enterprise_course_enrollment.course_id = consent.course_id
-            JOIN grades_persistentcoursegrade grades
+            LEFT JOIN grades_persistentcoursegrade grades
                     ON enterprise_user.user_id = grades.user_id
                     AND enterprise_course_enrollment.course_id = grades.course_id
-            JOIN (
+            LEFT JOIN (
                     SELECT
                         user_id,
                         provider,
