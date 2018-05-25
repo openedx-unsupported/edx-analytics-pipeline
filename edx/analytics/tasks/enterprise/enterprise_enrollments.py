@@ -8,16 +8,19 @@ import luigi.task
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
     ImportDataSharingConsentTask, ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask,
-    ImportEnterpriseCustomerUserTask, ImportUserSocialAuthTask
+    ImportEnterpriseCustomerUserTask, ImportStockRecord, ImportUserSocialAuthTask, ImportVoucher
 )
 from edx.analytics.tasks.insights.database_imports import (
-    ImportAuthUserProfileTask, ImportAuthUserTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask
+    ImportAuthUserProfileTask, ImportAuthUserTask, ImportCurrentOrderDiscountState, ImportCurrentOrderLineState,
+    ImportCurrentOrderState, ImportPersistentCourseGradeTask, ImportProductCatalog, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import OverwriteHiveAndMysqlDownstreamMixin
 from edx.analytics.tasks.insights.user_activity import UserActivityTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask
-from edx.analytics.tasks.util.record import BooleanField, DateField, DateTimeField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.record import (
+    BooleanField, DateField, DateTimeField, FloatField, IntegerField, Record, StringField
+)
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin
 )
@@ -53,6 +56,11 @@ class EnterpriseEnrollmentRecord(Record):
     course_key = StringField(length=255, description='')
     user_country_code = StringField(length=2, description='')
     last_activity_date = DateField(description='')
+    coupon_name = StringField(length=255, description='')
+    coupon_code = StringField(length=255, description='')
+    final_grade = FloatField(description='')
+    course_price = FloatField(description='')
+    discount_price = FloatField(description='')
 
 
 class EnterpriseEnrollmentHiveTableTask(BareHiveTableTask):
@@ -135,7 +143,12 @@ class EnterpriseEnrollmentDataTask(
                     auth_user.username AS user_username,
                     course.catalog_course AS course_key,
                     user_profile.country AS user_country_code,
-                    user_activity.latest_date AS last_activity_date
+                    user_activity.latest_date AS last_activity_date,
+                    ecommerce_voucher.name AS coupon_name,
+                    ecommerce_voucher.code AS coupon_code,
+                    grades.percent_grade AS final_grade,
+                    ecommerce_stockrecord.price_excl_tax AS course_price,
+                    ecommerce_order.total_incl_tax AS discount_price
             FROM enterprise_enterprisecourseenrollment enterprise_course_enrollment
             JOIN enterprise_enterprisecustomeruser enterprise_user
                     ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_user.id
@@ -182,6 +195,18 @@ class EnterpriseEnrollmentDataTask(
                     ON enterprise_user.user_id = social_auth.user_id
             JOIN course_catalog course
                     ON enterprise_course_enrollment.course_id = course.course_id
+            JOIN catalogue_product ecommerce_catalogue_product
+                    ON enterprise_course_enrollment.course_id = ecommerce_catalogue_product.course_id
+            LEFT JOIN order_line ecommerce_order_line
+                    ON ecommerce_catalogue_product.id = ecommerce_order_line.product_id
+            JOIN partner_stockrecord ecommerce_stockrecord
+                    ON ecommerce_order_line.stockrecord_id = ecommerce_stockrecord.id
+            LEFT JOIN order_order ecommerce_order
+                    ON ecommerce_order_line.order_id = ecommerce_order.id
+            LEFT JOIN order_orderdiscount ecommerce_order_discount
+                    ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
+            LEFT JOIN voucher_voucher ecommerce_voucher
+                    ON ecommerce_order_discount.voucher_id = ecommerce_voucher.id
         """
 
     @property
@@ -219,6 +244,12 @@ class EnterpriseEnrollmentDataTask(
                 overwrite_n_days=0,
                 date=self.date
             ),
+            ImportProductCatalog(),
+            ImportCurrentOrderLineState(),
+            ImportCurrentOrderDiscountState(),
+            ImportVoucher(),
+            ImportStockRecord(),
+            ImportCurrentOrderState(),
         )
 
 
