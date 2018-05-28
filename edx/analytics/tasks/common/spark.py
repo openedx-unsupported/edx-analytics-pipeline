@@ -221,6 +221,12 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         description='No. of cores for each executor',
         significant=False,
     )
+    spark_conf = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'conf'},
+        description='Spark configuration',
+        significant=False,
+        default=None
+    )
     always_log_stderr = False  # log stderr if spark fails, True for verbose log
 
     def init_spark(self, sc):
@@ -233,6 +239,13 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         self._spark_context = sc
         self._spark = SparkSession.builder.getOrCreate()
         self._hive_context = HiveContext(sc)
+
+    @property
+    def conf(self):
+        """
+        Adds spark configuration to spark-submit task
+        """
+        return self._dict_config(self.spark_conf)
 
     def spark_job(self):
         """

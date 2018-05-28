@@ -41,6 +41,18 @@ def get_key_value_from_event(event, key, default_value=None):
     return default_value
 
 
+def get_event_time_string(event_time):
+    """Returns the time of the event as an ISO8601 formatted string."""
+    try:
+        # Get entry, and strip off time zone information.  Keep microseconds, if any.
+        timestamp = event_time.split('+')[0]
+        if '.' not in timestamp:
+            timestamp = '{datetime}.000000'.format(datetime=timestamp)
+        return timestamp
+    except Exception:  # pylint: disable=broad-except
+        return ''
+
+
 def get_course_id(event_context, from_url=False):
     """
     Gets course_id from event's data.
