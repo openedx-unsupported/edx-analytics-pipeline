@@ -567,6 +567,9 @@ class CourseEnrollmentPartitionTask(CourseEnrollmentDownstreamMixin, HivePartiti
 
 class ExternalCourseEnrollmentPartitionTask(CourseEnrollmentPartitionTask):
 
+    # Disable this parameter as it is not needed for this task.
+    overwrite_n_days = None
+
     def requires(self):
         yield self.hive_table_task
 
