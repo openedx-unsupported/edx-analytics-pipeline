@@ -1,16 +1,24 @@
 import ast
 import json
+import logging
 import os
 import tempfile
 import zipfile
 
+import luigi
 import luigi.configuration
 from luigi.contrib.spark import PySparkTask
 
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, PathSelectionByDateIntervalTask
+from edx.analytics.tasks.util.manifest import (
+    ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import UncheckedExternalURL, get_target_from_url, url_path_join
 
 _file_path_to_package_meta_path = {}
+
+log = logging.getLogger(__name__)
 
 
 def get_package_metadata_paths():
@@ -126,17 +134,74 @@ def create_packages_archive(packages, archive_dir_path):
     return archives_list
 
 
+class SparkMixin():
+    driver_memory = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'driver-memory'},
+        description='Memory for spark driver',
+        significant=False,
+    )
+    executor_memory = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'executor-memory'},
+        description='Memory for each executor',
+        significant=False,
+    )
+    executor_cores = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'executor-cores'},
+        description='No. of cores for each executor',
+        significant=False,
+    )
+    spark_conf = luigi.Parameter(
+        config_path={'section': 'spark', 'name': 'conf'},
+        description='Spark configuration',
+        significant=False,
+        default=None
+    )
+    always_log_stderr = False  # log stderr if spark fails, True for verbose log
+
+
+class PathSelectionTaskSpark(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
+    """
+    Path selection task with manifest feature for spark
+    """
+    targets = None
+    manifest_id = luigi.Parameter(
+        description='File name for manifest'
+    )
+    manifest_dir = luigi.Parameter(
+        description='Directory for manifest files'
+    )
+
+    def requires(self):
+        if not self.targets:
+            self.targets = self._get_targets()
+        return self.targets
+
+    def _get_targets(self):
+        input = PathSelectionByDateIntervalTask(
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            date_pattern=self.date_pattern
+        ).output()
+        targets = luigi.task.flatten(
+            convert_to_manifest_input_if_necessary(self.manifest_id, input, self.manifest_dir)
+        )
+        return [UncheckedExternalURL(target.path) for target in targets]
+
+    def output(self):
+        return [target.output() for target in self.requires()]
+
+
 class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
     """
     Extract events corresponding to a specified time interval.
     """
-    path_targets = None
 
     def __init__(self, *args, **kwargs):
         """
         Call path selection task to get list of log files matching the pattern
         """
-        super(EventLogSelectionDownstreamMixin, self).__init__(*args, **kwargs)
+        super(EventLogSelectionMixinSpark, self).__init__(*args, **kwargs)
         self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
         self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
@@ -176,16 +241,32 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
 
         return event_log_schema
 
-    def get_event_log_dataframe(self, spark, *args, **kwargs):
-        from pyspark.sql.functions import to_date, udf, struct, date_format
-        path_targets = PathSelectionByDateIntervalTask(
+    def get_input_source(self, *args):
+        manifest_path = self.get_config_from_args('manifest_path', *args, default_value='')
+        targets = PathSelectionTaskSpark(
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
             date_pattern=self.date_pattern,
+            manifest_id=self.manifest_id,
+            manifest_dir=manifest_path,
         ).output()
-        self.path_targets = [task.path for task in path_targets]
-        dataframe = spark.read.format('json').load(self.path_targets, schema=self.get_log_schema())
+        if len(targets) and 'manifest' in targets[0].path:
+            # Reading manifest as rdd with spark is alot faster as compared to hadoop.
+            # Currently, we're getting only 1 manifest file per request, so we will create a single rdd from it.
+            # If there are multiple manifest files, each file can be read as rdd and then union it with other manifest rdds
+            source_rdd = self._spark.sparkContext.textFile(targets[0].path)
+            broadcast_value = self._spark.sparkContext.broadcast(source_rdd.collect())
+        else:
+            broadcast_value = self._spark.sparkContext.broadcast([target.path for target in targets])
+        return broadcast_value
+
+    def get_event_log_dataframe(self, spark, *args, **kwargs):
+        from pyspark.sql.functions import to_date, udf, struct, date_format
+        dataframe = spark.read.format('json').load(
+            self.get_input_source(*args).value,
+            schema=self.get_log_schema()
+        )
         dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
             .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
         dataframe = dataframe.filter(
@@ -195,7 +276,7 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         return dataframe
 
 
-class SparkJobTask(OverwriteOutputMixin, PySparkTask):
+class SparkJobTask(SparkMixin, OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySparkTask):
     """
     Wrapper for spark task
     """
@@ -205,29 +286,7 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
     _sql_context = None
     _hive_context = None
     _tmp_dir = None
-
-    driver_memory = luigi.Parameter(
-        config_path={'section': 'spark', 'name': 'driver-memory'},
-        description='Memory for spark driver',
-        significant=False,
-    )
-    executor_memory = luigi.Parameter(
-        config_path={'section': 'spark', 'name': 'executor-memory'},
-        description='Memory for each executor',
-        significant=False,
-    )
-    executor_cores = luigi.Parameter(
-        config_path={'section': 'spark', 'name': 'executor-cores'},
-        description='No. of cores for each executor',
-        significant=False,
-    )
-    spark_conf = luigi.Parameter(
-        config_path={'section': 'spark', 'name': 'conf'},
-        description='Spark configuration',
-        significant=False,
-        default=None
-    )
-    always_log_stderr = False  # log stderr if spark fails, True for verbose log
+    log = None
 
     def init_spark(self, sc):
         """
@@ -246,6 +305,26 @@ class SparkJobTask(OverwriteOutputMixin, PySparkTask):
         Adds spark configuration to spark-submit task
         """
         return self._dict_config(self.spark_conf)
+
+    @property
+    def manifest_id(self):
+        params = {
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'date_pattern': self.date_pattern,
+            'spark': 'for_some_difference_with_hadoop_manifest'
+        }
+        return str(hash(frozenset(params.items()))).replace('-', 'n')
+
+    def get_manifest_path(self, *args):
+        manifest_path = self.get_config_from_args('manifest_path', *args, default_value='')
+        return get_target_from_url(
+            url_path_join(
+                manifest_path,
+                self.manifest_id + '.manifest'
+            )
+        )
 
     def spark_job(self):
         """
