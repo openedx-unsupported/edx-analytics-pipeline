@@ -40,7 +40,7 @@ class ModuleEngagementRecord(Record):
     """Represents a count of interactions performed by a user on a particular entity (usually a module in a course)."""
 
     course_id = StringField(length=255, nullable=False, description='Course the learner interacted with.')
-    username = StringField(length=30, nullable=False, description='Learner\'s username.')
+    user_id = IntegerField(description='Learner\'s user ID.')
     date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
     entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
                                                                      ' with. Example: "video".')
@@ -119,8 +119,8 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
             return
         event, date_string = value
 
-        username = event.get('username', '').strip()
-        if not username:
+        user_id = event.get('context', {}).get('user_id')
+        if not user_id:
             return
 
         event_type = event.get('event_type')
@@ -145,7 +145,7 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         for action in user_actions:
             record = ModuleEngagementRecord(
                 course_id=course_id,
-                username=username,
+                user_id=user_id,
                 date=DateField().deserialize_from_string(date_string),
                 entity_type=entity_type,
                 entity_id=entity_id,
@@ -304,7 +304,7 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     @property
     def indexes(self):
         return [
-            ('course_id', 'username', 'date'),
+            ('course_id', 'user_id', 'date'),
             ('date',),
         ]
 
@@ -365,7 +365,7 @@ class ModuleEngagementSummaryRecord(Record):
     """
 
     course_id = StringField(description='Course the learner interacted with.')
-    username = StringField(description='Learner\'s username.')
+    user_id = IntegerField(description='Learner\'s user ID.')
     start_date = DateField(description='Analysis includes all data from 00:00 on this day up to the end date.')
     end_date = DateField(description='Analysis includes all data up to but not including this date.')
     problem_attempts = IntegerField(is_metric=True, description='Number of times the learner attempted any problem in'
@@ -431,13 +431,13 @@ class ModuleEngagementSummaryRecordBuilder(object):
         else:
             log.warn('Unrecognized entity type: %s', record.entity_type)
 
-    def get_summary_record(self, course_id, username, interval):
+    def get_summary_record(self, course_id, user_id, interval):
         """
         Given all of the records that have been added, generate a summarizing record.
 
         Arguments:
             course_id (string):
-            username (string):
+            user_id (string):
             interval (luigi.date_interval.DateInterval):
 
         Returns:
@@ -450,7 +450,7 @@ class ModuleEngagementSummaryRecordBuilder(object):
 
         return ModuleEngagementSummaryRecord(
             course_id,
-            username,
+            user_id,
             interval.date_a,
             interval.date_b,
             self.problem_attempts,
@@ -520,11 +520,11 @@ class ModuleEngagementSummaryDataTask(WeekIntervalMixin, ModuleEngagementDownstr
 
     def mapper(self, line):
         record = ModuleEngagementRecord.from_tsv(line)
-        yield ((record.course_id, record.username), line.rstrip('\r\n'))
+        yield ((record.course_id, record.user_id), line.rstrip('\r\n'))
 
     def reducer(self, key, lines):
         """Calculate counts for events corresponding to user and course in a given time period."""
-        course_id, username = key
+        course_id, user_id = key
 
         output_record_builder = ModuleEngagementSummaryRecordBuilder()
         for line in lines:
@@ -532,7 +532,7 @@ class ModuleEngagementSummaryDataTask(WeekIntervalMixin, ModuleEngagementDownstr
 
             output_record_builder.add_record(record)
 
-        yield output_record_builder.get_summary_record(course_id, username, self.interval).to_string_tuple()
+        yield output_record_builder.get_summary_record(course_id, user_id, self.interval).to_string_tuple()
 
     def output(self):
         return get_target_from_url(self.output_root)
@@ -803,7 +803,7 @@ class ModuleEngagementUserSegmentRecord(Record):
     """
 
     course_id = StringField(description='Course the learner is enrolled in.')
-    username = StringField(description='Learner\'s username.')
+    user_id = IntegerField(description='Learner\'s user ID.')
     start_date = DateField(description='Analysis includes all data from 00:00 on this day up to the end date.')
     end_date = DateField(description='Analysis includes all data up to but not including this date.')
     segment = StringField(description='A short term that includes only lower case characters and underscores that'
@@ -871,11 +871,11 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
 
     def mapper(self, line):
         record = ModuleEngagementSummaryRecord.from_tsv(line)
-        yield (record.course_id, record.username), line.rstrip('\n')
+        yield (record.course_id, record.user_id), line.rstrip('\n')
 
     def reducer(self, key, lines):
         """Given a particular user in a particular course, look at their summary and assign appropriate segments."""
-        course_id, username = key
+        course_id, user_id = key
 
         records = [ModuleEngagementSummaryRecord.from_tsv(line) for line in lines]
 
@@ -907,7 +907,7 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
         for segment in sorted(segments):
             yield ModuleEngagementUserSegmentRecord(
                 course_id=course_id,
-                username=username,
+                user_id=user_id,
                 start_date=records[0].start_date,
                 end_date=records[0].end_date,
                 segment=segment,
@@ -1140,9 +1140,9 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         ) cohort
             ON (au.id = cohort.user_id AND ce.course_id = cohort.course_id)
         LEFT OUTER JOIN module_engagement_summary eng
-            ON (ce.course_id = eng.course_id AND au.username = eng.username AND eng.end_date = '{end}')
+            ON (ce.course_id = eng.course_id AND ce.user_id = eng.user_id AND eng.end_date = '{end}')
         LEFT OUTER JOIN module_engagement_summary old_eng
-            ON (ce.course_id = old_eng.course_id AND au.username = old_eng.username AND old_eng.end_date = DATE_SUB('{end}', 7))
+            ON (ce.course_id = old_eng.course_id AND ce.user_id = old_eng.user_id AND old_eng.end_date = DATE_SUB('{end}', 7))
         LEFT OUTER JOIN (
             SELECT
                 course_id,
@@ -1157,13 +1157,13 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         LEFT OUTER JOIN (
             SELECT
                 course_id,
-                username,
+                user_id,
                 CONCAT_WS(",", COLLECT_SET(segment)) AS segments
             FROM module_engagement_user_segments
             WHERE end_date = '{end}'
-            GROUP BY course_id, username
+            GROUP BY course_id, user_id
         ) seg
-            ON (ce.course_id = seg.course_id AND au.username = seg.username)
+            ON (ce.course_id = seg.course_id AND ce.user_id = seg.user_id)
         WHERE
             ce.`date` = '{last_complete_date}'
         """.format(

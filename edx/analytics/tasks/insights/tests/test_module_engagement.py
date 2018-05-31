@@ -24,7 +24,6 @@ from edx.analytics.tasks.util.tests.target import FakeTarget
 class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
     """Base class for test analysis of detailed student engagement"""
 
-    DEFAULT_USER_ID = 10
     DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
     DEFAULT_DATE = "2013-12-17"
 
@@ -104,7 +103,8 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
     @data(
         {'time': "2013-12-01T15:38:32.805444"},
-        {'username': ''},
+        {'context': {'user_id': 'lskdjfslkdj'}},
+        {'context': {'user_id': ''}},
         {'event_type': None},
         {'context': {'course_id': 'lskdjfslkdj'}},
         {'event': 'sdfasdf'}
@@ -125,7 +125,7 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
     def get_expected_output_key(self, entity_type, entity_id, action):
         """Generate the expected key"""
-        return self.encoded_course_id, 'test_user', self.DEFAULT_DATE, entity_type, entity_id, action
+        return self.encoded_course_id, str(self.DEFAULT_USER_ID), self.DEFAULT_DATE, entity_type, entity_id, action
 
     def test_correct_problem_check(self):
         template = self.event_templates['problem_check']
@@ -190,11 +190,12 @@ class ModuleEngagementTaskReducerTest(ReducerTestMixin, TestCase):
     """
 
     task_class = ModuleEngagementDataTask
+    DEFAULT_USER_ID = 10
 
     def setUp(self):
         super(ModuleEngagementTaskReducerTest, self).setUp()
 
-        self.reduce_key = (self.COURSE_ID, 'test_user', self.DATE, 'problem', 'foobar', 'completed')
+        self.reduce_key = (self.COURSE_ID, str(self.DEFAULT_USER_ID), self.DATE, 'problem', 'foobar', 'completed')
 
     def test_replacement_of_count(self):
         inputs = [1, 1, 1, 1]
@@ -209,10 +210,11 @@ class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, TestCase):
     """Base class for test analysis of student engagement summaries"""
 
     task_class = ModuleEngagementSummaryDataTask
+    DEFAULT_USER_ID = 10
 
     input_record = ModuleEngagementRecord(
         course_id='foo/bar/baz',
-        username='foouser',
+        user_id=DEFAULT_USER_ID,
         date=datetime.date(2015, 11, 1),
         entity_type='problem',
         entity_id='problem-id',
@@ -235,7 +237,7 @@ class ModuleEngagementSummaryDataTaskMapTest(MapperTestMixin, TestCase):
         tsv_line = self.input_record.to_separated_values()
         self.assert_single_map_output(
             tsv_line,
-            ('foo/bar/baz', 'foouser'),
+            ('foo/bar/baz', self.DEFAULT_USER_ID),
             tsv_line
         )
 
@@ -246,10 +248,11 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
 
     task_class = ModuleEngagementSummaryDataTask
     output_record_type = ModuleEngagementSummaryRecord
+    DEFAULT_USER_ID = 10
 
     input_record = ModuleEngagementRecord(
         course_id='foo/bar/baz',
-        username='test_user',
+        user_id=DEFAULT_USER_ID,
         date=datetime.date(2014, 03, 26),
         entity_type='problem',
         entity_id='problem-id',
@@ -260,7 +263,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
     def setUp(self):
         super(ModuleEngagementSummaryDataTaskReducerTest, self).setUp()
 
-        self.reduce_key = (self.COURSE_ID, 'test_user')
+        self.reduce_key = (self.COURSE_ID, self.DEFAULT_USER_ID)
 
         self.video_play_record = self.input_record.replace(
             entity_type='video',
@@ -279,7 +282,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
             (
                 (
                     'foo/bar/baz',
-                    'test_user',
+                    str(self.DEFAULT_USER_ID),
                     '2014-03-25',
                     '2014-04-01',
                     '1',
@@ -416,6 +419,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
 
     task_class = ModuleEngagementSummaryMetricRangesDataTask
     output_record_type = ModuleEngagementSummaryMetricRangeRecord
+    DEFAULT_USER_ID = 10
 
     def setUp(self):
         super(ModuleEngagementSummaryMetricRangesDataTaskReducerTest, self).setUp()
@@ -423,7 +427,7 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
         self.reduce_key = 'foo/bar/baz'
         self.input_record = ModuleEngagementSummaryRecord(
             course_id='foo/bar/baz',
-            username='test_user',
+            user_id=self.DEFAULT_USER_ID,
             start_date=datetime.date(2014, 3, 25),
             end_date=datetime.date(2014, 4, 1),
             problem_attempts=1,
@@ -536,19 +540,20 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, TestCase)
 
     task_class = ModuleEngagementUserSegmentDataTask
     output_record_type = ModuleEngagementUserSegmentRecord
+    DEFAULT_USER_ID = 10
 
     def setUp(self):
         self.course_id = 'foo/bar/baz'
-        self.username = 'test_user'
+        self.user_id = self.DEFAULT_USER_ID
         self.prev_week_start_date = datetime.date(2014, 3, 18)
         self.start_date = datetime.date(2014, 3, 25)
         self.date = datetime.date(2014, 4, 1)
 
-        self.reduce_key = (self.course_id, self.username)
+        self.reduce_key = (self.course_id, self.user_id)
 
         self.input_record = ModuleEngagementSummaryRecord(
             course_id=self.course_id,
-            username=self.username,
+            user_id=self.user_id,
             start_date=self.start_date,
             end_date=self.date,
             problem_attempts=0,
@@ -635,7 +640,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, TestCase)
             (
                 (
                     'foo/bar/baz',
-                    'test_user',
+                    str(self.DEFAULT_USER_ID),
                     '2014-03-25',
                     '2014-04-01',
                     'highly_engaged',
@@ -643,7 +648,7 @@ class ModuleEngagementUserSegmentDataTaskReducerTest(ReducerTestMixin, TestCase)
                 ),
                 (
                     'foo/bar/baz',
-                    'test_user',
+                    str(self.DEFAULT_USER_ID),
                     '2014-03-25',
                     '2014-04-01',
                     'struggling',
