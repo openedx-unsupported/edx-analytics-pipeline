@@ -189,18 +189,25 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         from pyspark.sql.functions import to_date, udf, struct, date_format
         log4jLogger = spark.sparkContext._jvm.org.apache.log4j  # using spark logger
         log = log4jLogger.LogManager.getLogger(__name__)
+        manifest_args = {
+            'threshold': self.get_config_from_args('threshold', *args, default_value=500),
+            'input_format': self.get_config_from_args('input_format', *args, default_value=''),
+            'lib_jar': self.get_config_from_args('lib_jar', *args, default_value=''),
+            'path': self.get_config_from_args('path', *args, default_value='')
+        }
+        log.warn("SPARK: Args for manifest \n{}".format(manifest_args))
         input_source = self.input()
-        remove_manifest_target_if_exists(self.manifest_id)
-        manifest_target = convert_to_manifest_input_if_necessary(self.manifest_id, input_source)
+        remove_manifest_target_if_exists(self.manifest_id, manifest_args)
+        manifest_target = convert_to_manifest_input_if_necessary(self.manifest_id, input_source, manifest_args)
         if isinstance(manifest_target[0], ManifestInputTargetMixin):
-            log.warn("SPARK: Reading manifest file")
+            log.warn("SPARK: Reading manifest file {}".format(manifest_target[0].path))
             # Reading manifest with spark as rdd is alot faster as compared to hadoop.
             # Currently, we're getting only 1 manifest file per request, so we will create a single rdd from it.
             # If there are multiple manifest files, each file can be read as rdd and then union it with other manifest rdds
             source_rdd = spark.sparkContext.textFile(manifest_target[0].path)
             input_source_targets = source_rdd.collect()
         else:
-            log.warn("SPARK: Reading source targets")
+            log.warn("SPARK: Collecting source targets")
             input_source_targets = [target.path for target in manifest_target]
 
         log.warn("SPARK: creating dataframe")
