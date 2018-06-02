@@ -1,5 +1,6 @@
 import ast
 import json
+import logging
 import os
 import tempfile
 import zipfile
@@ -186,18 +187,23 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
     # TODO: create a new task which should yield manifest targets
     def get_event_log_dataframe(self, spark, *args, **kwargs):
         from pyspark.sql.functions import to_date, udf, struct, date_format
+        log4jLogger = spark.sparkContext._jvm.org.apache.log4j  # using spark logger
+        log = log4jLogger.LogManager.getLogger(__name__)
         input_source = self.input()
         remove_manifest_target_if_exists(self.manifest_id)
         manifest_target = convert_to_manifest_input_if_necessary(self.manifest_id, input_source)
         if isinstance(manifest_target[0], ManifestInputTargetMixin):
+            log.warn("SPARK: Reading manifest file")
             # Reading manifest with spark as rdd is alot faster as compared to hadoop.
             # Currently, we're getting only 1 manifest file per request, so we will create a single rdd from it.
             # If there are multiple manifest files, each file can be read as rdd and then union it with other manifest rdds
             source_rdd = spark.sparkContext.textFile(manifest_target[0].path)
             input_source_targets = source_rdd.collect()
         else:
+            log.warn("SPARK: Reading source targets")
             input_source_targets = [target.path for target in manifest_target]
 
+        log.warn("SPARK: creating dataframe")
         dataframe = spark.read.format('json').load(input_source_targets, schema=self.get_log_schema())
         dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
             .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
