@@ -216,15 +216,6 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
                     target.remove()
         super(LastDailyIpAddressOfUserTaskSpark, self).run()
 
-    def get_luigi_configuration(self):
-        options = {}
-        config = luigi.configuration.get_config()
-        options['threshold'] = config.get('manifest', 'threshold', 500)
-        options['input_format'] = config.get('manifest', 'input_format', 'org.edx.hadoop.input.ManifestTextInputFormat')
-        options['lib_jar'] = config.get('manifest', 'lib_jar', '')
-        options['path'] = config.get('manifest', 'path', '')
-        return options
-
     def spark_job(self, *args):
         from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id, get_event_time_string
         from pyspark.sql.functions import udf

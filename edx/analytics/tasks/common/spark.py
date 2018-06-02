@@ -10,9 +10,11 @@ import luigi.configuration
 from luigi.contrib.spark import PySparkTask
 
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, PathSelectionByDateIntervalTask
-from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists, \
-    ManifestInputTargetMixin
+from edx.analytics.tasks.util.manifest import (
+    ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists
+)
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url
 
 _file_path_to_package_meta_path = {}
 
@@ -130,11 +132,44 @@ def create_packages_archive(packages, archive_dir_path):
     return archives_list
 
 
+class PathSelectionTaskSpark(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
+    """
+    Path selection task with manifest feature for spark
+    """
+    requirements = None
+
+    def requires(self):
+        yield PathSelectionByDateIntervalTask(
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            date_pattern=self.date_pattern,
+        )
+
+    @property
+    def manifest_id(self):
+        return str(hash(self)).replace('-', 'n')
+
+    def get_target_paths(self):
+        if not self.requirements:
+            targets = luigi.task.flatten(
+                convert_to_manifest_input_if_necessary(self.manifest_id, self.input())
+            )
+            if len(targets) and isinstance(targets[0], ManifestInputTargetMixin):
+                # spark ( on yarn ) has issues while reading ManifestInputTarget due to missing luigi configuration,
+                # so we explicitly convert it to file target to fix it.
+                targets = [get_target_from_url(targets[0].path)]
+            self.requirements = targets
+        return self.requirements
+
+    def output(self):
+        return self.get_target_paths()
+
+
 class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
     """
     Extract events corresponding to a specified time interval.
     """
-    path_targets = None
 
     def __init__(self, *args, **kwargs):
         """
@@ -180,38 +215,23 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
 
         return event_log_schema
 
-    @property
-    def manifest_id(self):
-        return str(hash(self)).replace('-', 'n')
-
-    # TODO: create a new task which should yield manifest targets
-    def get_event_log_dataframe(self, spark, *args, **kwargs):
-        from pyspark.sql.functions import to_date, udf, struct, date_format
-        log4jLogger = spark.sparkContext._jvm.org.apache.log4j  # using spark logger
-        log = log4jLogger.LogManager.getLogger(__name__)
-        manifest_args = {
-            'threshold': self.get_config_from_args('threshold', *args, default_value=500),
-            'input_format': self.get_config_from_args('input_format', *args, default_value=''),
-            'lib_jar': self.get_config_from_args('lib_jar', *args, default_value=''),
-            'path': self.get_config_from_args('path', *args, default_value='')
-        }
-        log.warn("SPARK: Args for manifest \n{}".format(manifest_args))
-        input_source = self.input()
-        remove_manifest_target_if_exists(self.manifest_id, manifest_args)
-        manifest_target = convert_to_manifest_input_if_necessary(self.manifest_id, input_source, manifest_args)
-        if isinstance(manifest_target[0], ManifestInputTargetMixin):
-            log.warn("SPARK: Reading manifest file {}".format(manifest_target[0].path))
-            # Reading manifest with spark as rdd is alot faster as compared to hadoop.
+    def get_input_rdd(self):
+        source_targets = luigi.task.flatten(self.input())
+        if len(source_targets) > 0 and 'manifest' in source_targets[0].path:
+            # Reading manifest as rdd with spark is alot faster as compared to hadoop.
             # Currently, we're getting only 1 manifest file per request, so we will create a single rdd from it.
             # If there are multiple manifest files, each file can be read as rdd and then union it with other manifest rdds
-            source_rdd = spark.sparkContext.textFile(manifest_target[0].path)
-            input_source_targets = source_rdd.collect()
+            self.log.warn("\nSPARK: Reading manifest file :: {} \n".format(source_targets[0].path))
+            source_rdd = self._spark.sparkContext.textFile(source_targets[0].path)
         else:
-            log.warn("SPARK: Collecting source targets")
-            input_source_targets = [target.path for target in manifest_target]
+            # maybe we only need to broadcast it ( on cluster ) and not create rdd. lets see
+            self.log.warn("\nSPARK: Reading normal targets \n")
+            source_rdd = self._spark.sparkContext.parallelize([target.path for target in source_targets])
+        return source_rdd
 
-        log.warn("SPARK: creating dataframe")
-        dataframe = spark.read.format('json').load(input_source_targets, schema=self.get_log_schema())
+    def get_event_log_dataframe(self, spark, *args, **kwargs):
+        from pyspark.sql.functions import to_date, udf, struct, date_format
+        dataframe = spark.read.format('json').load(self.get_input_rdd().collect(), schema=self.get_log_schema())
         dataframe = dataframe.filter(dataframe['time'].isNotNull()) \
             .withColumn('event_date', date_format(to_date(dataframe['time']), 'yyyy-MM-dd'))
         dataframe = dataframe.filter(
@@ -231,6 +251,7 @@ class SparkJobTask(OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySpa
     _sql_context = None
     _hive_context = None
     _tmp_dir = None
+    log = None
 
     driver_memory = luigi.Parameter(
         config_path={'section': 'spark', 'name': 'driver-memory'},
@@ -265,6 +286,8 @@ class SparkJobTask(OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySpa
         self._spark_context = sc
         self._spark = SparkSession.builder.getOrCreate()
         self._hive_context = HiveContext(sc)
+        log4jLogger = sc._jvm.org.apache.log4j  # using spark logger
+        self.log = log4jLogger.LogManager.getLogger(__name__)
 
     @property
     def conf(self):
@@ -274,7 +297,7 @@ class SparkJobTask(OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySpa
         return self._dict_config(self.spark_conf)
 
     def requires(self):
-        yield PathSelectionByDateIntervalTask(
+        yield PathSelectionTaskSpark(
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
