@@ -327,7 +327,10 @@ class SqoopImportFromVertica(SqoopImportTask):
         column_list = []
         for column in self.columns:
             if column in self.timezone_adjusted_column_list:
-                column_list.append('"{}" AT TIME ZONE \'UTC\''.format(column))
+                column_list.append('"{source_column}" AT TIME ZONE \'UTC\' AS "{exported_column_name}"'.format(
+                    source_column=column,
+                    exported_column_name=column
+                ))
             else:
                 column_list.append('"{}"'.format(column))
 

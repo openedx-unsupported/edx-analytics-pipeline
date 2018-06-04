@@ -48,7 +48,8 @@ class SqoopImportTestCase(unittest.TestCase):
         return task
 
     def create_vertica_task(self, num_mappers=None, where=None, table_name=None, schema_name=None, columns=None,
-                            null_string=None, fields_terminated_by=None, delimiter_replacement=None, overwrite=False):
+                            null_string=None, fields_terminated_by=None, delimiter_replacement=None, overwrite=False,
+                            timezone_adjusted_column_list=[]):
         """A generic task generator for Sqoop on Vertica"""
         if columns is None:
             column_list = []
@@ -70,6 +71,7 @@ class SqoopImportTestCase(unittest.TestCase):
             "fields_terminated_by": fields_terminated_by,
             "delimiter_replacement": delimiter_replacement,
             "overwrite": overwrite,
+            "timezone_adjusted_column_list": timezone_adjusted_column_list,
         }
         # remove options marked as None
         trimmed_kws = {k: v for k, v in kw_args.iteritems() if v is not None}
@@ -116,7 +118,7 @@ class SqoopImportTestCase(unittest.TestCase):
 
     def create_and_run_vertica_task(self, credentials=None, num_mappers=None, where=None, table_name=None,
                                     schema_name=None, columns=None, null_string=None, fields_terminated_by=None,
-                                    delimiter_replacement=None, overwrite=False):
+                                    delimiter_replacement=None, overwrite=False, timezone_adjusted_column_list=[]):
         """Create a SqoopImportFromVertica task with specified options, and then run it."""
         task = self.create_vertica_task(
             num_mappers=num_mappers,
@@ -128,6 +130,7 @@ class SqoopImportTestCase(unittest.TestCase):
             fields_terminated_by=fields_terminated_by,
             delimiter_replacement=delimiter_replacement,
             overwrite=overwrite,
+            timezone_adjusted_column_list=timezone_adjusted_column_list,
         )
         self.run_task(task, credentials)
 
@@ -274,6 +277,21 @@ class SqoopImportTestCase(unittest.TestCase):
         ]
         self.assertEquals(arglist, expected_arglist)
         self.assertTrue(self.mock_sqoop_password_target().remove.called)
+
+    def test_success_vertica_with_timestamp_field(self):
+        self.create_and_run_vertica_task(table_name='example_table',
+                                         schema_name='fake_schema',
+                                         delimiter_replacement=' ',
+                                         fields_terminated_by=',',
+                                         columns=['field1', 'field2', 'field3'],
+                                         timezone_adjusted_column_list=['field1'])
+        arglist = self.get_call_args_after_run()
+        self.assertTrue(self.mock_run.called)
+
+        generated_query = 'SELECT "field1" AT TIME ZONE \'UTC\' AS "field1","field2","field3" FROM example_table ' \
+                          'WHERE $CONDITIONS'
+        self.assertEquals(arglist[12], '--query')
+        self.assertEquals(arglist[13], generated_query)
 
     def test_success_vertica_with_custom_delimiters(self):
         self.create_and_run_vertica_task(table_name='example_table', schema_name='fake_schema',
