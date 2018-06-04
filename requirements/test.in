@@ -3,7 +3,7 @@
 # Downside is that the resulting file has all of those duplicate dependencies, rather than
 # only the increment.
 
-# -r default.txt
+-r default.txt
 
 # Stuff for tests
 
