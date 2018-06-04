@@ -18,6 +18,8 @@ from edx.analytics.tasks.util.url import get_target_from_url
 
 _file_path_to_package_meta_path = {}
 
+log = logging.getLogger(__name__)
+
 
 def get_package_metadata_paths():
     """
@@ -139,19 +141,23 @@ class PathSelectionTaskSpark(EventLogSelectionDownstreamMixin, luigi.WrapperTask
     requirements = None
 
     def requires(self):
-        yield PathSelectionByDateIntervalTask(
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            date_pattern=self.date_pattern,
-        )
+        params = {
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'date_pattern': self.date_pattern,
+        }
+        log.warn("\nPathSelectionByDateIntervalTask params : {}\n".format(params))
+        yield PathSelectionByDateIntervalTask(**params)
 
     @property
     def manifest_id(self):
         return str(hash(self)).replace('-', 'n')
 
     def get_target_paths(self):
+        log.warn("PathSelectionTaskSpark: checking requirements")
         if not self.requirements:
+            log.warn("PathSelectionTaskSpark: requirements not found, refreshing!!")
             targets = luigi.task.flatten(
                 convert_to_manifest_input_if_necessary(self.manifest_id, self.input())
             )
@@ -216,6 +222,7 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         return event_log_schema
 
     def get_input_rdd(self):
+        self.log.warn("With pyspark logger : Getting input")
         source_targets = luigi.task.flatten(self.input())
         if len(source_targets) > 0 and 'manifest' in source_targets[0].path:
             # Reading manifest as rdd with spark is alot faster as compared to hadoop.
@@ -297,12 +304,22 @@ class SparkJobTask(OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySpa
         return self._dict_config(self.spark_conf)
 
     def requires(self):
-        yield PathSelectionTaskSpark(
-            source=self.source,
-            interval=self.interval,
-            pattern=self.pattern,
-            date_pattern=self.date_pattern,
+        params = {
+            'source': self.source,
+            'interval': self.interval,
+            'pattern': self.pattern,
+            'date_pattern': self.date_pattern,
+        }
+        task = PathSelectionTaskSpark(**params)
+        debug_str = "\n SPARK: PathSelectionTaskSpark -- params : {} \n is complete : {} --- \n TASK : {}\n".format(
+            params,
+            task.complete(),
+            task
         )
+        log.warn(debug_str)
+        if self.log:        # if pyspark logger is available
+            self.log.warn("With pyspark logger : "+debug_str)
+        return task
 
     def spark_job(self):
         """
