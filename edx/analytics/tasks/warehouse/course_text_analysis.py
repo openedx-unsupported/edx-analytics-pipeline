@@ -19,6 +19,7 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
     input_path = luigi.Parameter()
     num_clusters = luigi.IntParameter(default=4)
     output_path = luigi.Parameter(default=None)
+    num_top_words = luigi.IntParameter(default=25)
 
     def __init__(self, *args, **kwargs):
         """
@@ -54,6 +55,10 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
         input_df.printSchema()
         input_df.select('course_id', 'count').show(10)
 
+        def print_fcn(str):
+            print str
+            # self.log.warn(str)
+
         reTokenizer = RegexTokenizer(inputCol='text', outputCol='tokens', minTokenLength=3, gaps=False, pattern='\\b[a-zA-Z][a-zA-Z]+\\b')
         tokenized_df = reTokenizer.transform(input_df).select('course_id', 'count', 'tokens')
 
@@ -65,7 +70,8 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
         
         cv = CountVectorizer(inputCol="stopped", outputCol="vectors")
         cv_model = cv.fit(stopped_df)
-        self.log.warn("Vocabulary size:  %d" % len(cv_model.vocabulary))
+        vocabulary = cv_model.vocabulary
+        print_fcn("Vocabulary size:  %d" % len(vocabulary))
         cv_df = cv_model.transform(stopped_df).select('course_id', 'count', 'vectors')
 
         idf2 = IDF(inputCol="vectors", outputCol="idf")
@@ -73,17 +79,26 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
         idf_df = idfModel2.transform(cv_df).select('course_id', 'count', 'idf')
 
         # TODO: fix "The input RDD 30 is not directly cached, which may hurt performance if its parent RDDs are also not cached."
+        # This cache call doesn't do the trick.
         idf_df.cache()
 
         kmeans = BisectingKMeans(featuresCol='idf', k=self.num_clusters, predictionCol='cluster')
         km_model = kmeans.fit(idf_df)
+
+        # Output report about what words and what courses are in which cluster.
         km_centers = km_model.clusterCenters()
-        self.log.warn("Found %d clusters" % len(km_centers))
-        self.log.warn("Used k value of %d" % km_model.summary.k)
-        self.log.warn("Cluster sizes found {}".format(km_model.summary.clusterSizes))
-        self.log.warn("Centers:")
+        print_fcn("Found %d clusters" % len(km_centers))
+        print_fcn("Used k value of %d" % km_model.summary.k)
+        print_fcn("Cluster sizes found {}".format(km_model.summary.clusterSizes))
+        print_fcn("Centers:")
+
         for index, center in enumerate(km_centers, 1):
-            self.log.warn("Centroid %d: %s" % (index, center))
+            center_ordered = center.argsort()
+            center_revordered = center_ordered[::-1]
+            top_indices = center_revordered[:self.num_top_words]
+            top_vocab = [cv_model.vocabulary[idx] for idx in top_indices]
+            vocab_string = ', '.join(top_vocab)
+            print_fcn("Centroid %d: %s " % (index, vocab_string))
 
         output_df = km_model.transform(idf_df)
         result = output_df.select('cluster', 'course_id', 'count').orderBy(['cluster', 'course_id'], ascending=[1,1])
@@ -93,8 +108,9 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
         output_path = self.output_path
 
         # Output is to a directory, not to a file.  Filename will be part-00000-{uuid}.csv.
-        self.log.warn("Attempting to write CSV file output to directory {}".format(output_path))
+        print_fcn("Attempting to write CSV file output to directory {}".format(output_path))
         # why use mode='append'?
         # Use repartition, to avoid having upstream processing also use only one partition.
+        # But we lose the sorting.
         # result.coalesce(1).write.csv(output_path, sep='\t')
         result.repartition(1).write.csv(output_path, sep='\t')
