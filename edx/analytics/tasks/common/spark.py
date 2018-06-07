@@ -2,6 +2,7 @@ import ast
 import json
 import logging
 import os
+import shutil
 import tempfile
 import zipfile
 
@@ -270,37 +271,136 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         return dataframe
 
 
-class SparkJobTask(SparkMixin, OverwriteOutputMixin, EventLogSelectionDownstreamMixin, PySparkTask):
+class BasicSparkJobTask(SparkMixin, PySparkTask):
     """
-    Wrapper for spark task
+    Base class for running a launchable Spark task.
     """
 
     _spark = None
     _spark_context = None
-    _sql_context = None
-    _hive_context = None
+    # _sql_context = None
+    # _hive_context = None
     _tmp_dir = None
     log = None
 
     def init_spark(self, sc):
         """
-        Initialize spark, sql and hive context
+        Initialize Spark, SQL and Hive context.
         :param sc: Spark context
         """
-        from pyspark.sql import SparkSession, SQLContext, HiveContext
-        self._sql_context = SQLContext(sc)
+        from pyspark.sql import SparkSession  # , SQLContext, HiveContext
+        # self._sql_context = SQLContext(sc)
         self._spark_context = sc
+        # Note that this doesn't actually use sc.  It just gets
+        # the currently-existing Spark session.
         self._spark = SparkSession.builder.getOrCreate()
-        self._hive_context = HiveContext(sc)
+        # self._hive_context = HiveContext(sc)
+
+        self._tmp_dir = tempfile.mkdtemp()
+
+        # TODO: pull definition of __name__ out into a class property.
         log4jLogger = sc._jvm.org.apache.log4j  # using spark logger
         self.log = log4jLogger.LogManager.getLogger(__name__)
 
     @property
     def conf(self):
-        """
-        Adds spark configuration to spark-submit task
-        """
+        """Adds spark configuration to spark-submit task."""
         return self._dict_config(self.spark_conf)
+
+    def spark_job(self):
+        """Spark code for the job."""
+        raise NotImplementedError
+
+    def get_config_from_args(self, key, *args, **kwargs):
+        """
+        Returns `value` of `key` after parsing string argument.
+        """
+        default_value = kwargs.get('default_value', None)
+        str_arg = args[0]
+        config_dict = ast.literal_eval(str_arg)
+        value = config_dict.get(key, default_value)
+        return value
+
+    def get_luigi_configuration(self):
+        """
+        Return Luigi configuration as dict for spark task.
+
+        Luigi configuration cannot be retrieved directly from Luigi's get_config() method inside a Spark task.
+        """
+        return None
+
+    def app_options(self):
+        """
+        List of options that needs to be passed to Spark task.
+        """
+        # TODO: is this called anywhere?  Or is this still a work-in-progress?
+        options = {}
+        task_config = self.get_luigi_configuration()  # load task dependencies first, if any.
+        if isinstance(task_config, dict):
+            options = task_config
+        configuration = luigi.configuration.get_config()
+        cluster_dependencies = configuration.get('spark', 'edx_egg_files', None)  # spark worker nodes dependency
+        if cluster_dependencies is not None:
+            options['cluster_dependencies'] = cluster_dependencies
+        return [options]
+
+    def _load_internal_dependency_on_cluster(self, *args):
+        """
+        Creates a zip of package and loads it on spark worker nodes.
+
+        Loading via Luigi configuration does not work, as it creates a tar file, whereas Spark does not load tar files.
+        """
+
+        # Import packages to be loaded on cluster.
+        # This list was taken from what was needed for Hadoop.  These may not all be needed still on Spark jobs.
+        # Not all jobs need this, so perhaps the list of many packages can be moved to a derived class.
+        import edx
+        import luigi
+        import opaque_keys
+        import stevedore
+        import bson
+        import ccx_keys
+        import cjson
+        import boto
+        import filechunkio
+        import ciso8601
+        import chardet
+        import urllib3
+        import certifi
+        import idna
+        import requests
+        import six
+
+        dependencies_list = []
+        # get cluster dependencies from *args
+        cluster_dependencies = self.get_config_from_args('cluster_dependencies', *args, default_value=None)
+        if cluster_dependencies is not None:
+            cluster_dependencies = json.loads(cluster_dependencies)
+        if isinstance(cluster_dependencies, list):
+            dependencies_list += cluster_dependencies
+
+        packages = [edx, luigi, opaque_keys, stevedore, bson, ccx_keys, cjson, boto, filechunkio, ciso8601, chardet,
+                    urllib3, certifi, idna, requests, six]
+        dependencies_list += create_packages_archive(packages, self._tmp_dir)
+        if len(dependencies_list) > 0:
+            for file in dependencies_list:
+                self._spark_context.addPyFile(file)
+
+    def _clean(self):
+        """Do any cleanup after job here"""
+        if self._tmp_dir:
+            shutil.rmtree(self._tmp_dir)
+
+    def main(self, sc, *args):
+        try:
+            self.init_spark(sc)  # initialize spark contexts
+            self._load_internal_dependency_on_cluster(*args)  # load packages on EMR cluster for spark worker nodes
+            self.spark_job(*args)  # execute spark job
+        finally:
+            self._clean()  # cleanup after spark job
+
+
+class SparkJobTask(OverwriteOutputMixin, EventLogSelectionDownstreamMixin, BasicSparkJobTask):
 
     @property
     def manifest_id(self):
@@ -330,94 +430,3 @@ class SparkJobTask(SparkMixin, OverwriteOutputMixin, EventLogSelectionDownstream
             date_pattern=self.date_pattern,
             manifest_id=self.manifest_id
         )
-
-    def spark_job(self):
-        """
-        Spark code for the job
-        """
-        raise NotImplementedError
-
-    def get_config_from_args(self, key, *args, **kwargs):
-        """
-        Returns `value` of `key` after parsing string argument
-        """
-        default_value = kwargs.get('default_value', None)
-        str_arg = args[0]
-        config_dict = ast.literal_eval(str_arg)
-        value = config_dict.get(key, default_value)
-        return value
-
-    def _load_internal_dependency_on_cluster(self, *args):
-        """
-        creates a zip of package and loads it on spark worker nodes
-
-        Loading via luigi configuration does not work as it creates a tar file whereas spark does not load tar files
-        """
-
-        # import packages to be loaded on cluster
-        import edx
-        import luigi
-        import opaque_keys
-        import stevedore
-        import bson
-        import ccx_keys
-        import cjson
-        import boto
-        import filechunkio
-        import ciso8601
-        import chardet
-        import urllib3
-        import certifi
-        import idna
-        import requests
-        import six
-
-        dependencies_list = []
-        # get cluster dependencies from *args
-        cluster_dependencies = self.get_config_from_args('cluster_dependencies', *args, default_value=None)
-        if cluster_dependencies is not None:
-            cluster_dependencies = json.loads(cluster_dependencies)
-        if isinstance(cluster_dependencies, list):
-            dependencies_list += cluster_dependencies
-
-        packages = [edx, luigi, opaque_keys, stevedore, bson, ccx_keys, cjson, boto, filechunkio, ciso8601, chardet,
-                    urllib3, certifi, idna, requests, six]
-        self._tmp_dir = tempfile.mkdtemp()
-        dependencies_list += create_packages_archive(packages, self._tmp_dir)
-        if len(dependencies_list) > 0:
-            for file in dependencies_list:
-                self._spark_context.addPyFile(file)
-
-    def get_luigi_configuration(self):
-        """
-        Return luigi configuration as dict for spark task
-
-        luigi configuration cannot be retrieved directly from luigi's get_config method inside spark task
-        """
-
-        return None
-
-    def app_options(self):
-        """
-        List of options that needs to be passed to spark task
-        """
-        options = {}
-        task_config = self.get_luigi_configuration()  # load task dependencies first if any
-        if isinstance(task_config, dict):
-            options = task_config
-        configuration = luigi.configuration.get_config()
-        cluster_dependencies = configuration.get('spark', 'edx_egg_files', None)  # spark worker nodes dependency
-        if cluster_dependencies is not None:
-            options['cluster_dependencies'] = cluster_dependencies
-        return [options]
-
-    def _clean(self):
-        """Do any cleanup after job here"""
-        import shutil
-        shutil.rmtree(self._tmp_dir)
-
-    def main(self, sc, *args):
-        self.init_spark(sc)  # initialize spark contexts
-        self._load_internal_dependency_on_cluster(*args)  # load packages on EMR cluster for spark worker nodes
-        self.spark_job(*args)  # execute spark job
-        self._clean()  # cleanup after spark job
