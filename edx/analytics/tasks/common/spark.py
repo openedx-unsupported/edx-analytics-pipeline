@@ -255,9 +255,11 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
             # Reading manifest as rdd with spark is alot faster as compared to hadoop.
             # Currently, we're getting only 1 manifest file per request, so we will create a single rdd from it.
             # If there are multiple manifest files, each file can be read as rdd and then union it with other manifest rdds
+            self.log.warn("PYSPARK LOGGER: Reading manifest file :: {} ".format(targets[0].path))
             source_rdd = self._spark.sparkContext.textFile(targets[0].path)
             broadcast_value = self._spark.sparkContext.broadcast(source_rdd.collect())
         else:
+            self.log.warn("PYSPARK LOGGER: Reading normal targets")
             broadcast_value = self._spark.sparkContext.broadcast([target.path for target in targets])
         return broadcast_value
 
@@ -298,6 +300,8 @@ class SparkJobTask(SparkMixin, OverwriteOutputMixin, EventLogSelectionDownstream
         self._spark_context = sc
         self._spark = SparkSession.builder.getOrCreate()
         self._hive_context = HiveContext(sc)
+        log4jLogger = sc._jvm.org.apache.log4j  # using spark logger
+        self.log = log4jLogger.LogManager.getLogger(__name__)
 
     @property
     def conf(self):
