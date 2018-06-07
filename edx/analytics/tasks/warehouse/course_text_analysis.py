@@ -92,7 +92,7 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
         print_fcn("Cluster sizes found {}".format(km_model.summary.clusterSizes))
         print_fcn("Centers:")
 
-        for index, center in enumerate(km_centers, 1):
+        for index, center in enumerate(km_centers):
             center_ordered = center.argsort()
             center_revordered = center_ordered[::-1]
             top_indices = center_revordered[:self.num_top_words]
@@ -102,6 +102,18 @@ class ClusterCoursesByTextTask(BasicSparkJobTask):
 
         output_df = km_model.transform(idf_df)
         result = output_df.select('cluster', 'course_id', 'count').orderBy(['cluster', 'course_id'], ascending=[1,1])
+
+        print_fcn("")
+        print_fcn("Output cluster memberships...")
+        for index, center in enumerate(km_centers):
+            center_ordered = center.argsort()
+            center_revordered = center_ordered[::-1]
+            top_indices = center_revordered[:self.num_top_words]
+            top_vocab = [cv_model.vocabulary[idx] for idx in top_indices]
+            vocab_string = ', '.join(top_vocab)
+            print_fcn("Centroid %d: %s " % (index, vocab_string))
+            members_df = result.filter(result['cluster'] == index).select('course_id')
+            members_df.show(truncate=False, n=members_df.count())
 
         # persist the output.
         # output_path = self.output_dir().path
