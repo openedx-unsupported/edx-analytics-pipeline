@@ -219,7 +219,7 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
     def get_luigi_configuration(self):
         options = {}
         config = luigi.configuration.get_config()
-        options['manifest_path'] = config.get('manifest', 'path', '')
+        options['event_log_source'] = config.get('event-logs', 'source', '')
         return options
 
     def spark_job(self, *args):
@@ -246,7 +246,7 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
                 WHERE rank = 1
                 """
         result = self._spark.sql(query)
-        result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+        result.coalesce(2).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class LastCountryOfUserDownstreamMixin(
