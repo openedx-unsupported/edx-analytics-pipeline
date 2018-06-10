@@ -259,17 +259,9 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
         schema = self.get_log_schema()
         if self.direct_eventlogs_processing:
             self.log.warn("\nPYSPARK => Processing event log source directly\n")
-            event_log_source = self.get_config_from_args('event_log_source', *args, default_value=None)
-            if event_log_source is not None:
-                event_log_source = json.loads(event_log_source)
-            self.log.warn("\nPYSPARK => Event log source : {}\n".format(event_log_source))
-            dataframe = spark.read.format('json').load(event_log_source[0], schema=self.get_log_schema())
-            source_list_count = len(event_log_source)
-            if source_list_count > 1:
-                for k in range(1, source_list_count):
-                    dataframe = dataframe.union(
-                        spark.read.format('json').load(event_log_source[k], schema=self.get_log_schema())
-                    )
+            source = [src.encode('utf-8') for src in self.source]
+            self.log.warn("\nPYSPARK => Event log source : {}\n".format(source))
+            dataframe = spark.read.format('json').load(source, schema=self.get_log_schema())
         else:
             self.log.warn("\nPYSPARK => Processing path selection output\n")
             input_source = self.get_input_source(*args)

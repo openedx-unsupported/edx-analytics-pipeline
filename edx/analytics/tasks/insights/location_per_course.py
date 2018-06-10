@@ -216,12 +216,6 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
                     target.remove()
         super(LastDailyIpAddressOfUserTaskSpark, self).run()
 
-    def get_luigi_configuration(self):
-        options = {}
-        config = luigi.configuration.get_config()
-        options['event_log_source'] = config.get('event-logs', 'source', '')
-        return options
-
     def spark_job(self, *args):
         from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id, get_event_time_string
         from pyspark.sql.functions import udf
@@ -246,7 +240,7 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
                 WHERE rank = 1
                 """
         result = self._spark.sql(query)
-        result.coalesce(2).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
+        result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class LastCountryOfUserDownstreamMixin(
