@@ -1,6 +1,11 @@
 """Support for spark tasks"""
+import json
+import re
+
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.constants import PredicateLabels
+
+PATTERN_JSON = re.compile(r'^.*?(\{.*\})\s*$')
 
 
 def get_event_predicate_labels(event_type, event_source):
@@ -51,6 +56,55 @@ def get_event_time_string(event_time):
         return timestamp
     except Exception:  # pylint: disable=broad-except
         return ''
+
+
+def filter_event_logs(row, lower_bound_date_string, upper_bound_date_string):
+    if row is None:
+        return ()
+    context = row.get('context', '')
+    raw_time = row.get('time', '')
+    if not context or not raw_time:
+        return ()
+    course_id = context.get('course_id', '').encode('utf-8')
+    user_id = context.get('user_id', None)
+    time = get_event_time_string(raw_time).encode('utf-8')
+    ip = row.get('ip', '').encode('utf-8')
+    if not user_id or not time:
+        return ()
+    date_string = raw_time.split("T")[0].encode('utf-8')
+    if date_string < lower_bound_date_string or date_string >= upper_bound_date_string:
+        return ()  # discard events outside the date interval
+    return (user_id, course_id, ip, time, date_string)
+
+
+def parse_json_event(line, nested=False):
+    """
+    Parse a tracking log input line as JSON to create a dict representation.
+    """
+    try:
+        parsed = json.loads(line)
+    except Exception:
+        if not nested:
+            json_match = PATTERN_JSON.match(line)
+            if json_match:
+                return parse_json_event(json_match.group(1), nested=True)
+        return None
+    return parsed
+
+
+def load_and_filter(spark_session, file, lower_bound_date_string, upper_bound_date_string):
+    return spark_session.sparkContext.textFile(file) \
+        .map(parse_json_event) \
+        .map(lambda row: filter_event_logs(row, lower_bound_date_string, upper_bound_date_string)) \
+        .filter(bool)
+
+
+def validate_course_id(course_id):
+    course_id = opaque_key_util.normalize_course_id(course_id)
+    if course_id:
+        if opaque_key_util.is_valid_course_id(course_id):
+            return course_id
+    return ''
 
 
 def get_course_id(event_context, from_url=False):

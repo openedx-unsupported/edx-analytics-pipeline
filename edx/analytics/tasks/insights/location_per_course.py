@@ -217,25 +217,23 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
         super(LastDailyIpAddressOfUserTaskSpark, self).run()
 
     def spark_job(self, *args):
-        from edx.analytics.tasks.util.spark_util import get_event_predicate_labels, get_course_id, get_event_time_string
+        from edx.analytics.tasks.util.spark_util import validate_course_id
         from pyspark.sql.functions import udf
         from pyspark.sql.window import Window
         from pyspark.sql.types import StringType
-        df = self.get_event_log_dataframe(self._spark, *args)
-        get_event_time = udf(get_event_time_string, StringType())
-        get_courseid = udf(get_course_id, StringType())
-        df = df.withColumn('course_id', get_courseid(df['context'])) \
-            .withColumn('timestamp', get_event_time(df['time']))
+        df = self.get_dataframe(self._spark, *args)
+        validate_courseid = udf(validate_course_id, StringType())
+        df = df.withColumn('course_id', validate_courseid(df['course_id']))
         df.createOrReplaceTempView('location')
         query = """
                 SELECT
                     timestamp, ip, user_id, course_id, dt
                 FROM (
                     SELECT
-                        event_date as dt, context.user_id as user_id, course_id, timestamp, ip,
-                        ROW_NUMBER() over ( PARTITION BY event_date, context.user_id, course_id ORDER BY timestamp desc) as rank
+                        event_date as dt, user_id, course_id, timestamp, ip,
+                        ROW_NUMBER() over ( PARTITION BY event_date, user_id, course_id ORDER BY timestamp desc) as rank
                     FROM location
-                    WHERE ip <> '' AND timestamp <> '' AND context.user_id <> ''
+                    WHERE ip <> ''
                 ) user_location
                 WHERE rank = 1
                 """
