@@ -157,7 +157,7 @@ class SparkMixin():
         significant=False,
         default=None
     )
-    always_log_stderr = False  # log stderr if spark fails, True for verbose log
+    always_log_stderr = True  # log stderr if spark fails, True for verbose log
 
 
 class PathSelectionTaskSpark(EventLogSelectionDownstreamMixin, luigi.WrapperTask):
