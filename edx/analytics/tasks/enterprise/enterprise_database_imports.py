@@ -105,3 +105,60 @@ class ImportUserSocialAuthTask(ImportMysqlToHiveTableTask):
             ('uid', 'STRING'),
             ('extra_data', 'STRING'),
         ]
+
+
+class ImportVoucher(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Imports the voucher_voucher table from the ecommerce
+    database to a destination directory and a HIVE metastore.
+
+    A voucher is a discount coupon that can be applied to ecommerce purchases.
+    """
+    @property
+    def table_name(self):
+        return 'voucher_voucher'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('code', 'STRING'),
+            ('usage', 'STRING'),
+            ('start_datetime', 'TIMESTAMP'),
+            ('end_datetime', 'TIMESTAMP'),
+            ('num_basket_additions', 'INT'),
+            ('num_orders', 'INT'),
+            ('total_discount', 'DECIMAL(12, 2)'),
+            ('date_created', 'TIMESTAMP'),
+        ]
+
+
+class ImportStockRecord(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Imports the partner_stockrecord table from the ecommerce
+    database to a destination directory and a HIVE metastore.
+
+    A voucher is a discount coupon that can be applied to ecommerce purchases.
+    """
+    @property
+    def table_name(self):
+        return 'partner_stockrecord'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('partner_sku', 'STRING'),
+            ('price_currency', 'STRING'),
+            ('price_excl_tax', 'DECIMAL(12, 2)'),
+            ('price_retail', 'DECIMAL(12, 2)'),
+            ('cost_price', 'DECIMAL(12, 2)'),
+            ('num_in_stock', 'INT'),
+            ('num_allocated', 'INT'),
+            ('low_stock_threshold', 'INT'),
+            ('date_created', 'TIMESTAMP'),
+            ('date_updated', 'TIMESTAMP'),
+            ('partner_id', 'INT'),
+            ('product_id', 'INT'),
+        ]

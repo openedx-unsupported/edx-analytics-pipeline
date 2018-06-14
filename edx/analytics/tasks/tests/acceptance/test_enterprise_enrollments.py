@@ -75,40 +75,40 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2016, 3, 22, 20, 59, 12), 'verified', 1, '', 0, None, 'ron', 1,
              'All about acceptance testing!', datetime.datetime(2016, 6, 1, 0, 0), datetime.datetime(2016, 9, 1, 0, 0),
              'self_paced', 'Self Paced', 3, 5, datetime.datetime(2015, 2, 12, 23, 14, 35), 'test2@example.com',
-             'test_user2', 'edX+Open_DemoX', 'US', None],
+             'test_user2', 'edX+Open_DemoX', 'US', None, 'ENT - No restrictions', 'ENT20', 0, 200.00, 120.00],
 
             ['03fc6c3a33d84580842576922275ca6f', '2nd Enterprise', 13, 3, 'course-v1:edX+Open_DemoX+edx_demo_course2',
              datetime.datetime(2016, 3, 22, 21, 2, 9), 'no-id-professional', 1, '', 0, None, 'hermione', 1,
              'All about acceptance testing!', datetime.datetime(2016, 6, 1, 0, 0), datetime.datetime(2016, 9, 1, 0, 0),
              'self_paced', 'Self Paced', 3, 5, datetime.datetime(2015, 2, 12, 23, 14, 35), 'test3@example.com',
-             'test_user3', 'edX+Open_DemoX', 'US', datetime.date(2015, 9, 9)],
+             'test_user3', 'edX+Open_DemoX', 'US', datetime.date(2015, 9, 9), 'ENT - No restrictions', 'ENT20', 0.03, 200.00, 120.00],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'course-v1:edX+Open_DemoX+edx_demo_course2',
              datetime.datetime(2016, 3, 22, 20, 56, 9), 'verified', 1, '', 0, None, 'harry', 1,
              'All about acceptance testing!', datetime.datetime(2016, 6, 1, 0, 0), datetime.datetime(2016, 9, 1, 0, 0),
              'self_paced', 'Self Paced', 3, 5, datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com',
-             'test_user', 'edX+Open_DemoX', 'US', None],
+             'test_user', 'edX+Open_DemoX', 'US', None, 'ENT - No restrictions', 'ENT20', 0.4, 200.00, 120.00],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 12, 2, 'course-v1:edX+Testing102x+1T2017',
              datetime.datetime(2016, 3, 22, 21, 4, 8), 'no-id-professional', 1, 'Pass', 1,
              datetime.datetime(2017, 5, 9, 16, 27, 34), 'ron', 1, 'All about acceptance testing Part 3!',
              datetime.datetime(2016, 12, 1, 0, 0), datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test2@example.com', 'test_user2', 'edX+Testing102',
-             'US', datetime.date(2015, 9, 9)],
+             'US', datetime.date(2015, 9, 9), 'ENT - Discount', 'ENT21', 0.98, 200, 60.00],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'course-v1:edX+Testing102x+1T2017',
              datetime.datetime(2016, 3, 22, 21, 8, 8), 'credit', 0, '', 0, None, 'harry', 1,
              'All about acceptance testing Part 3!', datetime.datetime(2016, 12, 1, 0, 0),
              datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX+Testing102',
-             'US', datetime.date(2015, 9, 9)],
+             'US', datetime.date(2015, 9, 9), 'ENT - Discount', 'ENT21', 0.64, 200.00, 60.00],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'edX/Open_DemoX/edx_demo_course',
              datetime.datetime(2014, 6, 27, 16, 2, 38), 'verified', 1, 'Pass', 1,
              datetime.datetime(2017, 5, 9, 16, 27, 35), 'harry', 1, 'All about acceptance testing!',
              datetime.datetime(2016, 9, 1, 0, 0), datetime.datetime(2016, 12, 1, 0, 0), 'instructor_paced', '13', 2, 4,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test@example.com', 'test_user', 'edX+Open_DemoX',
-             'US', None],
+             'US', None, 'Pied Piper Discount', 'RNBL737ZAUJXUM6E', 0.81, 300.00, 156.00],
         ]
 
         return [tuple(row) for row in expected]
@@ -120,7 +120,8 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
                    'has_passed', 'passed_timestamp', 'enterprise_sso_uid', 'enterprise_site_id', 'course_title',
                    'course_start', 'course_end', 'course_pacing_type', 'course_duration_weeks', 'course_min_effort',
                    'course_max_effort', 'user_account_creation_timestamp', 'user_email', 'user_username', 'course_key',
-                   'user_country_code', 'last_activity_date']
+                   'user_country_code', 'last_activity_date', 'coupon_name', 'coupon_code', 'final_grade',
+                   'course_price', 'discount_price']
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 '''
