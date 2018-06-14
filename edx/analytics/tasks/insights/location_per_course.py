@@ -167,7 +167,7 @@ class LastDailyIpAddressOfUserTask(
 class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJobTask):
     """Spark alternate of LastDailyIpAddressOfUserTask"""
 
-    output_parent_dir = 'last_ip_of_user_id'
+    output_parent_dirname = 'last_ip_of_user_id'
     marker = luigi.Parameter(
         config_path={'section': 'map-reduce', 'name': 'marker'},
         significant=False,
@@ -181,7 +181,7 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
         return get_target_from_url(
             url_path_join(
                 self.warehouse_path,
-                self.output_parent_dir
+                self.output_parent_dirname
             )
         )
 
@@ -199,7 +199,7 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
         return map(
             lambda date: get_target_from_url(
                 url_path_join(
-                    self.hive_partition_path(self.output_parent_dir, date.isoformat())
+                    self.hive_partition_path(self.output_parent_dirname, date.isoformat())
                 )
             ),
             self.interval
@@ -230,14 +230,15 @@ class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMi
                     timestamp, ip, user_id, course_id, dt
                 FROM (
                     SELECT
-                        event_date as dt, user_id, course_id, timestamp, ip,
-                        ROW_NUMBER() over ( PARTITION BY event_date, user_id, course_id ORDER BY timestamp desc) as rank
+                        event_date AS dt, user_id, course_id, timestamp, ip,
+                        ROW_NUMBER() OVER ( PARTITION BY event_date, user_id, course_id ORDER BY timestamp DESC ) AS rank
                     FROM location
                     WHERE ip <> ''
                 ) user_location
                 WHERE rank = 1
                 """
         result = self._spark.sql(query)
+        # write 4 tsv files in each partitioned directory
         result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 

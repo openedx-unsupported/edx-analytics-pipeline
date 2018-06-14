@@ -191,13 +191,18 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         )
 
     def on_success(self):  # pragma: no cover
-        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
-        data file will need to override the base on_success() call to create this marker."""
+        """
+        Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from
+        the data file will need to override the base on_success() call to create this marker.
+        """
         self.output().touch_marker()
 
     def run(self):
         self.remove_output_on_overwrite()
-        removed_partitions = [target.remove() for target in self.output_paths() if target.exists()]
+        if self.output_dir().exists():  # only check partitions if parent dir exists
+            for target in self.output_paths():
+                if target.exists():
+                    target.remove()
         super(UserActivityTaskSpark, self).run()
 
     def spark_job(self, *args):
@@ -221,6 +226,9 @@ class UserActivityTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJo
         result = df.select('context.user_id', 'course_id', 'event_date', 'label') \
             .groupBy('user_id', 'course_id', 'event_date', 'label').count()
         result = result.withColumn('dt', lit(result['event_date']))  # generate extra column for partitioning
+        # Using overwrite mode deletes all the partitions from the output_dir() so we use append mode but
+        # we explicitly delete those partitions in the run() method ( to avoid duplicates )
+        # before they are written by job.
         result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
@@ -413,7 +421,6 @@ class CourseActivityPartitionTaskSpark(WeeklyIntervalMixin, UserActivityDownstre
 
 
 class CourseActivityTableTask(BareHiveTableTask):
-
     @property
     def table(self):
         return 'course_activity'
