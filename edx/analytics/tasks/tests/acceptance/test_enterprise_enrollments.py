@@ -26,7 +26,8 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
         """Loads enrollment and course catalog fixtures."""
         super(EnterpriseEnrollmentAcceptanceTest, self).setUp()
 
-        self.prepare_database()
+        self.prepare_database('lms', self.import_db)
+        self.prepare_database('otto', self.otto_db)
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'courses.json'),
@@ -50,10 +51,10 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
             )
         )
 
-    def prepare_database(self):
-        sql_fixture_base_url = url_path_join(self.data_dir, 'input', 'enterprise')
+    def prepare_database(self, name, database):
+        sql_fixture_base_url = url_path_join(self.data_dir, 'input', 'enterprise', name)
         for filename in os.listdir(sql_fixture_base_url):
-            self.execute_sql_fixture_file(url_path_join(sql_fixture_base_url, filename))
+            self.execute_sql_fixture_file(url_path_join(sql_fixture_base_url, filename), database=database)
 
     def test_enterprise_enrollment_table_generation(self):
         self.launch_task()
