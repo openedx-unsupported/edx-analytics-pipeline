@@ -108,6 +108,13 @@ class EnterpriseEnrollmentDataTask(
     Executes a hive query to gather enterprise enrollment data and store it in the enterprise_enrollment hive table.
     """
 
+    otto_credentials = luigi.Parameter(
+        config_path={'section': 'otto-database-import', 'name': 'credentials'}
+    )
+    otto_database = luigi.Parameter(
+        config_path={'section': 'otto-database-import', 'name': 'database'}
+    )
+
     @property
     def insert_query(self):
         """The query builder that controls the structure and fields inserted into the new table."""
@@ -243,13 +250,20 @@ class EnterpriseEnrollmentDataTask(
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=0,
                 date=self.date
-            ),
-            ImportProductCatalog(),
-            ImportCurrentOrderLineState(),
-            ImportCurrentOrderDiscountState(),
-            ImportVoucher(),
-            ImportStockRecord(),
-            ImportCurrentOrderState(),
+            )
+        )
+
+        kwargs = {
+            'credentials': self.otto_credentials,
+            'database': self.otto_database,
+        }
+        yield (
+            ImportProductCatalog(**kwargs),
+            ImportCurrentOrderLineState(**kwargs),
+            ImportCurrentOrderDiscountState(**kwargs),
+            ImportVoucher(**kwargs),
+            ImportStockRecord(**kwargs),
+            ImportCurrentOrderState(**kwargs),
         )
 
 
