@@ -7,12 +7,14 @@ import luigi.task
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
-    ImportDataSharingConsentTask, ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask,
-    ImportEnterpriseCustomerUserTask, ImportStockRecord, ImportUserSocialAuthTask, ImportVoucher
+    ImportBenefitTask, ImportConditionalOfferTask, ImportDataSharingConsentTask,
+    ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask, ImportEnterpriseCustomerUserTask,
+    ImportStockRecordTask, ImportUserSocialAuthTask, ImportVoucherTask
 )
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserProfileTask, ImportAuthUserTask, ImportCurrentOrderDiscountState, ImportCurrentOrderLineState,
-    ImportCurrentOrderState, ImportPersistentCourseGradeTask, ImportProductCatalog, ImportStudentCourseEnrollmentTask
+    ImportCurrentOrderState, ImportEcommerceUser, ImportPersistentCourseGradeTask, ImportProductCatalog,
+    ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import OverwriteHiveAndMysqlDownstreamMixin
 from edx.analytics.tasks.insights.user_activity import UserActivityTableTask
@@ -58,7 +60,8 @@ class EnterpriseEnrollmentRecord(Record):
     last_activity_date = DateField(description='')
     coupon_name = StringField(length=255, description='')
     coupon_code = StringField(length=255, description='')
-    final_grade = FloatField(description='')
+    offer = StringField(length=255, description='')
+    current_grade = FloatField(description='')
     course_price = FloatField(description='')
     discount_price = FloatField(description='')
 
@@ -151,11 +154,12 @@ class EnterpriseEnrollmentDataTask(
                     course.catalog_course AS course_key,
                     user_profile.country AS user_country_code,
                     user_activity.latest_date AS last_activity_date,
-                    ecommerce_voucher.name AS coupon_name,
-                    ecommerce_voucher.code AS coupon_code,
-                    grades.percent_grade AS final_grade,
-                    ecommerce_stockrecord.price_excl_tax AS course_price,
-                    ecommerce_order.total_incl_tax AS discount_price
+                    ecommerce_data.coupon_name AS coupon_name,
+                    ecommerce_data.coupon_code AS coupon_code,
+                    ecommerce_data.offer AS offer,
+                    grades.percent_grade AS current_grade,
+                    ecommerce_data.course_price AS course_price,
+                    ecommerce_data.discount_price AS discount_price
             FROM enterprise_enterprisecourseenrollment enterprise_course_enrollment
             JOIN enterprise_enterprisecustomeruser enterprise_user
                     ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_user.id
@@ -202,18 +206,69 @@ class EnterpriseEnrollmentDataTask(
                     ON enterprise_user.user_id = social_auth.user_id
             JOIN course_catalog course
                     ON enterprise_course_enrollment.course_id = course.course_id
-            JOIN catalogue_product ecommerce_catalogue_product
-                    ON enterprise_course_enrollment.course_id = ecommerce_catalogue_product.course_id
-            LEFT JOIN order_line ecommerce_order_line
-                    ON ecommerce_catalogue_product.id = ecommerce_order_line.product_id
-            JOIN partner_stockrecord ecommerce_stockrecord
-                    ON ecommerce_order_line.stockrecord_id = ecommerce_stockrecord.id
-            LEFT JOIN order_order ecommerce_order
-                    ON ecommerce_order_line.order_id = ecommerce_order.id
-            LEFT JOIN order_orderdiscount ecommerce_order_discount
-                    ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
-            LEFT JOIN voucher_voucher ecommerce_voucher
-                    ON ecommerce_order_discount.voucher_id = ecommerce_voucher.id
+
+            -- The subquery below joins across the tables in ecommerce to get the orders that were created.
+            -- It also pulls in any coupons or offers that were used to provide a discount to the user.
+            -- Finally, it filters out audit orders in the case that a user enrolls and later upgrades to a paid track,
+            -- by choosing the order with the product that has the maximum price for the same course_id.
+            LEFT JOIN (
+                    SELECT
+                        ecommerce_user.username AS username,
+                        ecommerce_catalogue_product.course_id AS course_id,
+                        ecommerce_stockrecord.price_excl_tax AS course_price,
+                        ecommerce_order.total_incl_tax AS discount_price,
+                        CASE
+                            WHEN ecommerce_offer.id IS NULL THEN NULL
+                            WHEN ecommerce_offer.offer_type = 'Voucher' THEN NULL
+                            ELSE CASE
+                                WHEN ecommerce_benefit.proxy_class IS NULL THEN CONCAT(
+                                  ecommerce_benefit.type, ', ', ecommerce_benefit.value, ' (#', ecommerce_offer.id, ')'
+                                )
+                                WHEN ecommerce_benefit.proxy_class LIKE '%Percentage%' THEN CONCAT(
+                                  'Percentage, ', ecommerce_benefit.value, ' (#', ecommerce_offer.id, ')'
+                                )
+                                ELSE CONCAT('Absolute, ', ecommerce_benefit.value, ' (#', ecommerce_offer.id, ')')
+                            END
+                        END AS offer,
+                        ecommerce_voucher.name AS coupon_name,
+                        ecommerce_voucher.code AS coupon_code
+                    FROM order_order ecommerce_order
+                    JOIN ecommerce_user ecommerce_user
+                        ON ecommerce_user.id = ecommerce_order.user_id
+                    JOIN order_line ecommerce_order_line
+                        ON ecommerce_order_line.order_id = ecommerce_order.id
+                    JOIN catalogue_product ecommerce_catalogue_product
+                        ON ecommerce_catalogue_product.id = ecommerce_order_line.product_id
+                    JOIN partner_stockrecord ecommerce_stockrecord
+                        ON ecommerce_order_line.stockrecord_id = ecommerce_stockrecord.id
+                    INNER JOIN (
+                            SELECT
+                                ecomm_order.user_id AS user_id,
+                                ecomm_product.course_id AS course_id,
+                                MAX(ecomm_stockrecord.price_excl_tax) AS course_price
+                            FROM order_order ecomm_order
+                            JOIN order_line ecomm_order_line
+                                ON ecomm_order.id = ecomm_order_line.order_id
+                            JOIN catalogue_product ecomm_product
+                                ON ecomm_order_line.product_id = ecomm_product.id
+                            JOIN partner_stockrecord ecomm_stockrecord
+                                ON ecomm_order_line.stockrecord_id = ecomm_stockrecord.id
+                            GROUP BY ecomm_order.user_id, ecomm_product.course_id
+                    ) ecomm_order_product
+                        ON ecommerce_user.id = ecomm_order_product.user_id
+                        AND ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
+                        AND ecommerce_stockrecord.price_excl_tax = ecomm_order_product.course_price
+                    LEFT JOIN order_orderdiscount ecommerce_order_discount
+                        ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
+                    LEFT JOIN voucher_voucher ecommerce_voucher
+                        ON ecommerce_order_discount.voucher_id = ecommerce_voucher.id
+                    LEFT JOIN offer_conditionaloffer ecommerce_offer
+                        ON ecommerce_order_discount.offer_id = ecommerce_offer.id
+                    LEFT JOIN offer_benefit ecommerce_benefit
+                        ON ecommerce_offer.benefit_id = ecommerce_benefit.id
+                ) ecommerce_data
+                    ON auth_user.username = ecommerce_data.username
+                    AND enterprise_course_enrollment.course_id = ecommerce_data.course_id
         """
 
     @property
@@ -261,9 +316,12 @@ class EnterpriseEnrollmentDataTask(
             ImportProductCatalog(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
             ImportCurrentOrderDiscountState(**kwargs),
-            ImportVoucher(**kwargs),
-            ImportStockRecord(**kwargs),
+            ImportVoucherTask(**kwargs),
+            ImportStockRecordTask(**kwargs),
             ImportCurrentOrderState(**kwargs),
+            ImportEcommerceUser(**kwargs),
+            ImportConditionalOfferTask(**kwargs),
+            ImportBenefitTask(**kwargs),
         )
 
 

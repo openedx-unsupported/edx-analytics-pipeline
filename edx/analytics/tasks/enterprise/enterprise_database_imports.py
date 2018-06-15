@@ -107,7 +107,7 @@ class ImportUserSocialAuthTask(ImportMysqlToHiveTableTask):
         ]
 
 
-class ImportVoucher(ImportMysqlToHiveTableTask):
+class ImportVoucherTask(ImportMysqlToHiveTableTask):
     """
     Ecommerce: Imports the voucher_voucher table from the ecommerce
     database to a destination directory and a HIVE metastore.
@@ -134,7 +134,7 @@ class ImportVoucher(ImportMysqlToHiveTableTask):
         ]
 
 
-class ImportStockRecord(ImportMysqlToHiveTableTask):
+class ImportStockRecordTask(ImportMysqlToHiveTableTask):
     """
     Ecommerce: Imports the partner_stockrecord table from the ecommerce
     database to a destination directory and a HIVE metastore.
@@ -161,4 +161,64 @@ class ImportStockRecord(ImportMysqlToHiveTableTask):
             ('date_updated', 'TIMESTAMP'),
             ('partner_id', 'INT'),
             ('product_id', 'INT'),
+        ]
+
+
+class ImportConditionalOfferTask(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Imports conditional offer information from an ecommerce table to a
+    destination directory and a HIVE metastore.
+    """
+
+    @property
+    def table_name(self):
+        return 'offer_conditionaloffer'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('name', 'STRING'),
+            ('slug', 'STRING'),
+            ('description', 'STRING'),
+            ('offer_type', 'STRING'),
+            ('status', 'STRING'),
+            ('priority', 'INT'),
+            ('start_datetime', 'TIMESTAMP'),
+            ('end_datetime', 'TIMESTAMP'),
+            ('max_global_applications', 'INT'),
+            ('max_user_applications', 'INT'),
+            ('max_basket_applications', 'INT'),
+            ('max_discount', 'DECIMAL(12, 2)'),
+            ('total_discount', 'DECIMAL(12, 2)'),
+            ('num_applications', 'INT'),
+            ('num_orders', 'INT'),
+            ('redirect_url', 'STRING'),
+            ('date_created', 'TIMESTAMP'),
+            ('benefit_id', 'INT'),
+            ('condition_id', 'INT'),
+            ('email_domains', 'TIMESTAMP'),
+            ('site_id', 'INT'),
+        ]
+
+
+class ImportBenefitTask(ImportMysqlToHiveTableTask):
+    """
+    Ecommerce: Imports offer benefit information from an ecommerce table to a
+    destination directory and a HIVE metastore.
+    """
+
+    @property
+    def table_name(self):
+        return 'offer_benefit'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('type', 'STRING'),
+            ('value', 'DECIMAL(12, 2)'),
+            ('max_affected_items', 'INT'),
+            ('proxy_class', 'STRING'),
+            ('range_id', 'INT'),
         ]

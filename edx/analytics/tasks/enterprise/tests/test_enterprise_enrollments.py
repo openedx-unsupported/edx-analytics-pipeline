@@ -38,7 +38,8 @@ class TestEnterpriseEnrollmentMysqlTask(TestCase):
             'last_activity_date',
             'coupon_name',
             'coupon_code',
-            'final_grade',
+            'offer',
+            'current_grade',
             'course_price',
             'discount_price',
         )

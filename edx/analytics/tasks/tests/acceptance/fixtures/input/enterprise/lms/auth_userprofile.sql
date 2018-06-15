@@ -40,4 +40,5 @@ INSERT INTO `auth_userprofile` VALUES
     (5, 'Test User', '', 'course.xml', '', '', 1989, 'm', '', '', '', 'US', '', 1, NULL, NULL, 11),
     (6, 'Test User2', '', 'course.xml', '', '', 1989, 'f', '', '', '', 'US', '', 1, NULL, NULL, 12),
     (7, 'Test User3', '', 'course.xml', '', '', 1989, 'm', '', '', '', 'US', '', 1, NULL, NULL, 13),
-    (8, 'Test User4', '', 'course.xml', '', '', 1989, 'f', '', '', '', 'US', '', 1, NULL, NULL, 14);
+    (8, 'Test User4', '', 'course.xml', '', '', 1989, 'f', '', '', '', 'US', '', 1, NULL, NULL, 14),
+    (9, 'Test User5', '', 'course.xml', '', '', 1989, 'f', '', '', '', 'US', '', 1, NULL, NULL, 15);

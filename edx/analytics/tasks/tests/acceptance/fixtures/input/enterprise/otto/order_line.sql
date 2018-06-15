@@ -34,8 +34,14 @@ CREATE TABLE `order_line` (
 --
 
 INSERT INTO `order_line` VALUES
-  (1,'edX','D354B6A','','','Seat in edX Demo Course with verified certificate (and ID verification)','',1,256.00,256.00,256.00,256.00,NULL,256.00,256.00,NULL,'Complete',NULL,1,1,2,1),
-  (2,'edX','D354B6A','','','Seat in edX Demo Verified Course 2 with verified certificate (and ID verification)','',1,192.00,192.00,256.00,256.00,NULL,256.00,256.00,NULL,'Complete',NULL,2,1,5,2),
-  (3,'edX','CF9A708','','','Seat in edX Demo Professional Course 2 with professional certificate','',1,0.00,0.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,3,1,7,3),
-  (4,'edX','CF9A708','','','Seat in edX Demo Professional Course with professional certificate certificate','',1,0.00,0.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,4,1,4,3),
-  (5,'edX','CF9A708','','','Seat in Test Verified Course','',1,0.00,0.00,1000.00,1000.00,NULL,1000.00,1000.00,NULL,'Complete',NULL,5,1,17,3);
+  (1,'edX','D354B6A','','','A demonstration course (ID verified)','',1,300.00,300.00,300.00,300.00,300.00,300.00,300.00,300.00,'Complete',NULL,1,1,2,1),
+  (2,'edX','D354B6A','','','Seat in edX Demo Verified Course 2 with verified certificate (and ID verification)','',1,200.00,200.00,200.00,200.00,200.00,200.00,200.00,200.00,'Complete',NULL,2,1,5,3),
+  (3,'edX','CF9A708','','','Seat in edX Demo Verified Course 2 with verified certificate (and ID verification)','',1,200.00,200.00,200.00,200.00,200.00,200.00,200.00,200.00,'Complete',NULL,3,1,5,3),
+  (4,'edX','CF9A708','','','Seat in edX Demo Professional Course with professional certificate','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,4,1,7,4),
+  (5,'edX','CF9A708','','','edX Test Course (ID verified)','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,5,1,17,5),
+  (6,'edX','D354B6A','','','edX Test Course (ID verified)','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,6,1,17,5),
+  (7,'edX','D354B6A','','','edX Test Course (ID verified)','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,7,1,17,5),
+  (8,'edX','CF9A708','','','A demonstration course (ID verified)','',1,300.00,300.00,300.00,300.00,300.00,300.00,300.00,300.00,'Complete',NULL,8,1,2,1),
+  (9,'edX','CF9A708','','','Seat in edX Demo Verified Course 2 with verified certificate (and ID verification)','',1,200.00,200.00,200.00,200.00,200.00,200.00,200.00,200.00,'Complete',NULL,9,1,5,3),
+  (10,'edX','CF9A708','','','edX Test Course (ID verified)','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,10,1,17,5),
+  (11,'edX','CF9A708','','','A demonstration course (ID verified)','',1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'Complete',NULL,11,1,18,6);
