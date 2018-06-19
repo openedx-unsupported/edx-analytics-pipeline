@@ -15,6 +15,7 @@ from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import (
     EventLogSelectionDownstreamMixin, EventLogSelectionMixin, PathSelectionByDateIntervalTask
 )
+from edx.analytics.tasks.common.spark import EventLogSelectionMixinSpark, SparkJobTask
 from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.decorators import workflow_entry_point
@@ -161,6 +162,84 @@ class LastDailyIpAddressOfUserTask(
             target = get_target_from_url(url)
             if not target.exists():
                 target.open("w").close()  # touch the file
+
+
+class LastDailyIpAddressOfUserTaskSpark(EventLogSelectionMixinSpark, WarehouseMixin, SparkJobTask):
+    """Spark alternate of LastDailyIpAddressOfUserTask"""
+
+    output_parent_dirname = 'last_ip_of_user_id'
+    marker = luigi.Parameter(
+        config_path={'section': 'map-reduce', 'name': 'marker'},
+        significant=False,
+        description='A URL location to a directory where a marker file will be written on task completion.',
+    )
+
+    def output_dir(self):
+        """
+        Output directory for spark task
+        """
+        return get_target_from_url(
+            url_path_join(
+                self.warehouse_path,
+                self.output_parent_dirname
+            )
+        )
+
+    def output(self):
+        """
+        Marker output path
+        """
+        marker_url = url_path_join(self.marker, str(hash(self)))
+        return get_target_from_url(marker_url, marker=True)
+
+    def output_paths(self):
+        """
+        Output partition paths
+        """
+        return map(
+            lambda date: get_target_from_url(
+                url_path_join(
+                    self.hive_partition_path(self.output_parent_dirname, date.isoformat())
+                )
+            ),
+            self.interval
+        )
+
+    def on_success(self):  # pragma: no cover
+        self.output().touch_marker()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        if self.output_dir().exists():      # only check partitions if parent dir exists
+            for target in self.output_paths():
+                if target.exists():
+                    target.remove()
+        super(LastDailyIpAddressOfUserTaskSpark, self).run()
+
+    def spark_job(self, *args):
+        from edx.analytics.tasks.util.spark_util import validate_course_id
+        from pyspark.sql.functions import udf
+        from pyspark.sql.window import Window
+        from pyspark.sql.types import StringType
+        df = self.get_dataframe(self._spark, *args)
+        validate_courseid = udf(validate_course_id, StringType())
+        df = df.withColumn('course_id', validate_courseid(df['course_id']))
+        df.createOrReplaceTempView('location')
+        query = """
+                SELECT
+                    timestamp, ip, user_id, course_id, dt
+                FROM (
+                    SELECT
+                        event_date AS dt, user_id, course_id, timestamp, ip,
+                        ROW_NUMBER() OVER ( PARTITION BY event_date, user_id, course_id ORDER BY timestamp DESC ) AS rank
+                    FROM location
+                    WHERE ip <> ''
+                ) user_location
+                WHERE rank = 1
+                """
+        result = self._spark.sql(query)
+        # write 4 tsv files in each partitioned directory
+        result.coalesce(4).write.partitionBy('dt').csv(self.output_dir().path, mode='append', sep='\t')
 
 
 class LastCountryOfUserDownstreamMixin(
