@@ -92,6 +92,21 @@ def parse_json_event(line, nested=False):
     return parsed
 
 
+def load_and_filter_rdd(path):
+    from edx.analytics.tasks.util.s3_util import ScalableS3Client
+    from pickle import Pickler
+    import gzip
+    try:
+        from cStringIO import StringIO
+    except ImportError:
+        from StringIO import StringIO
+    s3_conn = ScalableS3Client()
+    raw_data = StringIO(s3_conn.get_as_string(path))
+    gzipfile = gzip.GzipFile(fileobj=raw_data)  # this can be improved
+    content_string = gzipfile.read().encode('utf-8')
+    return [line for line in content_string.split("\n") if line]
+
+
 def load_and_filter(spark_session, file, lower_bound_date_string, upper_bound_date_string):
     return spark_session.sparkContext.textFile(file) \
         .map(parse_json_event) \

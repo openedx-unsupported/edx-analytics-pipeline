@@ -14,7 +14,8 @@ from edx.analytics.tasks.util.manifest import (
     ManifestInputTargetMixin, convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.spark_util import load_and_filter
+from edx.analytics.tasks.util.spark_util import load_and_filter, load_and_filter_rdd, parse_json_event, \
+    filter_event_logs
 from edx.analytics.tasks.util.url import UncheckedExternalURL, get_target_from_url, url_path_join
 
 _file_path_to_package_meta_path = {}
@@ -292,6 +293,29 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
             .add("timestamp", StringType(), True) \
             .add("event_date", StringType(), True)
 
+    def build_dataframe_from_rdds(self, spark, *args, **kwargs):
+        from pyspark.sql.functions import to_date, udf, struct, date_format
+        input_source = self.get_input_source(*args)
+        user_location_schema = self.get_user_location_schema()
+        master_rdd = spark.sparkContext.union(
+            # filter out unwanted data as much as possible within each rdd before union
+            map(
+                lambda target: load_and_filter(spark, target.path, self.lower_bound_date_string,
+                                               self.upper_bound_date_string),
+                input_source
+            )
+        )
+        if self.rdd_checkpoint_directory:
+            # set checkpoint location before checkpointing
+            spark.sparkContext.setCheckpointDir(self.rdd_checkpoint_directory)
+            master_rdd.localCheckpoint()
+        if self.cache_rdd:
+            master_rdd.cache()
+        dataframe = spark.createDataFrame(master_rdd, schema=user_location_schema)
+        if 'user_id' not in dataframe.columns:  # rename columns if they weren't named properly by createDataFrame
+            dataframe = dataframe.toDF('user_id', 'course_id', 'ip', 'timestamp', 'event_date')
+        return dataframe
+
     def get_dataframe(self, spark, *args, **kwargs):
         from pyspark.sql.functions import to_date, udf, struct, date_format
         input_source = self.get_input_source(*args)
@@ -310,6 +334,22 @@ class EventLogSelectionMixinSpark(EventLogSelectionDownstreamMixin):
             master_rdd.localCheckpoint()
         if self.cache_rdd:
             master_rdd.cache()
+        dataframe = spark.createDataFrame(master_rdd, schema=user_location_schema)
+        if 'user_id' not in dataframe.columns:  # rename columns if they weren't named properly by createDataFrame
+            dataframe = dataframe.toDF('user_id', 'course_id', 'ip', 'timestamp', 'event_date')
+        return dataframe
+
+    def get_dataframe_from_distributed_loaded_files(self, spark, *args, **kwargs):
+        """
+        For parallelizing s3 files and loading them on each executore
+        """
+        input_source = self.get_input_source(*args)
+        user_location_schema = self.get_user_location_schema()
+        files_rdd = spark.sparkContext.parallelize([target.path for target in input_source])
+        master_rdd = files_rdd.flatMap(load_and_filter_rdd) \
+            .map(parse_json_event) \
+            .map(lambda row: filter_event_logs(row, self.lower_bound_date_string, self.upper_bound_date_string)) \
+            .filter(bool)
         dataframe = spark.createDataFrame(master_rdd, schema=user_location_schema)
         if 'user_id' not in dataframe.columns:  # rename columns if they weren't named properly by createDataFrame
             dataframe = dataframe.toDF('user_id', 'course_id', 'ip', 'timestamp', 'event_date')
