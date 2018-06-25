@@ -101,6 +101,9 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             log.debug('Unrecognized organization: org_id=%s', org_id or '')
             return
 
+        if str(event.get('event', {}).get('_export', 'true')).lower() in ('n', 'f', '0', 'false', 'no'):
+            return
+
         # Check to see if the org_id is one that should be grouped with other org_ids.
         org_ids = self.primary_org_ids_for_org_id[org_id]
 
