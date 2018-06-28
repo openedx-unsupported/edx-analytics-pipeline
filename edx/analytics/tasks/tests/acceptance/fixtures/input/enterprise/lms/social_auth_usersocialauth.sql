@@ -20,4 +20,5 @@ CREATE TABLE `social_auth_usersocialauth` (
 INSERT INTO `social_auth_usersocialauth` VALUES
   (1,11,'tpa-saml','ent1:harry', '{}'),
   (2,12,'tpa-saml','ent1:ron', '{}'),
-  (3,13,'tpa-saml','ent2:hermione', '{}');
+  (3,13,'tpa-saml','ent2:hermione', '{}'),
+  (4,15,'tpa-saml','ent1:ginny', '{}');
