@@ -1,4 +1,5 @@
 import ast
+import datetime
 import importlib
 import json
 import logging
@@ -10,6 +11,8 @@ from collections import defaultdict
 
 import luigi
 import luigi.configuration
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from luigi.contrib.spark import PySparkTask
 
 _file_path_to_package_meta_path = {}
@@ -359,3 +362,170 @@ class SparkJobTask(SparkMixin, PySparkTask):
             self.spark_job(*args)  # execute spark job
         finally:
             self._spark_clean()  # cleanup after spark job
+
+
+class SparkMysqlMixin(object):
+    import_date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Date to assign to partition.  Default is today\'s date, UTC.',
+    )
+    destination = luigi.Parameter(
+        config_path={'section': 'database-import', 'name': 'destination'},
+        description='The directory to write the output.',
+    )
+    num_partitions = luigi.Parameter(
+        default=2,
+        description='Number of partitions in dataframe while reading/writing via jdbc '
+                    '( this also sets the no. of connections to the database).'
+    )
+    mysql_driver_class = "com.mysql.jdbc.Driver"
+    credentials = None
+    database = None
+
+    def get_credentials(self):
+        """
+        Gathers the secure connection parameters from an external file
+        and uses them to establish a connection to the database
+        specified in the secure parameters.
+
+        """
+        cred = {}
+        credentials_source = get_target_from_url(url=self.credentials_file)
+        with credentials_source.open('r') as credentials_file:
+            cred = json.load(credentials_file)
+        return cred
+
+    @property
+    def spark_remote_package_names(self):
+        return ['edx', 'luigi', 'stevedore', 'bson', 'six']
+
+    def get_jdbc_url(self):
+        if self.credentials:
+            return "jdbc:mysql://{host}:{port}/{database}".format(
+                host=self.credentials.get('host', ''),
+                port=self.credentials.get('port', ''),
+                database=self.database
+            )
+        return ''
+
+
+class SparkMysqlExportMixin(SparkMysqlMixin, OverwriteOutputMixin):
+    """Defines arguments used by spark mysql export tasks to pass to SparkExportFromMysqlTaskMixin."""
+    credentials_file = luigi.Parameter(
+        config_path={'section': 'database-import', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
+    )
+    database = luigi.Parameter(
+        config_path={'section': 'database-import', 'name': 'database'},
+        description='The name of the database to read the data.',
+    )
+
+
+class SparkMysqlImportMixin(SparkMysqlMixin):
+    """Defines arguments used for importing data into mysql using spark."""
+    credentials_file = luigi.Parameter(
+        config_path={'section': 'database-export', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
+    )
+    database = luigi.Parameter(
+        config_path={'section': 'database-export', 'name': 'database'},
+        description='The name of the database to write the data.',
+    )
+    marker = luigi.Parameter(
+        config_path={'section': 'map-reduce', 'name': 'marker'},
+        significant=False,
+        description='A URL location to a directory where a marker file will be written on task completion.',
+    )
+
+
+class SparkExportFromMysqlTaskMixin(SparkMysqlExportMixin, SparkJobTask):
+    """Spark task mixin for exporting from mysql to an external directory path."""
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        self.credentials = self.get_credentials()
+        super(SparkExportFromMysqlTaskMixin, self).run()
+
+    @property
+    def table_name(self):
+        """Provides name of mysql table."""
+        raise NotImplementedError
+
+    @property
+    def table_location(self):
+        return url_path_join(self.destination, self.table_name)
+
+    @property
+    def partition_date(self):
+        """Provides value to use in constructing the partition name of Hive database table."""
+        return str(self.import_date)
+
+    @property
+    def partition(self):
+        """Provides name of Hive database table partition."""
+        # The Luigi hive code expects partitions to be defined by dictionaries.
+        return {'dt': self.partition_date}
+
+    @property
+    def partition_location(self):
+        """Provides location of table's partition data."""
+        # The actual folder name where the data is stored is expected to be in the format <key>=<value>
+        partition_name = '='.join(self.partition.items()[0])
+        # Make sure that input path ends with a slash, to indicate a directory.
+        return url_path_join(self.table_location, partition_name + '/')
+
+    @property
+    def output_delimiter(self):
+        """Field delimiter for output columns"""
+        return '\x01'
+
+    # TODO: Add option to either export the results or create global temporary views
+    def spark_job(self, *args):
+        df = self._spark.read.format("jdbc").options(
+            url=self.get_jdbc_url(),
+            dbtable=self.table_name,
+            user=self.credentials.get("username", ''),
+            password=self.credentials.get("password", ''),
+            driver=self.mysql_driver_class,
+            numPartitions=self.num_partitions
+        ).load()
+        # We cannot impose schema on jdbc source, so we explicitly cast them to string types.
+        # We need to cast columns if we want to replace null values with some placeholder, but for discovery purpose
+        # i've commented this out.
+        # from pyspark.sql.functions import col
+        # from pyspark.sql.types import StringType
+        # exprs = [col(c).cast(StringType()) for c in df.columns]
+        # df = df.select(*exprs)       # select cast columns
+        # df = df.fillna('\N')         # replace nulls with placeholder ( for hive compatability )
+        df.select(self.columns) \
+            .write \
+            .csv(self.output().path, mode='overwrite', sep=self.output_delimiter)
+
+    def output(self):
+        return get_target_from_url(self.partition_location)
+
+
+class ImportAuthUserSparkTask(SparkExportFromMysqlTaskMixin):
+    """Spark equivalent of ImportAuthUserTask."""
+
+    @property
+    def table_name(self):
+        return "auth_user"
+
+    @property
+    def columns(self):
+        # Fields not included are 'password', 'first_name' and 'last_name'.
+        return ['id', 'username', 'last_login', 'date_joined', 'is_active', 'is_superuser', 'is_staff', 'email']
+
+
+class ImportAuthUserProfileSparkTask(SparkExportFromMysqlTaskMixin):
+    """Spark equivalent of ImportAuthUserProfileTask."""
+
+    @property
+    def table_name(self):
+        return "auth_userprofile"
+
+    @property
+    def columns(self):
+        return ['user_id', 'name', 'gender', 'year_of_birth', 'level_of_education', 'language', 'location',
+                'mailing_address', 'city', 'country', 'goals']
