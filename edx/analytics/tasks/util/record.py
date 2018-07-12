@@ -2,8 +2,14 @@
 
 import datetime
 import itertools
+import logging
 import re
 from collections import OrderedDict
+
+import ciso8601
+import pytz
+
+from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
 try:
     from google.cloud.bigquery import SchemaField
@@ -13,6 +19,8 @@ except ImportError:
 
 
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
+
+log = logging.getLogger(__name__)
 
 
 class Record(object):
@@ -767,3 +775,168 @@ class FloatField(Field):  # pylint: disable=abstract-method
 
     def deserialize_from_string(self, string_value):
         return float(string_value)
+
+
+class RecordMapper(object):
+    """
+    Load a record from a dictionary object, according to a given mapping.
+
+    To implement, derive a class that extends RecordMapper, and declares the class name of the record
+    it is designed to create data for.   The implementation should also define add_record_field_mapping,
+    which is used to define how each field in a record should be populated from the input dictionary.
+
+    Once the derived mapper class is instantiated, it can be used to make calls to add_info(),
+    for some input dictionary and output dictionary.  Additional calls to add_calculated_entry can
+    add hardcoded (unmapped) field entries to the output dictionary, but with the benefit of conversion and validation.
+    The output dictionary can then be passed to self.record_class(**record_dict) to get the resulting
+    record loaded.
+    """
+
+    record_mapping = None
+    date_time_field_for_validating = DateTimeField()
+
+    @property
+    def record_class(self):
+        """Specifies the class of the Record being loaded by this mapper."""
+        raise NotImplementedError
+
+    def add_record_field_mapping(self, field_key, add_event_mapping_entry):
+        """
+        For a given field name, add the location in the source dictionary from which to fetch a value.
+
+        Key values for the mapping are represented using dot notation, beginning with the hard-coded string value 'root'.
+        So for a dictionary with { 'a': {'b': 'b-value' } }, fetching the 'b-value' into a record field would be
+        defined as 'root.a.b'.
+        """
+        raise NotImplementedError
+
+    def _add_entry(self, record_dict, record_key, record_field, label, obj):
+        """
+        Add the `obj` to the `record_key` entry of `record_dict`, performing appropriate conversion based on `record_field`.
+
+        For strings, the entry is truncated, if necessary, so we should rarely see truncation errors.  Also, null characters
+        are escaped so that they won't fail when being loaded into BigQuery.
+
+        For timestamps, parsing is done using ciso8601.
+
+        Errors are logged, but are not fatal.  In such cases, the value is simply not set.  (It's only fatal, then, if the
+        value was required.)
+        """
+        if isinstance(record_field, StringField):
+            if obj is None:
+                # TODO: this should really check to see if the record_field is nullable.
+                value = None
+            else:
+                value = backslash_encode_value(unicode(obj))
+                if '\x00' in value:
+                    value = value.replace('\x00', '\\0')
+                # Avoid validation errors later due to length by truncating here.
+                field_length = record_field.length
+                value_length = len(value)
+                # TODO: This implies that field_length is at least 4.
+                if value_length > field_length:
+                    log.error("Record value length (%d) exceeds max length (%d) for field %s: %r", value_length, field_length, record_key, value)
+                    value = u"{}...".format(value[:field_length - 4])
+            record_dict[record_key] = value
+        elif isinstance(record_field, IntegerField):
+            try:
+                record_dict[record_key] = int(obj)
+            except ValueError:
+                log.error('Unable to cast value to int for %s: %r', label, obj)
+        elif isinstance(record_field, BooleanField):
+            try:
+                record_dict[record_key] = bool(obj)
+            except ValueError:
+                log.error('Unable to cast value to bool for %s: %r', label, obj)
+        elif isinstance(record_field, FloatField):
+            try:
+                record_dict[record_key] = float(obj)
+            except ValueError:
+                log.error('Unable to cast value to float for %s: %r', label, obj)
+        elif isinstance(record_field, DateTimeField):
+            datetime_obj = None
+            try:
+                if obj is not None:
+                    datetime_obj = ciso8601.parse_datetime(obj)
+                    if datetime_obj.tzinfo:
+                        datetime_obj = datetime_obj.astimezone(pytz.utc)
+                else:
+                    datetime_obj = obj
+            except ValueError:
+                log.error('Unable to cast value to datetime for %s: %r', label, obj)
+
+            # Because it's not enough just to create a datetime object, also perform
+            # validation here.
+            if datetime_obj is not None:
+                validation_errors = self.date_time_field_for_validating.validate(datetime_obj)
+                if len(validation_errors) > 0:
+                    log.error('Invalid assigment of value %r to field "%s": %s', datetime_obj, label, ', '.join(validation_errors))
+                    datetime_obj = None
+
+            record_dict[record_key] = datetime_obj
+        else:
+            record_dict[record_key] = obj
+
+    def _add_info_recurse(self, record_dict, record_mapping, obj, label):
+        """Recurse through the structure of the input `obj`, and add it if it's a matching leaf."""
+        if obj is None:
+            pass
+        elif isinstance(obj, dict):
+            for key in obj.keys():
+                new_value = obj.get(key)
+                # Normalize labels to be all lower-case, since all field (column) names are lowercased.
+                new_label = u"{}.{}".format(label, key.lower())
+                self._add_info_recurse(record_dict, record_mapping, new_value, new_label)
+        elif isinstance(obj, list):
+            # We will not output any values that are stored in lists.
+            pass
+        else:
+            # We assume it's a single object, and look it up now.
+            if label in record_mapping:
+                record_key, record_field = record_mapping[label]
+                self._add_entry(record_dict, record_key, record_field, label, obj)
+
+    def add_info(self, record_dict, input_dict):
+        """Populate the record_dict by applying the mapping to the input_dict."""
+        self._add_info_recurse(record_dict, self._get_record_mapping(), input_dict, 'root')
+
+    def add_calculated_entry(self, record_dict, record_key, obj):
+        """
+        Use this to explicitly add calculated entry values.
+
+        Value loaded this way should be excluded from the mapping, so that add_info does not also set them.
+        """
+        record_field = self.record_class.get_fields()[record_key]
+        label = record_key
+        self._add_entry(record_dict, record_key, record_field, label, obj)
+
+    def _calculate_record_mapping(self):
+        """
+        Return dictionary that maps a location in a dictionary to the record field it should be inserted into.
+
+        Key values for the mapping are represented using dot notation, beginning with the hard-coded string value 'root'.
+        So for a dictionary with { 'a': {'b': 'b-value' } }, fetching the 'b-value' into a record field would be
+        defined as 'root.a.b'.
+
+        Values for the mapping provide information about the field in the record to be written to.   This is a tuple
+        of the field name and the actual field object.
+        """
+        record_mapping = {}
+        fields = self.record_class.get_fields()
+        field_keys = fields.keys()
+        for field_key in field_keys:
+            field_tuple = (field_key, fields[field_key])
+
+            def add_event_mapping_entry(source_key):
+                record_mapping[source_key] = field_tuple
+
+            # Call method defined in derived class here.
+            self.add_record_field_mapping(field_key, add_event_mapping_entry)
+
+        return record_mapping
+
+    def _get_record_mapping(self):
+        """Return dictionary of input_dict attributes to the output keys they map to."""
+        if self.record_mapping is None:
+            self.record_mapping = self._calculate_record_mapping()
+        return self.record_mapping

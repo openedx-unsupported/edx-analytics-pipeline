@@ -15,6 +15,9 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_country import LoadIn
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     LoadInternalReportingCourseCatalogToWarehouse
 )
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import (
+    LoadInternalReportingCourseStructureToWarehouse
+)
 from edx.analytics.tasks.warehouse.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
 from edx.analytics.tasks.warehouse.load_internal_reporting_user_activity import (
     LoadInternalReportingUserActivityToWarehouse
@@ -104,6 +107,10 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 **kwargs
             ),
             LoadInternalReportingCourseCatalogToWarehouse(
+                date=self.date,
+                **kwargs
+            ),
+            LoadInternalReportingCourseStructureToWarehouse(
                 date=self.date,
                 **kwargs
             ),
