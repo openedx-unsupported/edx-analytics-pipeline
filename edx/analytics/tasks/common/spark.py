@@ -11,6 +11,7 @@ from collections import defaultdict
 
 import luigi
 import luigi.configuration
+from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from luigi.contrib.spark import PySparkTask
@@ -529,3 +530,33 @@ class ImportAuthUserProfileSparkTask(SparkExportFromMysqlTaskMixin):
     def columns(self):
         return ['user_id', 'name', 'gender', 'year_of_birth', 'level_of_education', 'language', 'location',
                 'mailing_address', 'city', 'country', 'goals']
+
+
+class SparkTest(WarehouseMixin, SparkJobTask):
+    input_source = luigi.Parameter(
+        default=None
+    )
+    column_delimiter = luigi.Parameter(
+        default='\x01'
+    )
+
+    def _spark_clean(self):
+        # not deleting temporary files for debugging
+        pass
+
+    @property
+    def spark_remote_package_names(self):
+        return ['edx', 'luigi', 'stevedore', 'bson', 'six']
+
+    def spark_job(self, *args):
+        df = self._spark.read.format('csv').options(delimiter=self.column_delimiter).load(self.input_source)
+        df = df.groupBy('_c3').count()
+        df.coalesce(1).write.csv(self.output().path, mode='overwrite')
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.warehouse_path,
+                'spark_test_job'
+            )
+        )
