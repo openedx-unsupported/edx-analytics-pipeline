@@ -119,7 +119,7 @@ def run_task_playbook(inventory, arguments, uid):
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 
-    command = 'cd {code_dir} && . $HOME/.bashrc && {env_vars}{bg}{data_dir}/venv/bin/launch-task {task_arguments}{end_bg}'.format(
+    command = 'cd {code_dir} && . $HOME/.bashrc && . {data_dir}/venv/bin/activate && {env_vars}{bg}launch-task {task_arguments}{end_bg}'.format(
         env_vars=env_var_string + ' ' if env_var_string else '',
         data_dir=data_dir,
         code_dir=code_dir,
