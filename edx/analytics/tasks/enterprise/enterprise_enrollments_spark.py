@@ -5,7 +5,7 @@ import luigi
 import luigi.task
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.spark import SparkExportFromMysqlTaskMixin, SparkJobTask, SparkMysqlImportMixin, \
-    ImportAuthUserSparkTask, ImportAuthUserProfileSparkTask
+    ImportAuthUserSparkTask, ImportAuthUserProfileSparkTask, SparkMixin
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
     ImportBenefitTask, ImportConditionalOfferTask, ImportDataSharingConsentTask,
     ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask, ImportEnterpriseCustomerUserTask,
@@ -49,13 +49,21 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
         kwargs = {
             'destination': self.warehouse_path
         }
+        spark_kwargs = {
+            'destination': self.warehouse_path,
+            'driver_memory': self.driver_memory,
+            'executor_memory': self.executor_memory,
+            'executor_cores': self.executor_cores,
+            'spark_conf': self.spark_conf
+        }
+
         for requirement in super(EnterpriseEnrollmentSparkMysqlTask, self).requires():
             yield requirement
 
         # the process that generates the source table used by this query
         yield (
-            ImportAuthUserSparkTask(**kwargs),
-            ImportAuthUserProfileSparkTask(**kwargs),
+            ImportAuthUserSparkTask(**spark_kwargs),
+            ImportAuthUserProfileSparkTask(**spark_kwargs),
             ImportEnterpriseCustomerTask(**kwargs),
             ImportEnterpriseCustomerUserTask(**kwargs),
             ImportEnterpriseCourseEnrollmentUserTask(**kwargs),
@@ -111,7 +119,7 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
         """
         Builds a dataframe schema for a given list of columns.
         """
-        from pyspark.sql.types import *
+        from pyspark.sql.types import StructType, StringType
         schema = StructType()
         for column in cols_list:
             schema = schema.add(column, StringType(), True)  # for now, using StringTypes for all data types
@@ -414,6 +422,7 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
 
 @workflow_entry_point
 class ImportEnterpriseEnrollmentsIntoMysqlSpark(
+    SparkMixin,
     OverwriteHiveAndMysqlDownstreamMixin,
     LoadInternalReportingCourseCatalogMixin,
     luigi.WrapperTask
@@ -427,6 +436,10 @@ class ImportEnterpriseEnrollmentsIntoMysqlSpark(
             'date': self.date,
             'api_root_url': self.api_root_url,
             'api_page_size': self.api_page_size,
+            'driver_memory': self.driver_memory,
+            'executor_memory': self.executor_memory,
+            'executor_cores': self.executor_cores,
+            'spark_conf': self.spark_conf,
         }
 
         yield [
