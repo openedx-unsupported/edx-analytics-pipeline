@@ -169,7 +169,10 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
                         WHEN course.pacing_type = 'self_paced' THEN 'Self Paced'
                         ELSE CAST(CEIL(DATEDIFF(course.end_time, course.start_time) / 7) AS STRING)
                     END AS course_duration_weeks,
-                    course.min_effort AS course_min_effort,
+                    CASE
+                        WHEN course.min_effort = '' THEN 0
+                        ELSE course.min_effort
+                    END AS course_min_effort,
                     course.max_effort AS course_max_effort,
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
