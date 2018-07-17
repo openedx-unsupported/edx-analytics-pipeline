@@ -390,6 +390,7 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
                         date_format(tmp_result['user_account_creation_timestamp'], 'yyyy-MM-dd HH:mm:ss'))
         result.write \
             .option("numPartitions", self.num_partitions) \
+            .option('driver', self.mysql_driver_class) \
             .jdbc(
                 url=self.get_jdbc_url(),
                 table=self.table,
