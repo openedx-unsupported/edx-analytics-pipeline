@@ -169,10 +169,7 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
                         WHEN course.pacing_type = 'self_paced' THEN 'Self Paced'
                         ELSE CAST(CEIL(DATEDIFF(course.end_time, course.start_time) / 7) AS STRING)
                     END AS course_duration_weeks,
-                    CASE
-                        WHEN course.min_effort = '' THEN 0
-                        ELSE course.min_effort
-                    END AS course_min_effort,
+                    course.min_effort AS course_min_effort,
                     course.max_effort AS course_max_effort,
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
@@ -241,7 +238,10 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
                     SELECT
                         ecommerce_user.username AS username,
                         ecommerce_catalogue_product.course_id AS course_id,
-                        ecommerce_stockrecord.price_excl_tax AS course_price,
+                        CASE
+                            WHEN ecommerce_stockrecord.price_excl_tax = '' THEN '0.00'
+                            ELSE CAST(ecommerce_stockrecord.price_excl_tax AS DECIMAL(12,2))
+                        END AS course_price,
                         ecommerce_order.total_incl_tax AS discount_price,
                         CASE
                             WHEN ecommerce_offer.id IS NULL THEN NULL
@@ -385,7 +385,9 @@ class EnterpriseEnrollmentSparkMysqlTask(SparkMysqlImportMixin, LoadInternalRepo
         # run the query
         tmp_result = self._spark.sql(self.get_insert_sql_query())
         # formating the timestamp columns
-        result = tmp_result.withColumn('enrollment_created_timestamp',
+        result = tmp_result.replace('', '0', ['course_min_effort', 'course_max_effort']) \
+            .replace('', '0000-00-00 00:00:00', ['course_start', 'course_end']) \
+            .withColumn('enrollment_created_timestamp',
                                        date_format(tmp_result['enrollment_created_timestamp'], 'yyyy-MM-dd HH:mm:ss')) \
             .withColumn('passed_timestamp',
                         date_format(tmp_result['passed_timestamp'], 'yyyy-MM-dd HH:mm:ss')) \
