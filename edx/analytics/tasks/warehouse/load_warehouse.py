@@ -135,7 +135,7 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
         return self.is_complete
 
 
-class PostLoadWarehouseTask(SchemaManagementTask):
+class PostLoadWarehouseTask(WarehouseMixin, SchemaManagementTask):
     """
     Task needed to run after loading data into warehouse.
     """
@@ -149,7 +149,8 @@ class PostLoadWarehouseTask(SchemaManagementTask):
                 credentials=self.credentials,
                 marker_schema=self.marker_schema,
                 overwrite=self.overwrite,
-                n_reduce_tasks=self.n_reduce_tasks
+                n_reduce_tasks=self.n_reduce_tasks,
+                warehouse_path=self.warehouse_path,
             ),
             'credentials': ExternalURL(self.credentials)
         }
@@ -214,5 +215,6 @@ class LoadWarehouseWorkflow(WarehouseWorkflowMixin, luigi.WrapperTask):
             schema=self.schema,
             credentials=self.credentials,
             marker_schema=self.marker_schema,
-            overwrite=self.overwrite
+            overwrite=self.overwrite,
+            warehouse_path=self.warehouse_path,
         )
