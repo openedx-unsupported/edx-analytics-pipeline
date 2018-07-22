@@ -197,6 +197,19 @@ class PostLoadWarehouseTask(SchemaManagementTask):
                 connection.close()
                 raise Exception('Failed to validate table: {table}'.format(table=table))
 
+        # Vertica does not check for constraint violations during data loading.
+        # We explicitly check for violations by calling ANALYZE_CONSTRAINTS function, and fail
+        # the workflow if a voilation is found.
+        query = "SELECT ANALYZE_CONSTRAINTS('{schema_loading}.{table}')".format(
+            schema_loading=self.schema_loading,
+            table='d_course'
+        )
+        cursor.execute(query)
+        row = cursor.fetchone()
+        if row:
+            connection.close()
+            raise Exception('Failed to validate constraints on d_course')
+
         connection.close()
 
         super(PostLoadWarehouseTask, self).run()

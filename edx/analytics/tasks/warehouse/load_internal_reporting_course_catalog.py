@@ -576,7 +576,7 @@ class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCata
 
 class CourseRecord(Record):
     """Represents a course."""
-    course_id = StringField(nullable=False, length=255)
+    course_id = StringField(nullable=False, length=255, unique=True)
     catalog_course = StringField(nullable=False, length=255)
     catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True)
     start_time = DateTimeField(nullable=True)
