@@ -132,6 +132,11 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         return [('created', 'TIMESTAMP DEFAULT NOW()')]
 
     @property
+    def unique_columns(self):
+        """List of list containing column or group of columns on which the UNIQUE constraint would be added."""
+        return []
+
+    @property
     def projections(self):
         """Provides projection definitions to use after table creation and initialization to create projections.
 
@@ -209,9 +214,13 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         if self.table_partition_key:
             partition_key_def = ' PARTITION BY {key}'.format(key=self.table_partition_key)
 
-        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs}){partition_key_def}".format(
+        unique_constraints_def = ''
+        for columns in self.unique_columns:
+            unique_constraints_def += ", UNIQUE({cols})".format(cols=', '.join(columns))
+
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs}{unique_constraints_def}){partition_key_def}".format(
             schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs,
-            partition_key_def=partition_key_def,
+            unique_constraints_def=unique_constraints_def, partition_key_def=partition_key_def,
         )
         log.debug(query)
         connection.cursor().execute(query)
@@ -437,6 +446,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                     insert_source_file
                 )
                 log.debug("Finished stream copy from source file")
+
         except RuntimeError:
             # While calling finish on an input target, Luigi throws a RuntimeError exception if the subprocess command
             # to read the input returns a non-zero return code. As all of the data's been read already, we choose to ignore
@@ -446,6 +456,23 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                 log.debug("Luigi raised RuntimeError while calling _finish on input target.")
             else:
                 raise
+
+    def analyze_constraints(self, cursor):
+        # Vertica does not check for constraint violations during data loading.
+        # We explicitly check for violations by calling ANALYZE_CONSTRAINTS function, and fail
+        # the workflow if a voilation is found.
+        if self.foreign_key_mapping or self.unique_columns:
+            query = "SELECT ANALYZE_CONSTRAINTS('{schema}.{table}')".format(
+                schema=self.schema,
+                table=self.table
+            )
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if row:
+                raise Exception('Failed to validate constraints on {schema}.{table}'.format(
+                    schema=self.schema,
+                    table=self.table
+                ))
 
     @property
     def restricted_columns(self):
@@ -503,6 +530,7 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
 
+            self.analyze_constraints(cursor)
             # mark as complete in same transaction
             self.init_touch(connection)
             self.output().touch(connection)

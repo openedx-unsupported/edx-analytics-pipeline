@@ -483,7 +483,6 @@ class Field(object):
 
     def __init__(self, **kwargs):
         self.nullable = kwargs.pop('nullable', True)
-        self.unique = kwargs.pop('unique', False)
 
         for key, value in kwargs.items():
             setattr(self, key, value)
@@ -533,8 +532,6 @@ class Field(object):
         base_type = self.sql_base_type
         if not self.nullable:
             base_type += ' NOT NULL'
-        if self.unique:
-            base_type += ' UNIQUE'
         return base_type
 
     @property
