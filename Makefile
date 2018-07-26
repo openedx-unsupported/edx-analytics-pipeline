@@ -75,9 +75,12 @@ test-acceptance-local:
 test-acceptance-local-all:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
+quality-docker-local:
+	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/'
+	pycodestyle edx
+
 quality-docker:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest isort --check-only --recursive edx/
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest pycodestyle edx
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make quality-docker-local
 
 coverage-docker:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest coverage xml
