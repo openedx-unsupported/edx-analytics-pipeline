@@ -685,6 +685,12 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogM
         return []
 
     @property
+    def unique_columns(self):
+        return [
+            ('course_id',)
+        ]
+
+    @property
     def table(self):
         return 'd_course'
 
