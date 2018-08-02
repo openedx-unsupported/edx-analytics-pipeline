@@ -122,8 +122,8 @@ def as_list_param(value, escape_quotes=True):
 
 def coerce_columns_to_string(row):
     # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
-    # them into string before comparison with expected output.
-    return [str(x) for x in row]
+    # them into string before comparison with expected output.   Also a challenge with 'None' values.
+    return [unicode(x) for x in row]
 
 
 def read_csv_fixture_as_list(fixture_file_path):

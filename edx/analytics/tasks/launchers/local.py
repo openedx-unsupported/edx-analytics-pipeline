@@ -27,6 +27,7 @@ import luigi.contrib.hadoop
 import luigi.retcodes
 import opaque_keys
 import pyinstrument
+import pytz
 import requests
 import six
 import stevedore
@@ -93,7 +94,7 @@ def main():
     # - requests has several dependencies:
     #   - chardet, urllib3, certifi, idna
     luigi.contrib.hadoop.attach(edx.analytics.tasks)
-    luigi.contrib.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests)
+    luigi.contrib.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests, pytz)
 
     if configuration.getboolean('ccx', 'enabled', default=False):
         import ccx_keys
