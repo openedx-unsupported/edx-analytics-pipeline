@@ -587,7 +587,7 @@ class CourseRecord(Record):
     pacing_type = StringField(nullable=True, length=255)
     level_type = StringField(nullable=True, length=255)
     availability = StringField(nullable=True, length=255)
-    org_id = StringField(nullable=False, length=255)
+    org_id = StringField(nullable=True, length=255)
     partner_short_code = StringField(nullable=True, length=8)
     marketing_url = StringField(nullable=True, length=1024)
     min_effort = IntegerField(nullable=True)
