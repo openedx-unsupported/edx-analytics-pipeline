@@ -255,10 +255,26 @@ class PostImportDatabaseTask(SchemaManagementTask):
     roles = luigi.ListParameter(
         config_path={'section': 'vertica-export', 'name': 'business_intelligence_team_roles'},
     )
+    tables = luigi.ListParameter(
+        default=[],
+        description="List of tables in schema."
+    )
+
+    def analyze_stats_queries(self):
+        """Provides queries to run analyze statistics for each table in schema."""
+        queries = []
+        for table in self.tables:
+            queries.append(
+                "SELECT ANALYZE_STATISTICS('{schema}.{table}');".format(
+                    schema=self.schema,
+                    table=table
+                )
+            )
+        return queries
 
     @property
     def queries(self):
-        return [
+        queries = [
             "DROP SCHEMA IF EXISTS {schema} CASCADE;".format(schema=self.schema),
             "ALTER SCHEMA {schema_loading} RENAME TO {schema};".format(
                 schema_loading=self.schema_loading,
@@ -270,6 +286,8 @@ class PostImportDatabaseTask(SchemaManagementTask):
                 roles=self.vertica_roles
             ),
         ]
+        queries += self.analyze_stats_queries()
+        return queries
 
     @property
     def marker_name(self):
@@ -331,8 +349,10 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
         )
         yield pre_import_task
 
+        table_white_list = []
         for table_name in self.table_list:
             if not self.should_exclude_table(table_name):
+                table_white_list.append(table_name)
                 yield LoadMysqlToVerticaTableTask(
                     credentials=self.credentials,
                     schema=pre_import_task.schema_loading,
@@ -353,6 +373,7 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
             credentials=self.credentials,
             marker_schema=self.marker_schema,
             overwrite=self.overwrite,
+            tables=table_white_list
         )
         self.is_complete = True
 
