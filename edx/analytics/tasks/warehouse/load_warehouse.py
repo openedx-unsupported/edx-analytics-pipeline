@@ -191,7 +191,10 @@ class PostLoadWarehouseTask(WarehouseMixin, SchemaManagementTask):
             'd_user_course',
             'f_user_activity',
             'd_user',
-            'd_course_subjects'
+            'd_course_subjects',
+            'd_course_seat',
+            'd_program_course'
+            'course_structure'
         ]
         for table in tables:
             query = "SELECT 1 FROM {schema_loading}.{table} LIMIT 1".format(
@@ -204,6 +207,19 @@ class PostLoadWarehouseTask(WarehouseMixin, SchemaManagementTask):
             if row is None:
                 connection.close()
                 raise Exception('Failed to validate table: {table}'.format(table=table))
+
+            # run analyze statistics function on each table
+            query = "SELECT ANALYZE_STATISTICS('{schema_loading}.{table}');".format(
+                schema_loading=self.schema_loading,
+                table=table
+            )
+            log.debug(query)
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if row is None or row[0] != 0:
+                # only 0 as response from ANALYZE_STATISTICS means success
+                connection.close()
+                raise Exception('Failed to run analyze_statistics on : {table}'.format(table=table))
 
         connection.close()
 
