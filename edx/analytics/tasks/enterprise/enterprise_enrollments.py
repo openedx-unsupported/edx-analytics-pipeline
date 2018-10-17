@@ -1,6 +1,7 @@
 """Compute metrics related to user enrollments in courses"""
 
 import logging
+import datetime
 
 import luigi
 import luigi.task
@@ -16,7 +17,9 @@ from edx.analytics.tasks.insights.database_imports import (
     ImportCurrentOrderState, ImportEcommerceUser, ImportPersistentCourseGradeTask, ImportProductCatalog,
     ImportStudentCourseEnrollmentTask
 )
-from edx.analytics.tasks.insights.enrollments import OverwriteHiveAndMysqlDownstreamMixin
+from edx.analytics.tasks.insights.enrollments import (
+    CourseEnrollmentSummaryPartitionTask, OverwriteHiveAndMysqlDownstreamMixin,
+)
 from edx.analytics.tasks.insights.user_activity import UserActivityTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask
@@ -26,6 +29,7 @@ from edx.analytics.tasks.util.record import (
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin
 )
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -64,6 +68,7 @@ class EnterpriseEnrollmentRecord(Record):
     current_grade = FloatField(description='')
     course_price = FloatField(description='')
     discount_price = FloatField(description='')
+    unenrollment_timestamp = DateField(description='')
 
 
 class EnterpriseEnrollmentHiveTableTask(BareHiveTableTask):
@@ -100,6 +105,18 @@ class EnterpriseEnrollmentHivePartitionTask(HivePartitionTask):
     def partition_value(self):  # pragma: no cover
         """ Use a dynamic partition value based on the date parameter. """
         return self.date.isoformat()  # pylint: disable=no-member
+
+
+class ExternalCourseEnrollmentSummaryPartitionTask(CourseEnrollmentSummaryPartitionTask):
+    date = luigi.DateParameter()
+    overwrite_n_days = None
+
+    def requires(self):
+        yield self.hive_table_task
+
+        yield ExternalURL(
+            url=url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt={}'.format(self.date)) + '/_SUCCESS'
+        )
 
 
 class EnterpriseEnrollmentDataTask(
@@ -148,6 +165,7 @@ class EnterpriseEnrollmentDataTask(
                     END AS course_duration_weeks,
                     course.min_effort AS course_min_effort,
                     course.max_effort AS course_max_effort,
+                    course_enrollment_summary.last_unenrollment_time AS unenrollment_timestamp
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
                     auth_user.username AS user_username,
@@ -170,6 +188,8 @@ class EnterpriseEnrollmentDataTask(
                     AND enterprise_user.user_id = enrollment.user_id
             JOIN auth_user auth_user
                     ON enterprise_user.user_id = auth_user.id
+            JOIN course_enrollment_summary course_enrollment_summary
+                    ON enterprise_user.user_id = course_enrollment_summary.user_id
             JOIN auth_userprofile user_profile
                     ON enterprise_user.user_id = user_profile.user_id
             LEFT JOIN (
@@ -305,7 +325,10 @@ class EnterpriseEnrollmentDataTask(
                 warehouse_path=self.warehouse_path,
                 overwrite_n_days=0,
                 date=self.date
-            )
+            ),
+            ExternalCourseEnrollmentSummaryPartitionTask(
+                date=self.date
+            ),
         )
 
         kwargs = {

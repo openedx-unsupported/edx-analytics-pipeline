@@ -6,7 +6,10 @@ import datetime
 import logging
 import os
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+import luigi
+import time
+
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, get_target_for_local_server
 from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
@@ -26,8 +29,16 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
         """Loads enrollment and course catalog fixtures."""
         super(EnterpriseEnrollmentAcceptanceTest, self).setUp()
 
+        self.execute_sql_fixture_file('load_auth_userprofile.sql')
+
         self.prepare_database('lms', self.import_db)
         self.prepare_database('otto', self.otto_db)
+
+        self.marker_path = url_path_join(
+            self.warehouse_path,
+            'course_enrollment_summary',
+            'dt={}'.format(self.DATE), '_SUCCESS'
+        )
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'courses.json'),
@@ -50,6 +61,17 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
                 'user_activity_by_user_' + self.DATE
             )
         )
+        self.upload_file(
+            os.path.join(self.data_dir, 'input', 'course_enrollment_summary'),
+            url_path_join(
+                self.warehouse_path,
+                'course_enrollment_summary',
+                'dt={}'.format(self.CATALOG_DATE), '_SUCCESS'
+            )
+        )
+        self.import_db.execute_sql_file(
+            os.path.join(self.data_dir, 'input', 'load_grades_persistentcoursegrade.sql')
+        )
 
     def prepare_database(self, name, database):
         sql_fixture_base_url = url_path_join(self.data_dir, 'input', 'enterprise', name)
@@ -58,16 +80,23 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
 
     def test_enterprise_enrollment_table_generation(self):
         self.launch_task()
+        #self.validate_marker(self.marker_path)
         self.validate_enterprise_enrollment_table()
 
     def launch_task(self):
         """Kicks off the summary task."""
         task_params = [
             'ImportEnterpriseEnrollmentsIntoMysql',
-            '--date', self.CATALOG_DATE,
+            '--date', self.DATE,
         ]
 
         self.task.launch(task_params)
+
+    def validate_marker(self, marker_path):
+        """Ensure marker file was created."""
+        marker_file = url_path_join(marker_path, '_SUCCESS')
+        marker_target = get_target_for_local_server(marker_file)
+        self.assertTrue(marker_target.exists())
 
     def expected_enterprise_enrollment_results(self):
         """Returns expected results"""
