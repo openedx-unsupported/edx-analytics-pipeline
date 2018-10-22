@@ -129,3 +129,27 @@ class GeolocationMixin(GeolocationDownstreamMixin):
             code = UNKNOWN_CODE
 
         return code
+
+
+    def get_city_record(self, ip_address, debug_message=None):
+        """
+        Find city information for a given IP address.
+
+        The ip address might not provide a city entry, so return
+        UNKNOWN_CODE in those cases.
+
+        """
+        try:
+            record = self.geoip.record_by_addr(ip_address)
+        except Exception:   # pylint:  disable=broad-except
+            if debug_message:
+                log.exception("Encountered exception getting city record for ip_address '%s': %s.",
+                              ip_address, debug_message)
+            record = {'country_code': UNKNOWN_CODE}
+
+        if record is None or 'country_code' not in record or len(record.get('country_code').strip()) <= 0:
+            if debug_message:
+                log.error("No record found for ip_address '%s': %s.", ip_address, debug_message)
+            record = {'country_code': UNKNOWN_CODE}
+
+        return record

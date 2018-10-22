@@ -15,13 +15,14 @@ from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import (
     EventLogSelectionDownstreamMixin, EventLogSelectionMixin, PathSelectionByDateIntervalTask
 )
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.geolocation import GeolocationDownstreamMixin, GeolocationMixin
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import DateField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.record import DateField, IntegerField, Record, SparseRecord, StringField
 from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
@@ -579,3 +580,229 @@ class InsertToMysqlLastCountryPerCourseTask(
             geolocation_data=self.geolocation_data,
             overwrite=self.overwrite,
         )
+
+
+class LastCityOfUserRecord(SparseRecord):
+    """For a given user_id, stores information about last city."""
+    user_id = IntegerField(description="User ID of user with city information.")
+    last_ip_address = StringField(length=255, description="IP address for user.")
+    last_timestamp = StringField(length=255, description="Timestamp for IP address for user.")
+    country_code = StringField(length=10, description="Country code for last city.")
+    country_code3 = StringField(length=10, description="Country code3 for last city.")
+    country_name = StringField(length=255, description="Country name for last city.")
+    continent = StringField(length=10, description="Continent for last city.")
+    region_code = StringField(length=255, description="Region code of last city (i.e. if in US, the state name).")
+    city = StringField(length=255, description="Name of last city.")
+    postal_code = StringField(length=255, description="Postal code of last city.")
+    latitude = StringField(length=255, description="Latitude of last city.")
+    longitude = StringField(length=255, description="Longitude of last city.")
+    dma_code = StringField(length=255, description="DMA code of last city, if in the US.")
+    area_code = StringField(length=255, description="Area code of last city, if in the US.")
+    metro_code = StringField(length=255, description="Metro code last city, if in the US.")
+    time_zone = StringField(length=255, description="Time zone of last city.")
+
+
+class LastCityOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapReduceJobTask):
+    """
+    Identifies the city of the last IP address associated with each user.
+
+    Uses :py:class:`LastCountryOfUserDownstreamMixin` to define parameters, :py:class:`EventLogSelectionMixin`
+    to define required input log files, and :py:class:`GeolocationMixin` to provide geolocation setup.
+
+    """
+    # This is a special Luigi override that instructs the output to be written directly to output,
+    # rather than being written to a temp directory that is later renamed.  Renaming in S3 is actually
+    # a copy-and-delete, which can be expensive for large datasets.
+    enable_direct_output = True
+
+    # Calculate requirements once.
+    cached_local_requirements = None
+    cached_hadoop_requirements = None
+
+    def __init__(self, *args, **kwargs):
+        super(LastCityOfUser, self).__init__(*args, **kwargs)
+
+        self.overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+
+    def requires_local(self):
+        if not self.cached_local_requirements:
+            requirements = super(LastCityOfUser, self).requires_local()
+            # Default is an empty list, but assume that any real data added is done
+            # so as a dict.
+            if not requirements:
+                requirements = {}
+
+            if self.overwrite_n_days > 0:
+                # This calculates IP addresses for user and course for a recent period of time,
+                # which allows for late-arriving events to be eventually included (as well as the
+                # latest day).  Because LastDailyIpAddressOfUserTask returns a marker file as output,
+                # we need to include the calls to the actual task here to have them included as
+                # dependencies but *not* be included as Hadoop input to this job.  We will use
+                # the downstream_input_tasks() method on the LastDailyIpAddressOfUserTask task to
+                # actually get pointers to inputs.
+                overwrite_interval = luigi.date_interval.Custom(self.overwrite_from_date, self.interval.date_b)
+                requirements['user_addresses_task'] = LastDailyIpAddressOfUserTask(
+                    interval=overwrite_interval,
+                    source=self.source,
+                    pattern=self.pattern,
+                    warehouse_path=self.warehouse_path,
+                    mapreduce_engine=self.mapreduce_engine,
+                    n_reduce_tasks=self.n_reduce_tasks,
+                    overwrite=True,
+                )
+            self.cached_local_requirements = requirements
+
+        return self.cached_local_requirements
+
+    def requires_hadoop(self):
+        # This defines the data that is treated as input to the Hadoop job.
+
+        if not self.cached_hadoop_requirements:
+            # We want to pass in the historical data as well as the overwritten output
+            # of LastDailyIpAddressOfUserTask to the hadoop job.
+            # So go find whatever is there in the historical date range.
+            # This allows us in future to collapse historical data into fewer files,
+            # if we felt that was worth the effort.  For example, a month's worth
+            # of daily files could be cooked down into a single file representing the
+            # last IP address for users per course in that month.  This code wouldn't
+            # care.
+            path_selection_interval = luigi.date_interval.Custom(self.interval.date_a, self.overwrite_from_date)
+            last_ip_of_user_root = url_path_join(self.warehouse_path, 'last_ip_of_user_id')
+            path_selection_task = PathSelectionByDateIntervalTask(
+                source=[last_ip_of_user_root],
+                pattern=[LastDailyIpAddressOfUserTask.FILEPATH_PATTERN],
+                interval=path_selection_interval,
+                expand_interval=datetime.timedelta(0),
+                date_pattern='%Y-%m-%d',
+            )
+
+            requirements = {
+                'path_selection_task': path_selection_task,
+            }
+
+            if self.overwrite_n_days > 0:
+                # LastDailyIpAddressOfUserTask returns the marker as output,
+                # so we need custom logic to pass the output of
+                # LastDailyIpAddressOfUserTask as actual hadoop input to this job.
+                downstream_input_tasks = self.requires_local()['user_addresses_task'].downstream_input_tasks()
+                requirements['downstream_input_tasks'] = downstream_input_tasks
+
+            self.cached_hadoop_requirements = requirements
+
+        return self.cached_hadoop_requirements
+
+    def output_url(self):
+        """Return URL for output."""
+        return self.hive_partition_path('last_city_of_user_id', self.interval.date_b)  # pylint: disable=no-member
+
+    def output(self):
+        return get_target_from_url(self.output_url())
+
+    def complete(self):
+        if self.overwrite and not self.attempted_removal:
+            return False
+        else:
+            return get_target_from_url(url_path_join(self.output_url(), '_SUCCESS')).exists()
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        output_target = self.output()
+        # This is different from remove_output_on_overwrite()
+        # in that it also removes the target directory if
+        # the success marker file is missing.
+        if not self.complete() and output_target.exists():
+            output_target.remove()
+        super(LastCityOfUser, self).run()
+
+    def mapper(self, line):
+        record = LastIpAddressRecord.from_tsv(line)
+
+        # Output all events for a user_id, regardless of course (for now).
+        # (When including course_id, it should be included in the value, not the key.
+        # That way we can provide an appropriate default value for the user for
+        # their latest ip_address in any (or in no) course.)
+        yield record.user_id, (record.timestamp, record.ip_address)
+
+    def reducer(self, key, values):
+        """Outputs city for last ip address associated with a user."""
+
+        # DON'T presort input values (by timestamp).  The data potentially takes up too
+        # much memory.  Scan the input values instead.
+
+        # We assume the timestamp values (strings) are in ISO
+        # representation, so that they can be compared as strings.
+        user_id = key
+        last_ip = None
+        last_timestamp = ""
+        for timestamp, ip_address in values:
+            if timestamp > last_timestamp:
+                last_ip = ip_address
+                last_timestamp = timestamp
+
+        if not last_ip:
+            return
+
+        debug_message = u"user '{}' on '{}'".format(user_id, last_timestamp)
+        city_record = self.get_city_record(last_ip, debug_message)
+        city_record['user_id'] = user_id
+        city_record['last_ip_address'] = last_ip
+        city_record['last_timestamp'] = last_timestamp
+
+        user_record = LastCityOfUserRecord(**city_record)
+        yield user_record.to_string_tuple()
+
+
+class LoadLastCityOfUserToVertica(LastCountryOfUserDownstreamMixin, VerticaCopyTask):
+
+    # Required parameter
+    date = luigi.DateParameter()
+
+    def requires(self):
+        if self.required_tasks is None:
+            self.required_tasks = {
+                'credentials': ExternalURL(url=self.credentials),
+                'insert_source': self.insert_source_task,
+            }
+        return self.required_tasks
+
+    @property
+    def partition(self):
+        """The table is partitioned by date."""
+        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        return LastCityOfUser(
+            date=self.date,
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
+            overwrite_n_days=self.overwrite_n_days,
+            geolocation_data=self.geolocation_data,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def table(self):
+        return 'last_city_of_user'
+
+# Just use the default default:  "created"
+#    @property
+#    def default_columns(self):
+#        """List of tuples defining name and definition of automatically-filled columns."""
+#        return None
+
+    @property
+    def auto_primary_key(self):
+        # The default is to use 'id', which would cause a conflict with field already having that name.
+        # But there seems to be little value in having such a column.
+        return None
+
+    @property
+    def columns(self):
+        return LastCityOfUserRecord.get_sql_schema()
