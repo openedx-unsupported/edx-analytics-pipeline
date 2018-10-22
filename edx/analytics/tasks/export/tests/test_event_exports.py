@@ -34,7 +34,7 @@ class EventExportTestCaseBase(InitializeOpaqueKeysMixin, TestCase):
             output_root='test://output/',
             config='test://config/default.yaml',
             source=['test://input/'],
-            environment='prod',
+            environment='edx',
             interval=Year.parse('2014'),
             gpg_key_dir='test://config/gpg-keys/',
             gpg_master_key='skeleton.key@example.com',
