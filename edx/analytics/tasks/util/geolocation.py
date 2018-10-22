@@ -130,7 +130,6 @@ class GeolocationMixin(GeolocationDownstreamMixin):
 
         return code
 
-
     def get_city_record(self, ip_address, debug_message=None):
         """
         Find city information for a given IP address.

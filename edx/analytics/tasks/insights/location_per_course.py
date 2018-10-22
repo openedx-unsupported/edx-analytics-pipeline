@@ -20,9 +20,9 @@ from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnr
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.geolocation import GeolocationDownstreamMixin, GeolocationMixin
-from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartition, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import DateField, IntegerField, Record, SparseRecord, StringField
+from edx.analytics.tasks.util.record import DateField, FloatField, IntegerField, Record, SparseRecord, StringField
 from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
@@ -594,10 +594,10 @@ class LastCityOfUserRecord(SparseRecord):
     region_code = StringField(length=255, description="Region code of last city (i.e. if in US, the state name).")
     city = StringField(length=255, description="Name of last city.")
     postal_code = StringField(length=255, description="Postal code of last city.")
-    latitude = StringField(length=255, description="Latitude of last city.")
-    longitude = StringField(length=255, description="Longitude of last city.")
-    dma_code = StringField(length=255, description="DMA code of last city, if in the US.")
-    area_code = StringField(length=255, description="Area code of last city, if in the US.")
+    latitude = FloatField(description="Latitude of last city.")
+    longitude = FloatField(description="Longitude of last city.")
+    dma_code = IntegerField(description="DMA code of last city, if in the US.")
+    area_code = IntegerField(description="Area code of last city, if in the US.")
     metro_code = StringField(length=255, description="Metro code last city, if in the US.")
     time_zone = StringField(length=255, description="Time zone of last city.")
 
