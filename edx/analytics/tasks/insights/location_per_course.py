@@ -748,9 +748,6 @@ class LastCityOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapRedu
 
 class LoadLastCityOfUserToVertica(LastCountryOfUserDownstreamMixin, VerticaCopyTask):
 
-    # Required parameter
-    date = luigi.DateParameter()
-
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -762,12 +759,11 @@ class LoadLastCityOfUserToVertica(LastCountryOfUserDownstreamMixin, VerticaCopyT
     @property
     def partition(self):
         """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
+        return HivePartition('dt', self.interval_end.isoformat())  # pylint: disable=no-member
 
     @property
     def insert_source_task(self):
         return LastCityOfUser(
-            date=self.date,
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
