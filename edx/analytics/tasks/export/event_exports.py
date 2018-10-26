@@ -142,19 +142,16 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         date, org_id = key
         year = str(date).split("-")[0]
 
-        # Remap site name from prod to edx
-        site = "edx" if self.environment == 'prod' else self.environment
-
         # This is the structure currently produced by the existing tracking log export script
         return url_path_join(
             self.output_root,
             org_id.lower(),
-            site,
+            self.environment,
             "events",
             year,
             '{org}-{site}-events-{date}.log.gz.gpg'.format(
                 org=org_id.lower(),
-                site=site,
+                site=self.environment,
                 date=date,
 
             )
