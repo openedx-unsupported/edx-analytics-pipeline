@@ -193,7 +193,7 @@ class PostLoadWarehouseTask(WarehouseMixin, SchemaManagementTask):
             'd_user',
             'd_course_subjects',
             'd_course_seat',
-            'd_program_course'
+            'd_program_course',
             'course_structure'
         ]
         for table in tables:
