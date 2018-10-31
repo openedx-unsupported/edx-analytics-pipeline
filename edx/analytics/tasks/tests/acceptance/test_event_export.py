@@ -32,8 +32,8 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         self.test_gpg_key_dir = url_path_join(self.test_config_root, 'gpg-keys')
 
         self.input_paths = [
-            url_path_join(self.test_src, 'prod', self.PROD_FOLDER, 'tracking.log-20140515.gz'),
-            url_path_join(self.test_src, 'prod', 'OtherFolder', 'tracking.log-20140515.gz'),
+            url_path_join(self.test_src, 'edx', self.PROD_FOLDER, 'tracking.log-20140515.gz'),
+            url_path_join(self.test_src, 'edx', 'OtherFolder', 'tracking.log-20140515.gz'),
             url_path_join(self.test_src, 'edge', self.EDGE_FOLDER, 'tracking.log-20140516-12345456.gz')
         ]
 
@@ -78,10 +78,10 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
         }
 
         folders = {
-            'prod': self.PROD_FOLDER,
+            'edx': self.PROD_FOLDER,
             'edge': self.EDGE_FOLDER
         }
-        for environment in ['prod', 'edge']:
+        for environment in ['edx', 'edge']:
             self.task.launch([
                 'EventExportTask',
                 '--source', as_list_param(url_path_join(self.test_src, environment)),
