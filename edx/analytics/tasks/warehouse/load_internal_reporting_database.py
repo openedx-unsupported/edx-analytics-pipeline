@@ -257,7 +257,8 @@ class PostImportDatabaseTask(SchemaManagementTask):
     )
     tables = luigi.ListParameter(
         default=[],
-        description="List of tables in schema."
+        description="List of tables in schema.",
+        significant=False
     )
 
     def analyze_stats_queries(self):
