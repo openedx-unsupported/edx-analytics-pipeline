@@ -115,7 +115,7 @@ class ExternalCourseEnrollmentSummaryPartitionTask(CourseEnrollmentSummaryPartit
         yield self.hive_table_task
 
         yield ExternalURL(
-            url=url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt={}'.format(self.date)) + '/_SUCCESS'
+            url=self.hive_partition_path('course_enrollment_summary', self.date)
         )
 
 
