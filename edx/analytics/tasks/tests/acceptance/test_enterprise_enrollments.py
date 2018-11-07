@@ -34,11 +34,11 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
         self.prepare_database('lms', self.import_db)
         self.prepare_database('otto', self.otto_db)
 
-        self.marker_path = url_path_join(
-            self.warehouse_path,
-            'course_enrollment_summary',
-            'dt={}'.format(self.DATE), '_SUCCESS'
-        )
+        # self.marker_path = url_path_join(
+        #     self.warehouse_path,
+        #     'course_enrollment_summary',
+        #     'dt={}'.format(self.DATE), '_SUCCESS'
+        # )
 
         self.upload_file(
             os.path.join(self.data_dir, 'input', 'courses.json'),
@@ -66,7 +66,7 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
             url_path_join(
                 self.warehouse_path,
                 'course_enrollment_summary',
-                'dt={}'.format(self.CATALOG_DATE), '_SUCCESS'
+                'dt={}'.format(self.DATE),
             )
         )
         self.import_db.execute_sql_file(
