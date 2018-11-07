@@ -72,7 +72,8 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
             url_path_join(
                 self.warehouse_path,
                 'course_enrollment_summary',
-                'dt={}'.format(self.DATE)
+                'dt={}'.format(self.DATE),
+                'course_enrollment_summary_{}'.format(self.DATE),
             )
         )
 
