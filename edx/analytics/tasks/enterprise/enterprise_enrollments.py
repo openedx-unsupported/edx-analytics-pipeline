@@ -115,8 +115,13 @@ class ExternalCourseEnrollmentSummaryPartitionTask(CourseEnrollmentSummaryPartit
         yield self.hive_table_task
 
         yield ExternalURL(
-            url=url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt={}'.format(self.date)) + '/'
+            url=url_path_join(self.warehouse_path, 'course_enrollment_summary', self.partition.path_spec) + '/'
         )
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()  # pylint: disable=no-member
 
 
 class EnterpriseEnrollmentDataTask(
