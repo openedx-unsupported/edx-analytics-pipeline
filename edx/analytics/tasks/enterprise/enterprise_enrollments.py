@@ -164,7 +164,7 @@ class EnterpriseEnrollmentDataTask(
                     END AS course_duration_weeks,
                     course.min_effort AS course_min_effort,
                     course.max_effort AS course_max_effort,
-                    course_enrollment_summary.last_unenrollment_time AS unenrollment_timestamp
+                    course_enrollment_summary.last_unenrollment_time AS unenrollment_timestamp,
                     auth_user.date_joined AS user_account_creation_timestamp,
                     auth_user.email AS user_email,
                     auth_user.username AS user_username,
