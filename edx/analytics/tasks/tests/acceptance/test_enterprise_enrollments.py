@@ -140,7 +140,7 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              'All about acceptance testing Part 3!', datetime.datetime(2016, 12, 1, 0, 0),
              datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test5@example.com', 'test_user5', 'edX+Testing102',
-             'US', None, None, None, 'Percentage, 100 (#8)', 0.74, 100.00, 60.00, datetime.datetime(2016, 9, 8, 0, 0)]
+             'US', None, None, None, 'Percentage, 100 (#8)', 0.74, 100.00, 60.00, datetime.datetime(2016, 9, 8, 0, 0)],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 15, 4, 'edX/Open_DemoX/edx_demo_course',
              datetime.datetime(2014, 6, 27, 16, 2, 38), 'verified', 1, 'Pass', 1,
