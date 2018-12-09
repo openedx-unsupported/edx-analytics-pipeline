@@ -1,15 +1,14 @@
 """Analyze log files produced by launch-task"""
 
 import argparse
-from collections import namedtuple
 import datetime
 import re
 import sys
+from collections import namedtuple
 
-from edx.analytics.tasks.tools.analyze.parser import LogFileParser
 from edx.analytics.tasks.tools.analyze.measure import Measurement
-from edx.analytics.tasks.tools.analyze.report import text_report, json_report, html_report
-
+from edx.analytics.tasks.tools.analyze.parser import LogFileParser
+from edx.analytics.tasks.tools.analyze.report import html_report, json_report, text_report
 
 MESSAGE_START_PATTERN = r'(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3}) (?P<level>\w+) (?P<pid>\d+) \[(?P<module>.*?)\] (?P<filename>.*?):(?P<line_no>\d+) - (?P<content>.*)'
 LogMessage = namedtuple('LogMessage', 'timestamp level pid module filename line_no content')  # pylint: disable=invalid-name
@@ -74,7 +73,7 @@ def analyze_log_file(filename):
         parser = LogFileParser(log_file, message_pattern=MESSAGE_START_PATTERN, message_factory=create_log_message)
         try:
             return analyze_log(parser)
-        except:
+        except Exception:
             sys.stderr.write('Exception on line {0}\n'.format(parser.line_number))
             raise
 
@@ -181,7 +180,7 @@ def analyze_overall_execution(parser):
 
 
 def analyze_hadoop_job(starting_message, parser):
-    match = re.match(r'.*?(?P<job_id>job_\d{12}_\d{4})', starting_message.content)
+    match = re.match(r'.*?(?P<job_id>job_\d{12}\d?_\d{4})', starting_message.content)
     job_id = match.group('job_id')
     start_timestamp = starting_message.timestamp
 
@@ -189,8 +188,9 @@ def analyze_hadoop_job(starting_message, parser):
     while message:
         message = parser.next_message()
 
-        if 'Job complete:' in message.content or 'Ended Job = ' in message.content:
-            if 'Job complete:' in message.content:
+        job_complete = ('Job complete:' in message.content or 'completed successfully' in message.content)
+        if job_complete or 'Ended Job = ' in message.content:
+            if job_complete:
                 move_measure = analyze_output_move(parser)
                 if move_measure:
                     yield move_measure
@@ -253,6 +253,7 @@ def sqoop_parameter_parser(raw_params):
     table_param_match = re.search(r'table_name=(?P<name>[\w_]+)', raw_params)
     if table_param_match:
         return {'table': table_param_match.group('name')}
+
 
 if __name__ == '__main__':
     analyze()

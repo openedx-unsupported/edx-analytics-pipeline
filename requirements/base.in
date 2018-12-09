@@ -1,0 +1,15 @@
+# These packages are required for bootstrapping.
+
+# Workaround for https://github.com/ansible/ansible/issues/8875
+ --no-binary ansible
+ 
+ansible==1.4.5          # GPL v3 License
+boto==2.48.0            # MIT
+ecdsa==0.13 		# MIT
+Jinja2==2.8.1		# BSD
+pycrypto==2.6.1 	# public domain
+wheel==0.30.0
+
+# Add this here, not because it's needed here, but because
+# 1.11.0 will collide with a dependency in default.in.
+six==1.10.0

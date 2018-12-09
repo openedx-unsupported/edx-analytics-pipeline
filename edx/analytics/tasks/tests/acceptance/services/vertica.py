@@ -1,8 +1,6 @@
 """Service for connecting acceptance tests to Vertica."""
 import json
-
-from contextlib import closing
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import vertica_python
 
@@ -36,7 +34,7 @@ class VerticaService(object):
             with closing(conn.cursor()) as cur:
                 try:
                     yield cur
-                except:
+                except Exception:
                     conn.rollback()
                     raise
                 else:
@@ -62,7 +60,7 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
-        return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
+        return vertica_python.connect(user=self.credentials.get('username'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 
     def reset(self):
@@ -71,5 +69,11 @@ class VerticaService(object):
             return
 
         with self.cursor() as cur:
-            reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}'.format(self.schema_name)
+            # In vertica, an epoch ( a logical time stamp for the data in Vertica ) is assigned to every row,
+            # which gets updated whenever data is committed via DML operation.
+            # Vertica advances the AHM at an interval of 5mins, but when there is a node down in vertica cluster,
+            # AHM does not advance. MAKE_AHM_NOW() advances the epoch to the greatest allowable value,
+            # and lets you drop any projections that existed before the issue occurred,
+            # all history is lost and no historical queries cannot be made before current epoch.
+            reset_query = 'DROP SCHEMA IF EXISTS {0} CASCADE; CREATE SCHEMA {0}; SELECT MAKE_AHM_NOW();'.format(self.schema_name)
             cur.execute(reset_query)

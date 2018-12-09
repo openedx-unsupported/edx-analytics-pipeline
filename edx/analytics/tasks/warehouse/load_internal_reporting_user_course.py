@@ -5,8 +5,8 @@ import logging
 
 import luigi
 
-from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL
 

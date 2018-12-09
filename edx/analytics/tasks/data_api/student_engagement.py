@@ -5,34 +5,66 @@ import datetime
 import hashlib
 import json
 import logging
+import re
+import textwrap
 from itertools import groupby
 from operator import itemgetter
-import re
 
 import luigi
+from luigi.contrib.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
+from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
 )
-from edx.analytics.tasks.insights.enrollments import CourseEnrollmentTableTask
+from edx.analytics.tasks.insights.enrollments import CourseEnrollmentPartitionTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.hive import (
-    HivePartition,
-    HiveQueryToMysqlTask,
-    HiveTableFromQueryTask,
-    HiveTableTask,
-    WarehouseMixin,
+    BareHiveTableTask, HivePartition, HivePartitionTask, HiveTableFromQueryTask, HiveTableTask, WarehouseMixin,
+    hive_database_name
 )
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
-
 SUBSECTION_VIEWED_MARKER = 'marker:last_subsection_viewed'
+
+
+class StudentEngagementIntervalTypeRecord(Record):
+    """
+    Student Engagement information used to populate student_engagement_{interval_type} tables.
+    """
+
+    end_date = DateField(description='End date of the interval being analyzed.')
+    course_id = StringField(nullable=False, length=255, description='Identifier of course run.')
+    username = StringField(
+        nullable=False,
+        length=255,
+        description='The username of the user who was logged in when the event was emitted.'
+    )
+    days_active = IntegerField(description='Count of days user has been active during the interval.')
+    problems_attempted = IntegerField(description='Count of unique problems attempted.')
+    problem_attempts = IntegerField(description='Total count of problem attempts.')
+    problems_correct = IntegerField(description='Count of unique problems that were answered correctly.')
+    videos_played = IntegerField(description='Count of unique videos played.')
+    forum_posts = IntegerField(description='Count of discussion posts.')
+    forum_responses = IntegerField(description='Count of discussion responses created by user.')
+    forum_comments = IntegerField(description='Count of discussion comments by user.')
+    forum_upvotes_given = IntegerField(description='Total upvotes given by user on discussion posts.')
+    forum_downvotes_given = IntegerField(description='Total downvotes given by user on discussion posts.')
+    forum_upvotes_received = IntegerField(description='Total upvotes received by user on discussion posts.')
+    forum_downvotes_received = IntegerField(description='Total downvotes received by user on discussion posts.')
+    textbook_pages_viewed = IntegerField(description='Total textbook pages viewed by user.')
+    last_subsection_viewed = StringField(
+        nullable=False,
+        length=1000,
+        description='Page URL which was last visited by user during the interval.'
+    )
 
 
 class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
@@ -248,12 +280,12 @@ class StudentEngagementTask(EventLogSelectionMixin, MapReduceJobTask):
 # data into Hive.  Then define the other tables as also being in Hive.
 
 class StudentEngagementTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
-    """All parameters needed to run the StudentEngagementTableTask task."""
+    """All parameters needed to run the StudentEngagementRawTableTask task."""
 
     interval_type = luigi.Parameter(default="daily")
 
 
-class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTableTask):
+class StudentEngagementRawTableTask(StudentEngagementTableDownstreamMixin, HiveTableTask):
     """Hive table that stores the set of students engaged in each course over time."""
 
     @property
@@ -262,25 +294,7 @@ class StudentEngagementTableTask(StudentEngagementTableDownstreamMixin, HiveTabl
 
     @property
     def columns(self):
-        return [
-            ('end_date', 'STRING'),
-            ('course_id', 'STRING'),
-            ('username', 'STRING'),
-            ('days_active', 'INT'),
-            ('problems_attempted', 'INT'),
-            ('problem_attempts', 'INT'),
-            ('problems_correct', 'INT'),
-            ('videos_played', 'INT'),
-            ('forum_posts', 'INT'),
-            ('forum_responses', 'INT'),
-            ('forum_comments', 'INT'),
-            ('forum_upvotes_given', 'INT'),
-            ('forum_downvotes_given', 'INT'),
-            ('forum_upvotes_received', 'INT'),
-            ('forum_downvotes_received', 'INT'),
-            ('textbook_pages_viewed', 'INT'),
-            ('last_subsection_viewed', 'STRING'),
-        ]
+        return StudentEngagementIntervalTypeRecord.get_hive_schema()
 
     @property
     def partition(self):
@@ -346,26 +360,26 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
         # Join with calendar data only if calculating weekly engagement.
         calendar_join = ""
         if self.interval_type == "daily":
-            date_where = "ce.date >= '{start}' AND ce.date < '{end}'".format(
+            date_where = "ce.`date` >= '{start}' AND ce.`date` < '{end}'".format(
                 start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
                 end=self.interval.date_b.isoformat()  # pylint: disable=no-member
             )
         elif self.interval_type == "weekly":
             last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
             iso_weekday = last_complete_date.isoweekday()
-            calendar_join = "INNER JOIN calendar cal ON (ce.date = cal.date) "
-            date_where = "ce.date >= '{start}' AND ce.date < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
+            calendar_join = "INNER JOIN calendar cal ON (ce.`date` = cal.`date`) "
+            date_where = "ce.`date` >= '{start}' AND ce.`date` < '{end}' AND cal.iso_weekday = {iso_weekday}".format(
                 start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
                 end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
                 iso_weekday=iso_weekday,
             )
         elif self.interval_type == "all":
             last_complete_date = self.interval.date_b - datetime.timedelta(days=1)  # pylint: disable=no-member
-            date_where = "ce.date = '{last_complete_date}'".format(last_complete_date=last_complete_date.isoformat())
+            date_where = "ce.`date` = '{last_complete_date}'".format(last_complete_date=last_complete_date.isoformat())
 
         return """
         SELECT
-            ce.date,
+            ce.`date`,
             ce.course_id,
             au.username,
             au.email,
@@ -389,7 +403,7 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
         INNER JOIN auth_user au
             ON (ce.user_id = au.id)
         LEFT OUTER JOIN student_engagement_raw_{interval_type} ser
-            ON (au.username = ser.username AND ce.date = ser.end_date and ce.course_id = ser.course_id)
+            ON (au.username = ser.username AND ce.`date` = ser.end_date and ce.course_id = ser.course_id)
         LEFT OUTER JOIN (
             SELECT
                 cugu.user_id,
@@ -432,11 +446,11 @@ class JoinedStudentEngagementTableTask(StudentEngagementTableDownstreamMixin, Hi
             'overwrite': self.overwrite,
         }
         yield (
-            StudentEngagementTableTask(**kwargs_for_engagement),
+            StudentEngagementRawTableTask(**kwargs_for_engagement),
             ImportAuthUserTask(**kwargs_for_db_import),
             ImportCourseUserGroupTask(**kwargs_for_db_import),
             ImportCourseUserGroupUsersTask(**kwargs_for_db_import),
-            CourseEnrollmentTableTask(**kwargs_for_enrollment),
+            CourseEnrollmentPartitionTask(**kwargs_for_enrollment),
         )
         # Only the weekly requires use of the calendar.
         if self.interval_type == "weekly":
@@ -565,34 +579,157 @@ class StudentEngagementCsvFileTask(
             writer.writerow(row_dict)
 
 
-class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQueryToMysqlTask):
+class StudentEngagementTableTask(BareHiveTableTask):  # pragma: no cover
+    """Creates the Hive storage table used to hold student_engagement_{interval_type} table data."""
+
+    # Define interval_type here, instead of defining many parameters with a downstream mixin.
+    interval_type = luigi.Parameter(default="daily")
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'student_engagement_{interval_type}'.format(
+            interval_type=self.interval_type
+        )
+
+    @property
+    def columns(self):
+        return StudentEngagementIntervalTypeRecord.get_hive_schema()
+
+
+class StudentEngagementPartitionTask(StudentEngagementTableDownstreamMixin, HivePartitionTask):
+    """Creates storage partition for the student_engagement_raw_{interval_type} Hive table."""
+
+    @property
+    def hive_table_task(self):
+        return StudentEngagementTableTask(
+            warehouse_path=self.warehouse_path,
+            interval_type=self.interval_type,
+        )
+
+    @property
+    def partition_value(self):
+        return self.interval.date_b.isoformat()
+
+
+class StudentEngagementDataTask(StudentEngagementTableDownstreamMixin, HiveQueryTask):
+    """
+    Execute the query on student_engagement_raw_{interval_type} Hive Table and persist the results
+    into student_engagement_{interval_type} Hive table.
+    """
+
+    @property
+    def insert_query(self):
+        return """
+        SELECT
+            end_date,
+            course_id,
+            username,
+            days_active,
+            problems_attempted,
+            problem_attempts,
+            problems_correct,
+            videos_played,
+            forum_posts,
+            forum_responses,
+            forum_comments,
+            forum_upvotes_given,
+            forum_downvotes_given,
+            forum_upvotes_received,
+            forum_downvotes_received,
+            textbook_pages_viewed,
+            last_subsection_viewed
+        FROM  student_engagement_raw_{interval_type}
+        WHERE end_date >= '{start_date}' AND end_date < '{end_date}'
+        """.format(
+            interval_type=self.interval_type,
+            start_date=self.interval.date_a.isoformat(),
+            end_date=self.interval.date_b.isoformat()
+        )
+
+    def query(self):  # pragma: no cover
+        full_insert_query = """
+        USE {database_name};
+
+        INSERT INTO TABLE {table}
+        PARTITION ({partition.query_spec})
+        {insert_query}
+        """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip(),
+        )
+        return textwrap.dedent(full_insert_query)
+
+    @property
+    def partition(self):
+        """A shorthand for the partition information on the upstream partition task."""
+        return self.partition_task.partition
+
+    @property
+    def partition_task(self):
+        """The task that creates partition on `student_engagement_{interval_type}` which is used for this job."""
+        return StudentEngagementPartitionTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.interval,
+            pattern=self.pattern,
+            warehouse_path=self.warehouse_path,
+            interval_type=self.interval_type
+        )
+
+    def requires(self):
+        for requirement in super(StudentEngagementDataTask, self).requires():
+            yield requirement
+
+        yield self.partition_task
+
+        yield (
+            StudentEngagementRawTableTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                source=self.source,
+                interval=self.interval,
+                pattern=self.pattern,
+                interval_type=self.interval_type,
+            )
+        )
+
+    def output(self):
+        output_root = url_path_join(
+            self.warehouse_path,
+            self.partition_task.hive_table_task.table,
+            self.partition.path_spec + '/'
+        )
+        return get_target_from_url(output_root, marker=True)
+
+    def on_success(self):
+        """Override the success method to touch the _SUCCESS file."""
+        self.output().touch_marker()
+
+
+class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, MysqlInsertTask):
     """
     Copy the per-student engagement data from Hive to a MySQL table.
     """
+
+    def __init__(self, *args, **kwargs):
+        super(StudentEngagementToMysqlTask, self).__init__(*args, **kwargs)
+
+        self.overwrite = True
 
     @property
     def table(self):
         return 'student_engagement_{}'.format(self.interval_type)
 
-    columns = [
-        ('end_date', 'DATE'),
-        ('course_id', 'VARCHAR(255) NOT NULL'),
-        ('username', 'VARCHAR(255) NOT NULL'),
-        ('days_active', 'INT'),
-        ('problems_attempted', 'INT'),
-        ('problem_attempts', 'INT'),
-        ('problems_correct', 'INT'),
-        ('videos_played', 'INT'),
-        ('forum_posts', 'INT'),
-        ('forum_responses', 'INT'),
-        ('forum_comments', 'INT'),
-        ('forum_upvotes_given', 'INT'),
-        ('forum_downvotes_given', 'INT'),
-        ('forum_upvotes_received', 'INT'),
-        ('forum_downvotes_received', 'INT'),
-        ('textbook_pages_viewed', 'INT'),
-        ('last_subsection_viewed', 'VARCHAR(1000) NOT NULL'),
-    ]
+    @property
+    def columns(self):
+        return StudentEngagementIntervalTypeRecord.get_sql_schema()
 
     @property
     def auto_primary_key(self):
@@ -612,30 +749,13 @@ class StudentEngagementToMysqlTask(StudentEngagementTableDownstreamMixin, HiveQu
         ]
 
     @property
-    def required_table_tasks(self):
-        return StudentEngagementTableTask(
+    def insert_source_task(self):  # pragma: no cover
+        return StudentEngagementDataTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            overwrite=self.overwrite,
-            interval_type=self.interval_type,
+            warehouse_path=self.warehouse_path,
+            interval_type=self.interval_type
         )
-
-    @property
-    def query(self):
-        return """
-            SELECT {columns}
-            FROM student_engagement_raw_{interval_type}
-            WHERE end_date >= '{start_date}' AND end_date < '{end_date}'
-        """.format(
-            columns=', '.join(name for name, unused_type in self.columns),
-            interval_type=self.interval_type,
-            start_date=self.interval.date_a.isoformat(),
-            end_date=self.interval.date_b.isoformat(),
-        )
-
-    @property
-    def partition(self):
-        return HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member

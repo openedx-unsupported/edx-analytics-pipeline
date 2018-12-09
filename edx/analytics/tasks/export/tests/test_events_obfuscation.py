@@ -3,16 +3,16 @@
 import textwrap
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
+from ddt import data, ddt, unpack
 from mock import MagicMock
 
+import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.export.events_obfuscation import ObfuscateCourseEventsTask
-import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.util.tests.target import FakeTarget
-from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 from edx.analytics.tasks.util.tests.test_geolocation import FakeGeoLocation
+from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 
 
 class EventsObfuscationBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, ReducerTestMixin, TestCase):

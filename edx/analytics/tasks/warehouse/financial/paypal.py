@@ -7,21 +7,23 @@ https://developer.paypal.com/docs/classic/payflow/reporting/
 """
 
 import datetime
-import xml.etree.cElementTree as ET
-from cStringIO import StringIO
 import logging
-from collections import namedtuple, OrderedDict
-from decimal import Decimal
+import os
 import time
+import xml.etree.cElementTree as ET
+from collections import OrderedDict, namedtuple
+from cStringIO import StringIO
+from decimal import Decimal
 
 import luigi
+import requests
 from luigi import date_interval
 from luigi.configuration import get_config
-import requests
 
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -569,7 +571,7 @@ class PaypalTaskMixin(OverwriteOutputMixin):
         description='The date to generate a report for. Default is today, UTC.',
     )
     account_id = luigi.Parameter(
-        default_from_config={'section': 'paypal', 'name': 'account_id'},
+        config_path={'section': 'paypal', 'name': 'account_id'},
         description='A human readable name for the paypal account data is being gathered for.',
     )
 
@@ -668,12 +670,15 @@ class PaypalTimeoutError(PaypalError):
 
 
 class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.WrapperTask):
-    """Generate paypal transaction reports for each day in an interval."""
+    """
+    Fetches paypal transaction reports for each day in an interval.
+    It selects existing reports by calling PathSelectionByDateIntervalTask and
+    generates report for the most recent day. This optimization is done to speed up the workflow.
+    """
 
     date = None
-    interval = luigi.DateIntervalParameter(default=None)
     interval_start = luigi.DateParameter(
-        default_from_config={'section': 'paypal', 'name': 'interval_start'},
+        config_path={'section': 'paypal', 'name': 'interval_start'},
         significant=False,
     )
     interval_end = luigi.DateParameter(
@@ -692,11 +697,29 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         if self.output_root is None:
             self.output_root = self.warehouse_path
 
-        if self.interval is None:
-            self.interval = date_interval.Custom(self.interval_start, self.interval_end)
+        path = url_path_join(self.warehouse_path, 'payments')
+        path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
+        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+        dates = [path.rsplit('/', 2)[-1] for path in paths]
+        latest_date = sorted(dates)[-1]
+
+        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+        run_date = latest_completion_date + datetime.timedelta(days=1)
+
+        self.selection_interval = date_interval.Custom(self.interval_start, run_date)
+        self.run_interval = date_interval.Custom(run_date, self.interval_end)
 
     def requires(self):
-        for day in self.interval:
+
+        yield PathSelectionByDateIntervalTask(
+            source=[url_path_join(self.warehouse_path, 'payments')],
+            interval=self.selection_interval,
+            pattern=['.*dt=(?P<date>\\d{4}-\\d{2}-\\d{2})/paypal\\.tsv'],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        for day in self.run_interval:
             yield PaypalTransactionsByDayTask(
                 account_id=self.account_id,
                 output_root=self.output_root,
@@ -706,3 +729,19 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+class PaypalDataValidationTask(WarehouseMixin, luigi.WrapperTask):
+
+    import_date = luigi.DateParameter()
+
+    paypal_interval_start = luigi.DateParameter(
+        config_path={'section': 'paypal', 'name': 'interval_start'},
+        significant=False,
+    )
+
+    def requires(self):
+        paypal_interval = date_interval.Custom(self.paypal_interval_start, self.import_date)
+        for date in paypal_interval:
+            url = url_path_join(self.warehouse_path, 'payments', 'dt=' + date.isoformat(), 'paypal.tsv')
+            yield ExternalURL(url=url)

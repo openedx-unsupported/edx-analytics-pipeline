@@ -1,31 +1,29 @@
 """
 Luigi tasks for extracting the latest problem response data from tracking log files.
 """
-import re
-import csv
 import ast
-import json
+import csv
 import datetime
+import json
 import logging
+import re
 import textwrap
+
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
-
 from edx.analytics.tasks.insights.answer_dist import ProblemCheckEventMixin, get_problem_check_event
-from edx.analytics.tasks.insights.course_list import TimestampPartitionMixin, CourseListPartitionTask
 from edx.analytics.tasks.insights.course_blocks import CourseBlocksPartitionTask
-
+from edx.analytics.tasks.insights.course_list import CourseListPartitionTask, TimestampPartitionMixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, hive_database_name
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import (
-    Record, StringField, DelimitedStringField, IntegerField, DateTimeField, FloatField, BooleanField,
+    BooleanField, DateTimeField, DelimitedStringField, FloatField, IntegerField, Record, StringField
 )
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 
@@ -93,7 +91,7 @@ class ProblemResponseTableMixin(TimestampPartitionMixin,
         config_path={'section': 'problem-response', 'name': 'partition_format'},
         default='%Y-%m-%d',
         description='Datetime format string for the table partition, which is applied to the configured '
-                    '`date` parameter.  Must result in a filename-safe string, or your partitions will '
+                    '`datetime` parameter.  Must result in a filename-safe string, or your partitions will '
                     'fail to be created.  It results in a combined partition containing: \n'
                     '* {course_id}: a filename-safe version of the configured course_id\n'
                     '* datetime format string:  Adjust this portion to update the data more or less frequently.\n'
@@ -388,12 +386,6 @@ class LatestProblemResponsePartitionTask(ProblemResponseTableMixin, HivePartitio
         """Expose the partition location path as the output root."""
         return self.partition_location
 
-    def complete(self):
-        """
-        The task is complete if the output_root/_SUCCESS file is present.
-        """
-        return get_target_from_url(url_path_join(self.output_root, '_SUCCESS')).exists()
-
     @property
     def hive_table_task(self):
         return LatestProblemResponseTableTask(
@@ -432,7 +424,7 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
     sort_idx=0, and will be sorted in an indeterminate order.
 
     The resulting records are sorted by course_id, course_blocks.sort_idx, and first_attempt_date, and
-    partitioned by formatted date.
+    partitioned by formatted datetime.
     """
     path_delimiter = luigi.Parameter(
         config_path={'section': 'course-blocks', 'name': 'path_delimiter'},
@@ -501,19 +493,20 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
             input_format=self.input_format,
         )
         self.course_list_partition = CourseListPartitionTask(
-            date=self.date,
+            datetime=self.datetime,
             **kwargs
         )
         self.course_blocks_partition = CourseBlocksPartitionTask(
             input_root=self.course_list_partition.output_root,
-            date=self.date,
+            datetime=self.datetime,
             **kwargs
         )
         self.problem_response_partition = LatestProblemResponsePartitionTask(
+            partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,
             interval_end=self.interval_end,
-            date=self.date,
+            datetime=self.datetime,
             source=self.source,
             pattern=self.pattern,
             overwrite=self.overwrite,
@@ -524,12 +517,6 @@ class ProblemResponseLocationPartitionTask(ProblemResponseTableMixin, HivePartit
     def output_root(self):
         """Expose the partition location path as the output root."""
         return self.partition_location
-
-    def complete(self):
-        """
-        The task is complete if the output_root is present.
-        """
-        return get_target_from_url(self.output_root).exists()
 
     @property
     def hive_table_task(self):
@@ -609,7 +596,11 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
         Use the raw data from the problem response location partition as input
         """
         return ProblemResponseLocationPartitionTask(
-            date=self.date,
+            datetime=self.datetime,
+            partition_format=self.partition_format,
+            interval=self.interval,
+            interval_start=self.interval_start,
+            interval_end=self.interval_end,
             overwrite=self.overwrite,
             mapreduce_engine=self.mapreduce_engine,
             lib_jar=self.lib_jar,
@@ -720,7 +711,7 @@ class ProblemResponseReportWorkflow(ProblemResponseTableMixin,
         description='URL directory where a marker file will be written on task completion.'
                     ' Note that the report task will not run if this marker file exists.',
     )
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=False,
         description='Set to True to force rebuild hive data and reports from tracking logs.'
     )
@@ -731,7 +722,7 @@ class ProblemResponseReportWorkflow(ProblemResponseTableMixin,
         """
         yield ProblemResponseReportTask(
             # ProblemResponseTableMixin
-            date=self.date,
+            datetime=self.datetime,
             partition_format=self.partition_format,
             interval=self.interval,
             interval_start=self.interval_start,

@@ -18,7 +18,7 @@ class RunVerticaSqlScriptsTaskTest(TestCase):
     Ensure we can run SQL scripts that read and write data to Vertica data sources.
     """
 
-    def create_task(self, credentials='', script_config=''):
+    def create_task(self, script_config=''):
         """
         Emulate execution of a generic RunVerticaSqlScriptsTask.
         """

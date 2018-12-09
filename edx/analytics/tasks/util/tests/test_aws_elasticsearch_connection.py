@@ -36,7 +36,7 @@ class AwsElasticsearchConnectionTests(TestCase):
         self.assertTrue('my_access_key' in auth_header)
 
     def test_timeout(self):
-        def fake_connection(_address):
+        def fake_connection(_address, _timeout):
             """Fail immediately with a socket timeout."""
             raise socket.timeout('fake error')
         socket.create_connection = fake_connection

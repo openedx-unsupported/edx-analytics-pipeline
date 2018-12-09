@@ -6,9 +6,9 @@ import logging
 import textwrap
 
 import luigi
-from luigi.hive import HiveQueryTask, HivePartitionTarget
+from luigi.contrib.hive import HivePartitionTarget, HiveQueryTask
 
-from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
+from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql, SqoopImportMixin
 from edx.analytics.tasks.util.hive import hive_database_name, hive_decimal_type
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import url_path_join
@@ -16,43 +16,12 @@ from edx.analytics.tasks.util.url import url_path_join
 log = logging.getLogger(__name__)
 
 
-class DatabaseImportMixin(object):
-    """
-    Provides general parameters needed for accessing RDBMS databases.
+class DatabaseImportMixin(SqoopImportMixin):
+    """Provides parameters for accessing RDBMS databases and determining date to assign to Hive partition."""
 
-    Example Credentials File::
-
-        {
-            "host": "db.example.com",
-            "port": "3306",
-            "username": "exampleuser",
-            "password": "example password"
-        }
-    """
-    destination = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'destination'},
-        description='The directory to write the output files to.'
-    )
-    credentials = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'credentials'},
-        description='Path to the external access credentials file.',
-    )
-    database = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'database'},
-    )
     import_date = luigi.DateParameter(
         default=None,
         description='Date to assign to Hive partition.  Default is today\'s date, UTC.',
-    )
-    num_mappers = luigi.Parameter(
-        default=None,
-        significant=False,
-        description='The number of map tasks to ask Sqoop to use.',
-    )
-    verbose = luigi.BooleanParameter(
-        default=False,
-        significant=False,
-        description='Print more information while working.',
     )
 
     def __init__(self, *args, **kwargs):
@@ -83,20 +52,20 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
         # information.
         query_format = textwrap.dedent("""
             USE {database_name};
-            DROP TABLE IF EXISTS {table_name};
-            CREATE EXTERNAL TABLE {table_name} (
+            DROP TABLE IF EXISTS `{table_name}`;
+            CREATE EXTERNAL TABLE `{table_name}` (
                 {col_spec}
             )
             PARTITIONED BY (dt STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table_name} ADD PARTITION (dt = '{partition_date}');
+            ALTER TABLE `{table_name}` ADD PARTITION (dt = '{partition_date}');
         """)
 
         query = query_format.format(
             database_name=hive_database_name(),
             table_name=self.table_name,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(name, col_type) for name, col_type in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition_date=self.partition_date,
@@ -211,6 +180,7 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             # Replace delimiters with a single space if they appear in the data. This prevents the import of malformed
             # records. Hive does not support escape characters or other reasonable workarounds to this problem.
             delimiter_replacement=' ',
+            where=self.where,
         )
 
 
@@ -233,8 +203,29 @@ class ImportStudentCourseEnrollmentTask(ImportMysqlToHiveTableTask):
         ]
 
 
-class ImportAuthUserTask(ImportMysqlToHiveTableTask):
+class ImportCourseEntitlementTask(ImportMysqlToHiveTableTask):
+    """ Imports the table containing learners' course entitlements. """
 
+    @property
+    def table_name(self):
+        return 'entitlements_courseentitlement'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('uuid', 'STRING'),
+            ('course_uuid', 'STRING'),
+            ('user_id', 'INT'),
+            ('enrollment_course_run_id', 'INT'),
+            ('order_number', 'STRING'),
+            ('expired_at', 'TIMESTAMP'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
+        ]
+
+
+class ImportAuthUserTask(ImportMysqlToHiveTableTask):
     """Imports user information from an external LMS DB to a destination directory."""
 
     @property
@@ -860,6 +851,30 @@ class ImportGeneratedCertificatesTask(ImportMysqlToHiveTableTask):
             ('mode', 'STRING'),
             ('created_date', 'TIMESTAMP'),
             ('modified_date', 'TIMESTAMP'),
+        ]
+
+
+class ImportPersistentCourseGradeTask(ImportMysqlToHiveTableTask):
+    """Imports the `grades_persistentcoursegrade` table to S3/Hive."""
+
+    @property
+    def table_name(self):
+        return 'grades_persistentcoursegrade'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('user_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('course_edited_timestamp', 'TIMESTAMP'),
+            ('course_version', 'STRING'),
+            ('grading_policy_hash', 'STRING'),
+            ('percent_grade', 'DECIMAL(10,2)'),
+            ('letter_grade', 'STRING'),
+            ('passed_timestamp', 'TIMESTAMP'),
+            ('created', 'TIMESTAMP'),
+            ('modified', 'TIMESTAMP'),
         ]
 
 

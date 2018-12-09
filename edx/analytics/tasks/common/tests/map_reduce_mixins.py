@@ -1,6 +1,6 @@
 """Utility mixins that simplify tests for map reduce jobs."""
-import json
 import datetime
+import json
 
 import luigi
 import luigi.task
@@ -28,7 +28,7 @@ class MapperTestMixin(object):
         'mapreduce_engine': 'local',
         'user_country_output': 'test://output/',
         'name': 'test',
-        'src': ['test://input/'],
+        'src': '["test://input/"]',
         'dest': 'test://output/',
         'overwrite_from_date': datetime.date(2014, 4, 1),
     }
@@ -147,7 +147,7 @@ class ReducerTestMixin(object):
         'mapreduce_engine': 'local',
         'user_country_output': 'test://output/',
         'name': 'test',
-        'src': ['test://input/'],
+        'src': '["test://input/"]',
         'dest': 'test://output/',
         'date': datetime.datetime.strptime('2014-04-01', '%Y-%m-%d').date(),
         'overwrite_from_date': datetime.date(2014, 4, 1),

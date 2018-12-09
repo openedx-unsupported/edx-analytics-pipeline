@@ -7,7 +7,6 @@ import logging
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 
-
 log = logging.getLogger(__name__)
 
 
@@ -69,6 +68,16 @@ class VideoAcceptanceTest(AcceptanceTestCase):
                 1,
                 15,
             ),
+            (
+                'course-v1:edX+DemoX+Test_2015|0b9e39477cf34507a7a48f74be381fdd1',
+                'course-v1:edX+DemoX+Test_2015',
+                '0b9e39477cf34507a7a48f74be381fdd1',
+                444,
+                5,
+                1,
+                0,
+                5
+            ),
         ]
         self.assertItemsEqual(expected, results)
 
@@ -91,5 +100,6 @@ class VideoAcceptanceTest(AcceptanceTestCase):
             ('edX/DemoX/Demo_Course|i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f', 2, 1, 1),
             ('edX/DemoX/Demo_Course|i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f', 3, 1, 1),
             ('edX/DemoX/Demo_Course|i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f', 4, 1, 1),
+            ('course-v1:edX+DemoX+Test_2015|0b9e39477cf34507a7a48f74be381fdd1', 0, 1, 1),
         ]
         self.assertItemsEqual(expected, results)

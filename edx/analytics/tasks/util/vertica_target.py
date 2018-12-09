@@ -1,6 +1,7 @@
 """luigi target for writing data into an HP Vertica database"""
-import logging
 import json
+import logging
+
 import luigi
 
 logger = logging.getLogger('luigi-interface')  # pylint: disable=invalid-name

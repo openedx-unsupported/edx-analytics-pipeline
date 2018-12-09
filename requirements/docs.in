@@ -1,0 +1,5 @@
+# Requirements for documentation validation
+
+-r default.txt
+
+Sphinx==1.5.1

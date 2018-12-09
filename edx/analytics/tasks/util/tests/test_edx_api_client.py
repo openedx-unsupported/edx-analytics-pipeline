@@ -1,17 +1,16 @@
 """Test the API client"""
 
-from datetime import datetime, timedelta
 import json
+from datetime import datetime, timedelta
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
 import httpretty
-from mock import patch
 import requests
+from ddt import data, ddt, unpack
+from mock import patch
 
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.tests.config import with_luigi_config
-
 
 FAKE_AUTH_URL = 'http://example.com/oauth2/access_token'
 FAKE_CLIENT_ID = 'aclientid'

@@ -1,20 +1,22 @@
 """Test metrics for student engagement with modules"""
 
-import json
 import datetime
+import json
 from unittest import TestCase
 
 import luigi
+from ddt import data, ddt, unpack
 from luigi import date_interval
-from ddt import ddt, data, unpack
 from mock import MagicMock
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.insights.module_engagement import ModuleEngagementDataTask, ModuleEngagementSummaryDataTask, \
-    ModuleEngagementRecord, ModuleEngagementSummaryRecord, ModuleEngagementSummaryMetricRangesDataTask, \
-    ModuleEngagementSummaryMetricRangeRecord, ModuleEngagementUserSegmentDataTask, ModuleEngagementUserSegmentRecord, \
-    ModuleEngagementRosterIndexTask, ModuleEngagementRosterRecord, ModuleEngagementRosterPartitionTask
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.insights.module_engagement import (
+    ModuleEngagementDataTask, ModuleEngagementRecord, ModuleEngagementRosterIndexTask,
+    ModuleEngagementRosterPartitionTask, ModuleEngagementRosterRecord, ModuleEngagementSummaryDataTask,
+    ModuleEngagementSummaryMetricRangeRecord, ModuleEngagementSummaryMetricRangesDataTask,
+    ModuleEngagementSummaryRecord, ModuleEngagementUserSegmentDataTask, ModuleEngagementUserSegmentRecord
+)
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
@@ -117,13 +119,13 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
     def test_incorrect_problem_check(self):
         self.assert_single_map_output(
             json.dumps(self.event_templates['problem_check']),
-            self.get_expected_output_key('problem', self.problem_id, 'attempted'),
+            self.get_expected_output_key('problem', self.encoded_problem_id, 'attempted'),
             1
         )
 
     def get_expected_output_key(self, entity_type, entity_id, action):
         """Generate the expected key"""
-        return self.course_id, 'test_user', self.DEFAULT_DATE, entity_type, entity_id, action
+        return self.encoded_course_id, 'test_user', self.DEFAULT_DATE, entity_type, entity_id, action
 
     def test_correct_problem_check(self):
         template = self.event_templates['problem_check']
@@ -132,8 +134,8 @@ class ModuleEngagementTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         self.assert_map_output(
             json.dumps(template),
             [
-                (self.get_expected_output_key('problem', self.problem_id, 'completed'), 1),
-                (self.get_expected_output_key('problem', self.problem_id, 'attempted'), 1)
+                (self.get_expected_output_key('problem', self.encoded_problem_id, 'completed'), 1),
+                (self.get_expected_output_key('problem', self.encoded_problem_id, 'attempted'), 1)
             ]
         )
 

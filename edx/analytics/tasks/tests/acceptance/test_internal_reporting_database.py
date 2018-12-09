@@ -9,7 +9,7 @@ import os
 import pandas
 from pandas.util.testing import assert_frame_equal
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param, when_vertica_available
 
 log = logging.getLogger(__name__)
 
@@ -29,7 +29,8 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
             'ImportMysqlToVerticaTask',
             '--date', self.DATE,
             '--marker-schema', 'acceptance_marker',
-            '--overwrite'
+            '--exclude-field', as_list_param('.*\\.field_to_exclude$'),
+            '--overwrite',
         ])
 
         self.validate_output()

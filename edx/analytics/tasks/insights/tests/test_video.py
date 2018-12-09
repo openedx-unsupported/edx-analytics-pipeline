@@ -3,14 +3,15 @@
 import json
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
-from mock import patch, MagicMock, sentinel
+from ddt import data, ddt, unpack
+from mock import MagicMock, patch, sentinel
 
-from edx.analytics.tasks.insights.video import (
-    UserVideoViewingTask, VideoUsageTask, VIDEO_VIEWING_SECONDS_PER_SEGMENT, VIDEO_UNKNOWN_DURATION,
-    VideoSegmentDetailRecord)
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.insights.video import (
+    VIDEO_CODES, VIDEO_UNKNOWN_DURATION, VIDEO_VIEWING_SECONDS_PER_SEGMENT, UserVideoViewingTask,
+    VideoSegmentDetailRecord, VideoUsageTask
+)
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 @ddt
@@ -26,6 +27,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
         self.initialize_ids()
         self.video_id = 'i4x-foo-bar-baz'
+        self.video_duration = 888
         self.event_templates = {
             'play_video': {
                 "username": "test_user",
@@ -39,7 +41,10 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 23.4398, "code": "87389iouhdfh"}' % self.video_id,
+                "event": '{"id": "%s", "currentTime": 23.4398, "code": "87389iouhdfh", "duration": %s}' % (
+                    self.video_id,
+                    self.video_duration
+                ),
                 "agent": "blah, blah, blah",
                 "page": None
             },
@@ -55,7 +60,10 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 28, "code": "87389iouhdfh"}' % self.video_id,
+                "event": '{"id": "%s", "currentTime": 28, "code": "87389iouhdfh", "duration": %s}' % (
+                    self.video_id,
+                    self.video_duration
+                ),
                 "agent": "blah, blah, blah",
                 "page": None
             },
@@ -71,7 +79,10 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "currentTime": 100, "code": "87389iouhdfh"}' % self.video_id,
+                "event": '{"id": "%s", "currentTime": 100, "code": "87389iouhdfh", "duration": %s}' % (
+                    self.video_id,
+                    self.video_duration
+                ),
                 "agent": "blah, blah, blah",
                 "page": None
             },
@@ -87,18 +98,20 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
                 },
                 "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
                 "ip": "127.0.0.1",
-                "event": '{"id": "%s", "old_time": 14, "new_time": 10, "code": "87389iouhdfh"}' % self.video_id,
+                "event": '{"id": "%s", "old_time": 14, "new_time": 10, "code": "87389iouhdfh", "duration": %s}' % (
+                    self.video_id,
+                    self.video_duration
+                ),
                 "agent": "blah, blah, blah",
                 "page": None
             }
         }
         self.default_event_template = 'play_video'
-        self.default_key = ("test_user", self.course_id.encode('utf8'), self.video_id.encode('utf8'))
+        self.default_key = (self.DEFAULT_USER_ID, self.encoded_course_id, self.video_id.encode('utf8'))
 
     @data(
         {'time': "2013-12-01T15:38:32.805444"},
         {'time': None},
-        {'username': ''},
         {'event_type': None},
         {'event': None},
         {'event': ''},
@@ -108,7 +121,6 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
     @data(
         'time',
-        'username',
         'event_type',
         'event',
     )
@@ -148,10 +160,10 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         self.assert_no_map_output_for(self.create_event_log_line(event=''))
 
     def test_play_video_youtube(self):
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
+        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh', self.video_duration)
         self.assert_single_map_output(self.create_event_log_line(), self.default_key, expected_value)
 
-    @data('html5', 'mobile')
+    @data(*tuple(VIDEO_CODES))
     def test_play_video_non_youtube(self, code):
         payload = {
             "id": self.video_id,
@@ -159,7 +171,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             "code": code
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, None, -1)
         self.assert_single_map_output(self.create_event_log_line(event=event), self.default_key, expected_value)
 
     def test_play_video_without_current_time(self):
@@ -171,7 +183,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         self.assert_no_map_output_for(self.create_event_log_line(event=event))
 
     def test_pause_video(self):
-        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 28, None, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 28, None, None, self.video_duration)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='pause_video'), self.default_key, expected_value)
 
@@ -181,7 +193,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             "code": "foo"
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 0, None, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 0, None, None, -1)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='pause_video', event=event), self.default_key, expected_value)
 
@@ -207,7 +219,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
         self.assert_no_map_output_for(self.create_event_log_line(template_name='seek_video', event=event))
 
     def test_seek_video(self):
-        expected_value = (self.DEFAULT_TIMESTAMP, 'seek_video', 10, 14, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'seek_video', 10, 14, None, self.video_duration)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='seek_video'), self.default_key, expected_value)
 
@@ -219,38 +231,27 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             "code": 'foo'
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'seek_video', 10, 5, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'seek_video', 10, 5, None, -1)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='seek_video', event=event), self.default_key, expected_value)
 
     def test_stop_video(self):
-        expected_value = (self.DEFAULT_TIMESTAMP, 'stop_video', 100, None, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'stop_video', 100, None, None, self.video_duration)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='stop_video'), self.default_key, expected_value)
 
-    def test_username_with_newline(self):
-        username = 'test_user'
-        key = (username, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
-        self.assert_single_map_output(self.create_event_log_line(username=username + '\n'), key, expected_value)
-
-    def test_unicode_username(self):
-        key = (self.UTF8_BYTE_STRING, self.course_id.encode('utf8'), self.video_id.encode('utf8'))
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 23.4398, None, '87389iouhdfh')
-        self.assert_single_map_output(self.create_event_log_line(username=self.UTF8_BYTE_STRING), key, expected_value)
-
     def test_unicode_module_id(self):
-        key = ("test_user", self.course_id.encode('utf8'), self.UTF8_BYTE_STRING)
+        key = (self.DEFAULT_USER_ID, self.encoded_course_id, self.UTF8_BYTE_STRING)
         payload = {
             "id": self.UTF8_BYTE_STRING,
             "currentTime": 5,
             "code": 'foo'
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, 'foo')
+        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, 'foo', -1)
         self.assert_single_map_output(self.create_event_log_line(event=event), key, expected_value)
 
-    def test_unicode_course_id(self):
+    def test_unicode_garbage_course_id(self):
         template = self.event_templates['play_video']
         template['context']['course_id'] = self.UTF8_BYTE_STRING
         self.assert_no_map_output_for(self.create_event_log_line(template=template))
@@ -262,7 +263,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             "code": self.UTF8_BYTE_STRING
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, self.UTF8_BYTE_STRING)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'play_video', 5, None, self.UTF8_BYTE_STRING, -1)
         self.assert_single_map_output(self.create_event_log_line(event=event), self.default_key, expected_value)
 
     @data(
@@ -318,7 +319,7 @@ class UserVideoViewingTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
             "code": 'html5'
         }
         event = json.dumps(payload)
-        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 0, None, None)
+        expected_value = (self.DEFAULT_TIMESTAMP, 'pause_video', 0, None, None, -1)
         self.assert_single_map_output(
             self.create_event_log_line(template_name='pause_video', event=event), self.default_key, expected_value)
 
@@ -374,7 +375,7 @@ class UserVideoViewingTaskLegacyMapTest(InitializeLegacyKeysMixin, UserVideoView
 class ViewingColumns(object):
     """Constants for columns in UserVideoViewingTask output."""
 
-    USERNAME = 0
+    USER_ID = 0
     COURSE_ID = 1
     VIDEO_MODULE_ID = 2
     VIDEO_DURATION = 3
@@ -394,18 +395,19 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def setUp(self):
         super(UserVideoViewingTaskReducerTest, self).setUp()
-        self.reduce_key = (self.USERNAME, self.COURSE_ID, self.VIDEO_MODULE_ID)
+        self.user_id = 10
+        self.reduce_key = (self.user_id, self.COURSE_ID, self.VIDEO_MODULE_ID)
         patcher = patch('edx.analytics.tasks.insights.video.urllib')
         self.mock_urllib = patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_simple_viewing(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
-            ViewingColumns.USERNAME: self.USERNAME,
+            ViewingColumns.USER_ID: self.user_id,
             ViewingColumns.COURSE_ID: self.COURSE_ID,
             ViewingColumns.VIDEO_MODULE_ID: self.VIDEO_MODULE_ID,
             ViewingColumns.VIDEO_DURATION: -1,
@@ -417,8 +419,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_ordering(self):
         inputs = [
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
@@ -429,8 +431,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_viewing_with_sci_notation(self):  # REMOVE ME?
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', eval('1.2e+2'), None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', eval('1.2e+2'), None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.END_OFFSET: 120
@@ -438,10 +440,10 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_multiple_viewings(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
-            ('2013-12-17T00:00:07.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:12.00000Z', 'stop_video', 5, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
+            ('2013-12-17T00:00:07.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:12.00000Z', 'stop_video', 5, None, None, -1),
         ]
         self._check_output_by_key(inputs, [
             {
@@ -460,10 +462,10 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_seek_backwards(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'seek_video', 2, 3, None),
-            ('2013-12-17T00:00:03.10000Z', 'play_video', 2, None, 'html5'),
-            ('2013-12-17T00:00:06.00000Z', 'pause_video', 5, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'seek_video', 2, 3, None, -1),
+            ('2013-12-17T00:00:03.10000Z', 'play_video', 2, None, 'html5', -1),
+            ('2013-12-17T00:00:06.00000Z', 'pause_video', 5, None, None, -1),
         ]
         self._check_output_by_key(inputs, [
             {
@@ -488,10 +490,10 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         # records the time before the seek started. We choose to trust the seek_video event in these cases and the time
         # it claims to have moved the position to.
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'seek_video', 8, 3, None),
-            ('2013-12-17T00:00:03.10000Z', 'play_video', 3, None, 'html5'),
-            ('2013-12-17T00:00:06.00000Z', 'pause_video', 11, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'seek_video', 8, 3, None, -1),
+            ('2013-12-17T00:00:03.10000Z', 'play_video', 3, None, 'html5', -1),
+            ('2013-12-17T00:00:06.00000Z', 'pause_video', 11, None, None, -1),
         ]
         self._check_output_by_key(inputs, [
             {
@@ -511,14 +513,14 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     def test_debounce_play(self):
         # we have had bugs before where many play events are emitted at the start of a video
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:00.10000Z', 'play_video', 1, None, 'html5'),
-            ('2013-12-17T00:00:00.20000Z', 'play_video', 2, None, 'html5'),
-            ('2013-12-17T00:00:00.30000Z', 'play_video', 3, None, 'html5'),
-            ('2013-12-17T00:00:00.40000Z', 'play_video', 4, None, 'html5'),
-            ('2013-12-17T00:00:00.50000Z', 'play_video', 5, None, 'html5'),
-            ('2013-12-17T00:00:00.60000Z', 'play_video', 6, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 9, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:00.10000Z', 'play_video', 1, None, 'html5', -1),
+            ('2013-12-17T00:00:00.20000Z', 'play_video', 2, None, 'html5', -1),
+            ('2013-12-17T00:00:00.30000Z', 'play_video', 3, None, 'html5', -1),
+            ('2013-12-17T00:00:00.40000Z', 'play_video', 4, None, 'html5', -1),
+            ('2013-12-17T00:00:00.50000Z', 'play_video', 5, None, 'html5', -1),
+            ('2013-12-17T00:00:00.60000Z', 'play_video', 6, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 9, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00.600000+00:00',
@@ -528,11 +530,11 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_ignored_events(self):
         inputs = [
-            ('2013-12-17T00:00:01.00000Z', 'seek_video', 2, None, None),
-            ('2013-12-17T00:00:02.00000Z', 'pause_video', 1, None, None),
-            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
-            ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
+            ('2013-12-17T00:00:01.00000Z', 'seek_video', 2, None, None, -1),
+            ('2013-12-17T00:00:02.00000Z', 'pause_video', 1, None, None, -1),
+            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None, -1),
+            ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
@@ -542,10 +544,10 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_first_event_seek(self):
         inputs = [
-            ('2013-12-17T00:00:01.00000Z', 'seek_video', 2, 1, None),
-            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
-            ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None),
+            ('2013-12-17T00:00:01.00000Z', 'seek_video', 2, 1, None, -1),
+            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None, -1),
+            ('2013-12-17T00:00:07.00000Z', 'pause_video', 1, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
@@ -555,15 +557,15 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_missing_end_event(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
         ]
         self.assert_no_output(inputs)
 
     def test_unexpected_event(self):
         inputs = [
-            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:05.00000Z', '/foobar', None, None, None),
-            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:03.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:05.00000Z', '/foobar', None, None, None, -1),
+            ('2013-12-17T00:00:06.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:03+00:00',
@@ -573,23 +575,23 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_very_short_viewing(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5'),
-            ('2013-12-17T00:00:00.10000Z', 'pause_video', 0.1, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, 'html5', -1),
+            ('2013-12-17T00:00:00.10000Z', 'pause_video', 0.1, None, None, -1),
         ]
         self.assert_no_output(inputs)
 
     def test_inverted_viewing(self):
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 3, None, 'html5'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 0, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 3, None, 'html5', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 0, None, None, -1),
         ]
         self.assert_no_output(inputs)
 
     def test_get_duration(self):
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
@@ -637,8 +639,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     def test_pause_after_end_of_video(self):
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 66, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 66, None, None, -1),
         ]
         self.assert_no_output(inputs)
 
@@ -646,8 +648,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         # we occasionally see pause events slightly after the end of the video
         self.prepare_youtube_api_mock('PT1M2S')
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 62.9, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 62.9, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
@@ -665,8 +667,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     def test_invalid_json_youtube_api(self, response_string):
         self.prepare_youtube_api_mock_raw(response_string)
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
@@ -679,8 +681,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     def test_invalid_duration_format(self):
         self.prepare_youtube_api_mock('foobar')
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
@@ -700,14 +702,30 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
     def test_different_durations(self, duration_string, duration_secs):
         self.prepare_youtube_api_mock(duration_string)
         inputs = [
-            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0'),
-            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None),
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, '9bZkp7q19f0', -1),
+            ('2013-12-17T00:00:03.00000Z', 'pause_video', 3, None, None, -1),
         ]
         self._check_output_by_key(inputs, {
             ViewingColumns.START_TIMESTAMP: '2013-12-17T00:00:00+00:00',
             ViewingColumns.START_OFFSET: 0,
             ViewingColumns.END_OFFSET: 3,
             ViewingColumns.VIDEO_DURATION: duration_secs,
+            ViewingColumns.REASON: 'pause_video'
+        })
+
+    @data(
+        ('3_yD_cEKoCk', 144),
+        ('html5', 150),
+        ('hls', 400)
+    )
+    @unpack
+    def test_duration_in_event(self, video_type, duration_seconds):
+        inputs = [
+            ('2013-12-17T00:00:00.00000Z', 'play_video', 0, None, video_type, duration_seconds),
+            ('2013-12-17T00:00:10.00000Z', 'pause_video', 10, None, video_type, duration_seconds),
+        ]
+        self._check_output_by_key(inputs, {
+            ViewingColumns.VIDEO_DURATION: duration_seconds,
             ViewingColumns.REASON: 'pause_video'
         })
 
@@ -721,7 +739,7 @@ class VideoUsageTaskMapTest(MapperTestMixin, TestCase):
         self.assert_single_map_output(
             '\t'.join(
                 [
-                    'foo_username',
+                    '1',
                     'foo/bar/baz',
                     'i4x-foo-bar',
                     '63',
@@ -732,7 +750,7 @@ class VideoUsageTaskMapTest(MapperTestMixin, TestCase):
                 ]
             ),
             ('foo/bar/baz', 'i4x-foo-bar'),
-            ('foo_username', '10', '15', '63')
+            ('1', '10', '15', '63')
         )
 
 
@@ -765,7 +783,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_single_viewing(self):
         inputs = [
-            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4.99, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, {
             "pipeline_video_id": self.COURSE_ID + '|' + self.VIDEO_MODULE_ID,
@@ -782,8 +800,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_adjacent_viewings(self):
         inputs = [
-            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
-            ('foo', 5, 5.2, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            (1, 5, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -804,8 +822,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
         # One could perform more sophisticated analysis to determine, if, in fact, this was a contiguous viewing or an
         # interrupted one.
         inputs = [
-            ('foo', 0, 4.6, VIDEO_UNKNOWN_DURATION),
-            ('foo', 4.6, 4.9, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4.6, VIDEO_UNKNOWN_DURATION),
+            (1, 4.6, 4.9, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -817,8 +835,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_overlapping_viewings(self):
         inputs = [
-            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
-            ('foo', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            (1, 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -835,7 +853,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_multi_segment_viewing(self):
         inputs = [
-            ('foo', 0, 10.2, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -857,9 +875,9 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_overlapping_viewings_different_users(self):
         inputs = [
-            ('foo', 0, 4.99, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 4.2, 10.2, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4.99, VIDEO_UNKNOWN_DURATION),
+            (2, 4.8, 5.2, VIDEO_UNKNOWN_DURATION),
+            (2, 4.2, 10.2, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -882,17 +900,17 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     def test_view_counts_without_duration(self):
         inputs = [
             # These three viewings are in the first segment
-            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 1.5, 2, VIDEO_UNKNOWN_DURATION),
-            ('foo', 4, 4.99, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 1, VIDEO_UNKNOWN_DURATION),
+            (2, 1.5, 2, VIDEO_UNKNOWN_DURATION),
+            (1, 4, 4.99, VIDEO_UNKNOWN_DURATION),
 
             # These viewings are in neither the first nor the last segment
-            ('foo', 6, 9.99, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 6, 9.99, VIDEO_UNKNOWN_DURATION),
+            (1, 6, 9.99, VIDEO_UNKNOWN_DURATION),
+            (2, 6, 9.99, VIDEO_UNKNOWN_DURATION),
 
             # These viewings are in the last segment observed
-            ('foo', 10.5, 11, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 10.7, 11, VIDEO_UNKNOWN_DURATION),
+            (1, 10.5, 11, VIDEO_UNKNOWN_DURATION),
+            (2, 10.7, 11, VIDEO_UNKNOWN_DURATION),
         ]
 
         # Note that the start and end counts are denormalized into all results, so they should have an
@@ -927,15 +945,15 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     def test_more_users_at_end_than_at_start(self):
         inputs = [
             # These three viewings are in the first segment
-            ('foo', 0, 1, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 1.5, 2, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 2.5, 4, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 1, VIDEO_UNKNOWN_DURATION),
+            (2, 1.5, 2, VIDEO_UNKNOWN_DURATION),
+            (2, 2.5, 4, VIDEO_UNKNOWN_DURATION),
 
             # These viewings are in the last segment observed
-            ('foo', 5, 6, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 5, 6, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 8, 9, VIDEO_UNKNOWN_DURATION),
-            ('foo3', 7, 9, VIDEO_UNKNOWN_DURATION),
+            (1, 5, 6, VIDEO_UNKNOWN_DURATION),
+            (2, 5, 6, VIDEO_UNKNOWN_DURATION),
+            (2, 8, 9, VIDEO_UNKNOWN_DURATION),
+            (3, 7, 9, VIDEO_UNKNOWN_DURATION),
         ]
 
         # Note that the start and end counts are denormalized into all results, so they should have an
@@ -960,8 +978,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     def test_sparsity_of_output(self):
         inputs = [
             # These three viewings are in the first segment
-            ('foo', 5, 9, 40),
-            ('foo', 16, 19, 40),
+            (1, 5, 9, 40),
+            (1, 16, 19, 40),
         ]
 
         self._check_output_by_record_field(inputs, [
@@ -982,8 +1000,8 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_multiple_known_durations(self):
         inputs = [
-            ('foo', 0, 1, 10),
-            ('foo', 0, 1, 50),
+            (1, 0, 1, 10),
+            (1, 0, 1, 50),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -995,9 +1013,9 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
     def test_unknown_duration(self):
         # Duration is always set now.
         inputs = [
-            ('foo', 0, 4, VIDEO_UNKNOWN_DURATION),
-            ('foo', 5, 9, VIDEO_UNKNOWN_DURATION),
-            ('foo', 12, 16, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4, VIDEO_UNKNOWN_DURATION),
+            (1, 5, 9, VIDEO_UNKNOWN_DURATION),
+            (1, 12, 16, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -1020,7 +1038,7 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_end_view_with_duration(self):
         inputs = [
-            ('foo', 6, 8, 9.2),
+            (1, 6, 8, 9.2),
         ]
         self._check_output_by_record_field(inputs, [
             {
@@ -1031,15 +1049,15 @@ class VideoUsageTaskReducerTest(ReducerTestMixin, TestCase):
 
     def test_num_users_at_end(self):
         inputs = [
-            ('foo', 0, 4, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 0, 4, VIDEO_UNKNOWN_DURATION),
-            ('foo3', 0, 4, VIDEO_UNKNOWN_DURATION),
+            (1, 0, 4, VIDEO_UNKNOWN_DURATION),
+            (2, 0, 4, VIDEO_UNKNOWN_DURATION),
+            (3, 0, 4, VIDEO_UNKNOWN_DURATION),
 
-            ('foo', 91, 98, VIDEO_UNKNOWN_DURATION),
-            ('foo2', 92, 95, VIDEO_UNKNOWN_DURATION),
-            ('foo3', 90, 99, VIDEO_UNKNOWN_DURATION),
+            (1, 91, 98, VIDEO_UNKNOWN_DURATION),
+            (2, 92, 95, VIDEO_UNKNOWN_DURATION),
+            (3, 90, 99, VIDEO_UNKNOWN_DURATION),
 
-            ('foo1', 100, 103, VIDEO_UNKNOWN_DURATION),
+            (4, 100, 103, VIDEO_UNKNOWN_DURATION),
         ]
         self._check_output_by_record_field(inputs, [
             {

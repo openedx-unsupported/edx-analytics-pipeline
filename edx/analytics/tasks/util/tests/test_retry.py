@@ -3,9 +3,9 @@
 from datetime import datetime, timedelta
 from unittest import TestCase
 
-from mock import patch, call, sentinel
+from mock import call, patch, sentinel
 
-from edx.analytics.tasks.util.retry import retry, RetryTimeoutError
+from edx.analytics.tasks.util.retry import RetryTimeoutError, retry
 
 
 class RetryTestCase(TestCase):

@@ -12,18 +12,15 @@ import logging
 import os
 import re
 
-import boto
 import luigi
-import luigi.hdfs
-import luigi.format
+import luigi.contrib.hdfs
+import luigi.contrib.hdfs.format
 import luigi.task
-
-from luigi.date_interval import DateInterval
+from luigi.date_interval import Custom
 
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.s3_util import generate_s3_sources, get_s3_bucket_key_names
-from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, url_path_join, get_target_from_url
-
+from edx.analytics.tasks.util.s3_util import ScalableS3Client, generate_s3_sources, get_s3_bucket_key_names
+from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -33,13 +30,11 @@ class PathSetTask(luigi.Task):
     A task to select a subset of files in an S3 bucket or local FS.
 
     """
-    src = luigi.Parameter(
-        is_list=True,
+    src = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'source'},
         description='A URL pointing to a folder in s3:// or local FS.',
     )
-    include = luigi.Parameter(
-        is_list=True,
+    include = luigi.ListParameter(
         default=('*',),
         description='A list of patterns to use to select.  Multiple patterns are OR\'d.',
     )
@@ -47,7 +42,7 @@ class PathSetTask(luigi.Task):
         default=None,
         description='A URL pointing to a manifest file location.',
     )
-    include_zero_length = luigi.BooleanParameter(
+    include_zero_length = luigi.BoolParameter(
         default=False,
         description='If True, include files/directories with size zero.',
     )
@@ -62,12 +57,12 @@ class PathSetTask(luigi.Task):
             if src.startswith('s3'):
                 # connect lazily as needed:
                 if self.s3_conn is None:
-                    self.s3_conn = boto.connect_s3()
+                    self.s3_conn = ScalableS3Client().s3
                 for _bucket, _root, path in generate_s3_sources(self.s3_conn, src, self.include, self.include_zero_length):
                     source = url_path_join(src, path)
                     yield ExternalURL(source)
             elif src.startswith('hdfs'):
-                for source, size in luigi.hdfs.listdir(src, recursive=True, include_size=True):
+                for source, size in luigi.contrib.hdfs.listdir(src, recursive=True, include_size=True):
                     if not self.include_zero_length and size == 0:
                         continue
                     elif any(fnmatch.fnmatch(source, include_val) for include_val in self.include):
@@ -112,8 +107,7 @@ class PathSetTask(luigi.Task):
 class EventLogSelectionDownstreamMixin(object):
     """Defines parameters for passing upstream to tasks that use EventLogSelectionMixin."""
 
-    source = luigi.Parameter(
-        is_list=True,
+    source = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'source'},
         description='A URL to a path that contains log files that contain the events. (e.g., s3://my_bucket/foo/).',
     )
@@ -125,8 +119,7 @@ class EventLogSelectionDownstreamMixin(object):
         description='A time interval to add to the beginning and end of the interval to expand the windows of '
         'files captured.',
     )
-    pattern = luigi.Parameter(
-        is_list=True,
+    pattern = luigi.ListParameter(
         config_path={'section': 'event-logs', 'name': 'pattern'},
         description='A regex with a named capture group for the date that approximates the date that the events '
         'within were emitted. Note that the search interval is expanded, so events don\'t have to be in exactly '
@@ -153,7 +146,7 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def __init__(self, *args, **kwargs):
         super(PathSelectionByDateIntervalTask, self).__init__(*args, **kwargs)
-        self.interval = DateInterval(
+        self.interval = Custom(
             self.interval.date_a - self.expand_interval,
             self.interval.date_b + self.expand_interval
         )
@@ -193,7 +186,7 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_s3_urls(self, source):
         """Recursively list all files inside the source URL directory."""
-        s3_conn = boto.connect_s3()
+        s3_conn = ScalableS3Client().s3
         bucket_name, root = get_s3_bucket_key_names(source)
         bucket = s3_conn.get_bucket(bucket_name)
         for key_metadata in bucket.list(root):
@@ -203,9 +196,9 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
 
     def _get_hdfs_urls(self, source):
         """Recursively list all files inside the source directory on the hdfs filesystem."""
-        if luigi.hdfs.exists(source):
+        if luigi.contrib.hdfs.exists(source):
             # listdir raises an exception if the source doesn't exist.
-            for source in luigi.hdfs.listdir(source, recursive=True):
+            for source in luigi.contrib.hdfs.listdir(source, recursive=True):
                 yield source
 
     def _get_local_urls(self, source):
@@ -290,7 +283,7 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         date_string = event_time.split("T")[0]
 
         if date_string < self.lower_bound_date_string or date_string >= self.upper_bound_date_string:
-            ## self.incr_counter('Event', 'Discard Outside Date Interval', 1)
+            # Slow: self.incr_counter('Event', 'Discard Outside Date Interval', 1)
             return None
 
         return event, date_string

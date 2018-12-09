@@ -2,27 +2,25 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
-import math
 import csv
 import hashlib
-import html5lib
 import json
+import logging
+import math
 from operator import itemgetter
 
+import html5lib
 import luigi
-import luigi.hdfs
-import luigi.s3
 from luigi.configuration import get_config
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
+import edx.analytics.tasks.util.eventlog as eventlog
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
-import edx.analytics.tasks.util.eventlog as eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
-import logging
 log = logging.getLogger(__name__)
 
 
@@ -601,15 +599,13 @@ class BaseAnswerDistributionDownstreamMixin(object):
         description='A unique identifier to distinguish one run from another.  It is used in '
         'the construction of output filenames, so each run will have distinct outputs.',
     )
-    src = luigi.Parameter(
-        is_list=True,
+    src = luigi.ListParameter(
         description='A list of URLs to the root location of input tracking log files.',
     )
     dest = luigi.Parameter(
         description='A URL to the root location to write output file(s).',
     )
-    include = luigi.Parameter(
-        is_list=True,
+    include = luigi.ListParameter(
         default=('*',),
         description='A list of patterns to be used to match input files, relative to `src` URL. '
         'The default value is [\'*\'].',
@@ -845,7 +841,7 @@ class AnswerDistributionToMySQLTaskWorkflow(
 ):
 
     # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
-    overwrite = luigi.BooleanParameter(default=True, significant=False)
+    overwrite = luigi.BoolParameter(default=True, significant=False)
 
     @property
     def insert_source_task(self):
@@ -1031,3 +1027,8 @@ def _check_answer_ids(answer_dict):
     for answer_id in answer_dict:
         if '\n' in answer_id or '\t' in answer_id:
             raise ValueError('Malformed answer_id')
+
+        try:
+            answer_id.encode('ascii')
+        except UnicodeEncodeError:
+            raise ValueError('Non-ascii answer_id')

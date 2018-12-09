@@ -8,7 +8,7 @@ import luigi
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import ImportAuthUserProfileTask, ImportAuthUserTask
 from edx.analytics.tasks.insights.location_per_course import ExternalLastCountryOfUserToHiveTask
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin
 
 
 class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
@@ -18,7 +18,7 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
 
     def requires(self):
         """
-        This task reads from auth_user, auth_user_profile, and last_country_of_user, so require that they be
+        This task reads from auth_user, auth_user_profile, and last_country_of_user_id, so require that they be
         loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
         """
         return [ImportAuthUserTask(overwrite=self.overwrite, destination=self.warehouse_path),
@@ -60,7 +60,7 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
             , COALESCE(lc.country_code, 'UNKNOWN')
             FROM auth_user au
             JOIN auth_userprofile aup ON au.id = aup.user_id
-            LEFT OUTER JOIN last_country_of_user lc ON au.username = lc.username
+            LEFT OUTER JOIN last_country_of_user_id lc ON au.id = lc.user_id
             SORT BY au.username ASC
             """
 

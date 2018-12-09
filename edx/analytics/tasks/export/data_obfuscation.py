@@ -12,15 +12,14 @@ import cjson
 import luigi
 import yaml
 
-from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.util.file_util import read_config_file, copy_file_to_file
-from edx.analytics.tasks.util.obfuscate_util import (
-    ObfuscatorMixin, backslash_encode_value, backslash_decode_value, ObfuscatorDownstreamMixin
-)
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.util.file_util import copy_file_to_file, read_config_file
+from edx.analytics.tasks.util.obfuscate_util import (
+    ObfuscatorDownstreamMixin, ObfuscatorMixin, backslash_decode_value, backslash_encode_value
+)
 from edx.analytics.tasks.util.tempdir import make_temp_directory
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
-
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -192,9 +191,12 @@ class ObfuscateCoursewareStudentModule(ObfuscateSqlDumpTask):
         # but merely transform double backslashes.
         state_str = row[4].replace('\\\\', '\\')
         try:
-            state_dict = cjson.decode(state_str, all_unicode=True)
-            # Traverse the dictionary, looking for entries that need to be scrubbed.
-            updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
+            if state_str == 'NULL':
+                updated_state_dict = {}
+            else:
+                state_dict = cjson.decode(state_str, all_unicode=True)
+                # Traverse the dictionary, looking for entries that need to be scrubbed.
+                updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
         except Exception:   # pylint:  disable=broad-except
             log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r",
                           row[0], type(state_str), state_str)
@@ -673,7 +675,7 @@ class ObfuscatedCourseDumpTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
 class DataObfuscationTask(ObfuscatorDownstreamMixin, luigi.WrapperTask):
     """Wrapper task for data obfuscation development."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter(
         config_path={'section': 'obfuscation', 'name': 'output_root'}

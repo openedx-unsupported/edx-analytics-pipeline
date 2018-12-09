@@ -6,7 +6,7 @@ from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.database_imports import (
     DatabaseImportMixin, ImportCourseModeTask, ImportStudentCourseEnrollmentTask
 )
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, WarehouseMixin, hive_decimal_type
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.warehouse.financial.reconcile import ReconciledOrderTransactionTableTask
 
 

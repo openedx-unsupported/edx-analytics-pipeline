@@ -4,7 +4,6 @@ Support for running a SQL script against an HP Vertica database.
 import datetime
 import logging
 
-import luigi
 import luigi.configuration
 
 from edx.analytics.tasks.util.url import ExternalURL

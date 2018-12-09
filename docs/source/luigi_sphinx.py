@@ -5,6 +5,7 @@ import re
 import inspect
 import luigi
 
+from luigi.parameter import _no_value
 
 def append_parameters(_app, _what, _name, obj, _options, lines):
     """
@@ -36,13 +37,13 @@ def append_parameters(_app, _what, _name, obj, _options, lines):
 
                 # Mark configured parameters (requires protected-access)
                 # pylint: disable=W0212
-                if hasattr(membervalue, '_Parameter__config') and membervalue._Parameter__config is not None:
-                    param['default'] = ' pulled from ``{section}.{name}``'.format(**membervalue._Parameter__config)
+                if hasattr(membervalue, '_config_path') and membervalue._config_path is not None:
+                    param['default'] = 'pulled from ``{section}.{name}``'.format(**membervalue._config_path)
                     param['type'] = u'{type}, configurable'.format(**param)
 
                 # Mark optional parameters
-                elif hasattr(membervalue, 'default'):
-                    param['default'] = membervalue.default
+                elif hasattr(membervalue, '_default') and membervalue._default != _no_value:
+                    param['default'] = membervalue._default
                     param['type'] = u'{type}, optional'.format(**param)
 
                 if 'default' in param:

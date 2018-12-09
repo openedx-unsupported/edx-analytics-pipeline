@@ -2,7 +2,7 @@
 
 from unittest import TestCase
 
-from mock import MagicMock, patch
+from mock import MagicMock
 
 from edx.analytics.tasks.util import s3_util
 
@@ -97,44 +97,3 @@ class GenerateS3SourcesTestCase(TestCase):
             (bucket_name, root.rstrip('/'), "subdir1/path1"),
             (bucket_name, root.rstrip('/'), "path2")
         ]))
-
-
-class ScalableS3ClientTestCase(TestCase):
-    """Tests for ScalableS3Client class."""
-
-    def setUp(self):
-        patcher = patch('luigi.s3.boto')
-        patcher.start()
-        self.addCleanup(patcher.stop)
-
-        self.client = s3_util.ScalableS3Client()
-
-    def _assert_get_chunk_specs(self, source_size_bytes, expected_num_chunks, expected_chunk_size):
-        """Asserts that _get_chunk_specs returns the expected values."""
-        number_of_chunks, bytes_per_chunk = self.client._get_chunk_specs(source_size_bytes)
-        self.assertEquals(number_of_chunks, expected_num_chunks)
-        self.assertEquals(bytes_per_chunk, expected_chunk_size)
-
-    def test_get_minimum_chunk_specs(self):
-        self._assert_get_chunk_specs(1, 1, s3_util.MINIMUM_BYTES_PER_CHUNK)
-        self._assert_get_chunk_specs(s3_util.MINIMUM_BYTES_PER_CHUNK, 1, s3_util.MINIMUM_BYTES_PER_CHUNK)
-
-    def test_get_maximum_chunk_specs(self):
-        size = ((s3_util.MULTIPART_UPLOAD_THRESHOLD * s3_util.MULTIPART_UPLOAD_THRESHOLD) /
-                s3_util.MINIMUM_BYTES_PER_CHUNK) + 1000
-        self._assert_get_chunk_specs(size, 205, s3_util.MULTIPART_UPLOAD_THRESHOLD)
-
-        size *= 2
-        self._assert_get_chunk_specs(size, 410, s3_util.MULTIPART_UPLOAD_THRESHOLD)
-
-    def test_generate_even_chunks(self):
-        generator = self.client._generate_chunks(1000, 4, 250)
-        output = list(generator)
-        expected_output = [(1, 0, 250), (2, 250, 250), (3, 500, 250), (4, 750, 250)]
-        self.assertEquals(output, expected_output)
-
-    def test_generate_uneven_chunks(self):
-        generator = self.client._generate_chunks(900, 4, 250)
-        output = list(generator)
-        expected_output = [(1, 0, 250), (2, 250, 250), (3, 500, 250), (4, 750, 150)]
-        self.assertEquals(output, expected_output)

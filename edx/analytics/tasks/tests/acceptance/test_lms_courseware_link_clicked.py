@@ -3,15 +3,13 @@ End-to-end test of the workflow to load the warehouse's lms_courseware_link_clic
 
 """
 
-from datetime import date
-
-import os
+import datetime
 import logging
+import os
+
 import pandas
 
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
-
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +21,7 @@ class LmsCoursewareLinkClickedAcceptanceTest(AcceptanceTestCase):
     """
 
     INPUT_FILE = 'lms_courseware_link_clicked_acceptance_tracking.log'
-    DATE = date(2016, 6, 13)
+    DATE = datetime.date(2016, 6, 13)
 
     @when_vertica_available
     def test_lms_courseware_link_clicked(self):
@@ -46,7 +44,12 @@ class LmsCoursewareLinkClickedAcceptanceTest(AcceptanceTestCase):
                 'output',
                 'acceptance_expected_lms_courseware_link_clicked_events.csv'
             )
-            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+
+            def convert_date(date_string):
+                """Convert date string to a date object."""
+                return datetime.datetime.strptime(date_string, '%Y-%m-%d').date()
+
+            expected = pandas.read_csv(expected_output_csv, converters={'event_date': convert_date})
 
             cursor.execute(
                 "SELECT * FROM {schema}.lms_courseware_link_clicked_events ORDER BY course_id, event_date"
@@ -65,7 +68,8 @@ class LmsCoursewareLinkClickedAcceptanceTest(AcceptanceTestCase):
                 ]
             )
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(lms_courseware_link_clicked_events == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            for frame in (lms_courseware_link_clicked_events, expected):
+                frame.sort(['record_number'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(lms_courseware_link_clicked_events, expected)

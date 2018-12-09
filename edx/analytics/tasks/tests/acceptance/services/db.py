@@ -1,8 +1,6 @@
 
 import json
-
-from contextlib import closing
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import mysql.connector
 
@@ -30,7 +28,7 @@ class DatabaseService(object):
             with closing(conn.cursor()) as cur:
                 try:
                     yield cur
-                except:
+                except Exception:
                     conn.rollback()
                     raise
                 else:

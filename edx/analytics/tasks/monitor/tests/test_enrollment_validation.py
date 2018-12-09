@@ -9,19 +9,14 @@ from unittest import TestCase
 
 import luigi
 
-from edx.analytics.tasks.monitor.enrollment_validation import (
-    CourseEnrollmentValidationTask,
-    DEACTIVATED,
-    ACTIVATED,
-    MODE_CHANGED,
-    VALIDATED,
-    CreateAllEnrollmentValidationEventsTask,
-    CreateEnrollmentValidationEventsForTodayTask,
-)
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.monitor.enrollment_validation import (
+    ACTIVATED, DEACTIVATED, MODE_CHANGED, VALIDATED, CourseEnrollmentValidationTask,
+    CreateAllEnrollmentValidationEventsTask, CreateEnrollmentValidationEventsForTodayTask
+)
 from edx.analytics.tasks.util.datetime_util import add_microseconds
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
@@ -49,7 +44,7 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTes
             org_id=self.org_id,
         )
 
-        self.expected_key = (self.course_id, self.user_id)
+        self.expected_key = (self.encoded_course_id, self.user_id)
 
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""

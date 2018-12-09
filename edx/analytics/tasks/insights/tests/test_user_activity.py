@@ -6,21 +6,15 @@ import datetime
 import json
 from unittest import TestCase
 
-from ddt import ddt, data, unpack
+from ddt import data, ddt, unpack
 from luigi import date_interval
+from mock import Mock, call
 
+from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.user_activity import (
-    UserActivityTask,
-    CourseActivityWeeklyTask,
-    CourseActivityMonthlyTask,
-    ACTIVE_LABEL,
-    PROBLEM_LABEL,
-    PLAY_VIDEO_LABEL,
-    POST_FORUM_LABEL,
+    ACTIVE_LABEL, PLAY_VIDEO_LABEL, POST_FORUM_LABEL, PROBLEM_LABEL, InsertToMysqlCourseActivityTask, UserActivityTask
 )
-
-from edx.analytics.tasks.common.tests.map_reduce_mixins import ReducerTestMixin, MapperTestMixin
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 @ddt
@@ -36,6 +30,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         self.initialize_ids()
 
         self.username = "test_user"
+        self.user_id = 21
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.expected_date_string = '2013-12-17'
         self.event_type = "edx.dummy.event"
@@ -49,7 +44,7 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
                 "context": {
                     "course_id": self.course_id,
                     "org_id": self.org_id,
-                    "user_id": 21,
+                    "user_id": self.user_id,
                 },
                 "time": "{0}+00:00".format(self.timestamp),
                 "ip": "127.0.0.1",
@@ -86,32 +81,24 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         line = self.create_event_log_line(context={"course_id": ";;;;bad/id/val"})
         self.assert_no_map_output_for(line)
 
-    def test_empty_username(self):
-        line = self.create_event_log_line(username='')
-        self.assert_no_map_output_for(line)
-
-    def test_whitespace_username(self):
-        line = self.create_event_log_line(username='   ')
-        self.assert_no_map_output_for(line)
-
     def test_good_dummy_event(self):
         line = self.create_event_log_line()
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),)
         self.assertEquals(event, expected)
 
     def test_play_video_event(self):
         line = self.create_event_log_line(event_source='browser', event_type='play_video')
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                    ((self.course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL), 1))
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                    (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)))
         self.assertEquals(event, expected)
 
     def test_problem_event(self):
         line = self.create_event_log_line(event_source='server', event_type='problem_check')
         event = tuple(self.task.mapper(line))
-        expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                    ((self.course_id, self.username, self.expected_date_string, PROBLEM_LABEL), 1))
+        expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                    (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PROBLEM_LABEL)))
         self.assertEquals(event, expected)
 
     @data(('edx.forum.thread.created', True), ('edx.forum.response.created', True), ('edx.forum.comment.created', True),
@@ -121,11 +108,11 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
         line = self.create_event_log_line(event_source='server', event_type=event_type)
         event = tuple(self.task.mapper(line))
         if is_labeled_forum:
-            expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-                        ((self.course_id, self.username, self.expected_date_string, POST_FORUM_LABEL), 1))
+            expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+                        (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, POST_FORUM_LABEL)))
         else:
             # The voted event is not a "discussion activity" and thus does not get the POST_FORUM_LABEL
-            expected = (((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),)
+            expected = ((self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),)
         self.assertEquals(event, expected)
 
     def test_exclusion_of_events_by_source(self):
@@ -160,13 +147,13 @@ class UserActivityTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCa
                 outputs.append(output)
 
         expected = (
-            ((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-            ((self.course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL), 1),
-            ((self.course_id, self.username, self.expected_date_string, ACTIVE_LABEL), 1),
-            ((self.course_id, self.username, self.expected_date_string, PLAY_VIDEO_LABEL), 1),
-            ((self.course_id, self.username, '2013-12-24', ACTIVE_LABEL), 1),
-            ((self.course_id, self.username, '2013-12-24', PROBLEM_LABEL), 1),
-            ((self.course_id, self.username, '2013-12-16', ACTIVE_LABEL), 1),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, ACTIVE_LABEL)),
+            (self.expected_date_string, (str(self.user_id), self.encoded_course_id, self.expected_date_string, PLAY_VIDEO_LABEL)),
+            ('2013-12-24', (str(self.user_id), self.encoded_course_id, '2013-12-24', ACTIVE_LABEL)),
+            ('2013-12-24', (str(self.user_id), self.encoded_course_id, '2013-12-24', PROBLEM_LABEL)),
+            ('2013-12-16', (str(self.user_id), self.encoded_course_id, '2013-12-16', ACTIVE_LABEL)),
         )
         self.assertItemsEqual(outputs, expected)
 
@@ -182,29 +169,28 @@ class UserActivityPerIntervalReduceTest(InitializeOpaqueKeysMixin, ReducerTestMi
     """
     def setUp(self):
         self.task_class = UserActivityTask
-        self.interval = '2013-12-01-2013-12-31'
         super(UserActivityPerIntervalReduceTest, self).setUp()
 
         self.initialize_ids()
-        self.username = 'test_user'
-
-        self.reduce_key = (self.course_id, self.username, '2013-12-04')
-
-    def test_no_events(self):
-        self.reduce_key = ()
-        self.assert_no_output([])
-
-    def test_single_event(self):
-        self.reduce_key = (self.course_id, self.username, '2013-12-01', ACTIVE_LABEL)
-        values = [1]
-        expected = (((self.course_id, self.username, '2013-12-01', ACTIVE_LABEL), 1),)
-        self._check_output_complete_tuple(values, expected)
+        self.user_id = '21'
 
     def test_multiple(self):
-        self.reduce_key = (self.course_id, self.username, '2013-12-01', ACTIVE_LABEL)
-        values = [1, 2, 1]
-        expected = (((self.course_id, self.username, '2013-12-01', ACTIVE_LABEL), 4),)
-        self._check_output_complete_tuple(values, expected)
+        values = (
+            (self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL),
+            (self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL),
+        )
+
+        mock_output_file = Mock()
+
+        self.task.multi_output_reducer('2013-12-01', values, mock_output_file)
+        self.assertEquals(len(mock_output_file.write.mock_calls), 4)
+
+        expected_string = '\t'.join((self.user_id, self.encoded_course_id, '2013-12-01', ACTIVE_LABEL, '2'))
+        self.assertIn(call(expected_string), mock_output_file.write.mock_calls)
+        expected_string = '\t'.join((self.user_id, self.encoded_course_id, '2013-12-01', PLAY_VIDEO_LABEL, '2'))
+        self.assertIn(call(expected_string), mock_output_file.write.mock_calls)
 
 
 class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
@@ -214,7 +200,7 @@ class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
         self.initialize_ids()
 
     def test_zero_weeks(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 1),
             weeks=0
         )
@@ -222,58 +208,22 @@ class CourseActivityWeeklyTaskTest(InitializeOpaqueKeysMixin, TestCase):
             task.interval
 
     def test_single_week(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 1),
             weeks=1
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-23-2013-12-30'))
 
     def test_multi_week(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2014, 1, 6),
             weeks=2
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-23-2014-01-06'))
 
     def test_leap_year(self):
-        task = CourseActivityWeeklyTask(
+        task = InsertToMysqlCourseActivityTask(
             end_date=datetime.date(2012, 2, 29),
             weeks=52
         )
         self.assertEquals(task.interval, date_interval.Custom.parse('2011-02-28-2012-02-27'))
-
-
-class CourseActivityMonthlyTaskTest(InitializeOpaqueKeysMixin, TestCase):
-    """Ensure the date interval is computed correctly for monthly tasks."""
-
-    def setUp(self):
-        self.initialize_ids()
-
-    def test_zero_months(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=0
-        )
-        with self.assertRaises(ValueError):
-            task.interval
-
-    def test_single_month(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=1
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2013-12-01-2014-01-01'))
-
-    def test_multi_month(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2014, 1, 31),
-            months=2
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2013-11-01-2014-01-01'))
-
-    def test_leap_year(self):
-        task = CourseActivityMonthlyTask(
-            end_date=datetime.date(2012, 2, 29),
-            months=12
-        )
-        self.assertEquals(task.interval, date_interval.Custom.parse('2011-02-01-2012-02-01'))

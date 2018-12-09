@@ -1,14 +1,13 @@
 """A simple client for authenticated access to Open edX REST APIs."""
 
-from datetime import datetime, timedelta
 import logging
+from datetime import datetime, timedelta
 
-from luigi import configuration
 import requests
+from luigi import configuration
 from requests.auth import AuthBase
 
 from edx.analytics.tasks.util.retry import retry
-
 
 log = logging.getLogger(__name__)
 

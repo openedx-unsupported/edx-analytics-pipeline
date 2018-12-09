@@ -3,7 +3,7 @@ from datetime import datetime
 
 from luigi.date_interval import Date
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param, when_geolocation_data_available
 
 
 class LocationByCourseAcceptanceTest(AcceptanceTestCase):
@@ -27,8 +27,8 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             self.execute_sql_fixture_file(fixture_file_name)
 
         self.task.launch([
-            'InsertToMysqlCourseEnrollByCountryWorkflow',
-            '--source', self.test_src,
+            'InsertToMysqlLastCountryPerCourseTask',
+            '--source', as_list_param(self.test_src),
             '--interval', self.DATE_INTERVAL.to_string(),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
@@ -51,14 +51,4 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             (today, self.COURSE_ID, 'IE', 1, 1),
             (today, self.COURSE_ID2, 'TH', 1, 1),
             (today, self.COURSE_ID, 'TH', 1, 1),
-        ])
-        with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT username, country_name, country_code FROM last_country_of_user ORDER BY username, country_code')
-            results = cursor.fetchall()
-
-        self.assertItemsEqual(results, [
-            ('audit', 'Ireland', 'IE'),
-            ('honor', 'UNKNOWN', 'UNKNOWN'),
-            ('other', 'UNKNOWN', 'UNKNOWN'),
-            ('staff', 'Thailand', 'TH'),
         ])

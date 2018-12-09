@@ -3,7 +3,7 @@ input:
   templates:
     - "{cluster_name}.{job_flow_id}.{job_name}.{job_index}.{metric}"
 output:
-  statsd:
+  graphite:
     host: localhost
-    port: 8125
+    port: 2003
     prefix: edx.analytics.emr

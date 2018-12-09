@@ -12,14 +12,13 @@ import tempfile
 import textwrap
 import urlparse
 
-import boto
 import gnupg
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available
 from edx.analytics.tasks.tests.acceptance.services import shell
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id, get_org_id_for_course
+from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import url_path_join
-
 
 log = logging.getLogger(__name__)
 
@@ -124,9 +123,10 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         Uploads the package to s3://<exporter_output_bucket>/<output_prefix>edx-<year>-<month>-<day>.zip
 
         """
-        config_file_path = os.path.join(self.temporary_dir, '{}_acceptance.yml'.format(org_id))
+        env_config_file_path = os.path.join(self.temporary_dir, '{}_env_acceptance.yml'.format(org_id))
+        org_config_file_path = os.path.join(self.temporary_dir, '{}_org_acceptance.yml'.format(org_id))
 
-        self.write_exporter_config(org_id, course_id, config_file_path)
+        self.write_exporter_config(org_id, course_id, env_config_file_path, org_config_file_path)
 
         src_url_tuple = urlparse.urlparse(self.test_src)
 
@@ -137,16 +137,17 @@ class ExportAcceptanceTest(AcceptanceTestCase):
             '--pipeline-bucket', src_url_tuple.netloc,
             '--external-prefix', src_url_tuple.path.lstrip('/'),
             '--output-prefix', self.output_prefix,
-            config_file_path,
+            env_config_file_path,
+            org_config_file_path,
             '--env', self.ENVIRONMENT,
             '--org', org_id,
             '--task', 'StudentModuleTask'
         ]
         shell.run(command)
 
-    def write_exporter_config(self, org_id, course_id, config_file_path):
+    def write_exporter_config(self, org_id, course_id, env_config_file_path, org_config_file_path):
         """Write out the configuration file that the exporter expects to the filesystem."""
-        config_text = textwrap.dedent("""\
+        env_config_text = textwrap.dedent("""\
             options: {{}}
 
             defaults:
@@ -160,27 +161,32 @@ class ExportAcceptanceTest(AcceptanceTestCase):
                 name: {environment}-analytics
                 sql_host: {sql_host}
                 external_files: {external_files}
-
-            organizations:
-              {org_id}:
-                recipients:
-                  - daemon@edx.org
-                courses:
-                  - {course_id}
             """)
-        config_text = config_text.format(
+        env_config_text = env_config_text.format(
             sql_user=self.import_db.credentials['username'],
             sql_db=self.import_db.database_name,
             sql_password=self.import_db.credentials['password'],
             environment=self.ENVIRONMENT,
             sql_host=self.import_db.credentials['host'],
             external_files=self.external_files_dir,
+        )
+        with open(env_config_file_path, 'w') as env_config_file:
+            env_config_file.write(env_config_text)
+
+        org_config_text = textwrap.dedent("""\
+            organizations:
+              {org_id}:
+                recipients:
+                  - daemon@edx.org
+                courses:
+                  - {course_id}
+        """)
+        org_config_text = org_config_text.format(
             org_id=org_id,
             course_id=course_id,
         )
-
-        with open(config_file_path, 'w') as config_file:
-            config_file.write(config_text)
+        with open(org_config_file_path, 'w') as org_config_file:
+            org_config_file.write(org_config_text)
 
     def validate_exporter_output(self, org_id, exported_filename):
         """
@@ -192,7 +198,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         """
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        bucket = boto.connect_s3().get_bucket(self.config.get('exporter_output_bucket'))
+        bucket = ScalableS3Client().s3.get_bucket(self.config.get('exporter_output_bucket'))
         export_id = '{org}-{date}'.format(org=org_id, date=today)
         filename = export_id + '.zip'
         key = bucket.lookup(self.output_prefix + filename)

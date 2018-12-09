@@ -11,7 +11,6 @@ import os
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.url import url_path_join
 
-
 log = logging.getLogger(__name__)
 
 

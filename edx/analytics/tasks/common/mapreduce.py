@@ -4,21 +4,19 @@ Support executing map reduce tasks.
 from __future__ import absolute_import
 
 import gzip
-from hashlib import md5
-import os
-import StringIO
 import logging
 import logging.config
+import os
+import StringIO
+from hashlib import md5
 
 import luigi
-import luigi.hdfs
-import luigi.hadoop
+import luigi.contrib.hadoop
 import luigi.task
 from luigi import configuration
 
-from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary
+from edx.analytics.tasks.util.manifest import convert_to_manifest_input_if_necessary, remove_manifest_target_if_exists
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 
@@ -38,8 +36,7 @@ class MapReduceJobTaskMixin(object):
         description='The input_format for Hadoop job to use. For example, when '
         'running with manifest file, specify "oddjob.ManifestTextInputFormat" for input_format.',
     )
-    lib_jar = luigi.Parameter(
-        is_list=True,
+    lib_jar = luigi.ListParameter(
         default=[],
         significant=False,
         description='A list of library jars that the Hadoop job can make use of.',
@@ -56,7 +53,7 @@ class MapReduceJobTaskMixin(object):
     )
 
 
-class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
+class MapReduceJobTask(MapReduceJobTaskMixin, luigi.contrib.hadoop.JobTask):
     """
     Execute a map reduce job.  Typically using Hadoop, but can execute the
     job in process as well.
@@ -129,12 +126,18 @@ class MapReduceJobTask(MapReduceJobTaskMixin, luigi.hadoop.JobTask):
             'input_format': input_format,
         }
 
+    @property
+    def manifest_id(self):
+        return str(hash(self)).replace('-', 'n')
+
     def input_hadoop(self):
-        manifest_id = str(hash(self)).replace('-', 'n')
-        return convert_to_manifest_input_if_necessary(manifest_id, super(MapReduceJobTask, self).input_hadoop())
+        return convert_to_manifest_input_if_necessary(self.manifest_id, super(MapReduceJobTask, self).input_hadoop())
+
+    def remove_manifest_target_if_exists(self):
+        return remove_manifest_target_if_exists(self.manifest_id)
 
 
-class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
+class MapReduceJobRunner(luigi.contrib.hadoop.HadoopJobRunner):
     """
     Support more customization of the streaming command.
 
@@ -161,11 +164,11 @@ class MapReduceJobRunner(luigi.hadoop.HadoopJobRunner):
         )
 
 
-class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
+class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
     """
     Execute map reduce tasks in process on the machine that is running luigi.
 
-    This is a modified version of luigi.hadoop.LocalJobRunner. The key differences are:
+    This is a modified version of luigi.contrib.hadoop.LocalJobRunner. The key differences are:
 
     * It gracefully handles .gz input files, decompressing them and streaming them directly to the mapper. This mirrors
       the behavior of hadoop's default file input format. Note this only works for files that support `tell()` and
@@ -186,7 +189,7 @@ class EmulatedMapReduceJobRunner(luigi.hadoop.JobRunner):
             parts = line.rstrip('\n').split('\t')
             blob = md5(str(i)).hexdigest()  # pseudo-random blob to make sure the input isn't sorted
             lines.append((parts[:-1], blob, line))
-        for k, _, line in sorted(lines):
+        for _, _, line in sorted(lines):
             output.write(line)
         output.seek(0)
         return output
@@ -253,7 +256,7 @@ class MultiOutputMapReduceJobTask(MapReduceJobTask):
     output_root = luigi.Parameter(
         description='A URL location where the split files will be stored.',
     )
-    delete_output_root = luigi.BooleanParameter(
+    delete_output_root = luigi.BoolParameter(
         default=False,
         significant=False,
         description='If True, recursively deletes the `output_root` at task creation.',

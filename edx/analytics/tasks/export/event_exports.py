@@ -1,20 +1,19 @@
 """Group events by institution and export them for research purposes"""
 
-import logging
 import gzip
+import logging
 from collections import defaultdict
 
 import gnupg
-import luigi
 import luigi.date_interval
 import yaml
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
-from edx.analytics.tasks.util.encrypt import make_encrypted_file
 from edx.analytics.tasks.util import eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.url import url_path_join, ExternalURL, get_target_from_url
+from edx.analytics.tasks.util.encrypt import make_encrypted_file
+from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -33,8 +32,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         config_path={'section': 'event-export', 'name': 'config'},
         description='A URL to a YAML file that contains the list of organizations and servers to export events for.',
     )
-    org_id = luigi.Parameter(
-        is_list=True,
+    org_id = luigi.ListParameter(
         default=[],
         description='A list of organizations to process data for. If provided, only these organizations will be '
         'processed.  Otherwise, all valid organizations will be processed.',
@@ -144,23 +142,26 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         date, org_id = key
         year = str(date).split("-")[0]
 
-        # Remap site name from prod to edx
-        site = "edx" if self.environment == 'prod' else self.environment
-
         # This is the structure currently produced by the existing tracking log export script
         return url_path_join(
             self.output_root,
             org_id.lower(),
-            site,
+            self.environment,
             "events",
             year,
             '{org}-{site}-events-{date}.log.gz.gpg'.format(
                 org=org_id.lower(),
-                site=site,
+                site=self.environment,
                 date=date,
 
             )
         )
+
+    def event_export_counter(self, counter_title, incr_value=1):
+        """
+        A shorthand hadoop counter incrementer that organizes counters under a common title.
+        """
+        self.incr_counter("Event Export", counter_title, incr_value)
 
     def multi_output_reducer(self, key, values, output_file):
         """
@@ -173,20 +174,28 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         def report_progress(num_bytes):
             """Update hadoop counters as the file is written"""
-            self.incr_counter('Event Export', 'Bytes Written to Output', num_bytes)
+            self.event_export_counter(counter_title='Bytes Written to Output', incr_value=num_bytes)
 
         key_file_targets = [get_target_from_url(url_path_join(self.gpg_key_dir, recipient)) for recipient in recipients]
-        with make_encrypted_file(output_file, key_file_targets, progress=report_progress) as encrypted_output_file:
-            outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
-            try:
-                for value in values:
-                    outfile.write(value.strip())
-                    outfile.write('\n')
-                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
-                    # Do not remove it.
-                    self.incr_counter('Event Export', 'Raw Bytes Written', len(value) + 1)
-            finally:
-                outfile.close()
+        try:
+            with make_encrypted_file(output_file, key_file_targets, progress=report_progress,
+                                     hadoop_counter_incr_func=self.event_export_counter) as encrypted_output_file:
+                outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
+                try:
+                    for value in values:
+                        outfile.write(value.strip())
+                        outfile.write('\n')
+                        # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite
+                        # loop.  Do not remove it.
+                        self.event_export_counter(counter_title='Raw Bytes Written', incr_value=(len(value) + 1))
+                finally:
+                    outfile.close()
+        except IOError as err:
+            log.error("Error encountered while encrypting and gzipping Organization: %s file: %s Exception: %s",
+                      org_id, key_file_targets, err)
+            # This counter is set when there is an error during the generation of the encryption file for an
+            # organization for any reason, including encryption errors related to an expired GPG key.
+            self.event_export_counter(counter_title="{} org with Errors".format(org_id), incr_value=1)
 
     def get_org_id(self, event):
         """

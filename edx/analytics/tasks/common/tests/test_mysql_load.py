@@ -8,15 +8,11 @@ import unittest
 
 import luigi
 import luigi.task
-
-from mock import call
-from mock import MagicMock
-from mock import patch
-from mock import sentinel
+from mock import MagicMock, PropertyMock, call, patch, sentinel
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, coerce_for_mysql_connect
-from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.config import with_luigi_config
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
 class InsertToMysqlDummyTable(MysqlInsertTask):
@@ -98,18 +94,20 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
 
         fake_input = {
             'credentials': FakeTarget(value=textwrap.dedent(credentials)),
-            'insert_source': FakeTarget(value=textwrap.dedent(source))
         }
-
         task.input = MagicMock(return_value=fake_input)
+
+        cls.insert_source_task = PropertyMock(return_value=MagicMock())
+        task.insert_source_task.output = MagicMock(return_value=FakeTarget(value=textwrap.dedent(source)))
+
         return task
 
     def test_connect_with_credential_syntax_error(self):
         with self.assertRaises(ValueError):
-            self.create_task(credentials='{').run()
+            list(self.create_task(credentials='{').run())
 
     def test_run_with_default_credentials(self):
-        self.create_task(credentials='{}').run()
+        list(self.create_task(credentials='{}').run())
 
     @with_luigi_config('database-export', 'database', 'foobar')
     def test_parameters_from_config(self):
@@ -117,7 +115,9 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
         self.assertEquals(t.database, 'foobar')
 
     def test_run(self):
-        self.create_task().run()
+        task = self.create_task()
+        list(task.run())
+
         self.assertTrue(self.mock_mysql_connector.connect().cursor().execute.called)
         self.assertFalse(self.mock_mysql_connector.connect().rollback.called)
         self.assertTrue(self.mock_mysql_connector.connect().commit.called)
@@ -127,7 +127,8 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
         task = self.create_task()
         task.output().touch = MagicMock(side_effect=Exception("Failed to update marker"))
         with self.assertRaises(Exception):
-            task.run()
+            list(task.run())
+
         self.assertTrue(self.mock_mysql_connector.connect().cursor().execute.called)
         self.assertTrue(self.mock_mysql_connector.connect().rollback.called)
         self.assertFalse(self.mock_mysql_connector.connect().commit.called)
@@ -235,7 +236,7 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
     @with_luigi_config(('database-export', 'database', 'foobar'))
     def test_create_database(self):
         task = self.create_task()
-        task.run()
+        list(task.run())
 
         mock_cursor = self.mock_mysql_connector.connect.return_value.cursor.return_value
         mock_cursor.execute.assert_has_calls([

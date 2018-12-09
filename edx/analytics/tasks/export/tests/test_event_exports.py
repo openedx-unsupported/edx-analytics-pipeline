@@ -8,10 +8,10 @@ from collections import defaultdict
 from itertools import chain
 from unittest import TestCase
 
-from luigi.date_interval import Year
 import luigi.task
-from mock import MagicMock, patch
 import yaml
+from luigi.date_interval import Year
+from mock import MagicMock, patch
 
 from edx.analytics.tasks.export.event_exports import EventExportTask
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
@@ -34,7 +34,7 @@ class EventExportTestCaseBase(InitializeOpaqueKeysMixin, TestCase):
             output_root='test://output/',
             config='test://config/default.yaml',
             source=['test://input/'],
-            environment='prod',
+            environment='edx',
             interval=Year.parse('2014'),
             gpg_key_dir='test://config/gpg-keys/',
             gpg_master_key='skeleton.key@example.com',
@@ -220,7 +220,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_course_url(self):
         event = {
             'event_source': 'server',
-            'event_type': '/courses/{}/content'.format(self.course_id)
+            'event_type': u'/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 
@@ -234,7 +234,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_course_url_with_prefix(self):
         event = {
             'event_source': 'server',
-            'event_type': '/some/garbage/courses/{}/content'.format(self.course_id)
+            'event_type': u'/some/garbage/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 
@@ -294,7 +294,7 @@ class EventExportTestCase(EventExportTestCaseBase):
     def test_org_from_page(self):
         event = {
             'event_source': 'browser',
-            'page': 'http://courses.example.com/courses/{}/content'.format(self.course_id)
+            'page': u'http://courses.example.com/courses/{}/content'.format(self.course_id)
         }
         self.assertEquals(self.org_id, self.task.get_org_id(event))
 

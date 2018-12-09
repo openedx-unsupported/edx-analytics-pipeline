@@ -2,16 +2,13 @@
 End to end test of the internal reporting user activity table loading task.
 """
 
-import datetime
 import logging
 import os
 
-import luigi
 import pandas
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.util.url import url_path_join
-
 
 log = logging.getLogger(__name__)
 
@@ -24,33 +21,16 @@ class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
     def setUp(self):
         super(InternalReportingUserActivityLoadAcceptanceTest, self).setUp()
 
-        self.upload_file(os.path.join(self.data_dir, 'input', 'internal_reporting_user_activity'), url_path_join(self.warehouse_path, 'internal_reporting_user_activity', 'dt=2014-07-01', 'internal_reporting_user_activity'))
-
-        # Prepare the history table.
-        self.history_schema = self.vertica.schema_name + '_history'
-        with self.vertica.cursor() as cursor:
-            cursor.execute("DROP SCHEMA IF EXISTS {history} CASCADE".format(history=self.history_schema))
-            cursor.execute("CREATE SCHEMA {history}".format(history=self.history_schema))
-            cursor.execute("CREATE TABLE {history}.f_user_activity(row_number AUTO_INCREMENT PRIMARY KEY,"
-                           "user_id INTEGER, course_id VARCHAR(200), date DATE, activity_type VARCHAR(200),"
-                           "number_of_activities INTEGER)".format(history=self.history_schema))
-            log.debug("Created history schema and historical f_user_activity_table")
-            insert_query = "INSERT INTO {history}.f_user_activity " \
-                           "(user_id, course_id, date, activity_type, number_of_activities) " \
-                           "VALUES (3, 'edX/Open_DemoX/edx_demo_course', '2014-05-20', 'ACTIVE', 1)"\
-                .format(history=self.history_schema)
-            log.debug(insert_query)
-            cursor.execute(insert_query)
+        self.upload_file(os.path.join(self.data_dir, 'input', 'internal_reporting_user_activity'), url_path_join(self.warehouse_path, 'user_activity_by_user', 'dt=2014-07-01', 'user_activity_2014-07-01'))
 
     @when_vertica_available
     def test_internal_reporting_user_activity(self):
         """Tests the workflow for the internal reporting user activity table, end to end."""
 
         self.task.launch([
-            'InternalReportingUserActivityWorkflow',
+            'LoadInternalReportingUserActivityToWarehouse',
             '--date', self.DATE,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--history-schema', self.history_schema,
             '--overwrite'
         ])
 
@@ -87,18 +67,3 @@ class InternalReportingUserActivityLoadAcceptanceTest(AcceptanceTestCase):
             f_user_activity = set([row_mapper(row) for row in response])
 
             self.assertSetEqual(f_user_activity, expected_f_user_activity)
-
-            # Test the view we build on top of the current and historical f_user_activity tables.
-            expected_output_csv = os.path.join(self.data_dir, 'output',
-                                               'acceptance_expected_f_user_activity_combined.csv')
-            expected_dataframe = pandas.read_csv(expected_output_csv, parse_dates=False)
-            expected_view = set()
-            for row in expected_dataframe.values:
-                expected_view.add(tuple(row[1:]))
-
-            cursor.execute("SELECT * FROM {schema}.f_user_activity_combined".format(schema=self.vertica.schema_name))
-            response = cursor.fetchall()
-
-            f_user_activity_view = set([row_mapper(row) for row in response])
-
-            self.assertSetEqual(f_user_activity_view, expected_view)

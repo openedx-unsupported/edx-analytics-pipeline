@@ -7,18 +7,16 @@ import luigi
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.insights.location_per_course import (
-    LastCountryOfUserDownstreamMixin,
-    LastCountryOfUserPartitionTask,
-    InsertToMysqlCourseEnrollByCountryWorkflow,
+    InsertToMysqlLastCountryPerCourseTask, LastCountryOfUserDownstreamMixin, LastCountryOfUserPartitionTask
 )
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, WarehouseMixin, HivePartition
-from edx.analytics.tasks.util.url import url_path_join, ExternalURL
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, WarehouseMixin
+from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 
 
 class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, HiveTableFromQueryTask):
-    """Loads internal_reporting_d_country Hive table from last_country_of_user Hive table."""
+    """Loads internal_reporting_d_country Hive table from last_country_of_user_id Hive table."""
 
     def requires(self):
         return LastCountryOfUserPartitionTask(
@@ -55,7 +53,7 @@ class LoadInternalReportingCountryTableHive(LastCountryOfUserDownstreamMixin, Hi
             SELECT
               collect_set(lcu.country_name)[0]
             , lcu.country_code as user_last_location_country_code
-            FROM last_country_of_user lcu
+            FROM last_country_of_user_id lcu
             GROUP BY lcu.country_code
             """
 
@@ -76,7 +74,7 @@ class ImportCountryWorkflow(LastCountryOfUserDownstreamMixin, luigi.WrapperTask)
                 geolocation_data=self.geolocation_data,
                 overwrite=self.overwrite,
             ),
-            InsertToMysqlCourseEnrollByCountryWorkflow(
+            InsertToMysqlLastCountryPerCourseTask(
                 mapreduce_engine=self.mapreduce_engine,
                 n_reduce_tasks=self.n_reduce_tasks,
                 source=self.source,

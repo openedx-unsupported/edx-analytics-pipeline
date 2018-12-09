@@ -2,8 +2,9 @@
 Support for loading data into an HP Vertica database.
 """
 
-from collections import namedtuple
 import logging
+import traceback
+from collections import namedtuple
 
 import luigi
 import luigi.configuration
@@ -75,6 +76,12 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     required_tasks = None
     output_target = None
 
+    restricted_roles = luigi.ListParameter(
+        config_path={'section': 'vertica-export', 'name': 'restricted_roles'},
+        default=[],
+        description='List of roles to which to provide access when a database column is marked as restricted.'
+    )
+
     def requires(self):
         if self.required_tasks is None:
             self.required_tasks = {
@@ -123,6 +130,14 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     def default_columns(self):
         """List of tuples defining name and definition of automatically-filled columns."""
         return [('created', 'TIMESTAMP DEFAULT NOW()')]
+
+    @property
+    def unique_columns(self):
+        """
+        List of tuples, each containing column or group of columns on which the UNIQUE constraint would be added.
+        Example: [('c1',), ('c1, 'c2',)]
+        """
+        return []
 
     @property
     def projections(self):
@@ -202,9 +217,13 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         if self.table_partition_key:
             partition_key_def = ' PARTITION BY {key}'.format(key=self.table_partition_key)
 
-        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs}){partition_key_def}".format(
+        unique_constraints_def = ''
+        for columns in self.unique_columns:
+            unique_constraints_def += ", UNIQUE({cols})".format(cols=', '.join(columns))
+
+        query = "CREATE TABLE IF NOT EXISTS {schema}.{table} ({coldefs}{foreign_key_defs}{unique_constraints_def}){partition_key_def}".format(
             schema=self.schema, table=self.table, coldefs=coldefs, foreign_key_defs=foreign_key_defs,
-            partition_key_def=partition_key_def,
+            unique_constraints_def=unique_constraints_def, partition_key_def=partition_key_def,
         )
         log.debug(query)
         connection.cursor().execute(query)
@@ -400,9 +419,21 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
         return "'\\N'"
 
     @property
-    def enclosed_by(self):
+    def copy_enclosed_by(self):
         """The field's enclosing character. Default is empty string."""
         return "''"
+
+    @property
+    def copy_escape_spec(self):
+        """
+        The escape character to use to have special characters be treated literally.
+
+        Copy's default is backslash if this is a zero-length string.   To disable escaping,
+        use "NO ESCAPE".  To use a different character, use "ESCAPE AS 'char'".
+
+
+        """
+        return ""
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
@@ -415,19 +446,46 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
                             '(column string, type string) tuples (was %r ...)'
                             % (self.columns[0],))
 
-        with self.input()['insert_source'].open('r') as insert_source_file:
-            log.debug("Running stream copy from source file")
-            cursor.copy(
-                "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} DIRECT ABORT ON ERROR NO COMMIT;".format(
-                    schema=self.schema,
-                    table=self.table,
-                    cols=column_names,
-                    delim=self.copy_delimiter,
-                    null=self.copy_null_sequence,
-                    enclosed_by=self.enclosed_by,
-                ),
-                insert_source_file
+        try:
+            with self.input()['insert_source'].open('r') as insert_source_file:
+                log.debug("Running stream copy from source file")
+                cursor.copy(
+                    "COPY {schema}.{table} ({cols}) FROM STDIN ENCLOSED BY {enclosed_by} DELIMITER AS {delim} NULL AS {null} {escape_spec} DIRECT ABORT ON ERROR NO COMMIT;".format(
+                        schema=self.schema,
+                        table=self.table,
+                        cols=column_names,
+                        delim=self.copy_delimiter,
+                        null=self.copy_null_sequence,
+                        enclosed_by=self.copy_enclosed_by,
+                        escape_spec=self.copy_escape_spec,
+                    ),
+                    insert_source_file
+                )
+                log.debug("Finished stream copy from source file")
+        except RuntimeError:
+            # While calling finish on an input target, Luigi throws a RuntimeError exception if the subprocess command
+            # to read the input returns a non-zero return code. As all of the data's been read already, we choose to ignore
+            # this exception.
+            traceback_str = traceback.format_exc()
+            if "self._finish()" in traceback_str:
+                log.debug("Luigi raised RuntimeError while calling _finish on input target.")
+            else:
+                raise
+
+    def analyze_constraints(self, cursor):
+        # Vertica does not check for constraint violations during data loading.
+        # We explicitly check for violations by calling ANALYZE_CONSTRAINTS function, and fail
+        # the workflow if a violation is found.
+        if self.foreign_key_mapping or self.unique_columns:
+            query = "SELECT ANALYZE_CONSTRAINTS('{schema}.{table}')".format(
+                schema=self.schema,
+                table=self.table
             )
+            cursor.execute(query)
+            row = cursor.fetchone()
+            if row:
+                raise Exception('{type} key violation on table: {schema}.{table} with column values:{val}'.
+                                format(type=row[4], schema=row[0], table=row[1], val=row[5]))
 
     @property
     def restricted_columns(self):
@@ -436,9 +494,8 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
     def create_access_policies(self, connection):
         cursor = connection.cursor()
         for column in self.restricted_columns:
-            restricted_roles_param = luigi.Parameter(is_list=True, config_path={'section': 'vertica-export', 'name': 'restricted_roles'}, default=[])
-            restricted_roles = ['dbadmin'] + list(restricted_roles_param.value)
-            expression = ' OR '.join(["ENABLED_ROLE('{0}')".format(role) for role in restricted_roles])
+            all_restricted_roles = ['dbadmin'] + list(self.restricted_roles)
+            expression = ' OR '.join(["ENABLED_ROLE('{0}')".format(role) for role in all_restricted_roles])
             statement = """
 CREATE ACCESS POLICY ON {schema}.{table} FOR COLUMN {column}
 CASE WHEN {expression} THEN {column}
@@ -458,7 +515,6 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
                     log.debug('An access policy already exists, so this statement was ignored: {0}'.format(statement))
                 else:
                     raise
-
 
     def run(self):
         """
@@ -487,6 +543,7 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             cursor = connection.cursor()
             self.copy_data_table_from_target(cursor)
 
+            self.analyze_constraints(cursor)
             # mark as complete in same transaction
             self.init_touch(connection)
             self.output().touch(connection)
@@ -521,6 +578,68 @@ ENABLE;""".format(schema=self.schema, table=self.table, column=column, expressio
             raise ImportError('Vertica client library not available')
 
 
+class IncrementalVerticaCopyTask(VerticaCopyTask):
+    """
+    A task for copying data into a Vertica database incrementally.
+
+    If overwrite is True, this task only deletes a subset of the table being written to
+    and only deletes table_updates row with the same update_id.
+    """
+
+    def init_copy(self, connection):
+        self.attempted_removal = True
+        if self.overwrite:
+            # Before changing the current contents table, we have to make sure there
+            # are no aggregate projections on it.
+            self.drop_aggregate_projections(connection)
+
+            # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
+            # commit the currently open transaction before continuing with the copy.
+            query = "DELETE FROM {schema}.{table} where {record_filter}".format(
+                schema=self.schema,
+                table=self.table,
+                record_filter=self.record_filter
+            )
+            log.debug(query)
+            connection.cursor().execute(query)
+
+        # vertica-python and its maintainers intentionally avoid supporting open
+        # transactions like we do when self.overwrite=True (DELETE a bunch of rows
+        # and then COPY some), per https://github.com/uber/vertica-python/issues/56.
+        # The DELETE commands in this method will cause the connection to see some
+        # messages that will prevent it from trying to copy any data (if the cursor
+        # successfully executes the DELETEs), so we flush the message buffer.
+        connection.cursor().flush_to_query_ready()
+
+    def init_touch(self, connection):
+        if self.overwrite:
+            # Clear the appropriate rows from the luigi Vertica marker table
+            marker_table = self.output().marker_table  # side-effect: sets self.output_target if it's None
+            marker_schema = self.output().marker_schema
+            try:
+                query = "DELETE FROM {marker_schema}.{marker_table} where update_id='{update_id}';".format(
+                    marker_schema=marker_schema,
+                    marker_table=marker_table,
+                    update_id=self.update_id(),
+                )
+                log.debug(query)
+                connection.cursor().execute(query)
+            except vertica_python.errors.Error as err:
+                if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
+                    # If so, then our query error failed because the table doesn't exist.
+                    pass
+                else:
+                    raise
+        connection.cursor().flush_to_query_ready()
+
+    @property
+    def record_filter(self):
+        """
+        A string that specifies the data to overwrite, this will be the entire WHERE clause of the generated query.
+        """
+        raise NotImplementedError
+
+
 class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
     """
     Base class for running schema management commands on warehouse.
@@ -529,8 +648,7 @@ class SchemaManagementTask(VerticaCopyTaskMixin, luigi.Task):
 
     date = luigi.DateParameter()
 
-    roles = luigi.Parameter(
-        is_list=True,
+    roles = luigi.ListParameter(
         config_path={'section': 'vertica-export', 'name': 'standard_roles'},
     )
 

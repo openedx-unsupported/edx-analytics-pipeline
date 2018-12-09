@@ -1,42 +1,25 @@
 """Import Orders: Shopping Cart Tables from the LMS, Orders from Otto."""
 
 import luigi
-import luigi.hdfs
 
 from edx.analytics.tasks.insights.database_imports import (
-    DatabaseImportMixin,
-    ImportShoppingCartCertificateItem,
-    ImportShoppingCartCourseRegistrationCodeItem,
-    ImportShoppingCartDonation,
-    ImportShoppingCartOrder,
-    ImportShoppingCartOrderItem,
-    ImportShoppingCartPaidCourseRegistration,
-    ImportShoppingCartCoupon,
-    ImportShoppingCartCouponRedemption,
-    ImportEcommercePartner,
-    ImportEcommerceUser,
-    ImportProductCatalog,
-    ImportProductCatalogClass,
-    ImportProductCatalogAttributes,
-    ImportProductCatalogAttributeValues,
-    ImportCurrentOrderState,
-    ImportCurrentOrderLineState,
-    ImportCurrentOrderDiscountState,
-    ImportCouponVoucherIndirectionState,
-    ImportCouponVoucherState,
-    ImportCurrentRefundRefundLineState,
-    ImportAuthUserTask,
+    DatabaseImportMixin, ImportAuthUserTask, ImportCouponVoucherIndirectionState, ImportCouponVoucherState,
+    ImportCourseEntitlementTask, ImportCurrentOrderDiscountState, ImportCurrentOrderLineState, ImportCurrentOrderState,
+    ImportCurrentRefundRefundLineState, ImportEcommercePartner, ImportEcommerceUser, ImportProductCatalog,
+    ImportProductCatalogAttributes, ImportProductCatalogAttributeValues, ImportProductCatalogClass,
+    ImportShoppingCartCertificateItem, ImportShoppingCartCoupon, ImportShoppingCartCouponRedemption,
+    ImportShoppingCartCourseRegistrationCodeItem, ImportShoppingCartDonation, ImportShoppingCartOrder,
+    ImportShoppingCartOrderItem, ImportShoppingCartPaidCourseRegistration, ImportStudentCourseEnrollmentTask
 )
-from edx.analytics.tasks.util.hive import HiveTableFromQueryTask, HivePartition, hive_decimal_type
+from edx.analytics.tasks.util.hive import HivePartition, HiveTableFromQueryTask, hive_decimal_type
 
 
 class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
-
     otto_credentials = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'credentials'}
+        config_path={'section': 'otto-database-import', 'name': 'credentials'}
     )
     otto_database = luigi.Parameter(
-        default_from_config={'section': 'otto-database-import', 'name': 'database'}
+        config_path={'section': 'otto-database-import', 'name': 'database'}
     )
 
     def requires(self):
@@ -88,6 +71,8 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
             # Other LMS tables.
             ImportAuthUserTask(**kwargs),
+            ImportCourseEntitlementTask(**kwargs),
+            ImportStudentCourseEnrollmentTask(**kwargs),
         )
 
     @property
@@ -121,6 +106,8 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('refunded_quantity', 'INT'),
             ('payment_ref_id', 'STRING'),
             ('partner_short_code', 'STRING'),
+            ('course_uuid', 'STRING'),
+            ('expiration_date', 'TIMESTAMP'),
         ]
 
     @property
@@ -138,6 +125,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
     @property
     def insert_query(self):
+        # NOTE: Orders lines for course entitlement products should always have a quantity of 1.
         return """
             SELECT
                 combined.*
@@ -156,7 +144,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     ol.unit_price_incl_tax AS line_item_unit_price,
                     ol.quantity AS line_item_quantity,
                     cpc.slug AS product_class,
-                    ckval.value_text AS course_key,
+                    COALESCE(enrollments.course_id, ckval.value_text) AS course_key,
                     ctval.value_text AS product_detail,
                     u.username AS username,
                     u.email AS user_email,
@@ -180,7 +168,9 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- The EDX-1XXXX identifier is used to find transactions associated with this order
                     o.number AS payment_ref_id,
 
-                    partner.short_code AS partner_short_code
+                    partner.short_code AS partner_short_code,
+                    cuval.value_text AS course_uuid,
+                    entitlements.expired_at AS expiration_date
 
                 FROM order_line ol
                 JOIN order_order o ON o.id = ol.order_id
@@ -202,10 +192,14 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                 LEFT OUTER JOIN catalogue_productattribute ckat ON ckat.product_class_id = parent.product_class_id AND ckat.code = "course_key"
                 LEFT OUTER JOIN catalogue_productattributevalue ckval ON ckval.attribute_id = ckat.id AND ckval.product_id = cp.id
 
-                -- For the "seat" product class, line items will have a "certificate_type" attribute that will contain
-                -- the type of certificate they purchased. For example: "verified" or "honor".
+                -- Seat and Course Entitlement products both have a certificate type attribute that corresponds to the type of certificate the
+                -- learner will receive after course completion. Common values include honor, professional, and verified.
                 LEFT OUTER JOIN catalogue_productattribute ctat ON ctat.product_class_id = parent.product_class_id AND ctat.code = "certificate_type"
                 LEFT OUTER JOIN catalogue_productattributevalue ctval ON ctval.attribute_id = ctat.id AND ctval.product_id = cp.id
+
+                -- Course Entitlement products have a UUID linking to the course
+                LEFT OUTER JOIN catalogue_productattribute cuat ON cuat.product_class_id = parent.product_class_id AND cuat.code = "UUID"
+                LEFT OUTER JOIN catalogue_productattributevalue cuval ON cuval.attribute_id = cuat.id AND cuval.product_id = cp.id
 
                 -- If the quantity > 1 for a particular line item it is possible that multiple refunds might be issued
                 -- against it. In this case just sum all of the complete refunds to figure out the number of items that
@@ -230,6 +224,11 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
 
                 -- Partner information
                 LEFT OUTER JOIN partner_partner partner ON partner.id = ol.partner_id
+
+                -- Get course entitlement data
+                LEFT OUTER JOIN entitlements_courseentitlement entitlements ON entitlements.order_number = o.number
+                    AND entitlements.course_uuid = REPLACE(cuval.value_text, "-", "")
+                LEFT OUTER JOIN student_courseenrollment enrollments ON enrollments.id = entitlements.enrollment_course_run_id
 
                 -- Only process complete orders
                 WHERE ol.status = "Complete"
@@ -301,8 +300,12 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
                     oi.order_id AS payment_ref_id,
 
-                    -- The partner short code is extracted from the course ID during order reconcilation.
-                    '' AS partner_short_code
+                    -- The partner short code is extracted from the course ID during order reconciliation.
+                    '' AS partner_short_code,
+
+                    -- These fields are not relevant to shoppingcart orders
+                    NULL AS course_uuid,
+                    NULL AS expiration_date
 
                 FROM shoppingcart_orderitem oi
                 JOIN shoppingcart_order o ON o.id = oi.order_id

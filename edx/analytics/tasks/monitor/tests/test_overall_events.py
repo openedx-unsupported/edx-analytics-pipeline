@@ -1,10 +1,9 @@
 """Tests overall count of events"""
 
-import sys
 import json
-from unittest import TestCase
-
+import sys
 from StringIO import StringIO
+from unittest import TestCase
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.monitor.overall_events import TotalEventsDailyTask

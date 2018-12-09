@@ -3,11 +3,11 @@ Tests for event export by course tasks
 """
 from unittest import TestCase
 
+from opaque_keys.edx.locator import CourseLocator
+
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin
 from edx.analytics.tasks.export.event_exports_by_course import EventExportByCourseTask
-from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin, InitializeLegacyKeysMixin
-
-from opaque_keys.edx.locator import CourseLocator
+from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
 
 
 class EventExportByCourseBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
@@ -40,7 +40,7 @@ class EventExportByCourseBaseTest(InitializeOpaqueKeysMixin, MapperTestMixin, Te
 
         }
         self.default_event_template = 'event'
-        self.expected_key = (self.DATE, self.course_id)
+        self.expected_key = (self.DATE, self.encoded_course_id)
 
 
 class EventExportByCourseMapTest(EventExportByCourseBaseTest):

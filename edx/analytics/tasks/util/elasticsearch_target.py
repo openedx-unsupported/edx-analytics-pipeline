@@ -4,19 +4,20 @@ import datetime
 import hashlib
 import logging
 
+import luigi
+import luigi.configuration
+from luigi.contrib.hdfs.target import HdfsTarget
+
 try:
     import elasticsearch
 except ImportError:
     elasticsearch = None
-import luigi
-import luigi.configuration
-import luigi.hdfs
 
 
 log = logging.getLogger(__name__)
 
 
-class ElasticsearchTarget(luigi.hdfs.HdfsTarget):
+class ElasticsearchTarget(HdfsTarget):
     """
     Represents an index in an elasticsearch cluster.
 

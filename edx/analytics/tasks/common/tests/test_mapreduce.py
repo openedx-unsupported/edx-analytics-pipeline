@@ -8,10 +8,10 @@ import tempfile
 import unittest
 
 import luigi
-import luigi.hdfs
-from mock import patch, call
+from luigi.contrib.hdfs.target import HdfsTarget
+from mock import call, patch
 
-from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
 
 
 class MapReduceJobTaskTest(unittest.TestCase):
@@ -67,11 +67,11 @@ class MapReduceJobTaskTest(unittest.TestCase):
 class TaskWithSpecialOutputs(luigi.ExternalTask):
     """A task with a single output that requires the use of a configurable library jar and input format."""
 
-    lib_jar_path = luigi.Parameter(default=[], is_list=True)
+    lib_jar_path = luigi.ListParameter(default=[])
     input_format = luigi.Parameter(default=None)
 
     def output(self):
-        target = luigi.hdfs.HdfsTarget('/tmp/foo')
+        target = HdfsTarget('/tmp/foo')
         target.lib_jar = self.lib_jar_path
         target.input_format = self.input_format
         return target
@@ -121,8 +121,7 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
     """Tests for output_root behavior of MultiOutputMapReduceJobTask."""
 
     def setUp(self):
-        # Define a real output directory, so it can
-        # be removed if existing.
+        # Define a real output directory, so it can be removed if existing.
         def cleanup(dirname):
             """Remove the temp directory only if it exists."""
             if os.path.exists(dirname):
@@ -131,13 +130,10 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
         self.output_root = tempfile.mkdtemp()
         self.addCleanup(cleanup, self.output_root)
 
-        patcher = patch('edx.analytics.tasks.common.mapreduce.luigi.configuration.get_config')
-        self.mock_get_config = patcher.start()
-        self.addCleanup(patcher.stop)
-
     def test_no_delete_output_root(self):
         self.assertTrue(os.path.exists(self.output_root))
         TestJobTask(
+            delete_output_root=False,
             mapreduce_engine='local',
             output_root=self.output_root,
         )
@@ -145,24 +141,27 @@ class MultiOutputMapReduceJobTaskOutputRootTest(unittest.TestCase):
 
     def test_delete_output_root(self):
         temporary_file_path = tempfile.mkdtemp()
-        self.mock_get_config.return_value.get.return_value = temporary_file_path
         self.addCleanup(shutil.rmtree, temporary_file_path)
 
         # We create a task in order to get the output path.
         task = TestJobTask(
             mapreduce_engine='local',
             output_root=self.output_root,
+            delete_output_root=False,
+            marker=temporary_file_path,
         )
         output_marker = task.output().path
         open(output_marker, 'a').close()
+        self.assertTrue(os.path.exists(self.output_root))
         self.assertTrue(task.complete())
 
         # Once the output path is created, we can
-        # then confirm that it gets cleaned up..
+        # then confirm that it gets cleaned up.
         task = TestJobTask(
             mapreduce_engine='local',
             output_root=self.output_root,
-            delete_output_root="true",
+            delete_output_root=True,
+            marker=temporary_file_path,
         )
         self.assertFalse(task.complete())
         self.assertFalse(os.path.exists(self.output_root))

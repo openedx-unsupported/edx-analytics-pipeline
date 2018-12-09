@@ -1,13 +1,12 @@
 """Utilities that are used for performing obfuscation, or what passes for such."""
 
-import re
 import logging
+import re
 
 import luigi
 
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 from edx.analytics.tasks.util.url import ExternalURL
-
 
 log = logging.getLogger(__name__)
 
@@ -154,7 +153,7 @@ class UserInfoMixin(UserInfoDownstreamMixin):
 class ObfuscatorDownstreamMixin(UserInfoDownstreamMixin):
     """Class for defining Luigi functions used downstream of obfuscating classes."""
 
-    entities = luigi.Parameter(is_list=True, default=[])
+    entities = luigi.ListParameter(default=[])
     log_context = luigi.IntParameter(default=None)
 
 
@@ -419,6 +418,7 @@ EMAIL_CONTEXT = re.compile(
 def find_email_context(text, log_context=DEFAULT_LOG_CONTEXT):
     """Development: Find context phrases that might indicate the presence of an email address nearby."""
     return find_all_matches(EMAIL_CONTEXT, text, "EMAIL_CONTEXT", log_context)
+
 
 # Find names.
 NAME_CONTEXT = re.compile(

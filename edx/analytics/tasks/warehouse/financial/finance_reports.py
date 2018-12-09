@@ -3,11 +3,11 @@ import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
-from edx.analytics.tasks.warehouse.financial.reconcile import (
-    TransactionReportTask, LoadInternalReportingOrderTransactionsToWarehouse
-)
 from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import (
     LoadInternalReportingEdServicesReportToWarehouse
+)
+from edx.analytics.tasks.warehouse.financial.reconcile import (
+    LoadInternalReportingOrderTransactionsToWarehouse, TransactionReportTask
 )
 
 
@@ -21,7 +21,7 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
 
     # Redefine the overwrite parameter to change its default to True.
     # This will cause the reports to reload when loading into internal reporting.
-    overwrite = luigi.BooleanParameter(default=True)
+    overwrite = luigi.BoolParameter(default=True)
 
     def requires(self):
         yield (

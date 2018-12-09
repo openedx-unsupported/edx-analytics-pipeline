@@ -4,35 +4,34 @@ Measure student engagement with individual modules in the course.
 See ModuleEngagementWorkflowTask for more extensive documentation.
 """
 
-from collections import defaultdict
 import datetime
 import logging
 import random
+from collections import defaultdict
 
-import luigi
 import luigi.task
 from luigi import date_interval
+
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
+from edx.analytics.tasks.insights.database_imports import (
+    ImportAuthUserProfileTask, ImportAuthUserTask, ImportCourseUserGroupTask, ImportCourseUserGroupUsersTask
+)
+from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentPartitionTask
+from edx.analytics.tasks.util import eventlog
+from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateField, FloatField, IntegerField, Record, StringField
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+
 try:
     import numpy
 except ImportError:
     numpy = None  # pylint: disable=invalid-name
 
-from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.mysql_load import IncrementalMysqlInsertTask, MysqlInsertTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.insights.database_imports import ImportAuthUserTask, ImportCourseUserGroupUsersTask, \
-    ImportAuthUserProfileTask, ImportCourseUserGroupTask
-from edx.analytics.tasks.insights.enrollments import ExternalCourseEnrollmentTableTask
-
-from edx.analytics.tasks.util.decorators import workflow_entry_point
-from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import (
-    WarehouseMixin, BareHiveTableTask, HivePartitionTask, hive_database_name
-)
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField, DateField, FloatField
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -181,7 +180,7 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         elif event_type == 'play_video':
             entity_type = 'video'
             user_actions.append('viewed')
-            entity_id = event_data.get('id')
+            entity_id = event_data.get('id', '').strip()  # We have seen id values with leading newlines.
         elif event_type.startswith('edx.forum.'):
             entity_type = 'discussion'
             if event_type.endswith('.created'):
@@ -209,6 +208,8 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         output_target = self.output()
         if not self.complete() and output_target.exists():
             output_target.remove()
+        if self.overwrite:
+            self.remove_manifest_target_if_exists()
         return super(ModuleEngagementDataTask, self).run()
 
 
@@ -264,11 +265,11 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     Django ORM does not support composite primary key indexes, so we have to use a secondary index.
     """
 
-    allow_empty_insert = luigi.BooleanParameter(
+    allow_empty_insert = luigi.BoolParameter(
         default=False,
         config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
     )
-    overwrite_hive = luigi.BooleanParameter(
+    overwrite_hive = luigi.BoolParameter(
         default=False,
         significant=False
     )
@@ -322,7 +323,7 @@ class ModuleEngagementIntervalTask(MapReduceJobTaskMixin, EventLogSelectionDowns
                                    OverwriteOutputMixin, OverwriteFromDateMixin, luigi.WrapperTask):
     """Compute engagement information over a range of dates and insert the results into Hive and MySQL"""
 
-    overwrite_mysql = luigi.BooleanParameter(
+    overwrite_mysql = luigi.BoolParameter(
         default=False,
         significant=False
     )
@@ -760,11 +761,15 @@ class ModuleEngagementSummaryMetricRangesPartitionTask(ModuleEngagementDownstrea
 class ModuleEngagementSummaryMetricRangesMysqlTask(ModuleEngagementDownstreamMixin, MysqlInsertTask):
     """Result store storage for the metric ranges."""
 
-    overwrite = luigi.BooleanParameter(
+    overwrite = luigi.BoolParameter(
         default=True,
         description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
                     'want.',
         significant=False
+    )
+    allow_empty_insert = luigi.BoolParameter(
+        default=False,
+        config_path={'section': 'module-engagement', 'name': 'allow_empty_insert'},
     )
 
     @property
@@ -1142,10 +1147,10 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             SELECT
                 course_id,
                 user_id,
-                MIN(date) AS first_enrollment_date
+                MIN(`date`) AS first_enrollment_date
             FROM course_enrollment
             WHERE
-                at_end = 1 AND date < '{end}'
+                at_end = 1 AND `date` < '{end}'
             GROUP BY course_id, user_id
         ) lce
             ON (ce.course_id = lce.course_id AND ce.user_id = lce.user_id)
@@ -1160,7 +1165,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         ) seg
             ON (ce.course_id = seg.course_id AND au.username = seg.username)
         WHERE
-            ce.date = '{last_complete_date}'
+            ce.`date` = '{last_complete_date}'
         """.format(
             start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
             end=self.interval.date_b.isoformat(),  # pylint: disable=no-member
@@ -1212,7 +1217,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
                 overwrite=self.overwrite,
                 overwrite_from_date=self.overwrite_from_date,
             ),
-            ExternalCourseEnrollmentTableTask(
+            ExternalCourseEnrollmentPartitionTask(
                 interval_end=self.date
             ),
             ImportAuthUserTask(**kwargs_for_db_import),
@@ -1225,7 +1230,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
 class ModuleEngagementRosterIndexDownstreamMixin(object):
     """Indexing parameters that can be specified at the workflow level."""
 
-    obfuscate = luigi.BooleanParameter(
+    obfuscate = luigi.BoolParameter(
         default=False,
         description='Generate fake names and email addresses for users. This can be used to generate production-like'
                     ' data sets that are more difficult to associate with particular users at a glance. Useful for'
@@ -1390,7 +1395,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
     )
 
     # Don't use the OverwriteOutputMixin since it changes the behavior of complete() (which we don't want).
-    overwrite = luigi.BooleanParameter(default=False, significant=False)
+    overwrite = luigi.BoolParameter(default=False, significant=False)
     throttle = luigi.FloatParameter(
         config_path={'section': 'module-engagement', 'name': 'throttle'},
         description=ElasticsearchIndexTask.throttle.description,

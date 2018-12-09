@@ -31,10 +31,10 @@ class CourseListPartitionTaskAcceptanceTest(AcceptanceTestCase):
 
     def test_partition_task(self):
         """Run the CourseListPartitionTask and test its output."""
-        date = self.DATE.strftime('%Y-%m-%d')
+        date_time = self.DATE.strftime('%Y-%m-%dT%H%M%S')
         self.task.launch([
             'CourseListPartitionTask',
-            '--date', date,
+            '--datetime', date_time,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 

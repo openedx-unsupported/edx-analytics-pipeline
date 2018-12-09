@@ -1,1 +1,2 @@
-psycopg2==2.6.2         # LGPL
+# Generic URLs are not yet supported by pip-compile.
+http://cdn.mysql.com/Downloads/Connector-Python/mysql-connector-python-1.2.2.zip  	# GPL v2 with FOSS License Exception

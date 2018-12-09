@@ -22,7 +22,6 @@ from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 from edx.analytics.tasks.util.url import url_path_join
 
-
 LOG = logging.getLogger(__name__)
 
 

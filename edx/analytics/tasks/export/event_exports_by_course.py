@@ -1,15 +1,14 @@
 """Group events by course and export them for research purposes"""
 
-import logging
 import gzip
+import logging
 
-import luigi
 import luigi.date_interval
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.util import eventlog
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
@@ -24,7 +23,7 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         config_path={'section': 'event-export-course', 'name': 'output_root'}
     )
 
-    course = luigi.Parameter(is_list=True, default=[])
+    course = luigi.ListParameter(default=[])
 
     def mapper(self, line):
         event, date_string = self.get_event_and_date_string(line) or (None, None)

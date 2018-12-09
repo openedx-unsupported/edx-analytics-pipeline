@@ -1,18 +1,14 @@
 """Tests for Order-transaction reconciliation and reporting."""
-
-from ddt import ddt, data, unpack
+import uuid
 from unittest import TestCase
 
-from edx.analytics.tasks.util.tests.config import with_luigi_config
+from ddt import data, ddt, unpack
+
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from edx.analytics.tasks.util.tests.config import with_luigi_config
 from edx.analytics.tasks.warehouse.financial.reconcile import (
-    ReconcileOrdersAndTransactionsTask,
-    BaseOrderItemRecord,
-    OrderItemRecord,
-    BaseTransactionRecord,
-    TransactionRecord,
-    OrderTransactionRecord,
-    LOW_ORDER_ID_SHOPPINGCART_ORDERS,
+    LOW_ORDER_ID_SHOPPINGCART_ORDERS, BaseOrderItemRecord, BaseTransactionRecord, OrderItemRecord,
+    OrderTransactionRecord, ReconcileOrdersAndTransactionsTask, TransactionRecord
 )
 
 TEST_DATE = '2015-06-01'
@@ -56,7 +52,10 @@ class ReconciliationTaskMixin(object):
             'refunded_quantity': '0',
             'payment_ref_id': DEFAULT_REF_ID,
             'partner_short_code': 'edx' if kwargs.get('order_processor') != 'shoppingcart' else '',
+            'course_uuid': uuid.uuid4(),
+            'expiration_date': TEST_DATE,
         }
+
         if is_refunded:
             params.update(**{
                 'refunded_amount': '50.00',
@@ -137,7 +136,7 @@ class ReconciliationTaskMapTest(ReconciliationTaskMixin, MapperTestMixin, TestCa
     @unpack
     def test_orderitem_mapped_nulls(self, fieldname, expected_value):
         expected_orderitem = self.create_orderitem(**{fieldname: expected_value})
-        params = self.create_orderitem()._asdict()  # pylint: disable=no-member,protected-access
+        params = expected_orderitem._asdict()  # pylint: disable=no-member,protected-access
         params[fieldname] = HIVE_NULL
         input_orderitem = BaseOrderItemRecord(**params)
         line = self._convert_record_to_line(input_orderitem)

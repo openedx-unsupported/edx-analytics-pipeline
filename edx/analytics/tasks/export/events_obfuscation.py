@@ -1,24 +1,23 @@
 """Obfuscate course event files by removing/stubbing user information."""
 
-from collections import namedtuple, defaultdict
 import gzip
 import logging
 import os
 import re
+from collections import defaultdict, namedtuple
 
 import cjson
-import luigi
 import luigi.date_interval
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.file_util import read_config_file
 from edx.analytics.tasks.util.geolocation import GeolocationMixin
 from edx.analytics.tasks.util.obfuscate_util import (
-    ObfuscatorMixin, ObfuscatorDownstreamMixin, IMPLICIT_EVENT_TYPE_PATTERNS
+    IMPLICIT_EVENT_TYPE_PATTERNS, ObfuscatorDownstreamMixin, ObfuscatorMixin
 )
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
@@ -354,7 +353,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):
     """Wrapper task for course events obfuscation."""
 
-    course = luigi.Parameter(is_list=True)
+    course = luigi.ListParameter()
     dump_root = luigi.Parameter()
     output_root = luigi.Parameter()
     explicit_event_whitelist = luigi.Parameter(

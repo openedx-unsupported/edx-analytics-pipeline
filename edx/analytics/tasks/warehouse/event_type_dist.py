@@ -2,7 +2,6 @@
 
 import logging
 
-import luigi
 import luigi.task
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask

@@ -1,30 +1,38 @@
 """Tasks for aggregating statistics about video viewing."""
-from collections import namedtuple
+import datetime
 import json
 import logging
 import math
 import re
 import textwrap
 import urllib
+from collections import namedtuple
 
 import ciso8601
 import luigi
 from luigi import configuration
-from luigi.hive import HiveQueryTask
+from luigi.contrib.hive import HiveQueryTask
+from luigi.parameter import DateIntervalParameter
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin, EventLogSelectionDownstreamMixin
-from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.util import eventlog
-from edx.analytics.tasks.util.hive import (WarehouseMixin, HivePartition, HiveTableTask, BareHiveTableTask,
-                                           HivePartitionTask, hive_database_name)
-from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
-from edx.analytics.tasks.util.record import Record, StringField, IntegerField
-
+from edx.analytics.tasks.util.decorators import workflow_entry_point
+from edx.analytics.tasks.util.hive import (
+    BareHiveTableTask, HivePartition, HivePartitionTask, HiveTableTask, WarehouseMixin, hive_database_name
+)
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import IntegerField, Record, StringField
+from edx.analytics.tasks.util.url import UncheckedExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
+VIDEO_CODES = frozenset([
+    'html5',
+    'mobile',
+    'hls',
+])
 VIDEO_PLAYED = 'play_video'
 VIDEO_PAUSED = 'pause_video'
 VIDEO_SEEK = 'seek_video'
@@ -175,34 +183,39 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         # This has already been checked when getting the event, so just fetch the value.
         timestamp = eventlog.get_event_time_string(event)
 
-        # Strip username to remove trailing newlines that mess up Luigi.
-        username = event.get('username', '').strip()
-        if not username:
-            log.error("Video event without username: %s", event)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing username', 1)
+        user_id = event.get('context', {}).get('user_id')
+        if not user_id:
+            log.error("Video event without user_id in context: %s", event)
             return
+        # Convert user_id to int if str
+        if not isinstance(user_id, int):
+            user_id = int(user_id)
 
         course_id = eventlog.get_course_id(event)
         if course_id is None:
             log.warn('Video event without valid course_id: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing course_id', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing course_id', 1)
             return
 
         event_data = eventlog.get_event_data(event)
         if event_data is None:
             # This should already have been logged.
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Event Data', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Event Data', 1)
             return
 
-        encoded_module_id = event_data.get('id')
-        if encoded_module_id is None:
+        encoded_module_id = event_data.get('id', '').strip()  # we have seen id values with leading newline
+        if not encoded_module_id:
             log.warn('Video event without valid encoded_module_id (id): {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing encoded_module_id', 1)
             return
+
+        video_duration = event_data.get('duration', VIDEO_UNKNOWN_DURATION)
+        if not video_duration:
+            # events may have a 'duration' value of null, so use the same default for those as well.
+            video_duration = VIDEO_UNKNOWN_DURATION
 
         # self.incr_counter(self.counter_category_name, 'Video Events Before Time Check', 1)
 
@@ -211,50 +224,50 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         youtube_id = None
         if event_type == VIDEO_PLAYED:
             code = event_data.get('code')
-            if code not in ('html5', 'mobile'):
+            if code not in VIDEO_CODES:
                 youtube_id = code
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Play', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Play', 1)
                 return
-            ### self.incr_counter(self.counter_category_name, 'Subset Play', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Subset Play', 1)
         elif event_type == VIDEO_PAUSED:
             # Pause events may have a missing currentTime value if video is paused at the beginning,
             # so provide a default of zero.
             current_time = self._check_time_offset(event_data.get('currentTime', 0), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Pause', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Pause', 1)
                 return
-            ### self.incr_counter(self.counter_category_name, 'Subset Pause', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Subset Pause', 1)
         elif event_type == VIDEO_SEEK:
             current_time = self._check_time_offset(event_data.get('new_time'), line)
             old_time = self._check_time_offset(event_data.get('old_time'), line)
             if current_time is None or old_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Seek', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Seek', 1)
                 return
-            ### self.incr_counter(self.counter_category_name, 'Subset Seek', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Subset Seek', 1)
         elif event_type == VIDEO_STOPPED:
             current_time = self._check_time_offset(event_data.get('currentTime'), line)
             if current_time is None:
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
-                ## self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Stop', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Time From Stop', 1)
                 return
-            ### self.incr_counter(self.counter_category_name, 'Subset Stop', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Subset Stop', 1)
 
         if youtube_id is not None:
             youtube_id = youtube_id.encode('utf8')
 
         # self.incr_counter(self.counter_category_name, 'Output Video Events from Mapper', 1)
         yield (
-            (username.encode('utf8'), course_id.encode('utf8'), encoded_module_id.encode('utf8')),
-            (timestamp, event_type, current_time, old_time, youtube_id)
+            (user_id, course_id.encode('utf8'), encoded_module_id.encode('utf8')),
+            (timestamp, event_type, current_time, old_time, youtube_id, video_duration)
         )
 
     def _check_time_offset(self, time_value, line):
@@ -267,22 +280,22 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             time_value = float(time_value)
         except ValueError:
             log.warn('Video event with invalid time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Value', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Value', 1)
             return None
         except TypeError:
             log.warn('Video event with invalid time-offset type: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Type', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Invalid Time-Offset Type', 1)
             return None
 
         # Some events have ridiculous (and dangerous) values for time.
         if time_value > VIDEO_MAXIMUM_DURATION:
             log.warn('Video event with huge time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Huge Time-Offset Value', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Huge Time-Offset Value', 1)
             return None
 
         if time_value < 0.0:
             log.warn('Video event with negative time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Negative Time-Offset Value', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Negative Time-Offset Value', 1)
             return None
 
         # We must screen out 'nan' and 'inf' values, as they do not "round-trip".
@@ -290,7 +303,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         # eval(repr(float('nan'))) throws a NameError rather than returning float('nan').
         if math.isnan(time_value) or math.isinf(time_value):
             log.warn('Video event with nan or inf time-offset value: {0}'.format(line))
-            ## self.incr_counter(self.counter_category_name, 'Quality Nan-Inf Time-Offset Value', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Nan-Inf Time-Offset Value', 1)
             return None
 
         return time_value
@@ -302,7 +315,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         Puts the user's video events in chronological order, and identifies pairs of
         play_video/non-play_video events.
         """
-        username, course_id, encoded_module_id = key
+        user_id, course_id, encoded_module_id = key
         # self.incr_counter(self.counter_category_name, 'Input User_course_videos', 1)
 
         sorted_events = sorted(events)
@@ -318,7 +331,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         for event in sorted_events:
             # self.incr_counter(self.counter_category_name, 'Input User_course_video events', 1)
 
-            timestamp, event_type, current_time, old_time, youtube_id = event
+            timestamp, event_type, current_time, old_time, youtube_id, duration = event
             parsed_timestamp = ciso8601.parse_datetime(timestamp)
             if current_time is not None:
                 current_time = float(current_time)
@@ -328,8 +341,11 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             def start_viewing():
                 """Returns a 'viewing' object representing the point where a video began to be played."""
                 # self.incr_counter(self.counter_category_name, 'Viewing Start', 1)
-                video_duration = VIDEO_UNKNOWN_DURATION
-                if youtube_id:
+
+                video_duration = duration
+                # video_duration is set to VIDEO_UNKNOWN_DURATION only when duration is not present in
+                # a video event, In that case fetch duration using youtube API if video is from youtube.
+                if video_duration == VIDEO_UNKNOWN_DURATION and youtube_id:
                     # self.incr_counter(self.counter_category_name, 'Viewing Start with Video Id', 1)
                     video_duration = self.video_durations.get(youtube_id)
                     if not video_duration:
@@ -339,10 +355,10 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
                 if last_viewing_end_event is not None and last_viewing_end_event[1] == VIDEO_SEEK:
                     start_offset = last_viewing_end_event[2]
-                    ## self.incr_counter(self.counter_category_name, 'Subset Viewing Start With Offset From Preceding Seek', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Subset Viewing Start With Offset From Preceding Seek', 1)
                 else:
                     start_offset = current_time
-                    ## self.incr_counter(self.counter_category_name, 'Subset Viewing Start With Offset From Current Play', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Subset Viewing Start With Offset From Current Play', 1)
                 return VideoViewing(
                     start_timestamp=parsed_timestamp,
                     course_id=course_id,
@@ -357,34 +373,34 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 # Check that end_time is within the bounds of the duration.
                 # Note that duration may be an int, and end_time may be a float,
                 # so just add +1 to avoid these round-off errors (instead of actually checking types).
-                ## self.incr_counter(self.counter_category_name, 'Viewing End', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Viewing End', 1)
 
                 if viewing.video_duration != VIDEO_UNKNOWN_DURATION and end_time > (viewing.video_duration + 1):
                     log.error('End time of viewing past end of video.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Past End Of Video', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Past End Of Video', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                     return None
 
                 if end_time < viewing.start_offset:
                     log.error('End time is before the start time.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Before Start Time', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Before Start Time', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                     return None
 
                 if (end_time - viewing.start_offset) < VIDEO_VIEWING_MINIMUM_LENGTH:
                     log.error('Viewing too short and discarded.\nViewing Start: %r\nEvent: %r\nKey:%r',
                               viewing, event, key)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Too Short', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End Time Too Short', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                     return None
 
                 return (
-                    username,
+                    user_id,
                     viewing.course_id,
                     viewing.encoded_module_id,
                     viewing.video_duration,
@@ -396,9 +412,9 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
             if event_type == VIDEO_PLAYED:
                 if viewing:
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing Start On Successive Play', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing Start', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing Start On Successive Play', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing Start', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                     pass
                 viewing = start_viewing()
                 last_viewing_end_event = None
@@ -407,20 +423,20 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 if event_type in (VIDEO_PAUSED, VIDEO_STOPPED):
                     # play -> pause or play -> stop
                     viewing_end_time = current_time
-                    ## self.incr_counter(self.counter_category_name, 'Subset Viewing End By Stop Or Pause', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Subset Viewing End By Stop Or Pause', 1)
                 elif event_type == VIDEO_SEEK:
                     # play -> seek
                     viewing_end_time = old_time
-                    ## self.incr_counter(self.counter_category_name, 'Subset Viewing End By Seek', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Subset Viewing End By Seek', 1)
                 else:
                     log.error('Unexpected event in viewing.\nViewing Start: %r\nEvent: %r\nKey:%r', viewing, event, key)
-                    ## self.incr_counter(self.counter_category_name, 'Discard End Viewing Unexpected Event', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
-                    ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard End Viewing Unexpected Event', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing End', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
                 if viewing_end_time is not None:
                     record = end_viewing(viewing_end_time)
                     if record:
-                        ## self.incr_counter(self.counter_category_name, 'Output Viewing', 1)
+                        # Slow: self.incr_counter(self.counter_category_name, 'Output Viewing', 1)
                         yield record
                     # Throw away the viewing even if it didn't yield a valid record. We assume that this is malformed
                     # data and untrustworthy.
@@ -428,16 +444,16 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                     last_viewing_end_event = event
             else:
                 # This is a non-play video event outside of a viewing.  It is probably too frequent to be logged.
-                ## self.incr_counter(self.counter_category_name, 'Discard Event Outside Of Viewing', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Discard Event Outside Of Viewing', 1)
                 pass
 
         if viewing is not None:
             # This happens too often!  Comment out for now...
             # log.error('Unexpected viewing started with no matching end.\n'
             #           'Viewing Start: %r\nLast Event: %r\nKey:%r', viewing, last_viewing_end_event, key)
-            ## self.incr_counter(self.counter_category_name, 'Discard Viewing Start With No Matching End', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Viewing Start', 1)
-            ## self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing Start With No Matching End', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing Start', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Discard Viewing', 1)
             pass
 
     def output(self):
@@ -453,7 +469,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         if self.api_key is None:
             return duration
 
-        ## self.incr_counter(self.counter_category_name, 'Subset Calls to Youtube API', 1)
+        # Slow: self.incr_counter(self.counter_category_name, 'Subset Calls to Youtube API', 1)
         video_file = None
         try:
             video_url = "https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(
@@ -469,19 +485,19 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
                 matcher = re.match(r'PT(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?(?:(?P<seconds>\d+)S)?', duration_str)
                 if not matcher:
                     log.error('Unable to parse duration returned for video %s: %s', youtube_id, duration_str)
-                    ## self.incr_counter(self.counter_category_name, 'Quality Unparseable Response From Youtube API', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Quality Unparseable Response From Youtube API', 1)
                 else:
                     duration_secs = int(matcher.group('hours') or 0) * 3600
                     duration_secs += int(matcher.group('minutes') or 0) * 60
                     duration_secs += int(matcher.group('seconds') or 0)
                     duration = duration_secs
-                    ## self.incr_counter(self.counter_category_name, 'Subset Calls to Youtube API Succeeding', 1)
+                    # Slow: self.incr_counter(self.counter_category_name, 'Subset Calls to Youtube API Succeeding', 1)
             else:
                 log.error('Unable to find items in response to duration request for youtube video: %s', youtube_id)
-                ## self.incr_counter(self.counter_category_name, 'Quality No Items In Response From Youtube API', 1)
+                # Slow: self.incr_counter(self.counter_category_name, 'Quality No Items In Response From Youtube API', 1)
         except Exception:  # pylint: disable=broad-except
             log.exception("Unrecognized response from Youtube API")
-            ## self.incr_counter(self.counter_category_name, 'Quality Unrecognized Response From Youtube API', 1)
+            # Slow: self.incr_counter(self.counter_category_name, 'Quality Unrecognized Response From Youtube API', 1)
         finally:
             if video_file is not None:
                 video_file.close()
@@ -491,7 +507,105 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
 
 class VideoTableDownstreamMixin(WarehouseMixin, EventLogSelectionDownstreamMixin, MapReduceJobTaskMixin):
     """All parameters needed to run the VideoUsageTask and its required tasks."""
-    pass
+    overwrite_n_days = luigi.IntParameter(
+        config_path={'section': 'videos', 'name': 'overwrite_n_days'},
+        significant=False,
+        default=3,
+    )
+
+
+class UserVideoViewingByDateTask(OverwriteOutputMixin, VideoTableDownstreamMixin, MultiOutputMapReduceJobTask):
+    "Task that reads in video viewings and outputs by date of viewing start time."
+
+    output_root = None
+
+    def __init__(self, *args, **kwargs):
+        super(UserVideoViewingByDateTask, self).__init__(*args, **kwargs)
+
+        overwrite_from_date = self.interval.date_b - datetime.timedelta(days=self.overwrite_n_days)
+        self.overwrite_interval = DateIntervalParameter().parse('{}-{}'.format(
+            overwrite_from_date,
+            self.interval.date_b
+        ))
+
+    def requires(self):
+        output_path = self.hive_partition_path('video_viewing', self.interval.date_b)
+        return UserVideoViewingTask(
+            mapreduce_engine=self.mapreduce_engine,
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
+            interval=self.overwrite_interval,
+            pattern=self.pattern,
+            output_root=output_path,
+        )
+
+    def mapper(self, line):
+        (
+            _user_id,
+            _course_id,
+            _encoded_module_id,
+            _video_duration,
+            start_timestamp,
+            _start_offset,
+            _end_time,
+            _event_type
+        ) = line.split('\t')
+
+        lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+
+        date_string = start_timestamp.split("T")[0]
+        if date_string < lower_bound_date_string or date_string >= upper_bound_date_string:
+            return
+
+        yield date_string, line
+
+    def multi_output_reducer(self, _date_string, values, output_file):
+        for value in values:
+            output_file.write(value)
+            output_file.write('\n')
+
+    def output_path_for_key(self, key):
+        date_string = key
+        return url_path_join(
+            self.hive_partition_path('video_viewing_by_date', date_string),
+            'video_viewing_{date}'.format(
+                date=date_string,
+            ),
+        )
+
+    def downstream_input_tasks(self):
+        """
+        MultiOutputMapReduceJobTask returns marker as output(which cannot be used as input in other jobs).
+        This method returns the external tasks, which can then be used as input.
+        """
+
+        tasks = []
+        for date in self.interval:  # pylint: disable=not-an-iterable
+            url = self.output_path_for_key(date.isoformat())
+            tasks.append(UncheckedExternalURL(url))
+
+        return tasks
+
+    def run(self):
+        # Remove the marker file.
+        self.remove_output_on_overwrite()
+        # Also remove actual output files in case of overwrite.
+        if self.overwrite:
+            for date in self.overwrite_interval:
+                url = self.output_path_for_key(date.isoformat())
+                target = get_target_from_url(url)
+                if target.exists():
+                    target.remove()
+
+        super(UserVideoViewingByDateTask, self).run()
+
+        # Make sure an output file exists for each day within the interval.
+        for date in self.overwrite_interval:
+            url = self.output_path_for_key(date.isoformat())
+            target = get_target_from_url(url)
+            if not target.exists():
+                target.open("w").close()  # touch the file
 
 
 class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
@@ -500,24 +614,23 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
     output_root = luigi.Parameter()
     dropoff_threshold = luigi.FloatParameter(config_path={'section': 'videos', 'name': 'dropoff_threshold'})
 
-    def requires(self):
-        # Define path so that data could be loaded into Hive, without actually requiring the load to be performed.
-        table_name = 'user_video_viewing'
-        dummy_partition = HivePartition('dt', self.interval.date_b.isoformat())  # pylint: disable=no-member
-        partition_path_spec = dummy_partition.path_spec
-        input_path = url_path_join(self.warehouse_path, table_name, partition_path_spec + '/')
-        return UserVideoViewingTask(
+    def requires_local(self):
+        return UserVideoViewingByDateTask(
             mapreduce_engine=self.mapreduce_engine,
             n_reduce_tasks=self.n_reduce_tasks,
             source=self.source,
             interval=self.interval,
             pattern=self.pattern,
-            output_root=input_path,
+            overwrite_n_days=self.overwrite_n_days,
+            overwrite=True,
         )
+
+    def requires_hadoop(self):
+        return self.requires_local().downstream_input_tasks()
 
     def mapper(self, line):
         (
-            username,
+            user_id,
             course_id,
             encoded_module_id,
             video_duration,
@@ -526,7 +639,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             end_offset,
             _reason
         ) = line.split('\t')
-        yield ((course_id, encoded_module_id), (username, start_offset, end_offset, video_duration))
+        yield ((course_id, encoded_module_id), (user_id, start_offset, end_offset, video_duration))
 
     def reducer(self, key, viewings):
         """
@@ -551,7 +664,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
         video_duration = 0
         for viewing in viewings:
-            username, start_offset, end_offset, duration = viewing
+            user_id, start_offset, end_offset, duration = viewing
 
             # Find the maximum actual video duration, but indicate that
             # it's unknown if any viewing was of a video with unknown duration.
@@ -568,7 +681,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
             for segment in xrange(first_segment, last_segment + 1):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
-                users.add(username)
+                users.add(user_id)
                 stats['views'] = stats.get('views', 0) + 1
 
         # If we don't know the duration of the video, just use the final segment that was
@@ -656,11 +769,9 @@ class VideoUsageTableTask(VideoTableDownstreamMixin, HiveTableTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
-            output_root=self.partition_location
+            output_root=self.partition_location,
+            overwrite_n_days=self.overwrite_n_days,
         )
-
-    def output(self):  # pragma: no cover
-        return self.requires().output()
 
 
 class VideoTimelineTableTask(BareHiveTableTask):
@@ -716,11 +827,12 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
                     {insert_query};
-                    """.format(database_name=hive_database_name(),
-                               table=self.partition_task.hive_table_task.table,
-                               partition=self.partition,
-                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
-                              )
+                    """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+        )
 
         return textwrap.dedent(full_insert_query)
 
@@ -753,6 +865,7 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     def output(self):  # pragma: no cover
@@ -770,6 +883,19 @@ class VideoTimelineDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert information about video timelines from a Hive table into MySQL."""
 
+    overwrite = luigi.BoolParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
+    allow_empty_insert = luigi.BoolParameter(
+        default=False,
+        description='Allow the video table to be empty (e.g. if no video activity has occurred)',
+        config_path={'section': 'videos', 'name': 'allow_empty_insert'},
+        significant=False,
+    )
+
     @property
     def table(self):  # pragma: no cover
         return 'video_timeline'
@@ -783,6 +909,7 @@ class InsertToMysqlVideoTimelineTask(VideoTableDownstreamMixin, MysqlInsertTask)
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     @property
@@ -860,11 +987,12 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
                     INSERT INTO TABLE {table}
                     PARTITION ({partition.query_spec})
                     {insert_query};
-                """.format(database_name=hive_database_name(),
-                           table=self.partition_task.hive_table_task.table,
-                           partition=self.partition,
-                           insert_query=self.insert_query.strip(),  # pylint: disable=no-member
-                          )
+                """.format(
+            database_name=hive_database_name(),
+            table=self.partition_task.hive_table_task.table,
+            partition=self.partition,
+            insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+        )
         return textwrap.dedent(full_insert_query)
 
     @property
@@ -896,6 +1024,7 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     def output(self):  # pragma: no cover
@@ -913,6 +1042,19 @@ class VideoDataTask(VideoTableDownstreamMixin, HiveQueryTask):
 class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
     """Insert summary information into the video table in MySQL."""
 
+    overwrite = luigi.BoolParameter(
+        default=True,
+        description='Overwrite the table when writing to it by default. Allow users to override this behavior if they '
+                    'want.',
+        significant=False
+    )
+    allow_empty_insert = luigi.BoolParameter(
+        default=False,
+        description='Allow the video table to be empty (e.g. if no video activity has occurred)',
+        config_path={'section': 'videos', 'name': 'allow_empty_insert'},
+        significant=False,
+    )
+
     @property
     def table(self):  # pragma: no cover
         return 'video'
@@ -926,6 +1068,7 @@ class InsertToMysqlVideoTask(VideoTableDownstreamMixin, MysqlInsertTask):
             interval=self.interval,
             pattern=self.pattern,
             warehouse_path=self.warehouse_path,
+            overwrite_n_days=self.overwrite_n_days,
         )
 
     @property
@@ -950,6 +1093,7 @@ class InsertToMysqlAllVideoTask(VideoTableDownstreamMixin, luigi.WrapperTask):
             'interval': self.interval,
             'pattern': self.pattern,
             'warehouse_path': self.warehouse_path,
+            'overwrite_n_days': self.overwrite_n_days,
         }
         yield (
             InsertToMysqlVideoTimelineTask(**kwargs),

@@ -2,8 +2,8 @@
   Contains common methods for helping unit tests
 """
 
-import os
 import logging
+import os
 import platform
 
 log = logging.getLogger(__name__)

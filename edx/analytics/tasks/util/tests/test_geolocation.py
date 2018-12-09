@@ -5,11 +5,7 @@ from unittest import TestCase
 
 from mock import Mock
 
-from edx.analytics.tasks.util.geolocation import (
-    UNKNOWN_COUNTRY,
-    UNKNOWN_CODE,
-    GeolocationMixin,
-)
+from edx.analytics.tasks.util.geolocation import UNKNOWN_CODE, UNKNOWN_COUNTRY, GeolocationMixin
 
 
 class FakeGeoLocation(object):

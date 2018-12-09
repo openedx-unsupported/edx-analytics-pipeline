@@ -4,18 +4,17 @@ per organization, etc.
 """
 
 import csv
-from collections import namedtuple
 import logging
+from collections import namedtuple
 
 import luigi
 
+import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util import csv_util
-import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.util.url import url_path_join, get_target_from_url
-
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -131,7 +130,7 @@ class StudentModulePerCourseAfterImportWorkflow(StudentModulePerCourseTask):
         default=None,
         description='A "where" clause to be passed to Sqoop.',
     )
-    verbose = luigi.BooleanParameter(
+    verbose = luigi.BoolParameter(
         default=False,
         significant=False,
         description='Sqoop prints more information while working.',

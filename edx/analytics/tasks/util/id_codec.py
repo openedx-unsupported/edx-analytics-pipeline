@@ -1,9 +1,11 @@
 """Various helper utilities to calculate reversible one-to-one mappings of sensitive ids."""
 
 import base64
-import random
 import logging
+import random
+
 import luigi
+
 try:
     import numpy as np
 except ImportError:
