@@ -5,7 +5,7 @@ import logging
 from luigi import configuration
 import luigi.task
 
-from edx.analytics.tasks.url import url_path_join, get_target_class_from_url
+from edx.analytics.tasks.util.url import url_path_join, get_target_class_from_url
 
 
 CONFIG_SECTION = 'manifest'

@@ -1,0 +1,4 @@
+scripts:
+  - name: Simple Testing Script
+    script_id: my_lil_test_script
+    location: foobar.sql

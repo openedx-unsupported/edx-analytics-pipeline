@@ -3,8 +3,7 @@ from datetime import datetime
 
 from luigi.date_interval import Date
 
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
 
 
 class LocationByCourseAcceptanceTest(AcceptanceTestCase):
@@ -20,6 +19,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         'load_auth_user_for_location_by_course.sql'
     ]
 
+    @when_geolocation_data_available
     def test_location_by_course(self):
         self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
 
@@ -30,8 +30,6 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             'InsertToMysqlCourseEnrollByCountryWorkflow',
             '--source', self.test_src,
             '--interval', self.DATE_INTERVAL.to_string(),
-            '--user-country-output', url_path_join(self.test_out, 'user'),
-            '--course-country-output', url_path_join(self.test_out, 'country'),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
@@ -48,7 +46,7 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         self.assertItemsEqual([
             row[1:6] for row in results
         ], [
-            (today, self.COURSE_ID, '', 1, 1),
+            (today, self.COURSE_ID, None, 1, 1),
             (today, self.COURSE_ID, 'UNKNOWN', 0, 1),
             (today, self.COURSE_ID, 'IE', 1, 1),
             (today, self.COURSE_ID2, 'TH', 1, 1),

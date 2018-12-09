@@ -1,0 +1,5 @@
+user_id,course_id,is_certified,certificate_mode,final_grade,has_passed,created_date,modified_date
+1,course-v1:edX+DemoX+Demo_Course,1,honor,0.27,1,2012-11-09 23:13:21,2012-11-10 00:10:14
+2,course-v1:edX+DemoX+Demo_Course,1,honor,0.58,1,2012-11-09 23:31:34,2012-11-10 00:05:46
+3,course-v1:edX+DemoX+Demo_Course,0,honor,0.0,0,2012-11-10 00:12:10,2012-11-26 19:03:01
+4,course-v1:edX+DemoX+Demo_Course,0,honor,0.0,0,2012-11-10 00:12:10,2012-11-26 19:00:59

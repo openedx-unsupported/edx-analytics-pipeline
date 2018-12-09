@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 import sys
 
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.util.url import get_target_from_url
 
 TRANSFER_BUFFER_SIZE = 1024 * 1024  # 1 MB
 log = logging.getLogger(__name__)

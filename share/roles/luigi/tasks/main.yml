@@ -5,3 +5,9 @@
 
 - name: configuration file written
   template: src=client.cfg.j2 dest=/etc/luigi/client.cfg mode=644
+  when: ansible_distribution in common_debian_variants
+
+- name: configuration file written
+  template: src=client_amazon.cfg.j2 dest=/etc/luigi/client.cfg mode=644
+  when: ansible_distribution in common_redhat_variants
+

@@ -2,13 +2,13 @@
 End to end test of the course catalog tasks.
 """
 
-import os
 import logging
+import os
 
 import pandas
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
+from edx.analytics.tasks.util.url import url_path_join
 
 
 log = logging.getLogger(__name__)
@@ -37,12 +37,13 @@ class BaseCourseCatalogAcceptanceTest(AcceptanceTestCase):
 class CourseSubjectsAcceptanceTest(BaseCourseCatalogAcceptanceTest):
     """End-to-end test of pulling the course subject data into Vertica."""
 
+    @when_vertica_available
     def test_course_subjects(self):
         """Tests the workflow for the course subjects, end to end."""
 
         self.task.launch([
             'CourseCatalogWorkflow',
-            '--run-date', '2015-06-29'
+            '--date', '2015-06-29'
         ])
 
         self.validate_output()

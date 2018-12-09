@@ -1,10 +1,25 @@
-Jinja2==2.7.3		# BSD
-MarkupSafe==0.23	# BSD
-PyYAML==3.10		# MIT License
-ecdsa==0.11 		# MIT
-httplib2==0.9 		# MIT
-paramiko==1.14.0 	# LGPL
-pycrypto==2.6.1 	# public domain
-ansible==1.4.5          # GPL v3 License
+# These packages are required for bootstrapping.
+
+ansible==1.4.5 --no-binary ansible         # GPL v3 License
 boto==2.22.1            # MIT
+ecdsa==0.13 		# MIT
+Jinja2==2.8.1		# BSD
+pycrypto==2.6.1 	# public domain
+
+# The following are dependencies pulled in by the above,
+# but are pinned here.
+
+cffi==1.9.1
+cryptography==1.7.1
+enum34==1.1.6
+httplib2==0.9.2		# MIT
+idna==2.2
+ipaddress==1.0.17
+MarkupSafe==0.23	# BSD
+paramiko==2.1.1 	# LGPL
+pyasn1==0.1.9
+pycparser==2.17
+PyYAML==3.12		# MIT License
+setuptools==32.3.1
+six==1.10.0
 

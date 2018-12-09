@@ -7,6 +7,7 @@ import os
 import pipes
 from subprocess import Popen, PIPE
 import sys
+from urlparse import urlparse, parse_qsl
 import uuid
 
 
@@ -15,6 +16,7 @@ EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
 
 REMOTE_DATA_DIR = '/var/lib/analytics-tasks'
 REMOTE_LOG_DIR = '/var/log/analytics-tasks'
+ANSIBLE_MAX_RETRY = 3
 
 
 def main():
@@ -40,7 +42,10 @@ def main():
     parser.add_argument('--sudo-user', help='execute the shell command as this user on the cluster', default='hadoop')
     parser.add_argument('--workflow-profiler', choices=['pyinstrument'], help='profiler to run on the launch-task process', default=None)
     parser.add_argument('--wheel-url', help='url of the wheelhouse', default=None)
+    parser.add_argument('--virtualenv-extra-args', help='additional arguments passed to virtualenv command when creating the virtual environment', default=None)
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
+    parser.add_argument('--package', action='append', help='pip install these packages in the pipeline virtual environment')
+    parser.add_argument('--extra-repo', action='append', help="""additional git repositories to checkout on the cluster during the deployment""")
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -78,7 +83,16 @@ def run_task_playbook(inventory, arguments, uid):
         extra_vars = convert_args_to_extra_vars(arguments, uid)
         args = ['task.yml', '-e', extra_vars]
         prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+
+        retry = 0
+        while prep_result != 0 and retry < ANSIBLE_MAX_RETRY:
+            log('ANSIBLE RUN RETURNED NON-ZERO EXIT STATUS: {0}'.format(prep_result))
+            log('RETRYING')
+            retry += 1
+            prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+
         if prep_result != 0:
+            log('ANSIBLE RUN FAILED AFTER {0} RETRIES'.format(ANSIBLE_MAX_RETRY))
             return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
@@ -138,28 +152,62 @@ def convert_args_to_extra_vars(arguments, uid):
     name = get_ansible_inventory_host(arguments)
     extra_vars = {
         'name': name,
-        'branch': arguments.branch,
         'uuid': uid,
         'root_data_dir': REMOTE_DATA_DIR,
-        'root_log_dir': REMOTE_LOG_DIR,
+        'root_log_dir': REMOTE_LOG_DIR
+    }
+    repos = {
+        'pipeline': {
+            'url': 'https://github.com/edx/edx-analytics-pipeline.git',
+            'branch': 'origin/master',
+            'dir_name': 'repo'
+        }
     }
     if arguments.repo:
-        extra_vars['repo'] = arguments.repo
-    if arguments.override_config:
-        extra_vars['override_config'] = arguments.override_config
-    if arguments.secure_config_repo:
-        extra_vars['secure_config_repo'] = arguments.secure_config_repo
-    if arguments.secure_config_branch:
-        extra_vars['secure_config_branch'] = arguments.secure_config_branch
-    if arguments.secure_config:
-        extra_vars['secure_config'] = arguments.secure_config
-    if arguments.wheel_url:
-        extra_vars['install_env'] = {
-            'WHEEL_URL': arguments.wheel_url,
-            'WHEEL_PYVER': '2.7'
-        }
+        repos['pipeline']['url'] = arguments.repo
+    if arguments.branch:
+        repos['pipeline']['branch'] = arguments.branch
+    if arguments.wheel_url is not None:
+        log('WARNING: wheel_url argument is no longer supported: ignoring {0}'.format(arguments.wheel_url))
     if arguments.vagrant_path or arguments.host:
         extra_vars['write_luigi_config'] = False
+    if arguments.virtualenv_extra_args:
+        extra_vars['virtualenv_extra_args'] = arguments.virtualenv_extra_args
+    if arguments.package:
+        extra_vars['packages'] = arguments.package
+
+    if arguments.secure_config_repo:
+        repos['secure'] = {
+            'url': arguments.secure_config_repo,
+            'branch': 'origin/release',
+            'dir_name': 'config'
+        }
+        if arguments.secure_config_branch:
+            repos['secure']['branch'] = arguments.secure_config_branch
+
+    if arguments.override_config:
+        extra_vars['override_config'] = arguments.override_config
+    elif arguments.secure_config and 'secure' in repos:
+        extra_vars['secure_config'] = os.path.join(repos['secure']['dir_name'], arguments.secure_config)
+
+    if arguments.extra_repo:
+        # additional repos are specified as URLs with query string parameters for the branch and dir_name.
+        # For Example:
+        #   git+ssh://git@github.com:edx/edx-analytics-pipeline.git?dir_name=pipeline&branch=origin%2Frelease
+        #   https://github.com/edx/edx-analytics-pipeline?dir_name=pipeline&branch=test12
+        for idx, repo in enumerate(arguments.extra_repo):
+            full_url = urlparse(repo)
+            git_url = full_url.netloc + full_url.path
+            params = dict(parse_qsl(full_url.query))
+            name = 'repo_{}'.format(idx)
+            repos[name] = {
+                'url': git_url,
+                'branch': params.get('branch', 'master'),
+                'dir_name': params.get('dir_name', name)
+            }
+
+    extra_vars['pipeline_repo_dir_name'] = repos['pipeline']['dir_name']
+    extra_vars['repos'] = list(repos.values())
     return json.dumps(extra_vars)
 
 

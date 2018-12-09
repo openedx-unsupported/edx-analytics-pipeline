@@ -1,5 +1,7 @@
 """Ensure manifest files are created appropriately."""
 
+from unittest import TestCase
+
 import luigi
 import luigi.hdfs
 from mock import patch
@@ -7,12 +9,11 @@ from mock import patch
 from edx.analytics.tasks.util.manifest import (
     create_manifest_target, convert_to_manifest_input_if_necessary, ManifestInputTargetMixin
 )
-from edx.analytics.tasks.tests import unittest
-from edx.analytics.tasks.tests.config import with_luigi_config, OPTION_REMOVED
-from edx.analytics.tasks.tests.target import FakeTarget
+from edx.analytics.tasks.util.tests.config import with_luigi_config, OPTION_REMOVED
+from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
-class ManifestInputTargetTest(unittest.TestCase):
+class ManifestInputTargetTest(TestCase):
     """Ensure manifest files are created appropriately."""
 
     MANIFEST_ID = 'test'

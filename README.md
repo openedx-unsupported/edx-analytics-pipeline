@@ -1,69 +1,73 @@
-edx-analytics-pipeline
-===============
-The Hadoop-based data pipeline.
+Open edX Data Pipeline
+======================
+A data pipeline for analyzing Open edX data. This is a batch analysis engine that is capable of running complex data processing workflows.
 
-Installation instructions
---------------------
+The data pipeline takes large amounts of raw data, analyzes it and produces higher value outputs that are used by various downstream tools.
 
-We have some draft docs: 
+The primary consumer of this data is [Open edX Insights](http://edx.readthedocs.io/projects/edx-insights/en/latest/).
 
-* https://openedx.atlassian.net/wiki/display/OpenOPS/edX+Analytics+Installation describes how to install a small scale analytics stack on a single machine. It'll get merged into the next doc below at some point. Help welcome!
-* http://edx.readthedocs.org/projects/edx-installing-configuring-and-running/en/latest/analytics/install_analytics.html has an overview of a larger scale AWS install.
+It is also used to generate a variety of packaged outputs for research, business intelligence and other reporting.
 
+It gathers input from a variety of sources including (but not limited to):
 
-Requirements
-------------
-Your machine will need the following in order to run the code in this repository:
+* [Tracking log](http://edx.readthedocs.io/projects/devdata/en/latest/internal_data_formats/event_list.html) files - This is the primary data source.
+* LMS database
+* Otto database
+* LMS APIs (course blocks, course listings)
 
-* [Python](https://www.python.org/) 2.7.x
-* [GCC](http://gcc.gnu.org/) (to compile numpy)
-* [MySQL](http://mysql.com)
-* [GnuPG](https://www.gnupg.org/) 1.4.x
+It outputs to:
 
-All of the components above can be installed with your preferred package manager (e.g. apt, yum, [brew](http://brew.sh).
+* S3 - CSV reports, packaged exports
+* MySQL - This is known as the "result store" and is consumed by Insights
+* Elasticsearch - This is also used by Insights
+* Vertica - This is used for business intelligence and reporting purposes
 
-The requirements in requirements/default.txt and requirements/test.txt can be installed with pip (via make):
+This tool uses [spotify/luigi](https://github.com/spotify/luigi) as the core of the workflow engine.
 
-    make requirements
+Data transformation and analysis is performed with the assistance of the following third party tools (among others):
 
-*Known Issues on Mac OS X*
+* Python
+* [Pandas](http://pandas.pydata.org/)
+* [Hive](https://hive.apache.org/)
+* [Hadoop](http://hadoop.apache.org/)
+* [Sqoop](http://sqoop.apache.org/)
 
-If you are running the code on Mac OS X, you may encounter a couple issues when installing [numpy](https://pypi.python.org/pypi/numpy).
-If pip complains about being unable to compile Fortran, ensure that you have GCC installed. The easiest way to install GCC is using
-[Homebrew](http://brew.sh/): `brew install gcc`. If after installing GCC you see an error along the lines of `cannot link a simple C program`,
-execute the following command to trigger the compiler to *not* throw an error when it encounters unused command arguments:
+The data pipeline is designed to be invoked on a periodic basis by an external scheduler. This can be cron, jenkins or any other system that can periodically run shell commands.
 
-    export ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future
+Here is a simplified, high level, view of the architecture:
 
-Note: If you need to frequently re-install/upgrade requirements, you may find it convenient to add the export statements above
-to your .bashrc or .bash_profile file so that the statement is run whenever you open a new shell.
+![Open edX Analytics Architectural Overview](http://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/_images/Analytics_Pipeline.png)
 
-**Wheel**
+Setting up a Development Environment
+------------------------------------
 
-[Wheel](http://wheel.readthedocs.org/en/latest/) can help cut down the time to install requirements. The Makefile is setup
-to use the environment variables `WHEEL_URL` and `WHEEL_PYVER` to find the Wheel server. You can set these variables using the commands below.
-If you want to set these variables every time you open a shell, add them to your .bashrc or .bash_profile files.
+We call this environment the "analyticstack". It contains many of the services needed to develop new features for Insights and the data pipeline.
 
+A few of the services included are:
 
-    export WHEEL_PYVER=2.7
-    export WHEEL_URL=http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/<OPERATING SYSTEM>/<OS VARIANT>
+- LMS (edx-platform)
+- Studio (edx-platform)
+- Insights (edx-analytics-dashboard)
+- Analytics API (edx-analytics-data-api)
 
-Values for `<OPERATING SYSTEM>/<OS VARIANT>`:
+We currently have a separate development from the core edx-platform devstack because the data pipeline depends on
+several services that dramatically increase the footprint of the virtual machine. Given that a small fraction of
+Open edX contributors are looking to develop features that leverage the data pipeline, we chose to build a variant of
+the devstack that includes them. In the future we hope to adopt [OEP-5](https://github.com/edx/open-edx-proposals/blob/master/oeps/oep-0005.rst)
+which would allow developers to mix and match the services they are using for development at a much more granular level.
+In the meantime, you will need to do some juggling if you are also running a traditional Open edX devstack to ensure
+that both it and the analyticstack are not trying to run at the same time (they compete for the same ports).
 
-* `Ubuntu/precise`
-* `MacOSX/lion`
+If you are running a generic Open edX devstack, navigate to the directory that contains the Vagrantfile for it and run `vagrant halt`.
 
+Please follow the [analyticstack installation guide](http://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/installation/analytics/index.html).
 
-Running the Tests
------------------
-Run `make test` to install the Python requirements and run the unit tests.
+Running In Production
+=====================
 
-Some of the tests rely on AWS. If you encounter errors such as `NoAuthHandlerFound: No handler was ready to authenticate. 1 handlers were checked. ['HmacAuthV1Handler'] Check your credentials`,
-you need to set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` environment variables. The values do not need to be
-valid credentials for the tests to pass, so the commands below should fix the failures.
+For small installations, you may want to use our [single instance installation guide](https://openedx.atlassian.net/wiki/display/OpenOPS/edX+Analytics+Installation).
 
-    export AWS_ACCESS_KEY_ID='AK123'
-    export AWS_SECRET_ACCESS_KEY='abc123'
+For larger installations, we do not have a similarly detailed guide, you can start with our [installation guide](http://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/insights/index.html).
 
 
 How to Contribute

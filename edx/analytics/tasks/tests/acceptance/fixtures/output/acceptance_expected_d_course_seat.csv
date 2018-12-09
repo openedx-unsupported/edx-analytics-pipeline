@@ -1,0 +1,7 @@
+course_id,course_seat_type,course_seat_price,course_seat_currency,course_seat_upgrade_deadline,course_seat_credit_provider,course_seat_credit_hours
+course-v1:edX+Open_DemoX+edx_demo_course2,honor,0.0,USD,2017-03-01 00:00:00,edx,4
+course-v1:edX+Open_DemoX+edx_demo_course2,verified,50.0,USD,2016-08-01 09:00:00,edx,4
+course-v1:edX+Testing102x+1T2017,honor,0.0,USD,2017-02-01 00:00:00,edx,3
+course-v1:edX+Testing102x+1T2017,verified,50.0,USD,2016-01-01 10:00:00,edx,4
+edX/Open_DemoX/edx_demo_course,honor,0.0,USD,2017-04-01 00:00:00,edx,4
+edX/Open_DemoX/edx_demo_course,verified,50.0,USD,2016-10-01 08:00:00,edx,3

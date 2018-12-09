@@ -1,2 +1,6 @@
 2015-09-01	paypal	test	EDX-1234	USD	50.00	1.75	sale	instant_transfer	paypal	3B123456AB123456H
 2015-09-01	paypal	test	EDX-1234	USD	-50.00	-1.75	refund	instant_transfer	paypal	3B123456AB123456I
+2016-03-22	paypal	test	OCX-100019	USD	256.00	7.72	sale	instant_transfer	paypal	0PJ00384FC2822822
+2016-03-22	paypal	test	OCX-100020	USD	192.00	5.87	sale	instant_transfer	paypal	9FL60847EC991483T
+2016-03-22	paypal	test	OCX-100022	USD	800.00	23.50	sale	instant_transfer	paypal	31318338746228035
+2016-03-22	paypal	test	OCX-100023	USD	60.00	2.04	sale	instant_transfer	paypal	8XC042089G853230R

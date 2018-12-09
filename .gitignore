@@ -61,6 +61,13 @@ catalog_test.json
 course_structure.json
 
 # Sphinx docs
-docs
-sphinx_source/*.rst
-!sphinx_source/index.rst
+docs/*
+docs/source/all.rst
+docs/source/toctree.rst
+docs/source/workflow_entry_point.rst
+!docs/source/
+!docs/source/_themes/*
+
+*.java
+TempStatsStore/
+derby.log

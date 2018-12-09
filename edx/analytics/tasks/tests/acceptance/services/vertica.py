@@ -6,8 +6,7 @@ from contextlib import contextmanager
 
 import vertica_python
 
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.util.url import get_target_from_url
 
 
 class VerticaService(object):
@@ -63,8 +62,6 @@ class VerticaService(object):
         """
         Connect to the Vertica server.
         """
-        if self.disabled:
-            raise unittest.SkipTest('The vertica service is disabled')
         return vertica_python.connect(user=self.credentials.get('user'), password=self.credentials.get('password'),
                                       database='', host=self.credentials.get('host'))
 

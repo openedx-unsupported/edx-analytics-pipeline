@@ -2,16 +2,13 @@
 End to end test of the internal reporting user table loading task.
 """
 
-import os
-import logging
 import datetime
+import logging
+import os
 
 import pandas
 
-from luigi.date_interval import Date
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 
 
 log = logging.getLogger(__name__)
@@ -21,7 +18,8 @@ class InternalReportingUserLoadAcceptanceTest(AcceptanceTestCase):
     """End-to-end test of the workflow to load the internal reporting warehouse's user table."""
 
     INPUT_FILE = 'location_by_course_tracking.log'
-    DATE_INTERVAL = Date(2014, 7, 21)
+    INTERVAL = '2014-07-21-2014-07-21'
+    DATE = '2014-07-21'
 
     def setUp(self):
         super(InternalReportingUserLoadAcceptanceTest, self).setUp()
@@ -33,13 +31,19 @@ class InternalReportingUserLoadAcceptanceTest(AcceptanceTestCase):
         # Put up the mock tracking log for user locations.
         self.upload_tracking_log(self.INPUT_FILE, datetime.datetime(2014, 7, 21))
 
+    @when_vertica_available
     def test_internal_reporting_user(self):
         """Tests the workflow for the internal reporting user table, end to end."""
 
         self.task.launch([
+            'LastCountryOfUserPartitionTask',
+            '--interval', self.INTERVAL,
+            '--n-reduce-tasks', str(self.NUM_REDUCERS),
+        ])
+
+        self.task.launch([
             'LoadInternalReportingUserToWarehouse',
-            '--interval', self.DATE_INTERVAL.to_string(),
-            '--user-country-output', url_path_join(self.test_out, 'user'),
+            '--date', self.DATE,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
