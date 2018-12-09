@@ -189,6 +189,11 @@ class ProblemCheckEventMapTest(InitializeOpaqueKeysMixin, ProblemCheckEventBaseT
         line = self.create_event_log_line()
         self.assert_no_map_output_for(line)
 
+    def test_invalid_answer_id_with_nonascii(self):
+        self.answer_id = u"R\ufffd\ufffd\ufffdn\u0010.Y\u0001\ufffd.\ufffd\u0007\u0013*\ufffd\ufffd\ufffd\ufffdI\ufffd3}"
+        line = self.create_event_log_line()
+        self.assert_no_map_output_for(line)
+
     def test_good_problem_check_event(self):
         # Here, we make the event as a dictionary since we're comparing based on dictionaries anyway.
         event = self.create_event_dict()

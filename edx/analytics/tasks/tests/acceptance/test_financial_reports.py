@@ -10,7 +10,10 @@ import luigi
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available, when_vertica_not_available
+from edx.analytics.tasks.tests.acceptance import (
+    AcceptanceTestCase, when_vertica_available, when_vertica_not_available, coerce_columns_to_string,
+    read_csv_fixture_as_list
+)
 from edx.analytics.tasks.util.url import url_path_join
 from edx.analytics.tasks.warehouse.financial.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
 
@@ -58,27 +61,24 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
 
         with self.vertica.cursor() as cursor:
             expected_output_csv = os.path.join(self.data_dir, 'output', 'expected_financial_report.csv')
-            expected = pandas.read_csv(expected_output_csv, parse_dates=True)
+
+            expected_output_data = read_csv_fixture_as_list(expected_output_csv)
+
+            expected = pandas.DataFrame(expected_output_data, columns=columns)
 
             cursor.execute("SELECT {columns} FROM {schema}.f_orderitem_transactions".format(
                 columns=','.join(columns),
                 schema=self.vertica.schema_name
             ))
             response = cursor.fetchall()
-            f_orderitem_transactions = pandas.DataFrame(response, columns=columns)
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(f_orderitem_transactions == expected))
-            except ValueError:
-                buf = StringIO()
-                f_orderitem_transactions.to_csv(buf)
-                print 'Actual:'
-                print buf.getvalue()
-                buf.seek(0)
-                expected.to_csv(buf)
-                print 'Expected:'
-                print buf.getvalue()
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            f_orderitem_transactions = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+
+            for frame in (f_orderitem_transactions, expected):
+                frame.sort(['payment_ref_id', 'transaction_type'], inplace=True, ascending=[True, False])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(f_orderitem_transactions, expected)
 
     @when_vertica_not_available
     def test_end_to_end_without_vertica(self):

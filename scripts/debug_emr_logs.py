@@ -1,4 +1,5 @@
 import argparse
+from collections import deque
 import gzip
 import os
 import re
@@ -8,6 +9,7 @@ import boto.emr
 from subprocess import Popen, PIPE
 
 DEFAULT_REGION = 'us-east-1'
+
 
 def main():
     arg_parser = argparse.ArgumentParser(description='Get Traceback information from emr-logs.')
@@ -39,6 +41,11 @@ def main():
         action='store_true',
         help='Cleanup logs.'
     )
+    arg_parser.add_argument(
+        '-n', '--context',
+        type=int,
+        help='Number of lines of the log to include before the error.'
+    )
 
     args = arg_parser.parse_args()
 
@@ -59,26 +66,26 @@ def main():
     )
     return_code = download_emr_logs(s3_emr_logs_url, args.output_path)
     if return_code != 0:
-       raise RuntimeError('Unable to download logs from S3.')
+        raise RuntimeError('Unable to download logs from S3.')
 
     extract_files(args.output_path)
 
-    display_errors(args.output_path)
+    display_errors(args.output_path, args.context)
 
     if args.cleanup:
         shutil.rmtree(args.output_path)
 
+
 def download_emr_logs(s3_emr_logs_url, output_path):
-    print("Downloading logs.")
     if not os.path.exists(output_path):
         os.makedirs(output_path)
 
-    proc = Popen(
-        ['aws','s3','sync',s3_emr_logs_url, output_path, '--exclude', '*', '--include', '*stderr.gz'],
-        stdout=PIPE,
-    )
+    cmd = ['aws', 's3', 'sync', s3_emr_logs_url, output_path, '--exclude', '*', '--include', '*stderr.gz']
+    print('Downloading logs using command: ' + ' '.join(cmd))
+    proc = Popen(cmd, stdout=PIPE)
     stdout = proc.communicate()[0]
     return proc.returncode
+
 
 def extract_files(root_path):
     print("Unzipping files.")
@@ -94,7 +101,8 @@ def extract_files(root_path):
                         for line in input_file:
                             output_file.write(line)
 
-def display_errors(root_path):
+
+def display_errors(root_path, context=0):
     error_text = []
 
     for path, dirs, files in os.walk(root_path):
@@ -102,12 +110,29 @@ def display_errors(root_path):
             if filename == 'stderr':
                 filename_with_path = os.path.join(path, filename)
                 with open(filename_with_path) as f:
-                    data = f.read()
-                    for exc in re.findall(r'luigi-exc-hex=[0-9a-f]+', data):
-                        error_text.append(filename_with_path)
-                        error_text.append(exc.split('=')[-1].decode('hex'))
+                    context_buffer = deque()
+                    for line in f:
+                        match = re.match(r'luigi-exc-hex=([0-9a-f]+)', line)
+                        if not match:
+                            if context:
+                                context_buffer.append(line)
+                                if len(context_buffer) > context:
+                                    context_buffer.popleft()
+                            continue
+                        else:
+                            hex_string = match.group(1)
 
-    print('\n'.join(error_text))
+                        print('---' + filename_with_path)
+                        print(''.join(context_buffer))
+                        if hasattr(hex_string, 'decode'):
+                            # Python 2.X
+                            err = hex_string.decode('hex')
+                        else:
+                            # Python 3.X
+                            import binascii
+                            err = binascii.unhexlify(hex_string).decode('utf8')
+                        print(err)
+
 
 if __name__ == '__main__':
     main()

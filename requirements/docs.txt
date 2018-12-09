@@ -1,2 +1,2 @@
 -r default.txt
-Sphinx==1.3.5
+Sphinx==1.5.1

@@ -23,10 +23,8 @@ def load_sqoop_cmd():
     return luigi.configuration.get_config().get('sqoop', 'command', 'sqoop')
 
 
-class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
-    """
-    An abstract task that uses Sqoop to read data out of a database and
-    writes it to a file in CSV format.
+class SqoopImportMixin(object):
+    """Mixin to expose useful parameters when importing from a database using Sqoop.
 
     In order to protect the database access credentials they are
     loaded from an external file which can be secured appropriately.
@@ -34,17 +32,14 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
     a simple map specifying the host, port, username password and
     database.
 
-    Inherited parameters:
-        overwrite:  Overwrite any existing imports.  Default is false.
-
     Example Credentials File::
 
-        {
-            "host": "db.example.com",
-            "port": "3306",
-            "username": "exampleuser",
-            "password": "example password"
-        }
+    {
+        "host": "db.example.com",
+        "port": "3306",
+        "username": "exampleuser",
+        "password": "example password"
+    }
     """
     destination = luigi.Parameter(
         config_path={'section': 'database-import', 'name': 'destination'},
@@ -55,24 +50,37 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         description='Path to the external access credentials file.',
     )
     database = luigi.Parameter(
-        config_path={'section': 'database-import', 'name': 'database'}
+        config_path={'section': 'database-import', 'name': 'database'},
     )
     num_mappers = luigi.Parameter(
         default=None,
+        significant=False,
         description='The number of map tasks to ask Sqoop to use.',
     )
     verbose = luigi.BooleanParameter(
         default=False,
+        significant=False,
         description='Print more information while working.',
-    )
-    table_name = luigi.Parameter(
-        description='The name of the table to import.',
     )
     where = luigi.Parameter(
         default=None,
         description='A "where" clause to be passed to Sqoop.  Note that '
         'no spaces should be embedded and special characters should '
         'be escaped.  For example:  --where "id\<50". ',
+    )
+
+
+class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.hadoop.BaseHadoopJobTask):
+    """
+    An abstract task that uses Sqoop to read data out of a database and
+    writes it to a file in CSV format.
+
+    Inherited parameters:
+        overwrite:  Overwrite any existing imports.  Default is false.
+
+    """
+    table_name = luigi.Parameter(
+        description='The name of the table to import.',
     )
     columns = luigi.Parameter(
         is_list=True,
@@ -104,6 +112,10 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
     def metadata_output(self):
         """Return target to which metadata about the task execution can be written."""
         return get_target_from_url(url_path_join(self.destination, METADATA_FILENAME))
+
+    def marker_output(self):
+        """Return target for _SUCCESS marker indicating the task was successfully completed."""
+        return get_target_from_url(url_path_join(self.destination, "_SUCCESS"))
 
     def job_runner(self):
         """Use simple runner that gets args from the job and passes through."""
@@ -173,6 +185,16 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
             cred = json.load(credentials_file)
         return cred
 
+    def complete(self):
+        """
+        Wrap Task.complete() to check for metadata and marker file as well as data.
+        """
+        data_complete = super(SqoopImportTask, self).complete()
+        if data_complete and self.marker_output().exists() and self.metadata_output().exists():
+            return True
+        else:
+            return False
+
 
 class SqoopImportFromMysql(SqoopImportTask):
     """
@@ -222,7 +244,25 @@ class SqoopImportRunner(luigi.hadoop.JobRunner):
 
     def run_job(self, job):
         """Runs a SqoopImportTask by shelling out to sqoop."""
+
+        # First remove output if the overwrite flag is set.
         job.remove_output_on_overwrite()
+
+        # Sometimes the job will be run by another workflow running at
+        # the same time, and so this will already become complete.
+        # Sqoop cannot rerun the command line if the output file already
+        # exists -- Hadoop returns a FileAlreadyExistsException error from
+        # org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.checkOutputSpecs().
+        # Just check here first before running, and do nothing if it's already complete.
+        if job.complete():
+            log.warning("Skipping output of %s -- file already exists!", job.marker_output().path)
+            return
+
+        # And so, if it's not complete but there is partial output, it needs to be removed
+        # before Sqoop can be run.
+        if job.output().exists():
+            log.info("Removing existing partial output for task %s", str(job))
+            job.output().remove()
 
         metadata = {
             'start_time': datetime.datetime.utcnow().isoformat()

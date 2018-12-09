@@ -5,6 +5,12 @@ import re
 import datetime
 import itertools
 
+try:
+    from google.cloud.bigquery import SchemaField
+    bigquery_available = True  # pylint: disable=invalid-name
+except ImportError:
+    bigquery_available = False  # pylint: disable=invalid-name
+
 
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
 
@@ -69,6 +75,13 @@ class Record(object):
         class G(A):
             zipcode = StringField()
     """
+    # For the base record class, we want the values of all fields to
+    # be explicitly set.  An error is returned if any field is not
+    # set.  However, we provide a flag here so that subclasses can
+    # change this behavior.  In particular, we want to support a
+    # record with sparse entries. In this case, fields not explicitly
+    # set are given a value of None.
+    set_missing_fields_to_none = False
 
     def __init__(self, *args, **kwargs):
         fields = self.get_fields()
@@ -111,7 +124,10 @@ class Record(object):
                 val = kwargs.pop(field_name)
                 self.initialize_field(field_name, val)
             except KeyError:
-                missing_fields.append(field_name)
+                if self.set_missing_fields_to_none:
+                    self.initialize_field(field_name, None)
+                else:
+                    missing_fields.append(field_name)
 
         if len(missing_fields) > 0:
             raise TypeError('Required fields not specified: {0}'.format(', '.join(missing_fields)))
@@ -342,6 +358,28 @@ class Record(object):
         return schema
 
     @classmethod
+    def get_bigquery_schema(cls):
+        """
+        A skeleton schema of the BigQuery table that could store this data.
+
+        Accepted types for legacy tables are 'STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'TIMESTAMP', 'BYTES', 'DATE', 'TIME', 'DATETIME'.
+        Accepted types for standard tables are 'STRING', 'INT64', 'FLOAT64', 'BOOL', 'TIMESTAMP', 'BYTES', 'DATE', 'TIME', 'DATETIME'.
+        Going with legacy values for now.
+        Accepted modes are 'NULLABLE' or 'REQUIRED'.
+
+        Returns: A list of BigQuery SchemaField objects.
+        """
+        if not bigquery_available:
+            raise ImportError('Bigquery library not available')
+
+        schema = []
+        for field_name, field_obj in cls.get_fields().items():
+            mode = 'NULLABLE' if field_obj.nullable else 'REQUIRED'
+            description=getattr(field_obj, 'description', None)
+            schema.append(SchemaField(field_name, field_obj.bigquery_type, description=description, mode=mode))
+        return schema
+
+    @classmethod
     def get_elasticsearch_properties(cls):
         """
         An elasticsearch mapping that could store this data.
@@ -394,6 +432,20 @@ class Record(object):
             )
         field_doc.append('')
         return '\n'.join(field_doc)
+
+
+class SparseRecord(Record):
+    """
+    Represents a Record that can be initialized with a subset of values being defined.
+
+    Fields in the record that are not explicitly specified will default to None.
+    """
+    # For the base record class, we wanted the values of all fields to
+    # be explicitly set, and an error to be returned if any field is
+    # not set.  We set this flag here to support records with sparse
+    # entries.  In this case, fields not explicitly set are given a
+    # value of None.
+    set_missing_fields_to_none = True
 
 
 class HiveTsvEncoder(object):
@@ -493,6 +545,11 @@ class Field(object):
         raise NotImplementedError
 
     @property
+    def biqquery_type(self):
+        """Returns the BigQuery data type for this type of field."""
+        raise NotImplementedError
+
+    @property
     def elasticsearch_type(self):
         """Returns the elasticsearch type for this type of field."""
         raise NotImplementedError
@@ -502,6 +559,7 @@ class StringField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a relatively short string."""
 
     hive_type = 'STRING'
+    bigquery_type = 'STRING'
     elasticsearch_type = 'string'
 
     def validate_parameters(self):
@@ -545,6 +603,7 @@ class DelimitedStringField(Field):
     """Represents a list of strings, stored as a single delimited string."""
 
     hive_type = 'STRING'
+    bigquery_type = 'STRING'
     sql_base_type = 'VARCHAR'
     elasticsearch_type = 'string'
     delimiter = '\0'
@@ -571,6 +630,7 @@ class BooleanField(Field):
     """Represents a field that contains a boolean."""
 
     hive_type = 'TINYINT'
+    bigquery_type = 'BOOLEAN'
     sql_base_type = 'BOOLEAN'
     elasticsearch_type = 'boolean'
 
@@ -598,6 +658,7 @@ class IntegerField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains an integer."""
 
     hive_type = sql_base_type = 'INT'
+    bigquery_type = 'INTEGER'
     elasticsearch_type = 'integer'
 
     def validate(self, value):
@@ -614,6 +675,7 @@ class DateField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a date."""
 
     hive_type = 'STRING'
+    bigquery_type = 'DATE'
     sql_base_type = 'DATE'
     elasticsearch_type = 'date'
 
@@ -631,6 +693,7 @@ class DateTimeField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a date and time."""
 
     hive_type = 'TIMESTAMP'
+    bigquery_type = 'TIMESTAMP'
     sql_base_type = 'DATETIME'
     elasticsearch_type = 'date'
     elasticsearch_format = 'yyyy-MM-dd HH:mm:ss.SSSSSS'
@@ -665,6 +728,10 @@ class DateTimeField(Field):  # pylint: disable=abstract-method
             validation_errors.append('The value is a naive datetime.')
         elif value.utcoffset().total_seconds() != 0:
             validation_errors.append('The value must use UTC timezone.')
+        elif value.year < 1900:
+            # https://docs.python.org/2/library/datetime.html?highlight=strftime#strftime-strptime-behavior
+            # "The exact range of years for which strftime() works also varies across platforms. Regardless of platform, years before 1900 cannot be used."
+            validation_errors.append('The value must be a date after 1900.')
 
         return validation_errors
 
@@ -686,6 +753,7 @@ class FloatField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a floating point number."""
 
     hive_type = sql_base_type = 'FLOAT'
+    bigquery_type = 'FLOAT'
     elasticsearch_type = 'float'
 
     def validate(self, value):

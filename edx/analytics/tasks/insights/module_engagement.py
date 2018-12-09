@@ -45,8 +45,9 @@ class ModuleEngagementRecord(Record):
     date = DateField(nullable=False, description='The learner interacted with the entity on this date.')
     entity_type = StringField(length=10, nullable=False, description='Category of entity that the learner interacted'
                                                                      ' with. Example: "video".')
-    entity_id = StringField(length=255, nullable=False, description='A unique identifier for the entity within the'
-                                                                    ' course that the learner interacted with.')
+    entity_id = StringField(length=255, nullable=False, truncate=True,
+                            description='A unique identifier for the entity within the'
+                                        ' course that the learner interacted with.')
     event = StringField(length=30, nullable=False, description='The interaction the learner had with the entity.'
                                                                ' Example: "viewed".')
     count = IntegerField(nullable=False, description='Number of interactions the learner had with this entity on this'
@@ -180,7 +181,7 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         elif event_type == 'play_video':
             entity_type = 'video'
             user_actions.append('viewed')
-            entity_id = event_data.get('id')
+            entity_id = event_data.get('id', '').strip() # we have seen id values with leading newlines
         elif event_type.startswith('edx.forum.'):
             entity_type = 'discussion'
             if event_type.endswith('.created'):
@@ -888,8 +889,8 @@ class ModuleEngagementUserSegmentDataTask(ModuleEngagementDownstreamMixin, Overw
             # Typically a left-closed interval, however, we consider infinite values to be included in the interval
             # if the upper bound is infinite.
             value_less_than_high = (
-                (value < high_metric_range.high_value)
-                or (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
+                (value < high_metric_range.high_value) or
+                (value in (float('inf'), float('-inf')) and high_metric_range.high_value == value)
             )
             if (high_metric_range.low_value <= value) and value_less_than_high:
                 if metric == 'problem_attempts_per_completed':
@@ -1141,10 +1142,10 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
             SELECT
                 course_id,
                 user_id,
-                MIN(date) AS first_enrollment_date
+                MIN(`date`) AS first_enrollment_date
             FROM course_enrollment
             WHERE
-                at_end = 1 AND date < '{end}'
+                at_end = 1 AND `date` < '{end}'
             GROUP BY course_id, user_id
         ) lce
             ON (ce.course_id = lce.course_id AND ce.user_id = lce.user_id)
@@ -1159,7 +1160,7 @@ class ModuleEngagementRosterPartitionTask(WeekIntervalMixin, ModuleEngagementDow
         ) seg
             ON (ce.course_id = seg.course_id AND au.username = seg.username)
         WHERE
-            ce.date = '{last_complete_date}'
+            ce.`date` = '{last_complete_date}'
         """.format(
             start=self.interval.date_a.isoformat(),  # pylint: disable=no-member
             end=self.interval.date_b.isoformat(),  # pylint: disable=no-member

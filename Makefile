@@ -1,11 +1,4 @@
 
-# If a wheel repository is defined, then have pip use that.  But don't require the use of wheel.
-ifneq ($(strip $(WHEEL_URL)),)
-	PIP_INSTALL = pip install --use-wheel --find-links=$$WHEEL_URL/Python-$$WHEEL_PYVER --allow-external mysql-connector-python
-else
-	PIP_INSTALL = pip install --allow-external mysql-connector-python
-endif
-
 .PHONY:	requirements test test-requirements .tox
 
 uninstall:
@@ -16,8 +9,8 @@ install: requirements uninstall
 	python setup.py install --force
 
 bootstrap: uninstall
-	$(PIP_INSTALL) -U -r requirements/pre.txt
-	$(PIP_INSTALL) -U -r requirements/base.txt
+	pip install -U -r requirements/pre.txt
+	pip install -U -r requirements/base.txt --no-cache-dir
 	python setup.py install --force
 
 develop: requirements develop-local
@@ -28,21 +21,19 @@ develop-local: uninstall
 
 system-requirements:
 ifeq (,$(wildcard /usr/bin/yum))
-	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
+	sudo apt-get install -y -q libmysqlclient-dev libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
 else
-	sudo yum update -q -y
 	sudo yum install -y -q postgresql-devel libffi-devel
 endif
 
 requirements:
-	$(PIP_INSTALL) -U -r requirements/pre.txt
-	$(PIP_INSTALL) -U -r requirements/default.txt
-	$(PIP_INSTALL) -U -r requirements/extra.txt
+	pip install -U -r requirements/pre.txt
+	pip install -U -r requirements/default.txt --no-cache-dir
+	pip install -U -r requirements/extra.txt --no-cache-dir
 
 test-requirements: requirements
-	$(PIP_INSTALL) -U -r requirements/test.txt
+	pip install -U -r requirements/test.txt --no-cache-dir
 
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
@@ -76,7 +67,7 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	$(PIP_INSTALL) -U -r requirements/docs.txt
+	pip install -U -r requirements/docs.txt --no-cache-dir
 	python setup.py install --force
 
 docs-local:

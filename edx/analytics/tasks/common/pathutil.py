@@ -231,10 +231,16 @@ class PathSelectionByDateIntervalTask(EventLogSelectionDownstreamMixin, luigi.Wr
             return False
 
         # If the pattern contains a date group, use that to check if within the requested interval.
-        # If it doesn't contain such a group, then assume that it should be included.
+        # If instead the pattern contains a timestamp group, use that instead to check if within the requested interval.
+        # If it doesn't contain either such group, then assume that it should be included.
         should_include = True
         if 'date' in match.groupdict():
             parsed_datetime = datetime.datetime.strptime(match.group('date'), self.date_pattern)
+            parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
+            should_include = parsed_date in self.interval
+        elif 'timestamp' in match.groupdict():
+            timestamp = int(match.group('timestamp'))
+            parsed_datetime = datetime.datetime.utcfromtimestamp(timestamp)
             parsed_date = datetime.date(parsed_datetime.year, parsed_datetime.month, parsed_datetime.day)
             should_include = parsed_date in self.interval
 
@@ -269,10 +275,12 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         """Default mapper implementation, that always outputs the log line, but with a configurable key."""
         event = eventlog.parse_json_event(line)
         if event is None:
+            self.incr_counter('Event', 'Discard Unparseable Event', 1)
             return None
 
         event_time = self.get_event_time(event)
         if not event_time:
+            self.incr_counter('Event', 'Discard Missing Time Field', 1)
             return None
 
         # Don't use strptime to parse the date, it is extremely slow
@@ -282,6 +290,7 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         date_string = event_time.split("T")[0]
 
         if date_string < self.lower_bound_date_string or date_string >= self.upper_bound_date_string:
+            ## self.incr_counter('Event', 'Discard Outside Date Interval', 1)
             return None
 
         return event, date_string
@@ -291,7 +300,6 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
         try:
             return event['time']
         except KeyError:
-            self.incr_counter('Event', 'Missing Time Field', 1)
             return None
 
     def get_map_input_file(self):
@@ -306,4 +314,5 @@ class EventLogSelectionMixin(EventLogSelectionDownstreamMixin):
                 return os.environ['map_input_file']
             except KeyError:
                 log.warn('mapreduce_map_input_file not defined in os.environ, unable to determine input file path')
+                self.incr_counter('Event', 'Missing map_input_file', 1)
                 return ''

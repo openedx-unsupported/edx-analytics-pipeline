@@ -1,6 +1,7 @@
 """Collect information about payments from third-party sources for financial reporting."""
 
 import csv
+import os
 import datetime
 import logging
 import requests
@@ -11,7 +12,8 @@ from luigi import date_interval
 
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
+from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +37,11 @@ class PullFromCybersourceTaskMixin(OverwriteOutputMixin):
         self.username = config.get(section_name, 'username')
         self.password = config.get(section_name, 'password')
         self.interval_start = luigi.DateParameter().parse(config.get(section_name, 'interval_start'))
+
+        self.merchant_close_date = None
+        merchant_close_date = config.get(section_name, 'merchant_close_date', '')
+        if merchant_close_date:
+            self.merchant_close_date = luigi.DateParameter().parse(merchant_close_date)
 
 
 class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
@@ -190,9 +197,6 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
 class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.WrapperTask):
     """Determines a set of dates to pull, and requires them."""
 
-    interval = luigi.DateIntervalParameter(
-        default=None,
-    )
     interval_end = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
         significant=False,
@@ -210,20 +214,72 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
         # Provide default for output_root at this level.
         if self.output_root is None:
             self.output_root = self.warehouse_path
-        if self.interval is None:
-            self.interval = date_interval.Custom(self.interval_start, self.interval_end)
+
+        path = url_path_join(self.warehouse_path, 'payments')
+        file_pattern = '*cybersource_{}.tsv'.format(self.merchant_id)
+        path_targets = PathSetTask([path], include=[file_pattern], include_zero_length=True).output()
+        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+        dates = [path.rsplit('/', 2)[-1] for path in paths]
+        latest_date = sorted(dates)[-1]
+
+        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+        run_date = latest_completion_date + datetime.timedelta(days=1)
+
+        # Limit intervals to merchant account close date(if any).
+        if self.merchant_close_date:
+            run_date = min(run_date, self.merchant_close_date)
+            self.interval_end = min(self.interval_end, self.merchant_close_date)
+
+        self.selection_interval = date_interval.Custom(self.interval_start, run_date)
+        self.run_interval = date_interval.Custom(run_date, self.interval_end)
 
     def requires(self):
         """Internal method to actually calculate required tasks once."""
-        args = {
-            'merchant_id': self.merchant_id,
-            'output_root': self.warehouse_path,
-            'overwrite': self.overwrite,
-        }
 
-        for run_date in self.interval:
-            args['run_date'] = run_date
-            yield DailyProcessFromCybersourceTask(**args)
+        yield PathSelectionByDateIntervalTask(
+            source=[url_path_join(self.warehouse_path, 'payments')],
+            interval=self.selection_interval,
+            pattern=['.*dt=(?P<date>\\d{{4}}-\\d{{2}}-\\d{{2}})/cybersource_{}\\.tsv'.format(self.merchant_id)],
+            expand_interval=datetime.timedelta(0),
+            date_pattern='%Y-%m-%d',
+        )
+
+        for run_date in self.run_interval:
+            yield DailyProcessFromCybersourceTask(
+                merchant_id=self.merchant_id,
+                output_root=self.output_root,
+                run_date=run_date,
+                overwrite=self.overwrite,
+            )
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+class CybersourceDataValidationTask(WarehouseMixin, luigi.WrapperTask):
+
+    import_date = luigi.DateParameter()
+
+    cybersource_merchant_ids = luigi.Parameter(
+        default_from_config={'section': 'payment', 'name': 'cybersource_merchant_ids'},
+        is_list=True
+    )
+
+    def requires(self):
+        config = get_config()
+        for merchant_id in self.cybersource_merchant_ids:
+            section_name = 'cybersource:' + merchant_id
+            interval_start = luigi.DateParameter().parse(config.get(section_name, 'interval_start'))
+            interval_end = self.import_date
+
+            merchant_close_date = config.get(section_name, 'merchant_close_date', '')
+            if merchant_close_date:
+                parsed_date = luigi.DateParameter().parse(merchant_close_date)
+                interval_end = min(self.import_date, parsed_date)
+
+            cybersource_interval = date_interval.Custom(interval_start, interval_end)
+
+            for date in cybersource_interval:
+                filename = "cybersource_{}.tsv".format(merchant_id)
+                url = url_path_join(self.warehouse_path, 'payments', 'dt=' + date.isoformat(), filename)
+                yield ExternalURL(url=url)

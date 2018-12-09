@@ -92,11 +92,13 @@ class VerticaTarget(luigi.Target):
             connection.autocommit = True
         cursor = connection.cursor()
         try:
-            cursor.execute("""SELECT 1 FROM {marker_schema}.{marker_table}
+            cursor.execute(
+                """SELECT 1 FROM {marker_schema}.{marker_table}
                 WHERE update_id = %s
-                LIMIT 1""".format(marker_schema=self.marker_schema, marker_table=self.marker_table),
-                           (self.update_id,)
-                          )
+                LIMIT 1""".format(
+                    marker_schema=self.marker_schema, marker_table=self.marker_table),
+                (self.update_id,)
+            )
             row = cursor.fetchone()
         except vertica_python.errors.Error as err:
             if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):

@@ -23,6 +23,10 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
             os.path.join(self.data_dir, 'input', 'course_catalog.json'),
             url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt=' + self.DATE, 'course_catalog.json')
         )
+        self.upload_file(
+            os.path.join(self.data_dir, 'input', 'programs.json'),
+            url_path_join(self.warehouse_path, 'programs_raw', 'dt=' + self.DATE, 'programs.json')
+        )
 
     @when_vertica_available
     def test_internal_reporting_user_course(self):
@@ -46,7 +50,7 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
             columns = [
                 'program_id', 'program_type', 'program_title',
                 'catalog_course', 'catalog_course_title',
-                'course_id', 'org_id', 'partner_short_code'
+                'course_id', 'org_id', 'partner_short_code', 'program_slot_number'
             ]
 
             cursor.execute(
@@ -84,13 +88,13 @@ class InternalReportingUserCourseLoadAcceptanceTest(AcceptanceTestCase):
     def validate_course(self):
         with self.vertica.cursor() as cursor:
             expected_output_csv = os.path.join(self.data_dir, 'output', 'acceptance_expected_d_course.csv')
-            expected = pandas.read_csv(expected_output_csv, parse_dates=[3, 4, 5, 6])
+            expected = pandas.read_csv(expected_output_csv, parse_dates=[3, 4, 5, 6, 16])
 
             columns = [
                 'course_id', 'catalog_course', 'catalog_course_title', 'start_time', 'end_time',
                 'enrollment_start_time', 'enrollment_end_time', 'content_language', 'pacing_type',
                 'level_type', 'availability', 'org_id', 'partner_short_code', 'marketing_url',
-                'min_effort', 'max_effort',
+                'min_effort', 'max_effort', 'announcement_time', 'reporting_type',
             ]
 
             cursor.execute(

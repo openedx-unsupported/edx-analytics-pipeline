@@ -9,10 +9,9 @@ import luigi
 
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, SchemaManagementTask
 from edx.analytics.tasks.util.hive import WarehouseMixin, HivePartition
 from edx.analytics.tasks.util.url import url_path_join, ExternalURL
-from edx.analytics.tasks.warehouse.load_warehouse import SchemaManagementTask
 
 log = logging.getLogger(__name__)
 
@@ -71,6 +70,8 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
                     field_type = field_type.rsplit('(')[0]
                 elif field_type == 'longtext':
                     field_type = 'LONG VARCHAR'
+                elif field_type == 'longblob':
+                    field_type = 'LONG VARBINARY'
                 elif field_type == 'double':
                     field_type = 'DOUBLE PRECISION'
 
@@ -159,6 +160,13 @@ class PostImportDatabaseTask(SchemaManagementTask):
     Task needed to run after importing database into warehouse.
     """
     priority = -100
+
+    # Override the standard roles here since these tables will be rather raw. We may want to restrict access to a
+    # subset of users.
+    roles = luigi.Parameter(
+        is_list=True,
+        config_path={'section': 'vertica-export', 'name': 'business_intelligence_team_roles'},
+    )
 
     @property
     def queries(self):

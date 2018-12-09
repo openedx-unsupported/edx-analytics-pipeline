@@ -251,7 +251,7 @@ class LastCountryOfUserPartitionTestCase(TestCase):
             """
             USE default;
 
-            ALTER TABLE last_country_of_user ADD IF NOT EXISTS PARTITION (dt='2014-01-01');
+            ALTER TABLE `last_country_of_user` ADD IF NOT EXISTS PARTITION (`dt`='2014-01-01');
             """
         )
         self.assertEquals(query, expected_query)
@@ -285,7 +285,7 @@ class QueryLastCountryPerCourseTaskTestCase(TestCase):
             USE default;
             DROP TABLE IF EXISTS course_enrollment_location_current;
             CREATE EXTERNAL TABLE course_enrollment_location_current (
-                date STRING,
+                `date` STRING,
                 course_id STRING,
                 country_code STRING,
                 count INT,

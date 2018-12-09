@@ -51,6 +51,16 @@ class CopyToPredefinedVerticaDummyTable(CopyToVerticaDummyTable):
         return ['course_id', 'interval_start', 'interval_end', 'label', 'count']
 
 
+class CopyToVerticaDummyTableWithPartitions(CopyToVerticaDummyTable):
+    """
+    Define table for testing with partitions.
+    """
+
+    @property
+    def table_partition_key(self):
+        return 'course_id'
+
+
 class CopyToVerticaDummyTableWithProjections(CopyToVerticaDummyTable):
     """
     Define table for testing with projections.
@@ -272,6 +282,25 @@ class VerticaCopyTaskTest(unittest.TestCase):
                 "(id AUTO_INCREMENT,course_id VARCHAR(255),"
                 "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
                 "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+            ),
+            call("SET TIMEZONE TO 'GMT';"),
+        ]
+        self.assertEquals(expected, mock_cursor.execute.mock_calls)
+
+    @with_luigi_config(('vertica-export', 'schema', 'foobar'))
+    def test_create_schema_with_partitions(self):
+        task = self.create_task(cls=CopyToVerticaDummyTableWithPartitions)
+        task.run()
+
+        mock_cursor = self.mock_vertica_connector.connect.return_value.cursor.return_value
+        expected = [
+            call("CREATE SCHEMA IF NOT EXISTS foobar"),
+            call(
+                "CREATE TABLE IF NOT EXISTS foobar.dummy_table "
+                "(id AUTO_INCREMENT,course_id VARCHAR(255),"
+                "interval_start DATETIME,interval_end DATETIME,label VARCHAR(255),"
+                "count INT,created TIMESTAMP DEFAULT NOW(),PRIMARY KEY (id))"
+                " PARTITION BY course_id"
             ),
             call("SET TIMEZONE TO 'GMT';"),
         ]

@@ -24,13 +24,37 @@ class CourseBlocksPartitionTaskAcceptanceTest(AcceptanceTestCase):
         super(CourseBlocksPartitionTaskAcceptanceTest, self).setUp()
         self.partition = "dt=" + self.DATE.strftime(self.DAILY_PARTITION_FORMAT)
 
-        # Copy course list and course blocks REST API data
-        for table_name in ('course_list', 'course_blocks'):
-            file_name = table_name + '.json'
-            self.upload_file(url_path_join(self.data_dir, 'input', file_name),
-                             url_path_join(self.warehouse_path, table_name + '_raw', self.partition, file_name))
+        # Copy raw input from the course_blocks REST API task into warehouse
+        self.copy_raw_input('course_blocks')
 
-    def test_partition_task(self):
+    def copy_raw_input(self, table_name):
+        """Copy raw REST API json data for the given table into warehouse."""
+        file_name = table_name + '.json'
+        self.upload_file(url_path_join(self.data_dir, 'input', file_name),
+                         url_path_join(self.warehouse_path, table_name + '_raw', self.partition, file_name))
+
+    def copy_hive_input(self, table_name):
+        """Copy processed hive data for the given table into warehouse."""
+        daily_partition = "dt=" + self.DATE.strftime(self.DAILY_PARTITION_FORMAT)
+        for file_name in ('part-00000', 'part-00001', '_SUCCESS'):
+            self.upload_file(url_path_join(self.data_dir, 'output', table_name, file_name),
+                             url_path_join(self.warehouse_path, table_name, daily_partition, file_name))
+
+    def test_partition_task_raw_input(self):
+        """Run the CourseBlocksPartitionTask using raw Course List input data."""
+        self.copy_raw_input('course_list')
+        self.validate_partition_task()
+
+    def test_partition_task_hive_input(self):
+        """
+        Run the CourseBlocksPartitionTask using hive Course List input data.
+
+        This simulates what happens when the course blocks task is run more often than the course list task.
+        """
+        self.copy_hive_input('course_list')
+        self.validate_partition_task()
+
+    def validate_partition_task(self):
         """Run the CourseBlocksPartitionTask and test its output."""
         date = self.DATE.strftime('%Y-%m-%d')
         input_root = url_path_join(self.warehouse_path, 'course_list', self.partition)
@@ -47,7 +71,6 @@ class CourseBlocksPartitionTaskAcceptanceTest(AcceptanceTestCase):
 
     def validate_hive(self):
         """Ensure hive partition was created as expected."""
-
         table_name = 'course_blocks'
         output_dir = url_path_join(self.data_dir, 'output', table_name)
         for file_name in ('_SUCCESS', 'part-00000', 'part-00001'):

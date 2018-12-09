@@ -153,7 +153,7 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
         )
 
     def test_section_view_event(self):
-        event_type = '/courses/{0}/courseware/foo/'.format(self.course_id)
+        event_type = u'/courses/{0}/courseware/foo/'.format(self.course_id)
         self.assert_single_map_output(
             self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,
@@ -165,7 +165,7 @@ class StudentEngagementTaskMapTest(BaseStudentEngagementTaskMapTest):
 
     def assert_last_subsection_viewed_recognized(self, end_of_path):
         """Assert that given a path ending the event is recognized as a subsection view"""
-        event_type = '/courses/{0}/courseware/{1}'.format(self.course_id, end_of_path)
+        event_type = u'/courses/{0}/courseware/{1}'.format(self.course_id, end_of_path)
         self.assert_single_map_output(
             self.create_event_log_line(event_type=event_type, event_source='server'),
             self.default_key,

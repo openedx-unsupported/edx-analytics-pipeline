@@ -43,8 +43,8 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
         'FakeServerGroup/tracking.log-20140318.gz',
         'FakeServerGroup/tracking.log-20140318',
         'FakeServerGroup/tracking.log-20140319-1395256622.gz',
-        'FakeServerGroup/tracking.log-20140401-1395254574.gz',
-        'FakeServerGroup/tracking.log-20140402-1395645654.gz',
+        'FakeServerGroup/tracking.log-20140401-1396379384.gz',
+        'FakeServerGroup/tracking.log-20140402-1396465784.gz',
         'FakeWorkerServerGroup',
         'FakeWorkerServerGroup/tracking.log',
         'FakeWorkerServerGroup/tracking.log-20131126.gz',
@@ -157,6 +157,27 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
             'FakeEdgeServerGroup/tracking.log-20140324-1395670621.gz',
         ])
 
+    def test_timestamped_urls(self):
+        task = PathSelectionByDateIntervalTask(
+            source=self.SOURCE,
+            interval=Month.parse('2014-03'),
+            pattern=[r'.*?FakeServerGroup/tracking.log-.*-(?P<timestamp>\d{10})\.gz'],
+            expand_interval=datetime.timedelta(0),
+        )
+        self.assert_only_matched(task, [
+            'FakeServerGroup/tracking.log-20140319-1395256622.gz',
+        ])
+        task = PathSelectionByDateIntervalTask(
+            source=self.SOURCE,
+            interval=Month.parse('2014-03'),
+            pattern=[r'.*?FakeServerGroup/tracking.log-.*-(?P<timestamp>\d{10})\.gz'],
+            expand_interval=datetime.timedelta(1),
+        )
+        self.assert_only_matched(task, [
+            'FakeServerGroup/tracking.log-20140319-1395256622.gz',
+            'FakeServerGroup/tracking.log-20140401-1396379384.gz',
+        ])
+
     def test_expanded_interval(self):
         task = PathSelectionByDateIntervalTask(
             source=self.SOURCE,
@@ -169,7 +190,7 @@ class PathSelectionByDateIntervalTaskTest(unittest.TestCase):
             'FakeServerGroup/tracking.log-20140228.gz',
             'FakeServerGroup/tracking.log-20140318.gz',
             'FakeServerGroup/tracking.log-20140319-1395256622.gz',
-            'FakeServerGroup/tracking.log-20140401-1395254574.gz',
+            'FakeServerGroup/tracking.log-20140401-1396379384.gz',
         ])
 
     @with_luigi_config('event-logs', 'pattern', 'foobar')

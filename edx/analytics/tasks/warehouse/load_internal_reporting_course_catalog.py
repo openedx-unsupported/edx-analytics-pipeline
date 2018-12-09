@@ -7,10 +7,11 @@ import datetime
 import logging
 
 import luigi
+from luigi.hive import HiveQueryTask
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
-from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin
+from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.record import Record, StringField, FloatField, DateTimeField, IntegerField
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -36,6 +37,13 @@ class LoadInternalReportingCourseCatalogMixin(WarehouseMixin, OverwriteOutputMix
         is_list=True,
         default=None,
         description="A list of partner short codes that we should fetch data for."
+    )
+    partner_api_urls = luigi.Parameter(
+        default_from_config={'section': 'course-catalog-api', 'name': 'partner_api_urls'},
+        is_list=True,
+        default=None,
+        description="A list of API URLs that are associated with the partner_short_codes.  This list must exactly " +
+                    "match the ordering of the partner_short_codes list."
     )
     api_root_url = luigi.Parameter(
         config_path={'section': 'course-catalog-api', 'name': 'api_root_url'},
@@ -65,9 +73,22 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
                     'partner': partner_short_code,
                     'exclude_utm': 1,
                 }
-                if not self.api_root_url:
-                    raise luigi.parameter.MissingParameterException("Missing api_root_url.")
-                url = url_path_join(self.api_root_url, 'course_runs') + '/'
+
+                if self.partner_api_urls:
+                    url_index = short_codes.index(partner_short_code)
+
+                    if url_index >= self.partner_api_urls.__len__():
+                        raise luigi.parameter.MissingParameterException(
+                            "Error!  Index of the partner short code from partner_short_codes exceeds the length of "
+                            "partner_api_urls.  These lists are not in sync!!!")
+                    api_root_url = self.partner_api_urls[url_index]
+                elif self.api_root_url:
+                    api_root_url = self.api_root_url
+                else:
+                    raise luigi.parameter.MissingParameterException("Missing either a partner_api_urls or an " +
+                                                                    "api_root_url.")
+
+                url = url_path_join(api_root_url, 'course_runs') + '/'
                 for response in client.paginated_get(url, params=params):
                     parsed_response = response.json()
                     counter = 0
@@ -88,6 +109,122 @@ class PullCourseCatalogAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Ta
         )
 
 
+class PullProgramAPIData(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Call the course discovery API and place the resulting JSON into the output file."""
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        client = EdxApiClient()
+        with self.output().open('w') as output_file:
+            params = {
+                'limit': self.api_page_size,
+                'exclude_utm': 1,
+            }
+            if not self.api_root_url:
+                raise luigi.parameter.MissingParameterException("Missing api_root_url.")
+            url = url_path_join(self.api_root_url, 'programs') + '/'
+            for response in client.paginated_get(url, params=params):
+                parsed_response = response.json()
+                counter = 0
+                for program in parsed_response.get('results', []):
+                    output_file.write(json.dumps(program))
+                    output_file.write('\n')
+                    counter += 1
+
+                if counter > 0:
+                    log.info('Wrote %d records to output file', counter)
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('programs_raw', partition_value=self.date), 'programs.json'
+            )
+        )
+
+
+class ProgramCourseOrderDataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
+    """Process course discovery programs API response and save results to a tsv."""
+
+    def requires(self):
+        return PullProgramAPIData(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        with self.input().open('r') as input_file:
+            with self.output().open('w') as output_file:
+                for program_str in input_file:
+                    program = json.loads(program_str)
+                    current_slot_number = 1
+                    for course in program.get('courses', []):
+                        program_id = program['uuid']
+                        catalog_course = course['key']
+                        slot_number = current_slot_number
+
+                        line = (program_id, catalog_course, str(slot_number))
+                        output_file.write('\t'.join([v.encode('utf-8') for v in line]))
+                        output_file.write('\n')
+                        current_slot_number += 1
+
+    def output(self):
+        return get_target_from_url(
+            url_path_join(
+                self.hive_partition_path('program_course_order', partition_value=self.date),
+                '{0}.tsv'.format('program_course_order')
+            )
+        )
+
+
+class ProgramCourseOrderTableTask(BareHiveTableTask):
+    """Hive table for program_course_order."""
+
+    @property
+    def partition_by(self):
+        return 'dt'
+
+    @property
+    def table(self):
+        return 'program_course_order'
+
+    @property
+    def columns(self):
+        return [
+            ('program_id', 'STRING'),
+            ('catalog_course', 'STRING'),
+            ('program_slot_number', 'INT'),
+        ]
+
+
+class ProgramCourseOrderPartitionTask(LoadInternalReportingCourseCatalogMixin, HivePartitionTask):
+    """The hive table partition for the program course catalog data."""
+
+    @property
+    def partition_value(self):
+        """Use a dynamic partition value based on the date parameter."""
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def hive_table_task(self):
+        return ProgramCourseOrderTableTask(
+            warehouse_path=self.warehouse_path,
+        )
+
+    @property
+    def data_task(self):
+        return ProgramCourseOrderDataTask(
+            date=self.date,
+            warehouse_path=self.warehouse_path,
+            api_root_url=self.api_root_url,
+            api_page_size=self.api_page_size,
+            overwrite=self.overwrite,
+        )
+
+
 class ProgramCourseRecord(Record):
     """Represents a course run within a program."""
     program_id = StringField(nullable=False, length=36)
@@ -98,6 +235,7 @@ class ProgramCourseRecord(Record):
     course_id = StringField(nullable=False, length=255)
     org_id = StringField(nullable=False, length=255)
     partner_short_code = StringField(nullable=True, length=8)
+    program_slot_number = IntegerField(nullable=True)
 
 
 class BaseCourseMetadataTask(LoadInternalReportingCourseCatalogMixin, luigi.Task):
@@ -196,10 +334,82 @@ class ProgramCourseDataTask(BaseCourseMetadataTask):
                 catalog_course_title=course_run.get('title'),
                 course_id=course_run['key'],
                 org_id=get_org_id_for_course(course_run['key']),
-                partner_short_code=course_run.get('partner_short_code')
+                partner_short_code=course_run.get('partner_short_code'),
+                program_slot_number=None,
             )
             output_file.write(record.to_separated_values(sep=u'\t'))
             output_file.write('\n')
+
+
+class JoinProgramCourseWithOrderTask(LoadInternalReportingCourseCatalogMixin, HiveQueryTask):
+    """Task to join program_course with program_course_order hive tables."""
+
+    def query(self):
+        query = """
+        USE {database_name};
+        DROP TABLE IF EXISTS {table_name};
+        CREATE EXTERNAL TABLE {table_name} (
+            program_id STRING,
+            program_type STRING,
+            program_title STRING,
+            catalog_course STRING,
+            catalog_course_title STRING,
+            course_id STRING,
+            org_id STRING,
+            partner_short_code STRING,
+            program_slot_number INT
+        )
+        ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t'
+        LOCATION '{location}';
+
+        INSERT OVERWRITE TABLE {table_name}
+        SELECT
+            p.program_id,
+            p.program_type,
+            p.program_title,
+            p.catalog_course,
+            p.catalog_course_title,
+            p.course_id,
+            p.org_id,
+            p.partner_short_code,
+            o.program_slot_number
+        FROM program_course p
+        LEFT JOIN program_course_order o ON p.program_id = o.program_id AND p.catalog_course = o.catalog_course;
+        """.format(
+            database_name=hive_database_name(),
+            location=self.table_location,
+            table_name=self.table,
+        )
+        log.debug('Executing hive query: %s', query)
+        return query
+
+    def run(self):
+        self.remove_output_on_overwrite()
+        super(JoinProgramCourseWithOrderTask, self).run()
+
+    @property
+    def table(self):
+        """Provides name of Hive database table."""
+        return 'program_course_with_order'
+
+    @property
+    def table_location(self):
+        """Provides location of Hive database table's data."""
+        return self.hive_partition_path(self.table, self.date)
+
+    def output(self):
+        return get_target_from_url(self.table_location)
+
+    def requires(self):
+        kwargs = {
+            'date': self.date,
+            'warehouse_path': self.warehouse_path,
+            'api_root_url': self.api_root_url,
+            'api_page_size': self.api_page_size,
+            'overwrite': self.overwrite,
+        }
+        yield ProgramCoursePartitionTask(**kwargs)
+        yield ProgramCourseOrderPartitionTask(**kwargs)
 
 
 class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
@@ -207,13 +417,13 @@ class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseC
 
     @property
     def insert_source_task(self):
-        return ProgramCoursePartitionTask(
+        return JoinProgramCourseWithOrderTask(
             date=self.date,
             warehouse_path=self.warehouse_path,
             api_root_url=self.api_root_url,
             api_page_size=self.api_page_size,
             overwrite=self.overwrite,
-        ).data_task
+        )
 
     @property
     def table(self):
@@ -295,6 +505,8 @@ class CourseRecord(Record):
     marketing_url = StringField(nullable=True, length=1024)
     min_effort = IntegerField(nullable=True)
     max_effort = IntegerField(nullable=True)
+    announcement_time = DateTimeField(nullable=True)
+    reporting_type = StringField(nullable=True, length=20)
 
 
 class CourseTableTask(BareHiveTableTask):
@@ -361,6 +573,8 @@ class CourseDataTask(BaseCourseMetadataTask):
             marketing_url=course_run.get('marketing_url'),
             min_effort=course_run.get('min_effort'),
             max_effort=course_run.get('max_effort'),
+            announcement_time = DateTimeField().deserialize_from_string(course_run.get('announcement')),
+            reporting_type = course_run.get('reporting_type'),
         )
         output_file.write(record.to_separated_values(sep=u'\t'))
         output_file.write('\n')

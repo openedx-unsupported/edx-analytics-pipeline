@@ -22,7 +22,7 @@ class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixi
         self.timestamp = "2013-12-17T15:38:32.805444"
         self.problem_name = 'Test test test'
         self.saved_tags = {'difficulty': 'Hard', 'learning_outcome': 'Learned everything'}
-        self.usage_key = "block-v1:{course_id}+type@problem+block@ffb8df09604f4e73ac0".format(course_id=self.course_id)
+        self.usage_key = u"block-v1:{course_id}+type@problem+block@ffb8df09604f4e73ac0".format(course_id=self.course_id)
 
         self.event_templates = {
             'tags_distribution_event': {
@@ -211,3 +211,20 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, TestCase):
                   ('2013-01-01T00:00:02', {'difficulty': 'Hard',
                                            'learning_outcome': 'Learned nothing'}, 1), ]
         self._check_output_complete_tuple(inputs, ())
+
+    def test_multiple_tag_values(self):
+        multiple_tag_values = {
+            'learning_outcome_1': ['Research as Inquiry', 'Authority is Constructed and Contextual'],
+            'learning_outcome_2': ['Research as Inquiry', 'Scholarship as Conversation'],
+        }
+        inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), multiple_tag_values,
+                   1 if k != 1 else 0) for k in xrange(4)]
+        expected = ((self.course_id, self.org_id, self.problem_id, 'learning_outcome_1',
+                     'Research as Inquiry', '4', '3'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome_1',
+                     'Authority is Constructed and Contextual', '4', '3'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome_2',
+                     'Research as Inquiry', '4', '3'),
+                    (self.course_id, self.org_id, self.problem_id, 'learning_outcome_2',
+                     'Scholarship as Conversation', '4', '3'))
+        self._check_output_complete_tuple(inputs, expected)

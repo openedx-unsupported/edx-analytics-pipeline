@@ -1031,3 +1031,8 @@ def _check_answer_ids(answer_dict):
     for answer_id in answer_dict:
         if '\n' in answer_id or '\t' in answer_id:
             raise ValueError('Malformed answer_id')
+
+        try:
+            answer_id.encode('ascii')
+        except UnicodeEncodeError:
+            raise ValueError('Non-ascii answer_id')

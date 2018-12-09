@@ -41,6 +41,9 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             url_path_join(self.warehouse_path, 'course_catalog_raw', 'dt={}'.format(self.CATALOG_DATE),
                           'course_catalog.json')
         )
+        self.import_db.execute_sql_file(
+            os.path.join(self.data_dir, 'input', 'load_grades_persistentcoursegrade.sql')
+        )
 
     @data(True, False)
     def test_table_generation(self, enable_course_catalog):
@@ -68,16 +71,16 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         expected = [
             ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'honor', 1, 1, 1],
+             'honor', 1, 1, 1, 0],
             ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'verified', 1, 1, 1],
+             'verified', 1, 1, 1, 0],
             ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
-             'honor', 0, 0, 3],
+             'honor', 0, 0, 3, 2],
             ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
-             'verified', 0, 0, 2],
+             'verified', 0, 0, 2, 0],
         ]
         if not enable_course_catalog:
             # remove catalog data
@@ -90,13 +93,14 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
 
     def validate_enrollment_summary_table(self, enable_course_catalog):
         """Assert the summary table is as expected."""
-        columns = ['course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time', 'pacing_type',
-                   'availability', 'enrollment_mode', 'count', 'count_change_7_days', 'cumulative_count', ]
+        columns = ['course_id', 'catalog_course_title', 'catalog_course', 'start_time', 'end_time',
+                   'pacing_type', 'availability', 'enrollment_mode',
+                   'count', 'count_change_7_days', 'cumulative_count', 'passing_users']
         with self.export_db.cursor() as cursor:
             cursor.execute(
                 '''
                   SELECT {columns}
-                  FROM course_meta_summary_enrollment
+                  FROM   course_meta_summary_enrollment
                 '''.format(columns=','.join(columns))
             )
             results = cursor.fetchall()

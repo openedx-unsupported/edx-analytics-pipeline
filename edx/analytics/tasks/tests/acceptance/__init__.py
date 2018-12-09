@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import unittest
+import csv
 
 from luigi.s3 import S3Client
 import pandas
@@ -112,6 +113,20 @@ def modify_target_for_local_server(target):
         return target
 
 
+def coerce_columns_to_string(row):
+    # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
+    # them into string before comparison with expected output.
+    return [str(x) for x in row]
+
+
+def read_csv_fixture_as_list(fixture_file_path):
+    with open(fixture_file_path) as fixture_file:
+        reader = csv.reader(fixture_file)
+        next(reader)  # skip header
+        fixture_data = list(reader)
+    return fixture_data
+
+
 class AcceptanceTestCase(unittest.TestCase):
 
     acceptance = 1
@@ -209,6 +224,9 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
+                'source': self.test_src
+            },
+            'segment-logs': {
                 'source': self.test_src
             },
             'course-structure': {

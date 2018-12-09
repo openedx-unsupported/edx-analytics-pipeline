@@ -34,7 +34,6 @@
       - hostname: github.com
         public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=='
     - local_log_dir: build/logs
-    - wheel_pyver: 2.7
     - common_debian_variants:
       - Ubuntu
       - Debian
@@ -54,9 +53,6 @@
     - working_repo_dir: "{{ working_dir }}/{{ pipeline_repo_dir_name }}"
 
     - packages: []
-
-    - debian_wheel_url: "{{ wheel_url | default('http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze') }}"
-    - redhat_wheel_url: "{{ wheel_url | default('http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Amazon/emr4') }}"
 
   tasks:
     - name: find home directory
@@ -160,27 +156,18 @@
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ debian_wheel_url }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_debian_variants
 
     - name: virtualenv initialized on RHEL
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ redhat_wheel_url }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_redhat_variants
 
     - name: additional packages installed on Debian
       shell: >
         . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ debian_wheel_url }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_debian_variants
       with_items: packages
 
@@ -188,9 +175,6 @@
       shell: >
         . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ redhat_wheel_url }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_redhat_variants
       with_items: packages
 
@@ -199,10 +183,6 @@
 
     - name: configuration override removed
       file: path={{ working_repo_dir }}/override.cfg state=absent
-
-    - name: secure config installed
-      command: cp {{ working_dir }}/{{ secure_config }} {{ working_repo_dir }}/override.cfg
-      when: secure_config is defined
 
     - name: configuration override installed
       copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644

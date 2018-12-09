@@ -49,7 +49,7 @@ class CourseEnrollmentValidationTaskMapTest(InitializeOpaqueKeysMixin, MapperTes
             org_id=self.org_id,
         )
 
-        self.expected_key = (self.course_id, self.user_id)
+        self.expected_key = (self.encoded_course_id, self.user_id)
 
     def _create_event_log_line(self, **kwargs):
         """Create an event log with test values, as a JSON string."""

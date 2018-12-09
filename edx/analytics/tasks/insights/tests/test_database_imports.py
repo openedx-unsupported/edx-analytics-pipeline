@@ -8,7 +8,9 @@ from unittest import TestCase
 
 from mock import patch, Mock
 
-from edx.analytics.tasks.insights.database_imports import ImportStudentCourseEnrollmentTask, ImportIntoHiveTableTask
+from edx.analytics.tasks.insights.database_imports import (
+    ImportIntoHiveTableTask, ImportPersistentCourseGradeTask, ImportStudentCourseEnrollmentTask,
+)
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 
 
@@ -28,14 +30,14 @@ class ImportStudentCourseEnrollmentTestCase(TestCase):
         expected_query = textwrap.dedent(
             """
             USE default;
-            DROP TABLE IF EXISTS student_courseenrollment;
-            CREATE EXTERNAL TABLE student_courseenrollment (
-                id INT,user_id INT,course_id STRING,created TIMESTAMP,is_active BOOLEAN,mode STRING
+            DROP TABLE IF EXISTS `student_courseenrollment`;
+            CREATE EXTERNAL TABLE `student_courseenrollment` (
+                `id` INT,`user_id` INT,`course_id` STRING,`created` TIMESTAMP,`is_active` BOOLEAN,`mode` STRING
             )
             PARTITIONED BY (dt STRING)
 
             LOCATION 's3://foo/bar/student_courseenrollment';
-            ALTER TABLE student_courseenrollment ADD PARTITION (dt = '2014-07-01');
+            ALTER TABLE `student_courseenrollment` ADD PARTITION (dt = '2014-07-01');
             """
         )
         self.assertEquals(query, expected_query)
@@ -60,3 +62,27 @@ class ImportStudentCourseEnrollmentTestCase(TestCase):
             output.exists = Mock(return_value=True)
             self.assertTrue(task.complete())
             self.assertTrue(output.exists.called)
+
+
+class ImportPersistentCourseGradeTestCase(TestCase):
+    """Tests to validate ImportPersistentCourseGradeTask."""
+
+    @with_luigi_config('database-import', 'destination', 's3://foo/bar')
+    def test_query_with_date(self):
+        kwargs = {'import_date': datetime.datetime.strptime('2014-07-01', '%Y-%m-%d').date()}
+        task = ImportPersistentCourseGradeTask(**kwargs)
+        query = task.query()
+        expected_query = textwrap.dedent(
+            """
+            USE default;
+            DROP TABLE IF EXISTS `grades_persistentcoursegrade`;
+            CREATE EXTERNAL TABLE `grades_persistentcoursegrade` (
+                `id` INT,`user_id` INT,`course_id` STRING,`course_edited_timestamp` TIMESTAMP,`course_version` STRING,`grading_policy_hash` STRING,`percent_grade` DECIMAL(10,2),`letter_grade` STRING,`passed_timestamp` TIMESTAMP,`created` TIMESTAMP,`modified` TIMESTAMP
+            )
+            PARTITIONED BY (dt STRING)
+
+            LOCATION 's3://foo/bar/grades_persistentcoursegrade';
+            ALTER TABLE `grades_persistentcoursegrade` ADD PARTITION (dt = '2014-07-01');
+            """
+        )
+        self.assertEquals(query, expected_query)

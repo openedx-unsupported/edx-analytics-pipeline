@@ -1,8 +1,8 @@
 
 import luigi
 
-from edx.analytics.tasks.warehouse.financial.cybersource import IntervalPullFromCybersourceTask
-from edx.analytics.tasks.warehouse.financial.paypal import PaypalTransactionsIntervalTask
+from edx.analytics.tasks.warehouse.financial.cybersource import IntervalPullFromCybersourceTask, CybersourceDataValidationTask
+from edx.analytics.tasks.warehouse.financial.paypal import PaypalTransactionsIntervalTask, PaypalDataValidationTask
 
 
 class PaymentTask(luigi.WrapperTask):
@@ -25,3 +25,13 @@ class PaymentTask(luigi.WrapperTask):
 
     def output(self):
         return [task.output() for task in self.requires()]
+
+
+class PaymentValidationTask(luigi.WrapperTask):
+    """Task to validate existence of Payment data."""
+
+    import_date = luigi.DateParameter()
+
+    def requires(self):
+        yield PaypalDataValidationTask(import_date=self.import_date)
+        yield CybersourceDataValidationTask(import_date=self.import_date)
