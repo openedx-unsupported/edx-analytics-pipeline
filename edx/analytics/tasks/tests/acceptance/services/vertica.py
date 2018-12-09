@@ -1,13 +1,10 @@
 """Service for connecting acceptance tests to Vertica."""
 import json
-
-from contextlib import closing
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import vertica_python
 
-from edx.analytics.tasks.url import get_target_from_url
-from edx.analytics.tasks.tests import unittest
+from edx.analytics.tasks.util.url import get_target_from_url
 
 
 class VerticaService(object):
@@ -37,7 +34,7 @@ class VerticaService(object):
             with closing(conn.cursor()) as cur:
                 try:
                     yield cur
-                except:
+                except Exception:
                     conn.rollback()
                     raise
                 else:

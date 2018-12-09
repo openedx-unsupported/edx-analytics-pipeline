@@ -1,19 +1,18 @@
 """End to end test of obfuscation."""
 
 import datetime
+import json
 import logging
 import os
-import tempfile
 import shutil
-import json
 import tarfile
+import tempfile
 
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_geolocation_data_available
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param, when_geolocation_data_available
 from edx.analytics.tasks.tests.acceptance.services import fs, shell
-from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.file_util import copy_file_to_file
+from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -105,7 +104,7 @@ class ObfuscationAcceptanceTest(AcceptanceTestCase):
             '--gpg-key-dir', self.test_gpg_key_dir,
             '--gpg-master-key', 'daemon+master@edx.org',
             '--output-root', self.test_out,
-            '--recipient', 'daemon@edx.org',
+            '--recipient', as_list_param('daemon@edx.org'),
             '--format-version', self.FORMAT_VERSION
         ])
 

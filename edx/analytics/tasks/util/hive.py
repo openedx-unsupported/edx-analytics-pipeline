@@ -5,13 +5,11 @@ import textwrap
 
 import luigi
 from luigi.configuration import get_config
-from luigi.hive import HiveQueryTask, HivePartitionTarget, HiveQueryRunner, HiveTableTarget
-from luigi.parameter import Parameter
+from luigi.contrib.hive import HivePartitionTarget, HiveQueryRunner, HiveQueryTask, HiveTableTarget
+from luigi.parameter import BoolParameter, Parameter
 
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -23,12 +21,12 @@ def hive_database_name():
 
 def hive_version():
     """
-    Returns the version of Hive that is declared in the configuration file. Defaults to 0.11 if it's not specified.
+    Returns the version of Hive that is declared in the configuration file. Defaults to 1.0 if it's not specified.
 
     Returns: A tuple with each index representing a part of the version. For example: version="0.11.0.1" would return
     (0, 11, 0, 1). The 0 indexed integer is the most significant part of the version number.
     """
-    version_str = luigi.configuration.get_config().get('hive', 'version', '0.11')
+    version_str = luigi.configuration.get_config().get('hive', 'version', '1.0')
     return tuple([int(x) for x in version_str.split('.')])
 
 
@@ -105,20 +103,20 @@ class HiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         # Ensure there is exactly one available partition in the table.
         query_format = """
             USE {database_name};
-            DROP TABLE IF EXISTS {table};
-            CREATE EXTERNAL TABLE {table} (
+            DROP TABLE IF EXISTS `{table}`;
+            CREATE EXTERNAL TABLE `{table}` (
                 {col_spec}
             )
-            PARTITIONED BY ({partition.key} STRING)
+            PARTITIONED BY (`{partition.key}` STRING)
             {table_format}
             LOCATION '{location}';
-            ALTER TABLE {table} ADD PARTITION ({partition.query_spec});
+            ALTER TABLE `{table}` ADD PARTITION ({partition.query_spec});
         """
 
         query = query_format.format(
             database_name=hive_database_name(),
             table=self.table,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(name, col_type) for name, col_type in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition=self.partition,
@@ -191,17 +189,17 @@ class BareHiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
     def query(self):
         partition_clause = ''
         if self.partition_by:
-            partition_clause = 'PARTITIONED BY ({partition_by} STRING)'.format(partition_by=self.partition_by)
+            partition_clause = 'PARTITIONED BY (`{partition_by}` STRING)'.format(partition_by=self.partition_by)
 
         if self.overwrite:
-            drop_on_overwrite = 'DROP TABLE IF EXISTS {table};'.format(table=self.table)
+            drop_on_overwrite = 'DROP TABLE IF EXISTS `{table}`;'.format(table=self.table)
         else:
             drop_on_overwrite = ''
 
         query_format = """
             USE {database_name};
             {drop_on_overwrite}
-            CREATE EXTERNAL TABLE IF NOT EXISTS {table} (
+            CREATE EXTERNAL TABLE IF NOT EXISTS `{table}` (
                 {col_spec}
             )
             {partition_clause}
@@ -212,7 +210,7 @@ class BareHiveTableTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         query = query_format.format(
             database_name=hive_database_name(),
             table=self.table,
-            col_spec=','.join([' '.join(c) for c in self.columns]),
+            col_spec=','.join(['`{}` {}'.format(name, col_type) for name, col_type in self.columns]),
             location=self.table_location,
             table_format=self.table_format,
             partition_clause=partition_clause,
@@ -281,7 +279,7 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
 
     def query(self):
         if self.overwrite:
-            drop_on_overwrite = 'ALTER TABLE {table} DROP IF EXISTS PARTITION ({partition.query_spec});'.format(
+            drop_on_overwrite = 'ALTER TABLE `{table}` DROP IF EXISTS PARTITION ({partition.query_spec});'.format(
                 table=self.hive_table_task.table,
                 partition=self.partition
             )
@@ -291,7 +289,7 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         query_format = """
             USE {database_name};
             {drop_on_overwrite}
-            ALTER TABLE {table} ADD IF NOT EXISTS PARTITION ({partition.query_spec});
+            ALTER TABLE `{table}` ADD IF NOT EXISTS PARTITION ({partition.query_spec});
         """
 
         query = query_format.format(
@@ -329,8 +327,12 @@ class HivePartitionTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
         yield self.hive_table_task
 
     def output(self):
+        # Ugh.  A change in Luigi 1.0.22 (after our 1.0.17 fork) resulted in a change in ApacheHiveCommandClient.table_exists()
+        # behavior, so that it throws an exception when checking for a specific partition when the table doesn't exist.
+        # This means that HivePartitionTarget.exists() will fail, where before it succeeded even if the table did not exist.
+        # So change fail_missing_table=False here.  There is no reason for it anyway.
         return HivePartitionTarget(
-            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=True
+            self.hive_table_task.table, self.partition.as_dict(), database=hive_database_name(), fail_missing_table=False
         )
 
     def job_runner(self):
@@ -371,7 +373,7 @@ class HivePartition(object):
     @property
     def query_spec(self):
         """This format is used when a partition needs to be referred to in a query"""
-        return "{key}='{value}'".format(
+        return "`{key}`='{value}'".format(
             key=self.key,
             value=self.value,
         )
@@ -402,7 +404,7 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
     def query(self):
         create_table_statements = super(HiveTableFromQueryTask, self).query()
         full_insert_query = """
-            INSERT INTO TABLE {table}
+            INSERT INTO TABLE `{table}`
             PARTITION ({partition.query_spec})
             {insert_query}
         """.format(
@@ -422,89 +424,79 @@ class HiveTableFromQueryTask(HiveTableTask):  # pylint: disable=abstract-method
         raise NotImplementedError
 
 
-class HiveTableFromParameterQueryTask(HiveTableFromQueryTask):  # pylint: disable=abstract-method
-    """Creates a hive table from the results of a hive query, given parameters instead of properties."""
+class OverwriteAwareHiveQueryDataTask(WarehouseMixin, OverwriteOutputMixin, HiveQueryTask):
+    """
+    A generalized Data task whose output is a hive table populated from a hive query.
+    """
 
-    insert_query = luigi.Parameter()
-    table = luigi.Parameter()
-    columns = luigi.Parameter(is_list=True)
-    partition = HivePartitionParameter()
-
-
-class HiveQueryToMysqlTask(WarehouseMixin, MysqlInsertTask):
-    """Populates a MySQL table with the results of a hive query."""
-
-    overwrite = luigi.BooleanParameter(
-        default=True,
-        description='If True, overwrite the MySQL data.',
-    )
-    hive_overwrite = luigi.BooleanParameter(
-        default=False,
-        description='If True, overwrite the hive data.',
+    overwrite_target_partition = BoolParameter(
+        significant=False,
+        description='Overwrite the target partition, deleting any existing data.  This will not impact other '
+                    'partitions.  Do not use with incrementally built partitions.',
+        default=True
     )
 
-    SQL_TO_HIVE_TYPE = {
-        'varchar': 'STRING',
-        'datetime': 'TIMESTAMP',
-        'date': 'STRING',
-        'integer': 'INT',
-        'int': 'INT',
-        'double': 'DOUBLE',
-        'tinyint': 'TINYINT',
-        'longtext': 'STRING',
-    }
-
     @property
-    def insert_source_task(self):
-        return HiveTableFromParameterQueryTask(
-            warehouse_path=self.warehouse_path,
-            insert_query=self.query,
-            table=self.table,
-            columns=self.hive_columns,
-            partition=self.partition,
-            overwrite=self.hive_overwrite,
-        )
-
-    def requires(self):
-        # MysqlInsertTask customizes requires() somewhat, so don't clobber that logic. Instead allow subclasses to
-        # extend the requirements with their own.
-        requirements = super(HiveQueryToMysqlTask, self).requires()
-        requirements['other_tables'] = self.required_table_tasks
-        return requirements
-
-    @property
-    def table(self):
+    def insert_query(self):
+        """The query builder that controls the structure and fields inserted into the new table.  This insert_query()
+        is used as part of the query() function below."""
         raise NotImplementedError
 
     @property
-    def query(self):
-        """Hive query to run."""
+    def hive_partition_task(self):
+        """The HivePartitionTask that needs to be generated."""
         raise NotImplementedError
 
     @property
-    def columns(self):
-        raise NotImplementedError
+    def data_modification_sql_text(self):
+        """Returns the appropriate SQL text for the chosen overwrite_target_partition strategy."""
+        if self.overwrite_target_partition:
+            return "OVERWRITE"
+        else:
+            return "INTO"
+
+    def query(self):  # pragma: no cover
+        full_insert_query = """
+                    USE {database_name};
+                    INSERT {into_or_overwrite} TABLE {table}
+                    PARTITION ({partition.query_spec})
+                    {insert_query};
+                    """.format(database_name=hive_database_name(),
+                               into_or_overwrite=self.data_modification_sql_text,
+                               table=self.partition_task.hive_table_task.table,
+                               partition=self.partition,
+                               insert_query=self.insert_query.strip(),  # pylint: disable=no-member
+                               )
+        return textwrap.dedent(full_insert_query)
 
     @property
-    def partition(self):
-        """HivePartition object specifying the partition to store the data in."""
-        raise NotImplementedError
+    def partition_task(self):  # pragma: no cover
+        """The task that creates the partition used by this job."""
+        if not hasattr(self, '_partition_task'):
+            self._partition_task = self.hive_partition_task
+        return self._partition_task
 
     @property
-    def required_table_tasks(self):
-        """List of tasks that generate any tables needed to run the query."""
-        return []
+    def partition(self):  # pragma: no cover
+        """A shorthand for the partition information on the upstream partition task."""
+        return self.partition_task.partition  # pylint: disable=no-member
 
-    @property
-    def hive_columns(self):
-        """Convert MySQL column data types to hive data types and return hive column specs as (name, type) tuples."""
-        hive_cols = []
-        for column in self.columns:
-            column_name, sql_type = column
-            raw_sql_type = sql_type.split(' ')[0]
-            unparam_sql_type = raw_sql_type.split('(')[0]
-            hive_type = self.SQL_TO_HIVE_TYPE[unparam_sql_type.lower()]
+    def output(self):  # pragma: no cover
+        output_root = url_path_join(self.warehouse_path,
+                                    self.partition_task.hive_table_task.table,
+                                    self.partition.path_spec + '/')
+        return get_target_from_url(output_root, marker=True)
 
-            hive_cols.append((column_name, hive_type))
+    def on_success(self):  # pragma: no cover
+        """Overload the success method to touch the _SUCCESS file.  Any class that uses a separate Marker file from the
+        data file will need to override the base on_success() call to create this marker."""
+        self.output().touch_marker()
 
-        return hive_cols
+    def run(self):
+        self.remove_output_on_overwrite()
+        return super(OverwriteAwareHiveQueryDataTask, self).run()
+
+    def requires(self):  # pragma: no cover
+        for requirement in super(OverwriteAwareHiveQueryDataTask, self).requires():
+            yield requirement
+        yield self.partition_task

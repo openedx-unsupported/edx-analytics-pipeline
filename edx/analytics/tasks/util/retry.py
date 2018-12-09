@@ -1,9 +1,8 @@
 """Utility decorator for retrying functions that fail."""
 
-from datetime import datetime, timedelta
-import time
 import logging
-
+import time
+from datetime import datetime, timedelta
 
 log = logging.getLogger(__name__)
 

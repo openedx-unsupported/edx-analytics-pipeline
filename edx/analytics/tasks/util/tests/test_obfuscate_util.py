@@ -2,16 +2,17 @@
 """Tests for obfuscation utilities."""
 
 import textwrap
+from unittest import TestCase
+
 from ddt import data, ddt, unpack
 from mock import MagicMock, patch
 
-from edx.analytics.tasks.tests import unittest
 import edx.analytics.tasks.util.obfuscate_util as obfuscate_util
-from edx.analytics.tasks.tests.target import FakeTask
+from edx.analytics.tasks.util.tests.target import FakeTask
 
 
 @ddt
-class BackslashHandlingTestCase(unittest.TestCase):
+class BackslashHandlingTestCase(TestCase):
     """Test encoding and decoding of backslashed data."""
 
     @data(
@@ -71,7 +72,7 @@ class BackslashHandlingTestCase(unittest.TestCase):
 
 
 @ddt
-class FindMatchesTestCase(unittest.TestCase):
+class FindMatchesTestCase(TestCase):
     """Test finding matches for regular expressions in strings."""
 
     SIMPLE_CONTEXT = u"This is left context: {} This is right context."
@@ -335,7 +336,7 @@ class FindMatchesTestCase(unittest.TestCase):
 
 
 @ddt
-class FindMatchLogContextTestCase(unittest.TestCase):
+class FindMatchLogContextTestCase(TestCase):
     """Test finding matches for regular expressions in strings."""
 
     def setUp(self):
@@ -447,7 +448,7 @@ def get_mock_user_info_requirements(auth_user=DEFAULT_AUTH_USER, auth_user_profi
     return MagicMock(return_value=user_info_setup)
 
 
-class UserInfoTestCase(unittest.TestCase):
+class UserInfoTestCase(TestCase):
     """Test encoding and decoding of backslashed data."""
 
     def setUp(self):
@@ -585,7 +586,7 @@ class UserInfoTestCase(unittest.TestCase):
 
 
 @ddt
-class ObfuscatorTestCase(unittest.TestCase):
+class ObfuscatorTestCase(TestCase):
     """Test Obfuscator methods."""
 
     def test_obfuscate_email_before_username(self):

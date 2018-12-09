@@ -1,10 +1,11 @@
-import gnupg
 import gzip
 import os
 import shutil
 import tempfile
-
 from contextlib import contextmanager
+
+import gnupg
+from jinja2 import Template
 
 
 @contextmanager
@@ -16,6 +17,20 @@ def gzipped_file(file_path):
                 shutil.copyfileobj(input_file, gzip_file)
         finally:
             gzip_file.close()
+
+        temp_file.flush()
+
+        yield temp_file.name
+
+
+@contextmanager
+def template_rendered_file(file_path, context=None):
+    with tempfile.NamedTemporaryFile() as temp_file:
+        with open(file_path, 'r') as input_file:
+            template = Template(input_file.read())
+            if context is None:
+                context = {}
+            temp_file.write(template.render(**context))
 
         temp_file.flush()
 

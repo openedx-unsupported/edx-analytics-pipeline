@@ -2,11 +2,19 @@
 
 .. edX analytics pipeline documentation master file
 
-###################
-Edx Analytics Tasks
-###################
+######################
+edX Analytics Pipeline
+######################
 
-This guide provides information about the tasks in the edX analytics pipeline.
+This guide provides information about the edX data pipeline.
+
+.. toctree::
+   :maxdepth: 1
+
+   running_tasks.rst
+   faq.rst	     
+
+The following documentation is generated dynamically from comments in the code. There is detailed documentation for every Luigi task.
 
 .. include:: toctree.rst
 

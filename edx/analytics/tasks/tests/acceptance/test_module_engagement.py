@@ -3,10 +3,8 @@
 End to end test of the per-module engagement workflow.
 """
 
-import logging
 import datetime
-import luigi
-
+import logging
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_elasticsearch_available
 
@@ -36,7 +34,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
 
         self.task.launch(
             [
-                'CourseEnrollmentTableTask',
+                'CourseEnrollmentPartitionTask',
                 '--interval-end', '2015-04-17',
                 '--n-reduce-tasks', str(self.NUM_REDUCERS),
             ]

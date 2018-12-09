@@ -1,15 +1,20 @@
 """luigi target for writing data into an HP Vertica database"""
+import json
 import logging
 
 import luigi
 
-logger = logging.getLogger('luigi-interface')  # pylint: disable-msg=C0103
+logger = logging.getLogger('luigi-interface')  # pylint: disable=invalid-name
 
 try:
     import vertica_python
+    vertica_client_available = True  # pylint: disable=invalid-name
 except ImportError:
     logger.warning("Attempted to load Vertica interface tools without the vertica_python package; will crash if \
                    Vertica functionality is used.")
+    # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
+    # them, instead just fail noisily if we attempt to use these libraries.
+    vertica_client_available = False  # pylint: disable=invalid-name
 
 
 class VerticaTarget(luigi.Target):
@@ -35,6 +40,9 @@ class VerticaTarget(luigi.Target):
         :param update_id: an identifier for this data set.
         :type update_id: str
         """
+        # Make sure we can connect to Vertica.
+        self.check_vertica_availability()
+
         if ':' in host:
             self.host, self.port = host.split(':')
             self.port = int(self.port)
@@ -77,17 +85,21 @@ class VerticaTarget(luigi.Target):
         # make sure update is properly marked
         assert self.exists(connection)
 
-    def exists(self, connection=None):  # pylint: disable-msg=W0221
+    def exists(self, connection=None):  # pylint: disable=arguments-differ
+        close_connection = False
         if connection is None:
+            close_connection = True
             connection = self.connect()
             connection.autocommit = True
         cursor = connection.cursor()
         try:
-            cursor.execute("""SELECT 1 FROM {marker_schema}.{marker_table}
+            cursor.execute(
+                """SELECT 1 FROM {marker_schema}.{marker_table}
                 WHERE update_id = %s
-                LIMIT 1""".format(marker_schema=self.marker_schema, marker_table=self.marker_table),
-                           (self.update_id,)
-                           )
+                LIMIT 1""".format(
+                    marker_schema=self.marker_schema, marker_table=self.marker_table),
+                (self.update_id,)
+            )
             row = cursor.fetchone()
         except vertica_python.errors.Error as err:
             if (type(err) is vertica_python.errors.MissingRelation) or ('Sqlstate: 42V01' in err.args[0]):
@@ -95,6 +107,9 @@ class VerticaTarget(luigi.Target):
                 row = None
             else:
                 raise
+        finally:
+            if close_connection:
+                connection.close()
         return row is not None
 
     def connect(self, autocommit=False):
@@ -143,3 +158,46 @@ class VerticaTarget(luigi.Target):
         """
         query = "CREATE SCHEMA IF NOT EXISTS {marker_schema}".format(marker_schema=self.marker_schema)
         connection.cursor().execute(query)
+
+    def check_vertica_availability(self):
+        """Call to ensure fast failure if this machine doesn't have the Vertica client library available."""
+        if not vertica_client_available:
+            raise ImportError('Vertica client library not available')
+
+
+class CredentialFileVerticaTarget(VerticaTarget):
+    """
+    Represents a table in Vertica, is complete when the update_id is the same as a previous successful execution.
+
+    Arguments:
+
+        credentials_target (luigi.Target): A target that can be read to retrieve the hostname, port and user credentials
+            that will be used to connect to the database.
+        database_name (str): The name of the database that the table exists in. Note this database need not exist.
+        schema (str): The name of the schema in which the table being modified lies.
+        table (str): The name of the table in the schema that is being modified.
+        update_id (str): A unique identifier for this update to the table. Subsequent updates with identical update_id
+            values will not be executed.
+    """
+
+    def __init__(self, credentials_target, schema, table, update_id, read_timeout=None, marker_schema=None):
+        with credentials_target.open('r') as credentials_file:
+            cred = json.load(credentials_file)
+            super(CredentialFileVerticaTarget, self).__init__(
+                # Annoying, but the port must be passed in with the host string...
+                host="{host}:{port}".format(host=cred.get('host'), port=cred.get('port', 5433)),
+                user=cred.get('username'),
+                password=cred.get('password'),
+                schema=schema,
+                table=table,
+                update_id=update_id,
+                read_timeout=read_timeout,
+                marker_schema=marker_schema,
+            )
+
+    def exists(self, connection=None):
+        # The parent class fails if the database does not exist. This override tolerates that error.
+        try:
+            return super(CredentialFileVerticaTarget, self).exists(connection=connection)
+        except vertica_python.errors.ProgrammingError:
+            return False

@@ -1,21 +1,19 @@
-import boto
+import csv
 import hashlib
 import json
 import logging
-
-from luigi.s3 import S3Client
 import os
 import shutil
 import unittest
 
+import boto
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
-from edx.analytics.tasks.pathutil import PathSetTask
-from edx.analytics.tasks.s3_util import S3HdfsTarget
-from edx.analytics.tasks.tests.acceptance.services import fs, db, task, hive, vertica, elasticsearch_service
-from edx.analytics.tasks.url import url_path_join, get_target_from_url
-
+from edx.analytics.tasks.common.pathutil import PathSetTask
+from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
+from edx.analytics.tasks.util.s3_util import ScalableS3Client
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -26,7 +24,7 @@ def when_s3_available(function):
     s3_available = getattr(when_s3_available, 's3_available', None)
     if s3_available is None:
         try:
-            connection = boto.connect_s3()
+            connection = ScalableS3Client().s3
             # ^ The above line will not error out if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
             # are set, so it can't be used to check if we have a valid connection to S3. Instead:
             connection.get_all_buckets()
@@ -114,6 +112,28 @@ def modify_target_for_local_server(target):
         return target
 
 
+def as_list_param(value, escape_quotes=True):
+    """Convenience method to convert a single string to a format expected by a Luigi ListParameter."""
+    if escape_quotes:
+        return '[\\"{}\\"]'.format(value)
+    else:
+        return json.dumps([value, ])
+
+
+def coerce_columns_to_string(row):
+    # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
+    # them into string before comparison with expected output.
+    return [str(x) for x in row]
+
+
+def read_csv_fixture_as_list(fixture_file_path):
+    with open(fixture_file_path) as fixture_file:
+        reader = csv.reader(fixture_file)
+        next(reader)  # skip header
+        fixture_data = list(reader)
+    return fixture_data
+
+
 class AcceptanceTestCase(unittest.TestCase):
 
     acceptance = 1
@@ -122,7 +142,7 @@ class AcceptanceTestCase(unittest.TestCase):
 
     def setUp(self):
         try:
-            self.s3_client = S3Client()
+            self.s3_client = ScalableS3Client()
         except Exception:
             self.s3_client = None
 
@@ -166,6 +186,10 @@ class AcceptanceTestCase(unittest.TestCase):
         self.test_src = url_path_join(self.test_root, 'src')
         self.test_out = url_path_join(self.test_root, 'out')
 
+        # Use a local dir for devstack testing, or s3 for production testing.
+        self.report_output_root = self.config.get('report_output_root',
+                                                  url_path_join(self.test_out, 'reports'))
+
         self.catalog_path = 'http://acceptance.test/api/courses/v2'
         database_name = 'test_' + self.identifier
         schema = 'test_' + self.identifier
@@ -174,6 +198,7 @@ class AcceptanceTestCase(unittest.TestCase):
         otto_database_name = 'acceptance_otto_' + database_name
         elasticsearch_alias = 'alias_test_' + self.identifier
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
+        self.edx_rest_api_cache_root = url_path_join(self.test_src, 'edx-rest-api-cache')
         task_config_override = {
             'hive': {
                 'database': database_name,
@@ -184,7 +209,7 @@ class AcceptanceTestCase(unittest.TestCase):
             },
             'manifest': {
                 'path': url_path_join(self.test_root, 'manifest'),
-                'lib_jar': self.config['oddjob_jar']
+                'lib_jar': self.config['oddjob_jar'],
             },
             'database-import': {
                 'credentials': self.config['credentials_file_url'],
@@ -206,7 +231,12 @@ class AcceptanceTestCase(unittest.TestCase):
                 'geolocation_data': self.config['geolocation_data']
             },
             'event-logs': {
-                'source': self.test_src
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*tracking.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
+            },
+            'segment-logs': {
+                'source': as_list_param(self.test_src, escape_quotes=False),
+                'pattern': as_list_param(".*segment.log-(?P<date>\\d{8}).*\\.gz", escape_quotes=False),
             },
             'course-structure': {
                 'api_root_url': 'acceptance.test',
@@ -215,7 +245,28 @@ class AcceptanceTestCase(unittest.TestCase):
             'module-engagement': {
                 'alias': elasticsearch_alias
             },
-            'elasticsearch': {}
+            'elasticsearch': {},
+            'problem-response': {
+                'report_fields': '["username","problem_id","answer_id","location","question","score","max_score",'
+                                 '"correct","answer","total_attempts","first_attempt_date","last_attempt_date"]',
+                'report_field_list_delimiter': '"|"',
+                'report_field_datetime_format': '%Y-%m-%dT%H:%M:%SZ',
+                'report_output_root': self.report_output_root,
+                'partition_format': '%Y-%m-%dT%H',
+            },
+            'edx-rest-api': {
+                'client_id': 'oauth_id',
+                'client_secret': 'oauth_secret',
+                'oauth_username': 'test_user',
+                'oauth_password': 'password',
+                'auth_url': 'http://acceptance.test',
+            },
+            'course-blocks': {
+                'api_root_url': 'http://acceptance.test/api/courses/v1/blocks/',
+            },
+            'course-list': {
+                'api_root_url': 'http://acceptance.test/api/courses/v1/courses/',
+            },
         }
         if 'vertica_creds_url' in self.config:
             task_config_override['vertica-export'] = {
@@ -223,7 +274,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'schema': schema
             }
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
+            task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
         if 'elasticsearch_connection_class' in self.config:
             task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:
@@ -270,15 +321,18 @@ class AcceptanceTestCase(unittest.TestCase):
         self.vertica.reset()
         self.elasticsearch.reset()
 
-    def upload_tracking_log(self, input_file_name, file_date):
+    def upload_tracking_log(self, input_file_name, file_date, template_context=None):
         # Define a tracking log path on S3 that will be matched by the standard event-log pattern."
         input_file_path = url_path_join(
             self.test_src,
             'FakeServerGroup',
             'tracking.log-{0}.gz'.format(file_date.strftime('%Y%m%d'))
         )
-        with fs.gzipped_file(os.path.join(self.data_dir, 'input', input_file_name)) as compressed_file_name:
-            self.upload_file(compressed_file_name, input_file_path)
+
+        raw_file_path = os.path.join(self.data_dir, 'input', input_file_name)
+        with fs.template_rendered_file(raw_file_path, template_context) as rendered_file_name:
+            with fs.gzipped_file(rendered_file_name) as compressed_file_name:
+                self.upload_file(compressed_file_name, input_file_path)
 
     def upload_file(self, local_file_name, remote_file_path):
         log.debug('Uploading %s to %s', local_file_name, remote_file_path)
@@ -349,8 +403,7 @@ class AcceptanceTestCase(unittest.TestCase):
         """Given the URL to a directory, read all of the files from it and concatenate them."""
         output_targets = AcceptanceTestCase.get_targets_from_remote_path(url)
         raw_output = []
-        for output_target in output_targets:        
+        for output_target in output_targets:
             raw_output.append(output_target.open('r').read())
 
         return ''.join(raw_output)
-

@@ -4,12 +4,11 @@ import datetime
 import gzip
 import json
 import logging
-from collections import defaultdict
 import StringIO
+from collections import defaultdict
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
-from edx.analytics.tasks.url import url_path_join
-
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -17,9 +16,9 @@ log = logging.getLogger(__name__)
 class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     """Test enrollment validation."""
 
-    INPUT_FILE = 'enrollment_trends_tracking.log'
+    INPUT_FILE = 'enrollment_validation_trends_tracking.log.j2'
     END_DATE = datetime.datetime.utcnow().date()
-    START_DATE = datetime.date(2014, 8, 1)
+    START_DATE = datetime.datetime.utcnow().date() - datetime.timedelta(days=6)
     # Define an interval that ends with today, so that a dump is triggered.
     DATE_INTERVAL = "{}-{}".format(START_DATE, END_DATE)
     # Create a wider interval that will include today's dump.
@@ -28,7 +27,11 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
 
     def test_enrollment_validation(self):
         # Initial setup.
-        self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
+        context = {
+            'days': lambda n: datetime.timedelta(days=n),
+            'start_date': self.START_DATE
+        }
+        self.upload_tracking_log(self.INPUT_FILE, self.START_DATE, template_context=context)
         self.execute_sql_fixture_file(self.SQL_FIXTURE)
         self.test_validate = url_path_join(self.test_root, 'validate')
 
@@ -61,8 +64,8 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
 
         # Widen the interval to include the latest validation events.
         interval = self.WIDER_DATE_INTERVAL if run_with_validation_events else self.DATE_INTERVAL
-        source_pattern = r'".*?\.log-(?P<date>\d{8}).*\.gz"'
-        validation_pattern = r'".*?enroll_validated_(?P<date>\d{8})\.log\.gz"'
+        source_pattern = '[\\".*?.log-.*.gz\\"]'
+        validation_pattern = '".*?enroll_validated_\d{8}\.log\.gz"'
         launch_args = [
             'EnrollmentValidationWorkflow',
             '--interval', interval,
@@ -70,15 +73,15 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
             '--validation-pattern', validation_pattern,
             '--credentials', self.import_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--source', self.test_src,
             '--pattern', source_pattern,
             '--output-root', output_root,
         ]
         # An extra source means we're using synthetic events, so we
         # don't want to generate outside the interval in that case.
         if extra_source:
-            launch_args.extend(['--source', extra_source])
+            launch_args.extend(['--source', '[\\"{}\\",\\"{}\\"]'.format(self.test_src, extra_source)])
         else:
+            launch_args.extend(['--source', as_list_param(self.test_src)])
             launch_args.extend(['--generate-before'])
         if run_with_validation_events:
             launch_args.extend(['--expected-validation', "{}T00".format(self.END_DATE)])

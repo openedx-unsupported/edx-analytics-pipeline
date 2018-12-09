@@ -29,4 +29,5 @@ INSERT INTO `course_modes_coursemode` VALUES
   (14,'course-v1:AccTest+Otto+Professional','no-id-professional','Professional Education',1000,'usd',NULL,NULL,'',NULL,'CF9A708',0),
   (15,'course-v1:AccTest+Otto+Credit','credit','Credit',100,'usd',NULL,NULL,'',NULL,'11A9662',0),
   (16,'course-v1:AccTest+Otto+Credit','verified','Verified Certificate',100,'usd',NULL,NULL,'',NULL,'7F65F1F',0),
-  (17,'course-v1:AccTest+Otto+Credit','audit','Audit',0,'usd',NULL,NULL,'',NULL,'AFF2417',0);
+  (17,'course-v1:AccTest+Otto+Credit','audit','Audit',0,'usd',NULL,NULL,'',NULL,'AFF2417',0),
+  (3850,'BerkeleyX/CS-184.1x/2013_October','verified','Verified Certificate',100,'usd',NULL,NULL,'',NULL,'FFA4773',0);
