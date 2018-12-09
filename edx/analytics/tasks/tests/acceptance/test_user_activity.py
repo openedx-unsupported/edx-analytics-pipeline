@@ -2,7 +2,7 @@
 
 import datetime
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 
 
 class UserActivityAcceptanceTest(AcceptanceTestCase):
@@ -20,12 +20,14 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
         self.upload_tracking_log(self.INPUT_FILE, self.END_DATE)
 
         self.task.launch([
-            'CourseActivityWeeklyTask',
-            '--source', self.test_src,
+            'InsertToMysqlCourseActivityTask',
+            '--source', as_list_param(self.test_src),
             '--end-date', self.END_DATE.isoformat(),
             '--weeks', str(self.NUM_WEEKS),
             '--credentials', self.export_db.credentials_file_url,
+            '--overwrite-n-days', '43',
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            '--overwrite-mysql'
         ])
 
         with self.export_db.cursor() as cursor:
@@ -46,57 +48,4 @@ class UserActivityAcceptanceTest(AcceptanceTestCase):
             (self.COURSE_ID, datetime.datetime(2014, 6, 16, 0, 0), datetime.datetime(2014, 6, 23, 0, 0), 'ACTIVE', 4),
             (self.COURSE_ID, datetime.datetime(2014, 6, 16, 0, 0), datetime.datetime(2014, 6, 23, 0, 0), 'ATTEMPTED_PROBLEM', 2),
             (self.COURSE_ID, datetime.datetime(2014, 6, 16, 0, 0), datetime.datetime(2014, 6, 23, 0, 0), 'PLAYED_VIDEO', 3),
-        ])
-
-        self.task.launch([
-            'CourseActivityDailyTask',
-            '--source', self.test_src,
-            '--interval', '2014-05-25-' + self.END_DATE.isoformat(),
-            '--credentials', self.export_db.credentials_file_url,
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-        ])
-
-        with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT course_id, date, label, count FROM course_activity_daily ORDER BY course_id, date, label')
-            results = cursor.fetchall()
-
-        self.assertItemsEqual([
-            row for row in results
-        ], [
-            (self.COURSE_ID2, datetime.date(2014, 5, 25), 'ACTIVE', 1),
-            (self.COURSE_ID2, datetime.date(2014, 5, 25), 'PLAYED_VIDEO', 1),
-            (self.COURSE_ID2, datetime.date(2014, 6, 19), 'ACTIVE', 4),
-            (self.COURSE_ID2, datetime.date(2014, 6, 19), 'ATTEMPTED_PROBLEM', 1),
-            (self.COURSE_ID2, datetime.date(2014, 6, 19), 'PLAYED_VIDEO', 3),
-            (self.COURSE_ID, datetime.date(2014, 6, 12), 'ACTIVE', 1),
-            (self.COURSE_ID, datetime.date(2014, 6, 12), 'PLAYED_VIDEO', 1),
-            (self.COURSE_ID, datetime.date(2014, 6, 19), 'ACTIVE', 4),
-            (self.COURSE_ID, datetime.date(2014, 6, 19), 'ATTEMPTED_PROBLEM', 2),
-            (self.COURSE_ID, datetime.date(2014, 6, 19), 'PLAYED_VIDEO', 3),
-        ])
-
-        self.task.launch([
-            'CourseActivityMonthlyTask',
-            '--source', self.test_src,
-            '--end-date', self.END_DATE.isoformat(),
-            '--months', str(2),
-            '--credentials', self.export_db.credentials_file_url,
-            '--n-reduce-tasks', str(self.NUM_REDUCERS),
-        ])
-
-        with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT course_id, year, month, label, count FROM course_activity_monthly ORDER BY course_id, year, month, label')
-            results = cursor.fetchall()
-
-        self.assertItemsEqual([
-            row for row in results
-        ], [
-            (self.COURSE_ID2, 2014, 5, 'ACTIVE', 1),
-            (self.COURSE_ID2, 2014, 5, 'PLAYED_VIDEO', 1),
-            (self.COURSE_ID2, 2014, 6, 'ACTIVE', 4),
-            (self.COURSE_ID2, 2014, 6, 'ATTEMPTED_PROBLEM', 1),
-            (self.COURSE_ID2, 2014, 6, 'PLAYED_VIDEO', 3),
-            (self.COURSE_ID, 2014, 6, 'ACTIVE', 4),
-            (self.COURSE_ID, 2014, 6, 'ATTEMPTED_PROBLEM', 2),
-            (self.COURSE_ID, 2014, 6, 'PLAYED_VIDEO', 3),
         ])

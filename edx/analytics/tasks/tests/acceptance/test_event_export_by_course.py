@@ -2,16 +2,15 @@
 End to end test of event exports by course.
 """
 
-import os
-import logging
-import tempfile
-import shutil
 import datetime
+import logging
+import os
+import shutil
+import tempfile
 
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
-from edx.analytics.tasks.tests.acceptance.services import fs, shell
-from edx.analytics.tasks.url import url_path_join
-from edx.analytics.tasks.s3_util import get_file_from_key, generate_s3_sources
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
+from edx.analytics.tasks.tests.acceptance.services import fs
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -22,7 +21,6 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
     INPUT_FILE = 'event_export_tracking.log'
     NUM_REDUCERS = 1
 
-    @when_s3_available
     def test_events_export_by_course(self):
         self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 15))
 
@@ -33,7 +31,33 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
-        self.output_files = [
+        self.output_files = self.get_non_ccx_output_files()
+        self.download_output_files()
+        self.validate_output()
+
+    def test_events_export_by_course_with_ccx(self):
+        self.upload_tracking_log(self.INPUT_FILE, datetime.date(2014, 5, 15))
+
+        self.task.launch(
+            [
+                'EventExportByCourseTask',
+                '--output-root', self.test_out,
+                '--interval', '2014',
+                '--n-reduce-tasks', str(self.NUM_REDUCERS),
+            ],
+            config_override={
+                'ccx': {
+                    'enabled': True
+                }
+            }
+        )
+
+        self.output_files = self.get_ccx_output_files()
+        self.download_output_files()
+        self.validate_output()
+
+    def get_non_ccx_output_files(self):
+        return [
             {
                 'date': '2014-05-15',
                 'course_id': 'AcceptanceX_A101_T12014'
@@ -59,27 +83,36 @@ class EventExportByCourseAcceptanceTest(AcceptanceTestCase):
                 'course_id': 'edX_Open_DemoX_edx_demo_course'
             },
         ]
-        self.download_output_files()
-        self.validate_output()
+
+    def get_ccx_output_files(self):
+        output_files = self.get_non_ccx_output_files()
+        output_files.extend([
+            {
+                'date': '2014-05-27',
+                'course_id': 'AcceptanceX_Demo_ccx_T2_2014_ccx_101'
+            },
+            {
+                'date': '2014-05-27',
+                'course_id': 'AcceptanceX_Demo_ccx_T2_2014_ccx_102'
+            },
+        ])
+        return output_files
 
     def download_output_files(self):
-        self.assertEqual(len(list(generate_s3_sources(self.s3_client.s3, self.test_out))), len(self.output_files))
+        output_targets = self.get_targets_from_remote_path(self.test_out)
+
+        self.assertEqual(len(output_targets), len(self.output_files))
 
         self.temporary_dir = tempfile.mkdtemp()
         self.addCleanup(shutil.rmtree, self.temporary_dir)
 
-        self.downloaded_outputs = os.path.join(self.temporary_dir, 'output')
-        os.makedirs(self.downloaded_outputs)
+        self.downloaded_output_dir = os.path.join(self.temporary_dir, 'output')
+        os.makedirs(self.downloaded_output_dir)
 
         for output_file in self.output_files:
             local_file_name = self.generate_file_name(output_file)
-
             remote_url = url_path_join(self.test_out, output_file['course_id'], "events", local_file_name + '.gz')
-
-            downloaded_output_path = get_file_from_key(self.s3_client, remote_url, self.downloaded_outputs)
-
-            if downloaded_output_path is None:
-                self.fail('Unable to find expected output file {0}'.format(remote_url))
+            downloaded_output_path = self.download_file_to_local_directory(remote_url, self.downloaded_output_dir)
 
             decompressed_file_name = downloaded_output_path[:-len('.gz')]
             output_file['downloaded_path'] = decompressed_file_name

@@ -17,4 +17,9 @@ CREATE TABLE `catalogue_productclass` (
 -- Dumping data for table `catalogue_productclass`
 --
 
-INSERT INTO `catalogue_productclass` VALUES (1,'Seat','seat',0,0);
+INSERT INTO `catalogue_productclass` VALUES
+  (1,'Seat','seat',0,0),
+  (3,'Coupon','coupon',0,0),
+  (4,'Enrollment Code','enrollment_code',0,0),
+  (7,'Course Entitlement','course-entitlement',0,0),
+  (8,'Donation','donation',1,1);

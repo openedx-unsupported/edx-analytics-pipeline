@@ -41,4 +41,6 @@ INSERT INTO `catalogue_product` VALUES
   (20,'standalone',NULL,'AccTest 25% off Otto Verified','578E9F3544','',NULL,'2016-03-22 20:44:23.266854','2016-03-22 20:44:23.310765',1,NULL,3,NULL,NULL),
   (21,'standalone',NULL,'AccTest $200 off Otto Prof','92D741F650','',NULL,'2016-03-22 20:46:39.846749','2016-03-22 20:46:39.958757',1,NULL,3,NULL,NULL),
   (22,'standalone',NULL,'AccTest Otto Pro Enroll Code','450483FB7B','',NULL,'2016-03-22 20:47:58.279367','2016-03-22 20:47:58.384073',1,NULL,3,NULL,NULL),
-  (23,'standalone',NULL,'AccTest 40% off Otto Credit','901A4FE566','',NULL,'2016-03-22 20:50:27.485071','2016-03-22 20:50:27.538182',1,NULL,3,NULL,NULL);
+  (23,'standalone',NULL,'AccTest 40% off Otto Credit','901A4FE566','',NULL,'2016-03-22 20:50:27.485071','2016-03-22 20:50:27.538182',1,NULL,3,NULL,NULL),
+  (29439,'parent',NULL,'Foundations of Computer Graphics',NULL,'',NULL,'2017-11-20 16:20:40','2017-11-20 16:28:23',1,NULL,7,NULL,NULL),
+  (29440,'child',NULL,'Verified Seat in Foundations of Computer Graphics','verified-seat-in-foundations-of-computer-graphics','',NULL,'2017-11-20 16:28:23','2017-11-20 16:28:39',1,29439,NULL,NULL,NULL);

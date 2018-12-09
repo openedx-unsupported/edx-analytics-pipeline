@@ -3,11 +3,10 @@ Utility methods interact with files.
 """
 import logging
 import os
+import sys
 from contextlib import contextmanager
 
-import sys
-
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.util.url import get_target_from_url
 
 TRANSFER_BUFFER_SIZE = 1024 * 1024  # 1 MB
 log = logging.getLogger(__name__)
@@ -25,7 +24,7 @@ def copy_file_to_file(src_file, output_file, progress=None):
             if progress:
                 try:
                     progress(len(transfer_buffer))
-                except:  # pylint: disable=bare-except
+                except Exception:  # pylint: disable=bare-except
                     pass
         else:
             break

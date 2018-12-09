@@ -1,12 +1,11 @@
 """Utility functions that wrap opaque_keys in useful ways."""
 
-import re
 import logging
+import re
 
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import CourseLocator
-
 
 log = logging.getLogger(__name__)
 
@@ -16,6 +15,14 @@ COURSE_KEY_PATTERN = r'(?P<course_key_string>[^/+]+(/|\+)[^/+]+(/|\+)[^/]+)'
 COURSE_ID_PATTERN = COURSE_KEY_PATTERN.replace('course_key_string', 'course_id')
 # from common/djangoapps/util/request.py:
 COURSE_REGEX = re.compile(r'^.*?/courses/{}'.format(COURSE_ID_PATTERN))
+
+
+def normalize_course_id(course_id):
+    """Make a best effort to rescue malformed course_ids"""
+    if course_id:
+        return course_id.strip()
+    else:
+        return course_id
 
 
 def is_valid_course_id(course_id):
@@ -68,7 +75,8 @@ def get_filename_safe_course_id(course_id, replacement_char='_'):
     """
     try:
         course_key = CourseKey.from_string(course_id)
-        filename = unicode(replacement_char).join([course_key.org, course_key.course, course_key.run])
+        # Ignore the namespace of the course_id altogether, for backwards compatibility.
+        filename = course_key._to_string()  # pylint: disable=protected-access
     except InvalidKeyError:
         # If the course_id doesn't parse, we will still return a value here.
         filename = course_id

@@ -4,14 +4,11 @@ import datetime
 import gzip
 import json
 import logging
-from collections import defaultdict
 import StringIO
+from collections import defaultdict
 
-from luigi.s3 import S3Target
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
-from edx.analytics.tasks.url import url_path_join
-
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -19,19 +16,22 @@ log = logging.getLogger(__name__)
 class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     """Test enrollment validation."""
 
-    INPUT_FILE = 'enrollment_trends_tracking.log'
+    INPUT_FILE = 'enrollment_validation_trends_tracking.log.j2'
     END_DATE = datetime.datetime.utcnow().date()
-    START_DATE = datetime.date(2014, 8, 1)
+    START_DATE = datetime.datetime.utcnow().date() - datetime.timedelta(days=6)
     # Define an interval that ends with today, so that a dump is triggered.
     DATE_INTERVAL = "{}-{}".format(START_DATE, END_DATE)
     # Create a wider interval that will include today's dump.
     WIDER_DATE_INTERVAL = "{}-{}".format(START_DATE, END_DATE + datetime.timedelta(days=1))
     SQL_FIXTURE = 'load_student_courseenrollment_for_enrollment_validation.sql'
 
-    @when_s3_available
     def test_enrollment_validation(self):
         # Initial setup.
-        self.upload_tracking_log(self.INPUT_FILE, self.START_DATE)
+        context = {
+            'days': lambda n: datetime.timedelta(days=n),
+            'start_date': self.START_DATE
+        }
+        self.upload_tracking_log(self.INPUT_FILE, self.START_DATE, template_context=context)
         self.execute_sql_fixture_file(self.SQL_FIXTURE)
         self.test_validate = url_path_join(self.test_root, 'validate')
 
@@ -64,8 +64,8 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
 
         # Widen the interval to include the latest validation events.
         interval = self.WIDER_DATE_INTERVAL if run_with_validation_events else self.DATE_INTERVAL
-        source_pattern = r'".*?\.log-(?P<date>\d{8}).*\.gz"'
-        validation_pattern = r'".*?enroll_validated_(?P<date>\d{8})\.log\.gz"'
+        source_pattern = '[\\".*?.log-.*.gz\\"]'
+        validation_pattern = '".*?enroll_validated_\d{8}\.log\.gz"'
         launch_args = [
             'EnrollmentValidationWorkflow',
             '--interval', interval,
@@ -73,15 +73,15 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
             '--validation-pattern', validation_pattern,
             '--credentials', self.import_db.credentials_file_url,
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
-            '--source', self.test_src,
             '--pattern', source_pattern,
             '--output-root', output_root,
         ]
         # An extra source means we're using synthetic events, so we
         # don't want to generate outside the interval in that case.
         if extra_source:
-            launch_args.extend(['--source', extra_source])
+            launch_args.extend(['--source', '[\\"{}\\",\\"{}\\"]'.format(self.test_src, extra_source)])
         else:
+            launch_args.extend(['--source', as_list_param(self.test_src)])
             launch_args.extend(['--generate-before'])
         if run_with_validation_events:
             launch_args.extend(['--expected-validation', "{}T00".format(self.END_DATE)])
@@ -91,27 +91,25 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
     def check_validation_events(self):
         """Confirm that validation data was properly created."""
         validate_output_dir = url_path_join(self.test_validate, str(self.END_DATE))
-        outputs = self.s3_client.list(validate_output_dir)
-        outputs = [url_path_join(validate_output_dir, p) for p in outputs]
+        outputs = self.get_targets_from_remote_path(validate_output_dir)
 
         # There are 2 courses in the test data.
         self.assertEqual(len(outputs), 2)
 
-    def get_synthetic_event_urls(self, output_dir):
+    def get_synthetic_event_targets(self, output_dir):
         """Helper to get URLs for synthetic event files."""
-        outputs = self.s3_client.list(output_dir)
-        outputs = [url_path_join(output_dir, p) for p in outputs if p.startswith("synthetic_enroll")]
+        outputs = self.get_targets_from_remote_path(output_dir, '*synthetic_enroll*')
         return outputs
 
     def check_synthetic_events(self, output_dir):
         """Confirm that some data was output."""
-        outputs = self.get_synthetic_event_urls(output_dir)
+        outputs = self.get_synthetic_event_targets(output_dir)
         self.assertTrue(len(outputs) > 0)
         histogram = defaultdict(int)  # int() returns 0
         for output in outputs:
             # Read S3 file into a buffer, since the S3 file doesn't support seek() and tell().
             gzip_output = StringIO.StringIO()
-            with S3Target(output).open('r') as event_file:
+            with output.open('r') as event_file:
                 gzip_output.write(event_file.read())
             gzip_output.seek(0)
             with gzip.GzipFile(fileobj=gzip_output) as input_file:
@@ -132,5 +130,5 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
 
     def check_no_synthetic_events(self, output_dir):
         """Confirm that no data was output."""
-        outputs = self.get_synthetic_event_urls(output_dir)
+        outputs = self.get_synthetic_event_targets(output_dir)
         self.assertEqual(len(outputs), 0)

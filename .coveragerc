@@ -1,4 +1,3 @@
-# .coveragerc for edx-analytics-platform
 [run]
 data_file = .coverage
 source = edx/analytics

@@ -22,13 +22,10 @@
   gather_facts: True
 
   vars:
-    - repo: https://github.com/edx/edx-analytics-pipeline.git
-    - branch: master
     # - root_data_dir: /var/lib/analytics-tasks
     # - root_log_dir: /var/log/analytics-tasks
     - working_dir: "{{ root_data_dir }}/{{ uuid }}"
     - log_dir: "{{ root_log_dir }}/{{ uuid}}"
-    - working_repo_dir: "{{ working_dir }}/repo"
     - working_venv_dir: "{{ working_dir }}/venv"
     - virtualenv_python: "/usr/bin/python2.7"
     - virtualenv_extra_args: ''
@@ -37,7 +34,6 @@
       - hostname: github.com
         public_key: 'ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A7hRGmdnm9tUDbO9IDSwBK6TbQa+PXYPCPy6rbTrTtw7PHkccKrpp0yVhp5HdEIcKr6pLlVDBfOLX9QUsyCOV0wzfjIJNlGEYsdlLJizHhbn2mUjvSAHQqZETYP81eFzLQNnPHt4EVVUh7VfDESU84KezmD5QlWpXLmvU31/yMf+Se8xhHTvKSCZIFImWwoG6mbUoWf9nzpIoaSjB+weqqUUmpaaasXVal72J+UX2B+2RPW3RcT0eOzQgqlJL3RKrTJvdsjE3JEAvGq3lGHSZXy28G3skua2SmVi/w4yCE6gbODqnTWlg7+wC604ydGXA8VJiS5ap43JXiUFFAaQ=='
     - local_log_dir: build/logs
-    - wheel_pyver: 2.7
     - common_debian_variants:
       - Ubuntu
       - Debian
@@ -47,11 +43,16 @@
       - Amazon
 
     # - override_config: path/to/config.cfg (optionally adds a luigi config override)
+    # - secure_config: path/to/config.cfg on the remote machine, could be from a checked out repo
 
-    # - secure_config_repo: git@github.com:some/repo.git
-    - secure_config_branch: origin/release
-    - secure_config_repo_dir: "{{ working_dir }}/config"
-    # - secure_config: path/to/config.cfg which can be found in the secure config repo
+    - pipeline_repo_dir_name: repo
+    - repos:
+      - url: https://github.com/edx/edx-analytics-pipeline.git
+        branch: master
+        dir_name: "{{ pipeline_repo_dir_name }}"
+    - working_repo_dir: "{{ working_dir }}/{{ pipeline_repo_dir_name }}"
+
+    - packages: []
 
   tasks:
     - name: find home directory
@@ -83,7 +84,6 @@
       sudo: True
       with_items:
         - "{{ working_dir }}"
-        - "{{ working_repo_dir }}"
         - "{{ working_venv_dir }}"
 
     - name: log directory created
@@ -102,17 +102,24 @@
       sudo: True
       when: ansible_distribution in common_redhat_variants
 
-    - name: analytics tasks repository checked out
-      git: repo={{ repo }} dest={{ working_repo_dir }} version=master
+    - name: repositories checked out
+      git: >
+        repo={{ item.url }}
+        dest={{ working_dir }}/{{ item.dir_name }}
+        version=master
+      with_items: repos
 
-    - name: branch fetched
-      command: git fetch --all chdir={{ working_repo_dir }}
+    - name: branches fetched
+      command: git fetch --all chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
 
-    - name: update origin/HEAD
-      command: git remote set-head origin --auto chdir={{ working_repo_dir }}
+    - name: origin/HEAD updated
+      command: git remote set-head origin --auto chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
 
-    - name: branch checked out
-      command: git checkout {{ branch }} chdir={{ working_repo_dir }}
+    - name: branches checked out
+      command: git checkout {{ item.branch }} chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
 
     - name: ensure system packages are installed
       command: make system-requirements chdir={{ working_repo_dir }}
@@ -132,9 +139,14 @@
       pip: name=virtualenv version=1.10.1
       sudo: True
 
+    - name: check if virtualenv already created
+      stat: path={{ working_venv_dir }}/bin/activate
+      register: virtualenv_created
+
     - name: virtualenv created
       command: >
         virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
+      when: not virtualenv_created.stat.exists
 
     - name: update pip
       command: >
@@ -144,41 +156,33 @@
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ wheel_url | default('http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Debian/squeeze') }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_debian_variants
 
     - name: virtualenv initialized on RHEL
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
         chdir={{ working_repo_dir }}
-      environment:
-        WHEEL_URL: "{{ wheel_url | default('http://edx-wheelhouse.s3-website-us-east-1.amazonaws.com/Amazon/emr4') }}"
-        WHEEL_PYVER: "{{ wheel_pyver }}"
       when: ansible_distribution in common_redhat_variants
+
+    - name: additional packages installed on Debian
+      shell: >
+        . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
+        chdir={{ working_repo_dir }}
+      when: ansible_distribution in common_debian_variants
+      with_items: packages
+
+    - name: additional packages installed on RHEL
+      shell: >
+        . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
+        chdir={{ working_repo_dir }}
+      when: ansible_distribution in common_redhat_variants
+      with_items: packages
 
     - name: logging configured
       template: src=logging.cfg.j2 dest={{ working_repo_dir }}/logging.cfg
 
     - name: configuration override removed
       file: path={{ working_repo_dir }}/override.cfg state=absent
-
-    - name: secure config repository checked out
-      git: repo={{ secure_config_repo }} dest={{ secure_config_repo_dir }} version=master
-      when: secure_config is defined
-
-    - name: secure config branch fetched
-      command: git fetch --all chdir={{ secure_config_repo_dir }}
-      when: secure_config is defined
-
-    - name: secure config branch checked out
-      command: git checkout {{ secure_config_branch }} chdir={{ secure_config_repo_dir }}
-      when: secure_config is defined
-
-    - name: secure config installed
-      command: cp {{ secure_config_repo_dir }}/{{ secure_config }} {{ working_repo_dir }}/override.cfg
-      when: secure_config is defined
 
     - name: configuration override installed
       copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644

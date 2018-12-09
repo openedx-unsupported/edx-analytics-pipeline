@@ -2,14 +2,11 @@
 End to end test of answer distribution.
 """
 
-import os
 import logging
+import os
 
-from luigi.s3 import S3Target
-
-from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_s3_available
-from edx.analytics.tasks.url import url_path_join
-
+from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -36,40 +33,39 @@ class BaseAnswerDistributionAcceptanceTest(AcceptanceTestCase):
         dst = url_path_join(self.test_src, self.INPUT_FILE)
 
         # Upload test data file
-        self.s3_client.put(src, dst)
+        self.upload_file(src, dst)
 
 
 class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
     """Acceptance test for the CSV-generating Answer Distribution Task"""
 
-    @when_s3_available
     def test_answer_distribution(self):
         self.task.launch([
             'AnswerDistributionOneFilePerCourseTask',
-            '--src', self.test_src,
+            '--src', as_list_param(self.test_src),
             '--dest', url_path_join(self.test_root, 'dst'),
             '--name', 'test',
             '--output-root', self.test_out,
-            '--include', '"*"',
+            '--include', as_list_param('"*"'),
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--base-input-format', self.input_format,
-            '--lib-jar', self.oddjob_jar,
+            '--lib-jar', as_list_param(self.oddjob_jar),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
         self.validate_output()
 
     def validate_output(self):
-        outputs = self.s3_client.list(self.test_out)
-        outputs = [url_path_join(self.test_out, p) for p in outputs]
+
+        output_targets = self.get_targets_from_remote_path(self.test_out)
 
         # There are 3 courses in the test data
-        self.assertEqual(len(outputs), 3)
+        self.assertEqual(len(output_targets), 3)
 
         # Check that the results have data
         def get_count(line):
             return int(line.split(',')[3])
-        for output in outputs:
-            with S3Target(output).open() as f:
+        for output_target in output_targets:
+            with output_target.open() as f:
                 lines = [l for l in f][1:]  # Skip header
                 self.assertTrue(len(lines) > 0)
 
@@ -80,17 +76,16 @@ class AnswerDistributionAcceptanceTest(BaseAnswerDistributionAcceptanceTest):
 class AnswerDistributionMysqlAcceptanceTests(BaseAnswerDistributionAcceptanceTest):
     """Acceptance tests for Answer Distribution Tasks -> MySQL"""
 
-    @when_s3_available
     def test_answer_distribution_mysql(self):
         self.task.launch([
             'AnswerDistributionToMySQLTaskWorkflow',
-            '--src', self.test_src,
+            '--src', as_list_param(self.test_src),
             '--dest', url_path_join(self.test_root, 'dst'),
             '--name', 'test',
-            '--include', '"*"',
+            '--include', as_list_param('"*"'),
             '--manifest', url_path_join(self.test_root, 'manifest.txt'),
             '--base-input-format', self.input_format,
-            '--lib-jar', self.oddjob_jar,
+            '--lib-jar', as_list_param(self.oddjob_jar),
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
             '--credentials', self.export_db.credentials_file_url,
         ])

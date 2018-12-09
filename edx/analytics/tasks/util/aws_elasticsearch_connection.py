@@ -4,6 +4,7 @@ import json
 import time
 
 from boto.connection import AWSAuthConnection
+from boto.exception import BotoServerError
 from elasticsearch import Connection
 
 
@@ -40,19 +41,30 @@ class AwsHttpConnection(Connection):
         """
         if not isinstance(body, basestring):
             body = json.dumps(body)
+
+        response = None
         start = time.time()
-        response = self.connection.make_request(method, url, params=params, data=body)
+        try:
+            response = self.connection.make_request(method, url, params=params, data=body)
+            status = response.status
+        except BotoServerError as boto_server_error:
+            status = boto_server_error.status
         duration = time.time() - start
-        raw_data = response.read()
+
+        raw_data = ''
+        headers = {}
+        if response:
+            raw_data = response.read()
+            headers = dict(response.getheaders())
 
         # Raise errors based on http status codes and let the client handle them.
-        if not (200 <= response.status < 300) and response.status not in ignore:
-            self.log_request_fail(method, url, body, duration, response.status)
-            self._raise_error(response.status, raw_data)
+        if not (200 <= status < 300) and status not in ignore:
+            self.log_request_fail(method, url, body, duration, status)
+            self._raise_error(status, raw_data)
 
-        self.log_request_success(method, url, url, body, response.status, raw_data, duration)
+        self.log_request_success(method, url, url, body, status, raw_data, duration)
 
-        return response.status, dict(response.getheaders()), raw_data
+        return status, headers, raw_data
 
 
 class AwsElasticsearchConnection(AWSAuthConnection):

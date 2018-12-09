@@ -1,12 +1,10 @@
 
 import json
-
-from contextlib import closing
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 
 import mysql.connector
 
-from edx.analytics.tasks.url import get_target_from_url
+from edx.analytics.tasks.util.url import get_target_from_url
 
 
 # TODO: use a database that is unique to this particular test run to isolate it.
@@ -30,7 +28,7 @@ class DatabaseService(object):
             with closing(conn.cursor()) as cur:
                 try:
                     yield cur
-                except:
+                except Exception:
                     conn.rollback()
                     raise
                 else:

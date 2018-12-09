@@ -1,9 +1,9 @@
 """Utility methods to help with temp-file management."""
 import atexit
-from contextlib import contextmanager
 import os.path
 import shutil
 import tempfile
+from contextlib import contextmanager
 
 
 @contextmanager

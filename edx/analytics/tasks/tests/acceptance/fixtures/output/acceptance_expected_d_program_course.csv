@@ -1,0 +1,3 @@
+program_id,program_type,program_title,catalog_course,catalog_course_title,course_id,org_id,partner_short_code,program_slot_number
+acb243a0-1234-5abe-099e-ffcae2a340d4,XSeries,Testing,edX+Testing102,All about acceptance testing Part 3!,course-v1:edX+Testing102x+1T2017,edX,openedx,2
+acb243a0-1234-5abe-099e-ffcae2a340d4,XSeries,Testing,edX+Open_DemoX,All about acceptance testing!,edX/Open_DemoX/edx_demo_course,edX,openedx,1

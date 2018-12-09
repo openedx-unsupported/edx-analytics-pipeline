@@ -1,14 +1,15 @@
 """Test the AWS-specific elasticsearch connection."""
 import socket
+from unittest import TestCase
 
-from elasticsearch.exceptions import ElasticsearchException
+from boto.exception import BotoServerError
+from elasticsearch.exceptions import ElasticsearchException, TransportError
 from mock import patch
 
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsElasticsearchConnection, AwsHttpConnection
-from edx.analytics.tasks.tests import unittest
 
 
-class AwsElasticsearchConnectionTests(unittest.TestCase):
+class AwsElasticsearchConnectionTests(TestCase):
     """Test the generic connection."""
 
     def test_constructor_params(self):
@@ -35,7 +36,7 @@ class AwsElasticsearchConnectionTests(unittest.TestCase):
         self.assertTrue('my_access_key' in auth_header)
 
     def test_timeout(self):
-        def fake_connection(_address):
+        def fake_connection(_address, _timeout):
             """Fail immediately with a socket timeout."""
             raise socket.timeout('fake error')
         socket.create_connection = fake_connection
@@ -48,7 +49,7 @@ class AwsElasticsearchConnectionTests(unittest.TestCase):
             connection.make_request('GET', 'https://example.com')
 
 
-class AwsHttpConnectionTests(unittest.TestCase):
+class AwsHttpConnectionTests(TestCase):
     """Mock out the request making part and test the connection."""
 
     @patch('edx.analytics.tasks.util.aws_elasticsearch_connection.AwsElasticsearchConnection.make_request')
@@ -68,3 +69,14 @@ class AwsHttpConnectionTests(unittest.TestCase):
             with patch('elasticsearch.connection.base.logger.debug') as mock_logger:
                 connection.perform_request('get', 'http://example.com')
                 self.assertGreater(mock_logger.call_count, 0)
+
+    @patch('edx.analytics.tasks.util.aws_elasticsearch_connection.AwsElasticsearchConnection.make_request')
+    def test_boto_service_unavailable(self, mock_make_request):
+        connection = AwsHttpConnection(aws_access_key_id='access_key', aws_secret_access_key='secret')
+        mock_make_request.side_effect = BotoServerError(503, 'Service Unavailable')
+        try:
+            connection.perform_request('get', 'http://example.com')
+        except TransportError as transport_error:
+            self.assertEqual(transport_error.status_code, 503)
+        else:
+            self.fail('Expected a transport error to be raised.')

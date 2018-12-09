@@ -2,16 +2,13 @@
 End to end test of the internal reporting country table loading task.
 """
 
-import os
 import logging
-import datetime
-import pandas
-import luigi
+import os
 
-from luigi.date_interval import Date
+import pandas
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
-from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
 
@@ -48,7 +45,8 @@ class InternalReportingCountryLoadAcceptanceTest(AcceptanceTestCase):
             response = cursor.fetchall()
             d_country = pandas.DataFrame(response, columns=['country_name', 'user_last_location_country_code'])
 
-            try:  # A ValueError will be thrown if the column names don't match or the two data frames are not square.
-                self.assertTrue(all(d_country == expected))
-            except ValueError:
-                self.fail("Expected and returned data frames have different shapes or labels.")
+            for frame in (d_country, expected):
+                frame.sort(['country_name'], inplace=True, ascending=[True])
+                frame.reset_index(drop=True, inplace=True)
+
+            self.assert_data_frames_equal(d_country, expected)
