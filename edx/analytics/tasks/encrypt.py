@@ -9,11 +9,33 @@ import gnupg
 
 from edx.analytics.tasks.util.tempdir import make_temp_directory
 
+
+TRANSFER_BUFFER_SIZE = 1024 * 1024  # 1 MB
 log = logging.getLogger(__name__)
+key_cache = {}  # pylint: disable=invalid-name
+
+
+def get_key_from_target(key_file_target):
+    """Get the contents of the key file pointed to by the target"""
+
+    # Use a key cache since this is often called from reduce tasks which are executed within the same python process if
+    # JVM reuse is enabled.
+    key_file_path = key_file_target.path
+
+    key_content = key_cache.get(key_file_path)
+    if not key_content:
+        with key_file_target.open('r') as gpg_key_file:
+            log.info("Reading keyfile from %s", key_file_path)
+            key_content = gpg_key_file.read()
+        key_cache[key_file_path] = key_content
+    else:
+        log.info("Using cached keyfile for %s", key_file_path)
+
+    return key_content
 
 
 @contextmanager
-def make_encrypted_file(output_file, key_file_targets, recipients=None):
+def make_encrypted_file(output_file, key_file_targets, recipients=None, progress=None):
     """
     Creates a file object to be written to, whose contents will afterwards be encrypted.
 
@@ -21,6 +43,7 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None):
         output_file:  a file object, opened for writing.
         key_file_targets: a list of luigi.Target objects defining the gpg public key files to be loaded.
         recipients:  an optional list of recipients to be loaded.  If not specified, uses all loaded keys.
+        progress:  a function that is called periodically as progress is made.
     """
     with make_temp_directory(prefix="encrypt") as temp_dir:
         # Use temp directory to hold gpg keys.
@@ -31,6 +54,7 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None):
         # Create a temp file to contain the unencrypted output, in the same temp directory.
         with tempfile.NamedTemporaryFile(dir=temp_dir, delete=False) as temp_input_file:
             temp_input_filepath = temp_input_file.name
+            log.info('Writing data to temporary file: %s', temp_input_filepath)
             yield temp_input_file
 
         # Encryption produces a second file in the same temp directory.
@@ -39,7 +63,7 @@ def make_encrypted_file(output_file, key_file_targets, recipients=None):
             recipients = [key['keyid'] for key in gpg.list_keys()]
         with open(temp_input_filepath, 'r') as temp_input_file:
             _encrypt_file(gpg, temp_input_file, temp_encrypted_filepath, recipients)
-        _copy_file_to_open_file(temp_encrypted_filepath, output_file)
+        _copy_file_to_open_file(temp_encrypted_filepath, output_file, progress)
 
 
 def _import_key_files(gpg_instance, key_file_targets):
@@ -50,12 +74,12 @@ def _import_key_files(gpg_instance, key_file_targets):
     """
     for key_file_target in key_file_targets:
         log.info("Importing keyfile from %s", key_file_target.path)
-        with key_file_target.open('r') as gpg_key_file:
-            gpg_instance.import_keys(gpg_key_file.read())
+        gpg_instance.import_keys(get_key_from_target(key_file_target))
 
 
 def _encrypt_file(gpg_instance, input_file, encrypted_filepath, recipients):
     """Encrypts a given file open for read, and writes result to a file."""
+    log.info('Generating encrypted file: %s', encrypted_filepath)
     gpg_instance.encrypt_file(
         input_file,
         recipients,
@@ -63,14 +87,22 @@ def _encrypt_file(gpg_instance, input_file, encrypted_filepath, recipients):
         output=encrypted_filepath,
         armor=False,
     )
+    log.info('Encryption complete.')
 
 
-def _copy_file_to_open_file(filepath, output_file):
+def _copy_file_to_open_file(filepath, output_file, progress=None):
     """Copies a filepath to a file object already opened for writing."""
+    log.info('Copying to output: %s', filepath)
     with open(filepath, 'r') as src_file:
         while True:
-            transfer_buffer = src_file.read(1024)
+            transfer_buffer = src_file.read(TRANSFER_BUFFER_SIZE)
             if transfer_buffer:
                 output_file.write(transfer_buffer)
+                if progress:
+                    try:
+                        progress(len(transfer_buffer))
+                    except:  # pylint: disable=bare-except
+                        pass
             else:
                 break
+    log.info('Copy to output complete')

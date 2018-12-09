@@ -21,7 +21,12 @@ develop: requirements
 system-requirements:
 	sudo apt-get update -q
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base
+	if (sudo dpkg --get-selections | grep -v deinstall | grep mariadb); \
+	then \
+		sudo apt-get install -y -q libmariadbclient-dev libatlas3gf-base; \
+	else \
+		sudo apt-get install -y -q libmysqlclient-dev libatlas3gf-base; \
+	fi
 
 requirements:
 	$(PIP_INSTALL) -U -r requirements/default.txt
@@ -32,7 +37,7 @@ test-requirements: requirements
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
-	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose -A 'not acceptance'
+	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
 
 test: test-requirements develop test-local
 
@@ -51,7 +56,7 @@ coverage-local: test-local
 
 	# Compute style violations
 	pep8 edx > pep8.report || echo "Not pep8 clean"
-	pylint -f parseable edx > pylint.report || echo "Not pylint clean"
+	pylint -f parseable -s y edx > pylint.report || echo "Not pylint clean"
 
 coverage: test coverage-local
 

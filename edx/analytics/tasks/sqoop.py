@@ -13,6 +13,7 @@ import luigi.configuration
 from edx.analytics.tasks.url import ExternalURL
 from edx.analytics.tasks.url import get_target_from_url
 from edx.analytics.tasks.url import url_path_join
+from edx.analytics.tasks.util.credentials import CredentialsUrl
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 log = logging.getLogger(__name__)
@@ -81,7 +82,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
 
     def requires(self):
         return {
-            'credentials': ExternalURL(url=self.credentials),
+            'credentials': CredentialsUrl(url=self.credentials),
         }
 
     def output(self):
@@ -107,14 +108,14 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         """Returns list of arguments used by all Sqoop commands, using credentials read from file."""
         cred = self._get_credentials()
         url = self.connection_url(cred)
-        generic_args = ['--connect', url, '--username', cred['username']]
+        generic_args = ['--connect', url, '--username', cred.username]
 
         if self.verbose:
             generic_args.append('--verbose')
 
         # write password to temp file object, and pass name of file to Sqoop:
         with password_target.open('w') as password_file:
-            password_file.write(cred['password'])
+            password_file.write(cred.password)
             password_file.flush()
         generic_args.extend(['--password-file', password_target.path])
 
@@ -154,10 +155,7 @@ class SqoopImportTask(OverwriteOutputMixin, luigi.hadoop.BaseHadoopJobTask):
         Returns:
             A dict containing credentials.
         """
-        cred = {}
-        with self.input()['credentials'].open('r') as credentials_file:
-            cred = json.load(credentials_file)
-        return cred
+        return self.input()['credentials']
 
 
 class SqoopImportFromMysql(SqoopImportTask):
@@ -181,7 +179,7 @@ class SqoopImportFromMysql(SqoopImportTask):
 
     def connection_url(self, cred):
         """Construct connection URL from provided credentials."""
-        return 'jdbc:mysql://{host}/{database}'.format(host=cred['host'], database=self.database)
+        return 'jdbc:mysql://{host}/{database}'.format(host=cred.host, database=self.database)
 
     def import_args(self):
         """Returns list of arguments specific to Sqoop import from a Mysql database."""

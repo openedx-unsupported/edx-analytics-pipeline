@@ -11,7 +11,8 @@ from edx.analytics.tasks.tests import unittest
 VALID_COURSE_ID = unicode(CourseLocator(org='org', course='course_id', run='course_run'))
 VALID_LEGACY_COURSE_ID = "org/course_id/course_run"
 INVALID_LEGACY_COURSE_ID = "org:course_id:course_run"
-NONASCII_LEGACY_COURSE_ID = u"org/course\ufffd_id/course_run"
+INVALID_NONASCII_LEGACY_COURSE_ID = u"org/course\ufffd_id/course_run"
+VALID_NONASCII_LEGACY_COURSE_ID = u"org/cours\u00e9_id/course_run"
 
 
 class CourseIdTest(unittest.TestCase):
@@ -28,14 +29,17 @@ class CourseIdTest(unittest.TestCase):
     def test_legacy_course_id_without_components(self):
         self.assertFalse(opaque_key_util.is_valid_course_id(INVALID_LEGACY_COURSE_ID))
 
-    def test_course_id_with_nonascii(self):
-        self.assertFalse(opaque_key_util.is_valid_course_id(NONASCII_LEGACY_COURSE_ID))
+    def test_course_id_with_valid_nonascii(self):
+        self.assertTrue(opaque_key_util.is_valid_course_id(VALID_NONASCII_LEGACY_COURSE_ID))
+
+    def test_course_id_with_invalid_nonascii(self):
+        self.assertFalse(opaque_key_util.is_valid_course_id(INVALID_NONASCII_LEGACY_COURSE_ID))
 
     def test_no_course_id(self):
         self.assertFalse(opaque_key_util.is_valid_course_id(None))
 
     def test_valid_org_id(self):
-        self.assertTrue(opaque_key_util.is_valid_org_id('org_id'))
+        self.assertTrue(opaque_key_util.is_valid_org_id(u'org_id\u00e9'))
 
     def test_invalid_org_id(self):
         self.assertFalse(opaque_key_util.is_valid_org_id(u'org\ufffd_id'))
@@ -48,10 +52,11 @@ class CourseIdTest(unittest.TestCase):
 
     def test_get_valid_legacy_org_id(self):
         self.assertEquals(opaque_key_util.get_org_id_for_course(VALID_LEGACY_COURSE_ID), "org")
+        self.assertEquals(opaque_key_util.get_org_id_for_course(VALID_NONASCII_LEGACY_COURSE_ID), "org")
 
     def test_get_invalid_legacy_org_id(self):
         self.assertIsNone(opaque_key_util.get_org_id_for_course(INVALID_LEGACY_COURSE_ID))
-        self.assertIsNone(opaque_key_util.get_org_id_for_course(NONASCII_LEGACY_COURSE_ID))
+        self.assertIsNone(opaque_key_util.get_org_id_for_course(INVALID_NONASCII_LEGACY_COURSE_ID))
 
     def test_get_filename(self):
         self.assertEquals(opaque_key_util.get_filename_safe_course_id(VALID_COURSE_ID), "org_course_id_course_run")
@@ -84,12 +89,20 @@ class CourseIdTest(unittest.TestCase):
 
     def test_get_filename_for_nonascii_id(self):
         self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(NONASCII_LEGACY_COURSE_ID),
-            u"org_course\ufffd_id_course_run"
+            opaque_key_util.get_filename_safe_course_id(VALID_NONASCII_LEGACY_COURSE_ID),
+            u"org_cours__id_course_run"
         )
         self.assertEquals(
-            opaque_key_util.get_filename_safe_course_id(NONASCII_LEGACY_COURSE_ID, '-'),
-            u"org-course\ufffd_id-course_run"
+            opaque_key_util.get_filename_safe_course_id(VALID_NONASCII_LEGACY_COURSE_ID, '-'),
+            u"org-cours-_id-course_run"
+        )
+        self.assertEquals(
+            opaque_key_util.get_filename_safe_course_id(INVALID_NONASCII_LEGACY_COURSE_ID),
+            u"org_course__id_course_run"
+        )
+        self.assertEquals(
+            opaque_key_util.get_filename_safe_course_id(INVALID_NONASCII_LEGACY_COURSE_ID, '-'),
+            u"org-course-_id-course_run"
         )
 
     def test_get_course_key_from_url(self):
@@ -108,6 +121,10 @@ class CourseIdTest(unittest.TestCase):
         self.assertIsNone(course_key)
 
     def test_get_course_key_from_nonascii_url(self):
-        url = u"https://courses.edx.org/courses/{course_id}/stuff".format(course_id=NONASCII_LEGACY_COURSE_ID)
+        url = u"https://courses.edx.org/courses/{course_id}/stuff".format(course_id=VALID_NONASCII_LEGACY_COURSE_ID)
+        course_key = opaque_key_util.get_course_key_from_url(url)
+        self.assertEquals(unicode(course_key), VALID_NONASCII_LEGACY_COURSE_ID)
+
+        url = u"https://courses.edx.org/courses/{course_id}/stuff".format(course_id=INVALID_NONASCII_LEGACY_COURSE_ID)
         course_key = opaque_key_util.get_course_key_from_url(url)
         self.assertIsNone(course_key)

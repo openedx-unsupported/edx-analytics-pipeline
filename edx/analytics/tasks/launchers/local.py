@@ -7,14 +7,16 @@ Main method for running tasks on a local machine.
 
 """
 
-import os.path
+from contextlib import contextmanager
 import logging
+import os
 
 import boto
 import filechunkio
 import cjson
 import opaque_keys
 import bson
+import pyinstrument
 import stevedore
 
 import luigi
@@ -55,7 +57,23 @@ def main():
     # TODO: setup logging for tasks or configured logging mechanism
 
     # Launch Luigi using the default builder
-    luigi.run()
+
+    with profile_if_necessary(os.getenv('WORKFLOW_PROFILER', ''), os.getenv('WORKFLOW_PROFILER_PATH', '')):
+        luigi.run()
+
+
+@contextmanager
+def profile_if_necessary(profiler_name, file_path):
+    if profiler_name == 'pyinstrument':
+        profiler = pyinstrument.Profiler(use_signal=False)
+        profiler.start()
+
+    try:
+        yield
+    finally:
+        if profiler_name == 'pyinstrument':
+            profiler.stop()
+            profiler.save(filename=os.path.join(file_path, 'launch-task.trace'))
 
 
 if __name__ == '__main__':

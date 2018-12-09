@@ -35,11 +35,12 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
             '--n-reduce-tasks', str(self.NUM_REDUCERS),
         ])
 
+        self.maxDiff = None
+
         with self.export_db.cursor() as cursor:
-            cursor.execute('SELECT * FROM course_enrollment_location_current ORDER BY country_code')
+            cursor.execute('SELECT * FROM course_enrollment_location_current ORDER BY country_code, course_id')
             results = cursor.fetchall()
 
-        self.maxDiff = None
         # TODO: what happens if the test starts near the UTC day boundary. The task sees that today is day "X", yet this
         # code sees the following day since the day boundary was crossed between then and now.
         today = datetime.utcnow().date()
@@ -49,6 +50,16 @@ class LocationByCourseAcceptanceTest(AcceptanceTestCase):
         ], [
             (today, self.COURSE_ID, '', 1),
             (today, self.COURSE_ID, 'IE', 1),
-            (today, self.COURSE_ID, 'TH', 1),
             (today, self.COURSE_ID2, 'TH', 1),
+            (today, self.COURSE_ID, 'TH', 1),
+        ])
+        with self.export_db.cursor() as cursor:
+            cursor.execute('SELECT username, country_name, country_code FROM last_country_of_user ORDER BY username, country_code')
+            results = cursor.fetchall()
+
+        self.assertItemsEqual(results, [
+            ('audit', 'Ireland', 'IE'),
+            ('honor', 'UNKNOWN', 'UNKNOWN'),
+            ('other', 'UNKNOWN', 'UNKNOWN'),
+            ('staff', 'Thailand', 'TH'),
         ])

@@ -2,6 +2,7 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
+import math
 import csv
 import hashlib
 import html5lib
@@ -17,7 +18,7 @@ from edx.analytics.tasks.mapreduce import MapReduceJobTask, MultiOutputMapReduce
 from edx.analytics.tasks.pathutil import PathSetTask
 from edx.analytics.tasks.url import ExternalURL, IgnoredTarget
 from edx.analytics.tasks.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.mysql_load import MysqlInsertTask
+from edx.analytics.tasks.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
@@ -279,9 +280,7 @@ class AnswerDistributionPerCourseMixin(object):
         # Now construct answer distribution for this input.
         problem_id = most_recent_answer.get('problem_id')
         problem_display_name = most_recent_answer.get('problem_display_name')
-        most_recent_question = most_recent_answer.get('question', '')
         answer_uses_value_id = ('answer_value_id' in most_recent_answer)
-        answer_uses_variant = (most_recent_answer.get('variant', '') != '')
         answer_dist = {}
         for _timestamp, value_string in reversed(values):
             answer = json.loads(value_string)
@@ -325,18 +324,11 @@ class AnswerDistributionPerCourseMixin(object):
                 answer_value_contains_html = (value_id is not None and value_id != '')
                 answer_value = self.stringify(answer_value, contains_html=answer_value_contains_html)
 
-                # If there is a variant, then the question might not be
-                # the same for all variants presented to students.  So
-                # we take the value (if any) provided in this variant.
-                # If there is no variant, then the question should be
-                # the same, and we want to go with the most recently
-                # defined value.
-                if answer_uses_variant:
-                    question = answer.get('question', '')
-                    variant = answer.get('variant') or ''
-                else:
-                    question = most_recent_question
-                    variant = ''
+                # Even if the most recent answer does not have a variant,
+                # the question could have been randomized earlier and then
+                # switched, so the variant must be checked for all answers.
+                question = answer.get('question', '')
+                variant = answer.get('variant') or ''
 
                 # Key values here should match those used in get_column_order().
                 answer_dist[answer_grouping_key] = {
@@ -571,7 +563,7 @@ def get_text_from_element(node):
 # Task requires/output definitions
 ##################################
 
-class BaseAnswerDistributionTask(MapReduceJobTask):
+class BaseAnswerDistributionDownstreamMixin(object):
     """
     Base class for answer distribution calculations.
 
@@ -585,19 +577,27 @@ class BaseAnswerDistributionTask(MapReduceJobTask):
         manifest: a URL to a file location that can store the complete set of input files.
     """
     name = luigi.Parameter()
-    src = luigi.Parameter()
+    src = luigi.Parameter(is_list=True)
     dest = luigi.Parameter()
     include = luigi.Parameter(is_list=True, default=('*',))
-    # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
-    # number of arguments passed to the mapper process on the task nodes.
+    # A manifest file is required by hadoop if there are too many
+    # input paths. It hits an operating system limit on the number of
+    # arguments passed to the mapper process on the task nodes.
     manifest = luigi.Parameter(default=None)
+
+
+class BaseAnswerDistributionTask(MapReduceJobTask):
+    """Base class for answer distribution calculations."""
 
     def extra_modules(self):
         import six
         return [html5lib, six]
 
 
-class LastProblemCheckEvent(LastProblemCheckEventMixin, BaseAnswerDistributionTask):
+class LastProblemCheckEvent(
+        BaseAnswerDistributionDownstreamMixin,
+        LastProblemCheckEventMixin,
+        BaseAnswerDistributionTask):
     """Identifies last problem_check event for a user on a problem in a course, given raw event log input."""
 
     def requires(self):
@@ -608,20 +608,26 @@ class LastProblemCheckEvent(LastProblemCheckEventMixin, BaseAnswerDistributionTa
         return get_target_from_url(url_path_join(self.dest, output_name))
 
 
-class AnswerDistributionPerCourse(AnswerDistributionPerCourseMixin, BaseAnswerDistributionTask):
+class AnswerDistributionDownstreamMixin(BaseAnswerDistributionDownstreamMixin):
     """
-    Calculates answer distribution on a problem in a course, given per-user answers by date.
-
+    Parameters needed for calculating answer distribution.
 
     Additional Parameters:
         answer_metadata:  optional file to provide information about particular answers.
             Includes problem_display_name, input_type, response_type, and question.
         base_input_format:  The input format to use on the first map reduce job in the chain. This job takes in the most
             input and may need a custom input format.
-    """
 
+    """
     answer_metadata = luigi.Parameter(default=None)
     base_input_format = luigi.Parameter(default=None)
+
+
+class AnswerDistributionPerCourse(
+        AnswerDistributionDownstreamMixin,
+        AnswerDistributionPerCourseMixin,
+        BaseAnswerDistributionTask):
+    """Calculates answer distribution on a problem in a course, given per-user answers by date."""
 
     def requires(self):
         results = {
@@ -660,7 +666,7 @@ class AnswerDistributionPerCourse(AnswerDistributionPerCourseMixin, BaseAnswerDi
         super(AnswerDistributionPerCourse, self).run()
 
 
-class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
+class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, MultiOutputMapReduceJobTask):
     """
     Groups answer distributions by course, producing a different file for each.
 
@@ -671,21 +677,8 @@ class AnswerDistributionOneFilePerCourseTask(MultiOutputMapReduceJobTask):
             are written.  This is distinct from `dest`, which is where
             intermediate output is written.
         delete_output_root: if True, recursively deletes the output_root at task creation.
+        marker:  a URL location where a marker file should be written.
     """
-
-    src = luigi.Parameter()
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    name = luigi.Parameter(default='periodic')
-    answer_metadata = luigi.Parameter(default=None)
-    manifest = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
-
-    def output(self):
-        # Because this task writes to a shared directory, we don't
-        # want to include a marker for job success.  Use a special
-        # target that always triggers new runs and never writes out.
-        return IgnoredTarget()
 
     def requires(self):
         return AnswerDistributionPerCourse(
@@ -811,31 +804,14 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
         ]
 
 
-class AnswerDistributionToMySQLParamsMixin(object):
-    name = luigi.Parameter()
-    src = luigi.Parameter()
-    dest = luigi.Parameter()
-    include = luigi.Parameter(is_list=True, default=('*',))
-    # A manifest file is required by hadoop if there are too many input paths. It hits an operating system limit on the
-    # number of arguments passed to the mapper process on the task nodes.
-    manifest = luigi.Parameter(default=None)
-    answer_metadata = luigi.Parameter(default=None)
-    base_input_format = luigi.Parameter(default=None)
-
-
 class AnswerDistributionToMySQLTaskWorkflow(
     InsertToMysqlAnswerDistributionTableBase,
-    AnswerDistributionToMySQLParamsMixin,
+    AnswerDistributionDownstreamMixin,
     MapReduceJobTaskMixin
 ):
-    def init_copy(self, connection):
-        """
-        Truncate the table before re-writing
-        """
-        # Use "DELETE" instead of TRUNCATE since TRUNCATE forces an implicit commit before it executes which would
-        # commit the currently open transaction before continuing with the copy.
-        query = "DELETE FROM {table}".format(table=self.table)
-        connection.cursor().execute(query)
+
+    # Override the parameter that normally defaults to false. This ensures that the table will always be overwritten.
+    overwrite = luigi.BooleanParameter(default=True)
 
     @property
     def insert_source_task(self):
@@ -856,12 +832,62 @@ class AnswerDistributionToMySQLTaskWorkflow(
         )
 
 
+class AnswerDistributionWorkflow(
+        AnswerDistributionDownstreamMixin,
+        MysqlInsertTaskMixin,
+        MapReduceJobTaskMixin,
+        luigi.WrapperTask):
+    """Calculate answer distribution and output to files and to database."""
+
+    # Add additional args for MultiOutputMapReduceJobTask.
+    output_root = luigi.Parameter()
+    marker = luigi.Parameter()
+
+    def requires(self):
+        kwargs = {
+            'mapreduce_engine': self.mapreduce_engine,
+            'lib_jar': self.lib_jar,
+            'n_reduce_tasks': self.n_reduce_tasks,
+            'name': self.name,
+            'src': self.src,
+            'dest': self.dest,
+            'include': self.include,
+            'manifest': self.manifest,
+            'answer_metadata': self.answer_metadata,
+            'base_input_format': self.base_input_format,
+        }
+
+        # Add additional args for MultiOutputMapReduceJobTask.
+        kwargs1 = {
+            'output_root': self.output_root,
+            'marker': self.marker,
+        }
+        kwargs1.update(kwargs)
+
+        # Add additional args for MysqlInsertTaskMixin.
+        kwargs2 = {
+            'database': self.database,
+            'credentials': self.credentials,
+            'insert_chunk_size': self.insert_chunk_size,
+        }
+        kwargs2.update(kwargs)
+
+        yield (
+            AnswerDistributionOneFilePerCourseTask(**kwargs1),
+            AnswerDistributionToMySQLTaskWorkflow(**kwargs2),
+        )
+
+
 ################################
 # Helper methods
 ################################
 def try_str_to_float(value_str):
     try:
-        return float(value_str)
+        float_val = float(value_str)
+        # infinity values and NaN actually break mysql-connector (because they look like a string), so make those None
+        if math.isinf(float_val) or math.isnan(float_val):
+            return None
+        return float_val
     except (ValueError, TypeError):
         return None
 

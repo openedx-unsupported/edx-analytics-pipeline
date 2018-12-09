@@ -3,6 +3,9 @@ Tests for event export tasks
 """
 
 import datetime
+import json
+from collections import defaultdict
+from itertools import chain
 
 from luigi.date_interval import Year
 from mock import MagicMock, patch
@@ -14,21 +17,57 @@ from edx.analytics.tasks.tests.target import FakeTarget
 from edx.analytics.tasks.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 
 
-class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
+class EventExportTestCaseBase(InitializeOpaqueKeysMixin, unittest.TestCase):
+    """Base for Tests of EventExportTask."""
+
+    SERVER_NAME_1 = 'FakeServerGroup'
+    SERVER_NAME_2 = 'OtherFakeServerGroup'
+
+    def setUp(self):
+        self.initialize_ids()
+        self.task = self._create_export_task()
+
+    def _create_export_task(self, **kwargs):
+        task = EventExportTask(
+            mapreduce_engine='local',
+            output_root='test://output/',
+            config='test://config/default.yaml',
+            source=['test://input/'],
+            environment='prod',
+            interval=Year.parse('2014'),
+            gpg_key_dir='test://config/gpg-keys/',
+            gpg_master_key='skeleton.key@example.com',
+            **kwargs
+        )
+
+        task.input_local = MagicMock(return_value=FakeTarget(self.CONFIGURATION))
+        return task
+
+    def run_mapper_for_server_file(self, server, event_string):
+        """Emulate execution of the map function on data emitted by the given server."""
+        return self.run_mapper_for_file_path('test://input/{0}/tracking.log'.format(server), event_string)
+
+    def run_mapper_for_file_path(self, path, event_string):
+        """Emulate execution of the map function on data read from the given file path."""
+        with patch.dict('os.environ', {'map_input_file': path}):
+            return [output for output in self.task.mapper(event_string) if output is not None]
+
+
+class EventExportTestCase(EventExportTestCaseBase):
     """Tests for EventExportTask."""
 
     EXAMPLE_EVENT = '{"context":{"org_id": "FooX"}, "time": "2014-05-20T00:10:30+00:00","event_source": "server"}'
-    SERVER_NAME_1 = 'FakeServerGroup'
-    SERVER_NAME_2 = 'OtherFakeServerGroup'
     EXAMPLE_TIME = '2014-05-20T00:10:30+00:00'
     EXAMPLE_DATE = '2014-05-20'
+
     # Include some non-standard spacing in this JSON to ensure that the data is not modified in any way.
     EVENT_TEMPLATE = \
         '{{"context":{{"org_id": "{org_id}"}}, "time": "{time}","event_source": "server"}}'  # pep8: disable=E231
+
     CONFIG_DICT = {
         'organizations': {
             'FooX': {
-                'recipient': 'automation@foox.com'
+                'recipients': ['automation@foox.com']
             },
             'BarX': {
                 'recipients': ['automation@barx.com'],
@@ -46,26 +85,6 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
         }
     }
     CONFIGURATION = yaml.dump(CONFIG_DICT)
-
-    def setUp(self):
-        self.initialize_ids()
-        self.task = self._create_export_task()
-
-    def _create_export_task(self, **kwargs):
-        task = EventExportTask(
-            mapreduce_engine='local',
-            output_root='test://output/',
-            config='test://config/default.yaml',
-            source='test://input/',
-            environment='prod',
-            interval=Year.parse('2014'),
-            gpg_key_dir='test://config/gpg-keys/',
-            gpg_master_key='skeleton.key@example.com',
-            **kwargs
-        )
-
-        task.input_local = MagicMock(return_value=FakeTarget(self.CONFIGURATION))
-        return task
 
     def test_org_whitelist_capture(self):
         self.task.init_local()
@@ -119,6 +138,22 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
             ),
         ]
 
+        # This event should be included in the output, even though it was emitted long ago by a mobile device
+        delayed_input = [
+            '{{"context":{{"org_id": "{org_id}", "received_at": "{received_time}"}}, '
+            '"time": "{time}","event_source": "mobile"}}'.format(
+                org_id='FooX',
+                received_time=self.EXAMPLE_TIME,
+                time='2013-05-20T00:10:30+00:00'
+            )
+        ]
+        expected_delayed_output = [
+            (
+                (self.EXAMPLE_DATE, 'FooX'),
+                delayed_input[0]
+            )
+        ]
+
         # The following should produce no output from the mapper.
         excluded_events = [
             self.EVENT_TEMPLATE.format(org_id='OtherOrgX', time=self.EXAMPLE_TIME),
@@ -127,8 +162,8 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
             '{invalid json'
         ]
 
-        input_events = single_org_input + multiple_org_input + excluded_events
-        expected_output = expected_multiple_org_output + expected_single_org_output
+        input_events = single_org_input + multiple_org_input + delayed_input + excluded_events
+        expected_output = expected_multiple_org_output + expected_single_org_output + expected_delayed_output
 
         self.task.init_local()
 
@@ -137,15 +172,6 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
             results.extend(self.run_mapper_for_server_file(self.SERVER_NAME_1, event_string))
 
         self.assertItemsEqual(results, expected_output)
-
-    def run_mapper_for_server_file(self, server, event_string):
-        """Emulate execution of the map function on data emitted by the given server."""
-        return self.run_mapper_for_file_path('test://input/{0}/tracking.log'.format(server), event_string)
-
-    def run_mapper_for_file_path(self, path, event_string):
-        """Emulate execution of the map function on data read from the given file path."""
-        with patch.dict('os.environ', {'map_input_file': path}):
-            return [output for output in self.task.mapper(event_string) if output is not None]
 
     def test_org_from_server_context(self):
         event = {
@@ -312,7 +338,7 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
         self.assertEquals(1, len(requirements))
 
         task = requirements[0]
-        self.assertEquals('test://input/', task.source)
+        self.assertEquals(('test://input/',), task.source)
         # Pattern is difficult to validate since it's read from the config
         # Interval is also difficult to validate since it is expanded by the initializer
 
@@ -336,3 +362,100 @@ class EventExportTestCase(InitializeOpaqueKeysMixin, unittest.TestCase):
     def test_missing_environment_variable(self):
         self.task.init_local()
         self.assertItemsEqual([output for output in self.task.mapper(self.EXAMPLE_EVENT) if output is not None], [])
+
+
+class TestEvent():
+    DATE = '2014-05-20'
+
+    def __init__(self, org_id=None, course_id=None, url=None, source='server'):
+        data = {'context': {}, 'event_source': source, 'time': '2014-05-20T00:10:30+00:00'}
+
+        if org_id:
+            data['context']['org_id'] = org_id
+
+        if course_id:
+            data['context']['course_id'] = course_id
+
+        if source == 'server':
+            data['event_type'] = url or ''
+        elif source == 'browser':
+            data['page'] = 'https://edx.org' + (url or '')
+
+        self.data = data
+
+
+class CourseEventExportTestCase(EventExportTestCaseBase):
+    """Tests for EventExportTask when specifying courses."""
+
+    CONFIG_DICT = {
+        'organizations': {
+            'FooX': {
+                'recipients': ['automation@foox.com']
+            },
+            'BarX': {
+                'recipients': ['automation@barx.com'],
+                'other_names': ['FooX', 'baz'],
+                'courses': ['BarX/a/b', 'FooX/a/b']
+            },
+        }
+    }
+    CONFIGURATION = yaml.dump(CONFIG_DICT)
+
+    def test_select_courses(self):
+        def convert(tuples):
+            return [TestEvent(*args).data for args in tuples]
+
+        expected_only_foo = convert([
+            ('FooX',),
+            ('FooX', 'FooX/c/d'),
+            ('FooX', 'FooX/c/d', 'wut'),
+            ('FooX', None, '/courses/FooX/c/d'),
+            ('FooX', None, '/something/FooX/a/b'),
+            (None, None, '/courses/FooX/c/d', 'browser')
+        ])
+
+        expected_only_bar = convert([
+            ('BarX', 'BarX/a/b'),
+            ('BarX', 'BarX/a/b', 'wut'),
+            ('BarX', None, '/courses/BarX/a/b'),
+            (None, None, '/courses/BarX/a/b', 'browser')
+        ])
+
+        expected_both = convert([
+            ('FooX', 'FooX/a/b'),
+            ('FooX', None, '/courses/FooX/a/b'),
+            (None, None, '/courses/FooX/a/b', 'browser')
+        ])
+
+        non_expected = convert([
+            ('BarX',),
+            ('BarX', 'BarX/c/d', 'wut'),
+            ('BarX', None, 'wut'),
+            ('BarX', None, '/courses/BarX/c/d'),
+            ('BarX', None, '/BarX/courses/'),
+            ('BarX', None, '/courses/BarX'),
+            ('BarX', None, '/courses/BarX/a'),
+            ('BarX', None, '/something/BarX/a/b'),
+            ('BazX', 'BarX/c/d'),
+            (None, None, '/courses/BarX/c/d', 'browser')
+        ])
+
+        events = expected_only_foo + expected_only_bar + expected_both + non_expected
+
+        self.task.init_local()
+
+        self.maxDiff = None
+
+        results = defaultdict(list)
+        for event in events:
+            event_string = json.dumps(event)
+            out = self.run_mapper_for_server_file(self.SERVER_NAME_1, event_string)
+            for key, value in out:
+                results[key[1]].append(json.loads(value))
+
+        self.assertItemsEqual(results['FooX'], expected_only_foo + expected_both)
+        self.assertItemsEqual(results['BarX'], expected_only_bar + expected_both)
+
+        combined = list(chain.from_iterable(results.itervalues()))
+        for value in non_expected:
+            self.assertNotIn(value, combined)

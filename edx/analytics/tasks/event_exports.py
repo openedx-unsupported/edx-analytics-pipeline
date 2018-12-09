@@ -2,18 +2,21 @@
 
 import logging
 import os
+import gzip
+from collections import defaultdict
 
 import gnupg
 import luigi
 import luigi.date_interval
 import yaml
-import gzip
 
 from edx.analytics.tasks.encrypt import make_encrypted_file
 from edx.analytics.tasks.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.url import url_path_join, ExternalURL, get_target_from_url
+from edx.analytics.tasks.util import eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+
 
 log = logging.getLogger(__name__)
 
@@ -71,43 +74,36 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         with self.input_local().open() as config_input:
             config_data = yaml.load(config_input)
-            self.organizations = config_data['organizations']
+            organizations = config_data['organizations']
 
-        # Map org_ids to recipient names, taking in to account org_id aliases. For example, if an org_id Foo is also
-        # known as FooX then two entries will appear in this dictionary ('Foo', 'recipient@foo.org') and
-        # ('FooX', 'recipient@foo.org'). Note that both aliases map to the same recipient.
+        # If org_ids are specified, restrict the processed files to that set of primary org ids.
+        if self.org_id:
+            organizations = {k: v for k, v in organizations.iteritems() if k in self.org_id}
+
         self.recipients_for_org_id = {}
-        self.primary_org_ids_for_org_id = {}
-        for org_id, org_config in self.organizations.iteritems():
-            # If org_ids are specified, restrict the processed files to that set of primary org ids.
-            if len(self.org_id) > 0 and org_id not in self.org_id:
-                continue
+        self.courses_for_org_id = {}
+        self.primary_org_ids_for_org_id = defaultdict(list)
+        self.org_id_whitelist = set()
 
-            recipients = org_config.get('recipients')
-            if not recipients:
-                # provide fallback to legacy parameter name:
-                recipients = [org_config['recipient']]
-            self.recipients_for_org_id[org_id] = recipients
-            self.primary_org_ids_for_org_id[org_id] = [org_id]
-            for alias in org_config.get('other_names', []):
-                # This entry is not explicitly used, but by creating it,
-                # we implicitly add the alias to the org whitelist.
-                self.recipients_for_org_id[alias] = recipients
-                # The same alias may be used by multiple organizations.
-                if alias in self.primary_org_ids_for_org_id:
-                    self.primary_org_ids_for_org_id[alias].append(org_id)
-                else:
-                    self.primary_org_ids_for_org_id[alias] = [org_id]
+        for org_id, org_config in organizations.iteritems():
+            aliases = [org_id] + org_config.get('other_names', [])
 
-        self.org_id_whitelist = set(self.recipients_for_org_id.keys())
+            self.recipients_for_org_id[org_id] = set(org_config.get('recipients', []))
+            if self.gpg_master_key is not None:
+                self.recipients_for_org_id[org_id].add(self.gpg_master_key)
+
+            self.courses_for_org_id[org_id] = org_config.get('courses')
+
+            for alias in aliases:
+                self.org_id_whitelist.add(alias)
+                self.primary_org_ids_for_org_id[alias].append(org_id)
 
         log.debug('Using org_id whitelist ["%s"]', '", "'.join(self.org_id_whitelist))
 
     def mapper(self, line):
-        value = self.get_event_and_date_string(line)
-        if value is None:
+        event, date_string = self.get_event_and_date_string(line) or (None, None)
+        if event is None:
             return
-        event, date_string = value
 
         if not self.is_valid_input_file():
             return
@@ -116,11 +112,18 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if org_id not in self.org_id_whitelist:
             log.debug('Unrecognized organization: org_id=%s', org_id or '')
             return
+
         # Check to see if the org_id is one that should be grouped with other org_ids.
         org_ids = self.primary_org_ids_for_org_id[org_id]
 
         for key_org_id in org_ids:
             key = (date_string, key_org_id)
+
+            # Include only requested courses
+            requested_courses = self.courses_for_org_id.get(key_org_id)
+            if requested_courses and self.get_course_id(event) not in requested_courses:
+                continue
+
             # Enforce a standard encoding for the parts of the key. Without this a part of the key
             # might appear differently in the key string when it is coerced to a string by luigi. For example,
             # if the same org_id appears in two different records, one as a str() type and the other a
@@ -128,6 +131,17 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # string. Although python doesn't care about this difference, hadoop does, and will bucket the
             # values separately. Which is not what we want.
             yield tuple([value.encode('utf8') for value in key]), line.strip()
+
+    def get_event_time(self, event):
+        # Some events may emitted and stored for quite some time before actually being entered into the tracking logs.
+        # The primary cause of this is mobile devices that go offline for a significant period of time. They will store
+        # events locally and then when connectivity is restored transmit them to the server. We log the time that they
+        # were received by the server and use that to batch them into exports since it is much simpler than trying to
+        # inject them into past exports.
+        try:
+            return event['context']['received_at']
+        except KeyError:
+            return super(EventExportTask, self).get_event_time(event)
 
     def is_valid_input_file(self):
         """
@@ -146,7 +160,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         date, org_id = key
         year = str(date).split("-")[0]
 
-        # remap site name from prod to edx
+        # Remap site name from prod to edx
         site = "edx" if self.environment == 'prod' else self.environment
 
         # This is the structure currently produced by the existing tracking log export script
@@ -170,26 +184,60 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         Write to the encrypted file by streaming through gzip, which compresses before encrypting
         """
         _date_string, org_id = key
-        recipients = self._get_recipients(org_id)
+        recipients = self.recipients_for_org_id[org_id]
+        log.info('Encryption recipients: %s', str(recipients))
+
+        def report_progress(num_bytes):
+            """Update hadoop counters as the file is written"""
+            self.incr_counter('Event Export', 'Bytes Written to Output', num_bytes)
 
         key_file_targets = [get_target_from_url(url_path_join(self.gpg_key_dir, recipient)) for recipient in recipients]
-        with make_encrypted_file(output_file, key_file_targets) as encrypted_output_file:
+        with make_encrypted_file(output_file, key_file_targets, progress=report_progress) as encrypted_output_file:
             outfile = gzip.GzipFile(mode='wb', fileobj=encrypted_output_file)
             try:
                 for value in values:
                     outfile.write(value.strip())
                     outfile.write('\n')
+                    # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
+                    # Do not remove it.
+                    self.incr_counter('Event Export', 'Raw Bytes Written', len(value) + 1)
             finally:
                 outfile.close()
 
-    def _get_recipients(self, org_id):
-        """Get the correct recipients for the specified organization."""
-        recipients = self.recipients_for_org_id[org_id]
-        if self.gpg_master_key is not None:
-            recipients.append(self.gpg_master_key)
-        return recipients
+    def get_course_id(self, event):
+        """Gets course_id from event."""
 
-    def get_org_id(self, item):
+        # TODO: This is an arbitrary way to get the course_id. A more complete
+        # routine should deal with all the corner cases as in the `get_org_id`
+        # function below. The subset of event that will return a course_id is
+        # considered a compromise between the events that are useful and
+        # increasing the complexity of the code.
+
+        # Try to get the course from the context
+
+        course_id = event.get('context', {}).get('course_id')
+        if course_id:
+            return course_id
+
+        # Try to get the course_id from the URLs in `event_type` (for implicit
+        # server events) and `page` (for browser events).
+
+        source = event.get('event_source')
+
+        if source == 'server':
+            url = event.get('event_type', '')
+        elif source == 'browser':
+            url = event.get('page', '')
+        else:
+            url = ''
+
+        course_key = opaque_key_util.get_course_key_from_url(url)
+        if course_key:
+            return unicode(course_key)
+
+        return None
+
+    def get_org_id(self, event):
         """
         Attempt to determine the organization that is associated with this particular event.
 
@@ -198,65 +246,86 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         None is returned if no org information is found in the item.
         """
-        def get_slash_value(input_value, index):
-            """Return index value after splitting input on slashes."""
-            try:
-                return input_value.split('/')[index]
-            except IndexError:
-                return None
 
         try:
             # Different behavior based on type of event source.
-            if item['event_source'] == 'server':
-                # Always check context first for server events.
-                org_id = item.get('context', {}).get('org_id')
-                if org_id:
-                    return org_id
-
-                # Try to infer the institution from the event data
-                evt_type = item['event_type']
-                if '/courses/' in evt_type:
-                    course_key = opaque_key_util.get_course_key_from_url(evt_type)
-                    if course_key and '/' not in unicode(course_key):
-                        return course_key.org
-                    else:
-                        # It doesn't matter if we found a good deprecated key.
-                        # We need to provide backwards-compatibility.
-                        return get_slash_value(evt_type, 2)
-                elif '/' in evt_type:
-                    return None
-                else:
-                    # Specific server logging. One-off parser for each type.
-                    # Survey of logs showed 4 event types:
-                    # reset_problem, save_problem_check,
-                    # save_problem_check_fail, save_problem_fail.  All
-                    # four of these have a problem_id, which for legacy events
-                    # we could extract from.  For newer events, we assume this
-                    # won't be needed, because context will be present.
-                    try:
-                        return get_slash_value(item['event']['problem_id'], 2)
-                    except Exception:  # pylint: disable=broad-except
-                        return None
-            elif item['event_source'] == 'browser':
-                # Note that the context of browser events is ignored.
-                page = item['page']
-                if 'courses' in page:
-                    # This is different than the original algorithm in that it assumes
-                    # the page contains a valid coursename.  The original code
-                    # merely looked for what followed "http[s]://<host>/courses/"
-                    # (and also hoped there were no extra slashes or different content).
-                    course_key = opaque_key_util.get_course_key_from_url(page)
-                    if course_key and '/' not in unicode(course_key):
-                        return course_key.org
-                    else:
-                        # It doesn't matter if we found a good deprecated key.
-                        # We need to provide backwards-compatibility.
-                        return get_slash_value(page, 4)
+            if event['event_source'] == 'server':
+                return self._parse_server_event(event)
+            elif event['event_source'] == 'browser':
+                return self._parse_browser_event(event)
+            elif event['event_source'] == 'mobile':
+                return self._parse_mobile_event(event)
             else:
-                # TODO: Handle other event source values (e.g. task or mobile).
+                # TODO: Handle other event source values (e.g. task).
+                return None
+        except Exception:  # pylint: disable=broad-except
+            log.exception('Unable to determine organization for event: %s', unicode(event).encode('utf8'))
+
+        return None
+
+    def _parse_server_event(self, event):
+        # Always check context first for server events.
+        org_id = event.get('context', {}).get('org_id')
+        if org_id:
+            return org_id
+
+        # Try to infer the institution from the event data
+        evt_type = event['event_type']
+        if '/courses/' in evt_type:
+            course_key = opaque_key_util.get_course_key_from_url(evt_type)
+            if course_key and '/' not in unicode(course_key):
+                return course_key.org
+            else:
+                # It doesn't matter if we found a good deprecated key.
+                # We need to provide backwards-compatibility.
+                return get_slash_value(evt_type, 2)
+        elif '/' in evt_type:
+            return None
+        else:
+            # Specific server logging. One-off parser for each type.
+            # Survey of logs showed 4 event types:
+            # reset_problem, save_problem_check,
+            # save_problem_check_fail, save_problem_fail.  All
+            # four of these have a problem_id, which for legacy events
+            # we could extract from.  For newer events, we assume this
+            # won't be needed, because context will be present.
+            try:
+                return get_slash_value(event['event']['problem_id'], 2)
+            except Exception:  # pylint: disable=broad-except
                 return None
 
-        except Exception:  # pylint: disable=broad-except
-            log.exception('Unable to determine institution for event: %s', unicode(item).encode('utf8'))
+        return None
 
+    def _parse_browser_event(self, event):
+        # TODO: Note that for browser events we are not using the org_id from the context.
+
+        page = event['page']
+        if 'courses' in page:
+            # This is different than the original algorithm in that it assumes
+            # the page contains a valid coursename.  The original code
+            # merely looked for what followed "http[s]://<host>/courses/"
+            # (and also hoped there were no extra slashes or different content).
+            course_key = opaque_key_util.get_course_key_from_url(page)
+            if course_key and '/' not in unicode(course_key):
+                return course_key.org
+            else:
+                # It doesn't matter if we found a good deprecated key.
+                # We need to provide backwards-compatibility.
+                return get_slash_value(page, 4)
+
+        return None
+
+    def _parse_mobile_event(self, event):
+        org_id = event.get('context', {}).get('org_id')
+        if org_id:
+            return org_id
+
+        return None
+
+
+def get_slash_value(input_value, index):
+    """Return index value after splitting input on slashes."""
+    try:
+        return input_value.split('/')[index]
+    except IndexError:
         return None
