@@ -42,6 +42,7 @@ class TestEnterpriseEnrollmentMysqlTask(TestCase):
             'current_grade',
             'course_price',
             'discount_price',
+            'unenrollment_timestamp',
         )
         import_task = EnterpriseEnrollmentMysqlTask(
             date=datetime(2017, 1, 1), warehouse_path='/tmp/foo'
