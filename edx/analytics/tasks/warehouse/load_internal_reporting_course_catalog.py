@@ -360,7 +360,7 @@ class ProgramCourseRecord(Record):
     catalog_course = StringField(nullable=False, length=255)
     catalog_course_title = StringField(nullable=True, length=255, normalize_whitespace=True)
     course_id = StringField(nullable=False, length=255)
-    org_id = StringField(nullable=False, length=255)
+    org_id = StringField(nullable=True, length=255)
     partner_short_code = StringField(nullable=True, length=8)
     program_slot_number = IntegerField(nullable=True)
 
