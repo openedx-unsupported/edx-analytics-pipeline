@@ -70,7 +70,7 @@ class EnterpriseEnrollmentRecord(Record):
     current_grade = FloatField(description='')
     course_price = FloatField(description='')
     discount_price = FloatField(description='')
-    unenrollment_timestamp = DateField(description='')
+    unenrollment_timestamp = DateTimeField(description='')
 
 
 class EnterpriseEnrollmentHiveTableTask(BareHiveTableTask):

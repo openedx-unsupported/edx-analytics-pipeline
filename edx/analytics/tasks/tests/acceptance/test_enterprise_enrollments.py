@@ -93,7 +93,7 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              'All about acceptance testing!', datetime.datetime(2016, 6, 1, 0, 0), datetime.datetime(2016, 9, 1, 0, 0),
              'self_paced', 'Self Paced', 3, 5, datetime.datetime(2015, 2, 12, 23, 14, 35), 'test3@example.com',
              'test_user3', 'edX+Open_DemoX', 'US', datetime.date(2015, 9, 9), 'ENT - No restrictions',
-             'ZSJHRVLCNTT6XFCJ', None, 0.03, 100.00, 20.00, datetime.date(2016, 9, 8)],
+             'ZSJHRVLCNTT6XFCJ', None, 0.03, 100.00, 20.00, datetime.datetime(2016, 9, 8, 1, 2, 0)],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'course-v1:edX+Open_DemoX+edx_demo_course2',
              datetime.datetime(2016, 3, 22, 20, 56, 9), 'verified', 1, '', 0, None, 'harry', 1,
@@ -108,7 +108,7 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2016, 12, 1, 0, 0), datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test2@example.com', 'test_user2', 'edX+Testing102',
              'US', datetime.date(2015, 9, 9), 'ENT - Discount', 'CQHVBDLY35WSJRZ4', None, 0.98, 100.00, 60.00,
-             datetime.date(2016, 9, 8)],
+             datetime.datetime(2016, 9, 10, 0, 30, 5)],
 
             ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 11, 1, 'course-v1:edX+Testing102x+1T2017',
              datetime.datetime(2016, 3, 22, 21, 8, 8), 'credit', 0, '', 0, None, 'harry', 1,
