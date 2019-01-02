@@ -3,14 +3,13 @@
 
 uninstall:
 	pip install -r requirements/pip.txt
-	pip uninstall -y edx.analytics.tasks
+	-pip uninstall -y edx.analytics.tasks
 	python setup.py clean
 
 install: requirements uninstall
 	python setup.py install --force
 
-bootstrap:
-	-make uninstall
+bootstrap: uninstall
 	pip install -r requirements/base.txt --no-cache-dir
 	python setup.py install --force
 
