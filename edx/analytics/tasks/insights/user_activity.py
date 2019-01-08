@@ -15,6 +15,7 @@ from edx.analytics.tasks.insights.calendar_task import CalendarTableTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.record import DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
 
@@ -203,6 +204,15 @@ class UserActivityTableTask(UserActivityDownstreamMixin, BareHiveTableTask):
         ]
 
 
+class CourseActivityRecord(Record):
+    """Represents count of users performing each category of activity each ISO week."""
+    course_id = StringField(length=255, nullable=False, description='The course the learner is enrolled in.')
+    interval_start = DateTimeField(nullable=False, description='Start time of ISO week.')
+    interval_end = DateTimeField(nullable=False, description='End time of ISO week.')
+    label = StringField(length=255, nullable=False, description='The name of activity user performed in the interval.')
+    count = IntegerField(description='Total count of activities performed between the interval.')
+
+
 class CourseActivityTableTask(BareHiveTableTask):
 
     @property
@@ -215,13 +225,7 @@ class CourseActivityTableTask(BareHiveTableTask):
 
     @property
     def columns(self):
-        return [
-            ('course_id', 'STRING'),
-            ('interval_start', 'TIMESTAMP'),
-            ('interval_end', 'TIMESTAMP'),
-            ('label', 'STRING'),
-            ('count', 'INT'),
-        ]
+        return CourseActivityRecord.get_hive_schema()
 
 
 class CourseActivityPartitionTask(WeeklyIntervalMixin, UserActivityDownstreamMixin, HivePartitionTask):
@@ -338,13 +342,7 @@ class InsertToMysqlCourseActivityTask(WeeklyIntervalMixin, UserActivityDownstrea
 
     @property
     def columns(self):
-        return [
-            ('course_id', 'VARCHAR(255) NOT NULL'),
-            ('interval_start', 'DATETIME NOT NULL'),
-            ('interval_end', 'DATETIME NOT NULL'),
-            ('label', 'VARCHAR(255) NOT NULL'),
-            ('count', 'INT(11) NOT NULL'),
-        ]
+        return CourseActivityRecord.get_sql_schema()
 
     @property
     def indexes(self):
