@@ -16,8 +16,8 @@ bcrypt==3.1.4
 boto3==1.4.8
 boto==2.48.0
 botocore==1.8.50          # via boto3, s3transfer
-cachetools==2.1.0         # via google-auth
-certifi==2018.4.16        # via requests, tornado
+cachetools==3.0.0         # via google-auth
+certifi==2018.11.29       # via requests, tornado
 cffi==1.11.5
 chardet==3.0.4            # via requests
 ciso8601==1.0.3
@@ -30,13 +30,15 @@ edx-opaque-keys==0.4
 elasticsearch==1.7.0
 enum34==1.1.6
 filechunkio==1.8
-future==0.16.0            # via vertica-python
+future==0.17.1            # via vertica-python
 futures==3.2.0            # via google-cloud-core, s3transfer
-google-auth==1.5.0        # via google-cloud-bigquery, google-cloud-core
+google-api-python-client==1.7.7
+google-auth-httplib2==0.0.3  # via google-api-python-client
+google-auth==1.6.2        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
 google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1  # via google-cloud-bigquery
-google-resumable-media==0.3.1  # via google-cloud-bigquery
-googleapis-common-protos==1.5.3  # via google-cloud-core
+google-resumable-media==0.3.2  # via google-cloud-bigquery
+googleapis-common-protos==1.5.5  # via google-cloud-core
 graphitesend==0.10.0
 html5lib==1.0b3
 httplib2==0.11.3
@@ -50,15 +52,15 @@ markupsafe==1.0
 numpy==1.11.3
 paramiko==2.4.1
 paypalrestsdk==1.9.0
-pbr==4.0.3                # via stevedore
-protobuf==3.5.2.post1     # via google-cloud-core, googleapis-common-protos
+pbr==5.1.1                # via stevedore
+protobuf==3.6.1           # via google-cloud-core, googleapis-common-protos
 psycopg2==2.6.2
-pyasn1-modules==0.2.1     # via google-auth
+pyasn1-modules==0.2.3     # via google-auth
 pyasn1==0.4.3
 pycparser==2.18
 pycrypto==2.6.1
 pygeoip==0.3.2
-pymongo==3.6.1            # via edx-opaque-keys
+pymongo==3.7.2            # via edx-opaque-keys
 pynacl==1.2.1
 pyopenssl==18.0.0         # via paypalrestsdk
 python-cjson==1.1.0
@@ -68,13 +70,14 @@ python-gnupg==0.3.9
 pytz==2017.3
 pyyaml==3.12
 requests==2.18.4
-rsa==3.4.2                # via google-auth
+rsa==4.0                  # via google-auth
 s3transfer==0.1.13        # via boto3
 singledispatch==3.4.0.3   # via tornado
 six==1.10.0
 stevedore==1.19.1
 tornado==4.5.3
 ua-parser==0.3.6
+uritemplate==3.0.0        # via google-api-python-client
 urllib3==1.22
 user-agents==0.3.2
 vertica-python==0.6.11
