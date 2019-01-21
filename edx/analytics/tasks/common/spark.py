@@ -184,7 +184,7 @@ class SparkJobTask(SparkMixin, PySparkTask):
     log = None
     _requested_config = defaultdict(list)
 
-    def spark_job(self):
+    def spark_job(self, *args):
         """
         Spark code for the job.
         """
