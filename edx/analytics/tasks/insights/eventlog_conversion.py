@@ -22,9 +22,6 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
         significant=False,
         description='A URL location to a directory where a marker file will be written on task completion.',
     )
-    sample_eventlogs_source = luigi.Parameter(
-        description='A URL to path that contains log files which will be used to infer schema for all json event logs.',
-    )
     eventlogs_source = luigi.Parameter(
         description='A URL to path that contains log files that contain the json events. (e.g., s3://my_bucket/foo/).',
     )
@@ -48,6 +45,5 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
         super(EventLogConversionSparkTask, self).run()
 
     def spark_job(self, *args):
-        sample_df = self._spark.read.format('json').load(self.sample_eventlogs_source)
-        df = self._spark.read.format('json').load(self.eventlogs_source, schema=sample_df.schema)
+        df = self._spark.read.format('json').load(self.eventlogs_source)
         df.write.parquet(self.output_root)
