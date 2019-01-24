@@ -805,7 +805,7 @@ class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
 
     @property
     def table(self):
-        return "answer_distribution"
+        return "answer_distribution_test"
 
     @property
     def columns(self):
