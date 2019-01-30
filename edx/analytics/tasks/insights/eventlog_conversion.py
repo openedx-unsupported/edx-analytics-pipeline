@@ -3,7 +3,7 @@ import logging
 import luigi.date_interval
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
-from edx.analytics.tasks.common.spark import SparkJobTask
+from edx.analytics.tasks.common.spark import SparkJobTask, SparkMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
@@ -103,7 +103,7 @@ def get_course_id(event_context, from_url=False):
     return ''
 
 
-class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask):
+class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, SparkMixin):
     """
     UserActivityTask converted to spark ( using event logs in parquet or json format )
     """
