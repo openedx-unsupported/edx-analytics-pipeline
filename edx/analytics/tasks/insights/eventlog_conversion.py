@@ -26,6 +26,18 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
     eventlogs_source = luigi.Parameter(
         description='A URL to path that contains log files that contain the json events. (e.g., s3://my_bucket/foo/).',
     )
+    filter_eventlogs = luigi.BoolParameter(
+        default=False
+    )
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to export logs for.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(EventLogConversionSparkTask, self).__init__(*args, **kwargs)
+        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
@@ -46,7 +58,15 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
         super(EventLogConversionSparkTask, self).run()
 
     def spark_job(self, *args):
+        from pyspark.sql.functions import to_date, date_format
         df = self._spark.read.format('json').load(self.eventlogs_source)
+        if self.filter_eventlogs is not None:
+            df = df['time'].isNotNull()
+            df = df.withColumn('event_date', date_format(to_date(df['time']), 'yyyy-MM-dd'))
+            df = df.filter(
+                (df['event_date'] >= self.lower_bound_date_string) &
+                (df['event_date'] < self.upper_bound_date_string)
+            )
         df.write.parquet(self.output_root)
 
 
@@ -136,12 +156,52 @@ class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, Spar
     def spark_remote_package_names(self):
         return ['edx', 'opaque_keys', 'stevedore', 'bson', 'six', 'luigi']
 
+    def get_schema(self):
+        """
+        Get spark based schema for processing event logs
+        :return: Spark schema
+        """
+        from pyspark.sql.types import StructType, StringType
+        event_schema = StructType().add("POST", StringType(), True).add("GET", StringType(), True)
+        module_schema = StructType().add("display_name", StringType(), True) \
+            .add("original_usage_key", StringType(), True) \
+            .add("original_usage_version", StringType(), True) \
+            .add("usage_key", StringType(), True)
+        context_schema = StructType().add("command", StringType(), True) \
+            .add("course_id", StringType(), True) \
+            .add("module", module_schema) \
+            .add("org_id", StringType(), True) \
+            .add("path", StringType(), True) \
+            .add("user_id", StringType(), True)
+
+        event_log_schema = StructType() \
+            .add("username", StringType(), True) \
+            .add("event_type", StringType(), True) \
+            .add("ip", StringType(), True) \
+            .add("agent", StringType(), True) \
+            .add("host", StringType(), True) \
+            .add("referer", StringType(), True) \
+            .add("accept_language", StringType(), True) \
+            .add("event", event_schema) \
+            .add("event_source", StringType(), True) \
+            .add("context", context_schema) \
+            .add("time", StringType(), True) \
+            .add("name", StringType(), True) \
+            .add("page", StringType(), True) \
+            .add("session", StringType(), True)
+
+        return event_log_schema
+
     def spark_job(self, *args):
         from pyspark.sql.functions import to_date, udf, date_format, split, explode, lit
         from pyspark.sql.types import StringType
         get_labels = udf(get_event_predicate_labels, StringType())
         get_courseid = udf(get_course_id, StringType())
-        df = self._spark.read.format(self.eventlogs_format).load(self.eventlogs_source)
+        df_reader = self._spark.read.format(self.eventlogs_format)
+        if self.eventlogs_format == 'json':
+            df_reader = df_reader.schema(self.get_schema())
+        df = df_reader.load(self.eventlogs_source)
+
         df = df.filter(
             (df['time'].isNotNull()) &
             (df['event_source'] != 'task') &
@@ -161,7 +221,8 @@ class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, Spar
         result_df = df.select('context.user_id', 'course_id', 'event_date', 'label') \
             .groupBy('user_id', 'course_id', 'event_date', 'label').count()
         final_df = result_df.withColumn('dt', lit(result_df['event_date']))  # generate extra column for partitioning
-        final_df.coalesce(self.num_coalesce_partitions).write.partitionBy('dt').csv(self.output_root, mode='append', sep='\t')
+        final_df.coalesce(self.num_coalesce_partitions).write.partitionBy('dt').csv(self.output_root, mode='append',
+                                                                                    sep='\t')
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
