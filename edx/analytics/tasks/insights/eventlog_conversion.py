@@ -123,6 +123,9 @@ class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, Spar
         significant=False,
         description='A URL location to a directory where a marker file will be written on task completion.',
     )
+    num_coalesce_partitions = luigi.Parameter(
+        default=10
+    )
 
     def __init__(self, *args, **kwargs):
         super(UserActivitySpark, self).__init__(*args, **kwargs)
@@ -158,7 +161,7 @@ class UserActivitySpark(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, Spar
         result_df = df.select('context.user_id', 'course_id', 'event_date', 'label') \
             .groupBy('user_id', 'course_id', 'event_date', 'label').count()
         final_df = result_df.withColumn('dt', lit(result_df['event_date']))  # generate extra column for partitioning
-        final_df.write.partitionBy('dt').csv(self.output_root, mode='append', sep='\t')
+        final_df.coalesce(self.num_coalesce_partitions).write.partitionBy('dt').csv(self.output_root, mode='append', sep='\t')
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
