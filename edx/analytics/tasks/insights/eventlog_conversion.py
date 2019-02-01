@@ -11,7 +11,7 @@ from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 log = logging.getLogger(__name__)
 
 
-class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJobTask):
+class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJobTask, SparkMixin):
     """
     Spark task to convert json event logs to columnar format.
     New format will include all columns, column filtering will be done later on.
@@ -29,6 +29,9 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
     filter_eventlogs = luigi.BoolParameter(
         default=False
     )
+    flatten_output_schema = luigi.BoolParameter(
+        default=True
+    )
     interval = luigi.DateIntervalParameter(
         default=None,
         description='The range of dates to export logs for.',
@@ -36,8 +39,8 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
 
     def __init__(self, *args, **kwargs):
         super(EventLogConversionSparkTask, self).__init__(*args, **kwargs)
-        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d')  # pylint: disable=no-member
-        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d')  # pylint: disable=no-member
+        self.lower_bound_date_string = self.interval.date_a.strftime('%Y-%m-%d') if self.filter_eventlogs else None
+        self.upper_bound_date_string = self.interval.date_b.strftime('%Y-%m-%d') if self.filter_eventlogs else None
 
     def output(self):
         marker_url = url_path_join(self.marker, str(hash(self)))
@@ -57,16 +60,25 @@ class EventLogConversionSparkTask(WarehouseMixin, OverwriteOutputMixin, SparkJob
         self.remove_output_on_overwrite()
         super(EventLogConversionSparkTask, self).run()
 
+    @property
+    def spark_remote_package_names(self):
+        return ['edx', 'stevedore', 'bson', 'six', 'luigi']
+
     def spark_job(self, *args):
-        from pyspark.sql.functions import to_date, date_format
+        from pyspark.sql.functions import to_date, date_format, col
+        from edx.analytics.tasks.common.spark_helpers import flatten_schema
         df = self._spark.read.format('json').load(self.eventlogs_source)
-        if self.filter_eventlogs is not None:
+        if self.filter_eventlogs:
             df = df['time'].isNotNull()
             df = df.withColumn('event_date', date_format(to_date(df['time']), 'yyyy-MM-dd'))
             df = df.filter(
                 (df['event_date'] >= self.lower_bound_date_string) &
                 (df['event_date'] < self.upper_bound_date_string)
             )
+        if self.flatten_output_schema:
+            cols = flatten_schema(df.schema)
+            renamed_columns = map(lambda column_name: col(column_name).alias(str(column_name).replace(".", "_")), cols)
+            df = df.select(renamed_columns)
         df.write.parquet(self.output_root)
 
 
