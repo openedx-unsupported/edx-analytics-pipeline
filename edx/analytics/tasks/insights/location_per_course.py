@@ -360,6 +360,38 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
         yield (country.encode('utf8'), code.encode('utf8')), user_id
 
 
+class LastLastIpOfUser(LastCountryOfUser):
+    """Find the most recent last-ip value for each user_id, without converting to a country code."""
+    # Note that we don't need geolocation data because we're not actually performing it.
+    # But we've got it mixed in already, and it's easier to leave it than to try to rip it out.
+    # geolocation_data = None
+
+    def output_url(self):
+        """Return URL for output."""
+        return self.hive_partition_path('last_last_ip_of_user_id', self.interval.date_b)  # pylint: disable=no-member
+
+    def reducer(self, key, values):
+        """Outputs last ip address associated with a user."""
+
+        # DON'T presort input values (by timestamp).  The data potentially takes up too
+        # much memory.  Scan the input values instead.
+
+        # We assume the timestamp values (strings) are in ISO
+        # representation, so that they can be compared as strings.
+        user_id = key
+        last_ip = None
+        last_timestamp = ""
+        for timestamp, ip_address in values:
+            if timestamp > last_timestamp:
+                last_ip = ip_address
+                last_timestamp = timestamp
+
+        if not last_ip:
+            return
+
+        yield user_id, last_ip, last_timestamp
+
+
 class LastCountryOfUserRecord(Record):
     """For a given user_id, stores information about last country."""
     country_name = StringField(length=255, description="Name of last country.")
