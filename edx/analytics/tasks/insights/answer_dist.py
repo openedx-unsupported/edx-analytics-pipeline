@@ -905,6 +905,7 @@ class AnswerDistributionWorkflow(
             'database': self.database,
             'credentials': self.credentials,
             'insert_chunk_size': self.insert_chunk_size,
+            'use_temp_table_for_overwrite': self.use_temp_table_for_overwrite,
         }
         kwargs2.update(kwargs)
 
