@@ -32,6 +32,7 @@ enum34==1.1.6
 filechunkio==1.8
 future==0.17.1            # via vertica-python
 futures==3.2.0            # via google-cloud-core, s3transfer
+geoip2==2.9.0
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3  # via google-api-python-client
 google-auth==1.6.2        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
@@ -49,6 +50,7 @@ jinja2==2.8.1
 jmespath==0.9.3           # via boto3, botocore
 lockfile==0.12.2          # via python-daemon
 markupsafe==1.0
+maxminddb==1.4.1
 numpy==1.11.3
 paramiko==2.4.1
 paypalrestsdk==1.9.0

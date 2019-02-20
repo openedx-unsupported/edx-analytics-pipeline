@@ -1,6 +1,7 @@
 """Utility classes for providing geolocation functionality."""
 
 import logging
+import os.path
 import tempfile
 
 import luigi
@@ -13,6 +14,14 @@ except ImportError:
     # The module will be imported on slave nodes even though they don't actually have the package installed.
     # The module is hopefully exported for tasks that actually use the module.
     pygeoip = NotImplemented
+
+try:
+    import geoip2.database
+    import maxminddb
+except ImportError:
+    # The module will be imported on slave nodes even though they don't actually have the package installed.
+    # The module is hopefully exported for tasks that actually use the module.
+    geoip2 = NotImplemented
 
 
 UNKNOWN_COUNTRY = "UNKNOWN"
@@ -36,6 +45,9 @@ class GeolocationMixin(GeolocationDownstreamMixin):
     """Provides support for initializing a geolocation object."""
 
     geoip = None
+    geoip2_reader = None #  = geoip2.database.Reader(NEW_GEOIP_PATH)
+    geoip_v6 = None # pygeoip.GeoIP(GEOIPV6_PATH)
+    geoip_v4 = None # pygeoip.GeoIP(GEOIP_PATH)
 
     def requires_local(self):
         """Adds geolocation_data as a local requirement."""
@@ -45,11 +57,17 @@ class GeolocationMixin(GeolocationDownstreamMixin):
         if not result:
             result = {}
         result['geolocation_data'] = ExternalURL(self.geolocation_data)
+        # Hardcode other files relative to the path to the main one.
+        dirpath, filename = os.path.split(self.geolocation_data)
+        result['geolocation_v4_data'] = ExternalURL(os.path.join(dirpath, "GeoIP_v4_test.dat"))
+        result['geolocation_v6_data'] = ExternalURL(os.path.join(dirpath, "GeoIP_v6_test.dat"))
+        result['geolocation_new_data'] = ExternalURL(os.path.join(dirpath, "GeoIP2_test.dat"))
+
         return result
 
-    def geolocation_data_target(self):
+    def geolocation_data_target(self, key):
         """Defines target from which geolocation data can be read."""
-        return self.input_local()['geolocation_data']
+        return self.input_local()[key]
 
     def init_reducer(self):
         """Initialize the geolocation object for use by a reducer."""
@@ -58,7 +76,7 @@ class GeolocationMixin(GeolocationDownstreamMixin):
         # This is required by the GeoIP call, which assumes that the data file is located
         # on a local file system.
         self.temporary_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_data')
-        with self.geolocation_data_target().open() as geolocation_data_input:
+        with self.geolocation_data_target('geolocation_data').open() as geolocation_data_input:
             while True:
                 transfer_buffer = geolocation_data_input.read(1024)
                 if transfer_buffer:
@@ -66,23 +84,67 @@ class GeolocationMixin(GeolocationDownstreamMixin):
                 else:
                     break
         self.temporary_data_file.seek(0)
-
         self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+
+        self.temporary_v4_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_v4_data')
+        with self.geolocation_data_target('geolocation_v4_data').open() as geolocation_data_input:
+            while True:
+                transfer_buffer = geolocation_data_input.read(1024)
+                if transfer_buffer:
+                    self.temporary_v4_data_file.write(transfer_buffer)
+                else:
+                    break
+        self.temporary_v4_data_file.seek(0)
+        self.geoip_v4 = pygeoip.GeoIP(self.temporary_v4_data_file.name)
+
+        self.temporary_v6_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_v6_data')
+        with self.geolocation_data_target('geolocation_v6_data').open() as geolocation_data_input:
+            while True:
+                transfer_buffer = geolocation_data_input.read(1024)
+                if transfer_buffer:
+                    self.temporary_v6_data_file.write(transfer_buffer)
+                else:
+                    break
+        self.temporary_v6_data_file.seek(0)
+        self.geoip_v6 = pygeoip.GeoIP(self.temporary_v6_data_file.name)
+
+        self.temporary_new_data_file = tempfile.NamedTemporaryFile(prefix='geolocation_new_data')
+        with self.geolocation_data_target('geolocation_new_data').open() as geolocation_data_input:
+            while True:
+                transfer_buffer = geolocation_data_input.read(1024)
+                if transfer_buffer:
+                    self.temporary_new_data_file.write(transfer_buffer)
+                else:
+                    break
+        self.temporary_new_data_file.seek(0)
+        self.geoip2_reader = geoip2.database.Reader(self.temporary_new_data_file.name)
 
     def final_reducer(self):
         """Clean up after the reducer is done."""
         del self.geoip
+        del self.geoip2_reader
+        del self.geoip_v6
+        del self.geoip_v4
         self.temporary_data_file.close()
+        self.temporary_v4_data_file.close()
+        self.temporary_v6_data_file.close()
+        self.temporary_new_data_file.close()
 
         return tuple()
 
     def extra_modules(self):
         """Pygeoip is required by all tasks that perform geolocation."""
         modules = super(GeolocationMixin, self).extra_modules()
+        # need more libs for geoip2:
+        # requests, chardet, certifi, urllib3, idna, should already be included.
+        # Add maxminddb and geoip2.
         if not modules:
-            return [pygeoip]
+            return [pygeoip, maxminddb, geoip2]
         else:
-            return modules.append(pygeoip)
+            modules.append(pygeoip)
+            modules.append(maxminddb)
+            modules.append(geoip2)
+            return modules
 
     def get_country_name(self, ip_address, debug_message=None):
         """
@@ -129,3 +191,64 @@ class GeolocationMixin(GeolocationDownstreamMixin):
             code = UNKNOWN_CODE
 
         return code
+
+    def get_country_code_for_geoip(self, geoip, ip_address, debug_message=None):
+        """
+        Find country codes for a given IP address.
+
+        The ip address might not provide a country code, so return
+        UNKNOWN_CODE in those cases.
+
+        """
+        try:
+            code = geoip.country_code_by_addr(ip_address)
+        except Exception:   # pylint:  disable=broad-except
+            if debug_message:
+                log.exception("Encountered exception getting country code for ip_address '%s': %s.",
+                              ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        if code is None or len(code.strip()) <= 0:
+            if debug_message:
+                log.error("No country code found for ip_address '%s': %s.", ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        return code
+
+    def get_country_code_for_geoip2(self, geoip2_reader, ip_address, debug_message=None):
+        """
+        Find country codes for a given IP address.
+
+        The ip address might not provide a country code, so return
+        UNKNOWN_CODE in those cases.
+
+        """
+        try:
+            response = geoip2_reader.country(ip_address)
+            code = response.country.iso_code
+        except Exception:   # pylint:  disable=broad-except
+            if debug_message:
+                log.exception("Encountered exception getting country code for ip_address '%s': %s.",
+                              ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        if code is None or len(code.strip()) <= 0:
+            if debug_message:
+                log.error("No country code found for ip_address '%s': %s.", ip_address, debug_message)
+            code = UNKNOWN_CODE
+
+        return code
+
+    def get_country_codes(self, ip_address, debug_message=None):
+        """
+        Find country codes for a given IP address.
+
+        The ip address might not provide a country code, so return
+        UNKNOWN_CODE in those cases.
+
+        """
+        code = get_country_code_for_geoip(self.geoip, ip_address, debug_message)
+        code_v4 = get_country_code_for_geoip(self.geoip_v4, ip_address, debug_message)
+        code_v6 = get_country_code_for_geoip(self.geoip_v6, ip_address, debug_message)
+        code_new = get_country_code_for_geoip2(self.geoip2_reader, ip_address, debug_message)
+        return (code, code_v4, code_v6, code_new)

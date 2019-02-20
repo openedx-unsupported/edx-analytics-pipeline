@@ -392,6 +392,48 @@ class LastLastIpOfUser(LastCountryOfUser):
         yield user_id, last_ip, last_timestamp
 
 
+class LastLastCountryOfUser(LastCountryOfUser):
+    """Find the most recent last-ip value for each user_id, without converting to a country code."""
+    # Note that we don't need geolocation data because we're not actually performing it.
+    # But we've got it mixed in already, and it's easier to leave it than to try to rip it out.
+    # geolocation_data = None
+
+    def output_url(self):
+        """Return URL for output."""
+        return self.hive_partition_path('last_last_country_of_user_id', self.interval.date_b)  # pylint: disable=no-member
+
+    def reducer(self, key, values):
+        """Outputs last ip address associated with a user."""
+
+        # DON'T presort input values (by timestamp).  The data potentially takes up too
+        # much memory.  Scan the input values instead.
+
+        # We assume the timestamp values (strings) are in ISO
+        # representation, so that they can be compared as strings.
+        user_id = key
+        last_ip = None
+        last_timestamp = ""
+        for timestamp, ip_address in values:
+            if timestamp > last_timestamp:
+                last_ip = ip_address
+                last_timestamp = timestamp
+
+        if not last_ip:
+            return
+
+        debug_message = u"user '{}' on '{}'".format(user_id, last_timestamp)
+        # country = self.get_country_name(last_ip, debug_message)
+        code, code_v4, code_v6, code_new = self.get_country_codes(last_ip, debug_message)
+
+        if last_ip.find(':') >= 0:
+            code_v = code_v6
+        else:
+            code_v = code_v4
+        
+        # Add the user_id for debugging purposes.  (Not needed for counts.)
+        yield (user_id, last_ip, last_timestamp, code.encode('utf8'), code_v4.encode('utf8'), code_v6.encode('utf8'), code_v.encode('utf8'), code_new.encode('utf8'))
+
+
 class LastCountryOfUserRecord(Record):
     """For a given user_id, stores information about last country."""
     country_name = StringField(length=255, description="Name of last country.")
