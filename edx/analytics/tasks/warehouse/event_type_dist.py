@@ -5,7 +5,7 @@ import logging
 import luigi.task
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
@@ -70,10 +70,9 @@ class EventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask):
         return get_target_from_url(url_path_join(self.output_root, 'event_type_distribution/'))
 
 
-class PushToVerticaEventTypeDistributionTask(VerticaCopyTask):
+class PushToVerticaEventTypeDistributionTask(EventLogSelectionDownstreamMixin, VerticaCopyTask):
     """Push the event type distribution task data to Vertica."""
     output_root = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
     n_reduce_tasks = luigi.Parameter()
     events_list_file_path = luigi.Parameter(default=None)
 
@@ -98,5 +97,6 @@ class PushToVerticaEventTypeDistributionTask(VerticaCopyTask):
             output_root=self.output_root,
             interval=self.interval,
             n_reduce_tasks=self.n_reduce_tasks,
-            events_list_file_path=self.events_list_file_path
+            events_list_file_path=self.events_list_file_path,
+            source=self.source,
         )
