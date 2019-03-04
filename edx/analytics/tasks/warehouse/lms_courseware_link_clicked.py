@@ -7,7 +7,7 @@ from urlparse import urlparse
 import luigi.task
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
+from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
@@ -107,10 +107,9 @@ class LMSCoursewareLinkClickedTask(EventLogSelectionMixin, MapReduceJobTask):
         super(LMSCoursewareLinkClickedTask, self).run()
 
 
-class PushToVerticaLMSCoursewareLinkClickedTask(VerticaCopyTask):
+class PushToVerticaLMSCoursewareLinkClickedTask(EventLogSelectionDownstreamMixin, VerticaCopyTask):
     """Push the LMS courseware link clicked task data to Vertica."""
     output_root = luigi.Parameter()
-    interval = luigi.DateIntervalParameter()
     n_reduce_tasks = luigi.Parameter()
 
     @property
@@ -131,7 +130,8 @@ class PushToVerticaLMSCoursewareLinkClickedTask(VerticaCopyTask):
         return LMSCoursewareLinkClickedTask(
             output_root=self.output_root,
             interval=self.interval,
-            n_reduce_tasks=self.n_reduce_tasks
+            n_reduce_tasks=self.n_reduce_tasks,
+            source=self.source,
         )
 
     @property
