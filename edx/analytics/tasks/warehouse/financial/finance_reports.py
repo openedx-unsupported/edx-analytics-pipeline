@@ -23,6 +23,11 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
     # This will cause the reports to reload when loading into internal reporting.
     overwrite = luigi.BoolParameter(default=True)
 
+    is_empty_transaction_allowed = luigi.BoolParameter(
+        default=False,
+        description='Allow empty transactions from payment processors to be processsed, default is False.'
+    )
+
     def requires(self):
         yield (
             TransactionReportTask(
@@ -35,6 +40,7 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
                 schema=self.schema,
                 credentials=self.credentials,
                 overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             ),
             LoadInternalReportingEdServicesReportToWarehouse(
                 import_date=self.import_date,

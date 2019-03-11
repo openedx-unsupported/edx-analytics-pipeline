@@ -113,6 +113,11 @@ class ReconcileOrdersAndTransactionsDownstreamMixin(MapReduceJobTaskMixin):
 
     import_date = luigi.DateParameter()
 
+    is_empty_transaction_allowed = luigi.BoolParameter(
+        default=False,
+        description='Allow empty transactions from payment processors to be processsed, default is False.'
+    )
+
     # TODO: determine if this is still needed, if we start always exporting everything all the time.
     # def extra_modules(self):
     #    """edx.analytics.tasks is required by all tasks that load this file."""
@@ -149,7 +154,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
                 import_date=self.import_date
             ),
             PaymentTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             )
         )
 
@@ -923,6 +929,7 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
                 # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
                 # to just apply to the writing to Vertica, not to anything further upstream.
                 # overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             )
         )
 

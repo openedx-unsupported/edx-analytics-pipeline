@@ -13,15 +13,21 @@ class PaymentTask(luigi.WrapperTask):
     cybersource_merchant_ids = luigi.ListParameter(
         config_path={'section': 'payment', 'name': 'cybersource_merchant_ids'},
     )
+    is_empty_transaction_allowed = luigi.BoolParameter(
+        default=False,
+        description='Allow empty transactions from payment processors to be processsed, default is False.'
+    )
 
     def requires(self):
         yield PaypalTransactionsIntervalTask(
-            interval_end=self.import_date
+            interval_end=self.import_date,
+            is_empty_transaction_allowed=self.is_empty_transaction_allowed
         )
         for merchant_id in self.cybersource_merchant_ids:
             yield IntervalPullFromCybersourceTask(
                 interval_end=self.import_date,
-                merchant_id=merchant_id
+                merchant_id=merchant_id,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             )
 
     def output(self):
