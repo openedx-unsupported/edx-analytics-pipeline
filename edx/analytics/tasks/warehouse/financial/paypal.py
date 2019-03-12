@@ -574,6 +574,10 @@ class PaypalTaskMixin(OverwriteOutputMixin):
         config_path={'section': 'paypal', 'name': 'account_id'},
         description='A human readable name for the paypal account data is being gathered for.',
     )
+    is_empty_transaction_allowed = luigi.BoolParameter(
+        default=False,
+        description='Allow empty transactions from payment processors to be processsed, default is False.'
+    )
 
 
 class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
@@ -607,6 +611,9 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
             is_running = results_response.is_running
 
         metadata_response = PaypalReportMetadataRequest(report_id=report_id).execute()
+
+        if metadata_response.num_rows < 1 and not self.is_empty_transaction_allowed:
+            raise Exception('No transactions to process.')
 
         with self.output().open('w') as output_tsv_file:
             for page_num in range(metadata_response.num_pages):
@@ -725,6 +732,7 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
                 output_root=self.output_root,
                 date=day,
                 overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             )
 
     def output(self):

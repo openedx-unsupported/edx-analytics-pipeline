@@ -27,6 +27,10 @@ class PullFromCybersourceTaskMixin(OverwriteOutputMixin):
     output_root = luigi.Parameter(
         description='URL of location to write output.',
     )
+    is_empty_transaction_allowed = luigi.BoolParameter(
+        default=False,
+        description='Allow empty transactions from payment processors to be processsed, default is False.'
+    )
 
     def __init__(self, *args, **kwargs):
         super(PullFromCybersourceTaskMixin, self).__init__(*args, **kwargs)
@@ -79,6 +83,10 @@ class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
         if response.status_code != requests.codes.ok:  # pylint: disable=no-member
             msg = "Encountered status {} on request to Cybersource for {}".format(response.status_code, self.run_date)
             raise Exception(msg)
+
+        # if there are no transactions in response, there will be no merchant id.
+        if self.merchant_id not in response.content and not self.is_empty_transaction_allowed:
+            raise Exception('No transactions to process.')
 
         with self.output().open('w') as output_file:
             output_file.write(response.content)
@@ -137,6 +145,7 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
             'output_root': self.output_root,
             'overwrite': self.overwrite,
             'merchant_id': self.merchant_id,
+            'is_empty_transaction_allowed': self.is_empty_transaction_allowed
         }
         return DailyPullFromCybersourceTask(**args)
 
@@ -250,6 +259,7 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
                 output_root=self.output_root,
                 run_date=run_date,
                 overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
             )
 
     def output(self):
