@@ -125,7 +125,7 @@ class IntervalDailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, Warehou
 
     def requires(self):
         """Internal method to actually calculate required tasks once."""
-        for run_date in self.run_interval:
+        for run_date in self.interval:
             yield DailyPullFromCybersourceTask(
                 merchant_id=self.merchant_id,
                 output_root=self.output_root,
