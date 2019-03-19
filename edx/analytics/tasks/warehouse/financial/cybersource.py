@@ -116,6 +116,26 @@ class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
         )
         return url
 
+class IntervalDailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMixin, luigi.WrapperTask):
+    interval = luigi.DateIntervalParameter(
+        default=None,
+        description='The range of dates to extract enrollments events for. '
+        'If not specified, `interval_start` and `interval_end` are used to construct the `interval`.',
+    )
+
+    def requires(self):
+        """Internal method to actually calculate required tasks once."""
+        for run_date in self.run_interval:
+            yield DailyPullFromCybersourceTask(
+                merchant_id=self.merchant_id,
+                output_root=self.output_root,
+                run_date=run_date,
+                overwrite=self.overwrite,
+            )
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
 
 TRANSACTION_TYPE_MAP = {
     'ics_bill': 'sale',
