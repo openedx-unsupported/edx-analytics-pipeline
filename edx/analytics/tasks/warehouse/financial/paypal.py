@@ -704,7 +704,7 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         if self.output_root is None:
             self.output_root = self.warehouse_path
 
-        path = url_path_join(self.warehouse_path, 'payments')
+        path = url_path_join(self.output_root, 'payments')
         path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
