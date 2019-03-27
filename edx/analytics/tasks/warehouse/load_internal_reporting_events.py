@@ -971,6 +971,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         return self.project_names[project_id]
 
     def _get_time_from_segment_event(self, event, key):
+        # We are not actually seeing Quality counters being triggered. (Any more?).
         try:
             event_time = event[key]
             event_time = self.normalize_time(event_time)
@@ -1022,6 +1023,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
+        # This gets the arrival time from 'receivedAt', which seems to always succeed.
+        # No counters are appearing for event arrival being found from other values.
         if 'receivedAt' in event:
             return self._get_time_from_segment_event(event, 'receivedAt')
 
@@ -1039,6 +1042,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         return None
 
     def get_event_emission_time(self, event):
+        # The "originalTimestamp" is generally close to "sentAt", but not always.
+        # It is the value provided by the host system that is emitting the event,
+        # which could be a browser with a wildly different time.  The "receivedAt"
+        # timestamp, in contrast, is a Segment server, so its timestamps are
+        # presumably of better quality.  Segment then assumes that the "sentAt" and
+        # "receivedAt" times are the same, and uses that to correct the original timestamp:
+        #
+        # "timestamp" = "originalTimestamp" + ("receivedAt" - "sentAt")
+        #
+        # So try to use the timestamp, if possible, and only fall back to 'sentAt' if
+        # it is not found.
+        if 'timestamp' in event:
+            return self._get_time_from_segment_event(event, 'timestamp')
+
+        # We don't expect this to be used, but add a counter to allow us to verify.
+        self.incr_counter(self.counter_category_name, 'Event emission from sentAt', 1)
         return self._get_time_from_segment_event(event, 'sentAt')
 
     def get_event_time(self, event):
@@ -1049,10 +1068,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         used by get_event_and_date_string(line).
 
         """
-        # TODO: clarify which value should be used.
-        # "originalTimestamp" is almost "sentAt".  "timestamp" is
-        # almost "receivedAt".  Order is (probably)
-        # "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
         return self.get_event_arrival_time(event)
 
     def get_event_mapping(self):
@@ -1157,12 +1172,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             event_type = event.get('event')
 
             if event_type is None or date_received is None:
-                # Ignore if any of the keys is None
+                # Ignore if any of the keys is None.  We shouldn't expect this to happen at all.
                 self.incr_counter(self.counter_category_name, 'Discard Tracking with missing type', 1)
                 return
 
             if event_type.startswith('/'):
-                # Ignore events that begin with a slash.  How many?
+                # Ignore events that begin with a slash.  We shouldn't expect this to happen at all.
                 self.incr_counter(self.counter_category_name, 'Discard Tracking with implicit type', 1)
                 return
 
@@ -1217,7 +1232,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
             # TODO: figure out why we check for this here, and not much earlier.  Why would
             # it be in event_type, but not in event_dict??  And why so bad if it's not found?
-            # Is it required and cannot be 'None'?
+            # Is it required and cannot be 'None'?  Anyway, we don't actually expect this at all.
             if event_dict.get("event_type") is None:
                 self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
                 return
