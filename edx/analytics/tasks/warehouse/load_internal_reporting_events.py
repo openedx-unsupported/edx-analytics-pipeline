@@ -971,6 +971,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         return self.project_names[project_id]
 
     def _get_time_from_segment_event(self, event, key):
+        # This was written to deal with a broad spectrum of timestamp formats that
+        # were appearing in events sent to Segment.  The greatest variation seemed
+        # to stem from events emitted directly from mobile devices, particularly iOS.
+        # There are many counters in place to allow for ongoing quality analysis.
+        # A spot check in March, 2019 found no quality counters being triggered for
+        # any of our Segment projects.
         try:
             event_time = event[key]
             event_time = self.normalize_time(event_time)
@@ -1022,6 +1028,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             return None
 
     def get_event_arrival_time(self, event):
+        # This gets the arrival time from 'receivedAt', which seems to always succeed.
+        # No counters are appearing for event arrival being found from other values.
         if 'receivedAt' in event:
             return self._get_time_from_segment_event(event, 'receivedAt')
 
@@ -1039,6 +1047,22 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         return None
 
     def get_event_emission_time(self, event):
+        # The "originalTimestamp" is generally close to "sentAt", but not always.
+        # It is the value provided by the host system that is emitting the event,
+        # which could be a browser with a wildly different time.  The "receivedAt"
+        # timestamp, in contrast, is a Segment server, so its timestamps are
+        # presumably of better quality.  Segment then assumes that the "sentAt" and
+        # "receivedAt" times are the same, and uses that to correct the original timestamp:
+        #
+        # "timestamp" = "originalTimestamp" + ("receivedAt" - "sentAt")
+        #
+        # So try to use the timestamp, if possible, and only fall back to 'sentAt' if
+        # it is not found.
+        if 'timestamp' in event:
+            return self._get_time_from_segment_event(event, 'timestamp')
+
+        # We don't expect this to be used, but add a counter to allow us to verify.
+        self.incr_counter(self.counter_category_name, 'Event emission from sentAt', 1)
         return self._get_time_from_segment_event(event, 'sentAt')
 
     def get_event_time(self, event):
@@ -1049,10 +1073,6 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         used by get_event_and_date_string(line).
 
         """
-        # TODO: clarify which value should be used.
-        # "originalTimestamp" is almost "sentAt".  "timestamp" is
-        # almost "receivedAt".  Order is (probably)
-        # "originalTimestamp" < "sentAt" < "timestamp" < "receivedAt".
         return self.get_event_arrival_time(event)
 
     def get_event_mapping(self):
@@ -1157,13 +1177,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             event_type = event.get('event')
 
             if event_type is None or date_received is None:
-                # Ignore if any of the keys is None
+                # Ignore if any of the keys is None.  A spot check in March 2019 found it wasn't happening.
                 self.incr_counter(self.counter_category_name, 'Discard Tracking with missing type', 1)
-                return
-
-            if event_type.startswith('/'):
-                # Ignore events that begin with a slash.  How many?
-                self.incr_counter(self.counter_category_name, 'Discard Tracking with implicit type', 1)
                 return
 
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
@@ -1217,7 +1232,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
             # TODO: figure out why we check for this here, and not much earlier.  Why would
             # it be in event_type, but not in event_dict??  And why so bad if it's not found?
-            # Is it required and cannot be 'None'?
+            # Is it required and cannot be 'None'? A spot check in March 2019 found it wasn't happening.
             if event_dict.get("event_type") is None:
                 self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
                 return

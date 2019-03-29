@@ -347,8 +347,8 @@ class BaseSegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMix
                 },
                 "writeKey": "dummy_write_key",
                 "projectId": self.DEFAULT_PROJECT,
-                "timestamp": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),
-                "sentAt": "{0}.000Z".format(self.DEFAULT_TIMESTAMP),
+                "timestamp": "{0}.700Z".format(self.DEFAULT_TIMESTAMP),
+                "sentAt": "{0}.096Z".format(self.DEFAULT_TIMESTAMP),
                 "receivedAt": "{0}.796Z".format(self.DEFAULT_TIMESTAMP),
                 "originalTimestamp": "{0}-0400".format(self.DEFAULT_TIMESTAMP),
                 "version": 2,
@@ -378,7 +378,6 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
     @data(
         {'receivedAt': "2013-12-01T15:38:32.805444Z"},
         {'type': 'track', 'event': None},
-        {'type': 'track', 'event': '/implicit/event/url'},
     )
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
@@ -394,10 +393,10 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
         return EventRecord.from_tsv(actual_value)
 
     @data(
-        {'sentAt': '2016-7-26T13:26:23-0500'},
-        {'sentAt': '2016-07-26T13:34:0026-0400'},
-        {'sentAt': '2016-0007-29T12:15:34+0530'},
-        {'sentAt': '2016-07-26 05:11:37 a.m. +0000'},
+        {'timestamp': '2016-7-26T13:26:23-0500'},
+        {'timestamp': '2016-07-26T13:34:0026-0400'},
+        {'timestamp': '2016-0007-29T12:15:34+0530'},
+        {'timestamp': '2016-07-26 05:11:37 a.m. +0000'},
     )
     def test_funky_but_parsable_timestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
@@ -405,7 +404,7 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
         self.assertNotEquals(timestamp, None)
 
     @data(
-        {'sentAt': '2016-07-26 05:11:37 a.m. +000A'},
+        {'timestamp': '2016-07-26 05:11:37 a.m. +000A'},
     )
     def test_unparsable_timestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
@@ -415,7 +414,7 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
     @data(
         ({'receivedAt': "2013-12-17T15:38:32.805444Z", 'requestTime': "2014-12-18T15:38:32.805444Z"}, "2013-12-17T15:38:32.805444+00:00"),
         ({'requestTime': "2014-12-01T15:38:32.805444Z"}, '2014-12-01T15:38:32.805444+00:00'),  # default to requestTime
-        ({}, '2013-12-17T15:38:32.796000+00:00'),  # default to timestamp
+        ({}, '2013-12-17T15:38:32.700000+00:00'),  # default to timestamp
     )
     @unpack
     def test_defaulting_arrival_timestamps(self, kwargs, expected_timestamp):
@@ -437,7 +436,7 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
             'event_type': 'screen',
             'event_source': 'server',
             'event_category': 'screen',
-            'timestamp': '2013-12-17T15:38:32+00:00',
+            'timestamp': '2013-12-17T15:38:32.700000+00:00',
             'received_at': '2013-12-17T15:38:32.796000+00:00',
             'date': self.DEFAULT_DATE,
             'agent': 'Dalvik/2.1.0 (Linux; U; Android 5.1.1; SAMSUNG-SM-N920A Build/LMY47X)',
@@ -482,7 +481,6 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
     @data(
         {'receivedAt': "2013-12-01T15:38:32.805444Z"},
         {'type': 'track', 'event': None},
-        {'type': 'track', 'event': '/implicit/event/url'},
     )
     def test_invalid_events(self, kwargs):
         self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
@@ -498,10 +496,10 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
         return JsonEventRecord.from_tsv(actual_value)
 
     @data(
-        {'sentAt': '2016-7-26T13:26:23-0500'},
-        {'sentAt': '2016-07-26T13:34:0026-0400'},
-        {'sentAt': '2016-0007-29T12:15:34+0530'},
-        {'sentAt': '2016-07-26 05:11:37 a.m. +0000'},
+        {'timestamp': '2016-7-26T13:26:23-0500'},
+        {'timestamp': '2016-07-26T13:34:0026-0400'},
+        {'timestamp': '2016-0007-29T12:15:34+0530'},
+        {'timestamp': '2016-07-26 05:11:37 a.m. +0000'},
     )
     def test_funky_but_parsable_timestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
@@ -509,9 +507,9 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
         self.assertNotEquals(timestamp, None)
 
     @data(
-        {'sentAt': '2016-07-26 05:11:37 a.m. +000A'},
+        {'timestamp': '2016-07-26 05:11:37 a.m. +000A'},
         # TODO: figure out why this no longer works!
-        # {'sentAt': '0300-01-01T00:00:00.000Z'},
+        {'timestamp': '0300-01-01T00:00:00.000Z'},
     )
     def test_unparsable_timestamps(self, kwargs):
         actual_record = self._get_event_record_from_mapper(kwargs)
@@ -544,7 +542,7 @@ class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unitt
             'source': self.DEFAULT_PROJECT,
             'event_type': 'screen',
             'emitter_type': 'server',
-            'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32+00:00'),
+            'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.700000+00:00'),
             'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.796000+00:00'),
             'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
             'agent_type': 'tablet',
