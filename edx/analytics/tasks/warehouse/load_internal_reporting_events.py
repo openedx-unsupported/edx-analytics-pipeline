@@ -971,7 +971,12 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         return self.project_names[project_id]
 
     def _get_time_from_segment_event(self, event, key):
-        # We are not actually seeing Quality counters being triggered. (Any more?).
+        # This was written to deal with a broad spectrum of timestamp formats that
+        # were appearing in events sent to Segment.  The greatest variation seemed
+        # to stem from events emitted directly from mobile devices, particularly iOS.
+        # There are many counters in place to allow for ongoing quality analysis.
+        # A spot check in March, 2019 found no quality counters being triggered for
+        # any of our Segment projects.
         try:
             event_time = event[key]
             event_time = self.normalize_time(event_time)
@@ -1172,13 +1177,8 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
             event_type = event.get('event')
 
             if event_type is None or date_received is None:
-                # Ignore if any of the keys is None.  We shouldn't expect this to happen at all.
+                # Ignore if any of the keys is None.  A spot check in March 2019 found it wasn't happening.
                 self.incr_counter(self.counter_category_name, 'Discard Tracking with missing type', 1)
-                return
-
-            if event_type.startswith('/'):
-                # Ignore events that begin with a slash.  We shouldn't expect this to happen at all.
-                self.incr_counter(self.counter_category_name, 'Discard Tracking with implicit type', 1)
                 return
 
             # Not all 'track' events have event_source information.  In particular, edx.bi.XX events.
@@ -1232,7 +1232,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
 
             # TODO: figure out why we check for this here, and not much earlier.  Why would
             # it be in event_type, but not in event_dict??  And why so bad if it's not found?
-            # Is it required and cannot be 'None'?  Anyway, we don't actually expect this at all.
+            # Is it required and cannot be 'None'? A spot check in March 2019 found it wasn't happening.
             if event_dict.get("event_type") is None:
                 self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
                 return
