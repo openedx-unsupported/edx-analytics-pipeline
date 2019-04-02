@@ -29,6 +29,7 @@ pytz==2017.3		# ZPL
 requests==2.18.4        # Apache 2.0
 six==1.10.0		# MIT
 stevedore==1.19.1 	# Apache 2.0
+snowflake-connector-python==1.7.9
 ua-parser==0.3.6 	# Apache
 urllib3==1.22           # MIT
 user-agents==0.3.2	# MIT
