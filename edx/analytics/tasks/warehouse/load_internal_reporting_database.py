@@ -9,6 +9,7 @@ import luigi
 
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask, BigQueryTarget
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
+from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadTask, SnowflakeTarget
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
@@ -594,6 +595,178 @@ class ImportMysqlDatabaseToBigQueryDatasetTask(MysqlToBigQueryTaskMixin, BigQuer
                         credentials=self.credentials,
                         max_bad_records=self.max_bad_records,
                         skip_clear_marker=self.overwrite,
+                        exclude_field=self.exclude_field,
+                    )
+                )
+        return self.required_tasks
+
+    def output(self):
+        return [task.output() for task in self.requires()]
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))
+
+
+class MysqlToSnowflakeTaskMixin(MysqlToWarehouseTaskMixin):
+    """
+    Parameters for importing a mysql database into Snowflake.
+    """
+
+    # Don't use the same source for Snowflake loads as was used for Vertica/BQ loads,
+    # until their formats and exclude-field parameters match.
+    warehouse_subdirectory = luigi.Parameter(
+        default='import_mysql_to_snowflake',
+        description='Subdirectory under warehouse_path to store intermediate data.'
+    )
+
+
+class LoadMysqlToSnowflakeTableTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadTask):
+    """
+    Task to import a table from MySQL into Snowflake.
+    """
+
+    table_name = luigi.Parameter(
+        description='The name of the table.',
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(LoadMysqlToSnowflakeTableTask, self).__init__(*args, **kwargs)
+        # Get schema for Snowflake and also Mysql columns that are excluded from that schema.
+        self.table_schema = []
+        self.deleted_fields = []
+
+    def get_snowflake_schema(self):
+        """Transforms mysql table schema into a Snowflake-compliant schema."""
+
+        if not self.table_schema:
+            results = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
+            for result in results:
+                field_name = result[0].strip()
+                field_type = result[1].strip()
+                field_null = result[2].strip()
+
+                mode = 'NOT NULL' if field_null == 'NO' else ''
+                description = ''
+
+                if self.should_exclude_field(self.table_name, field_name):
+                    self.deleted_fields.append(field_name)
+                else:
+                    self.table_schema.append(SchemaField(field_name, field_type, description=description, mode=mode))
+
+        return self.table_schema
+
+    @property
+    def insert_source_task(self):
+        # Make sure yet again that columns have been calculated.
+        columns = [field.name for field in self.schema]
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        destination = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            self.table_name,
+            partition_path_spec
+        ) + '/'
+        return SqoopImportFromMysql(
+            table_name=self.table_name,
+            credentials=self.db_credentials,
+            database=self.database,
+            destination=destination,
+            overwrite=self.overwrite,
+            mysql_delimiters=False,
+            fields_terminated_by=self.field_delimiter,
+            null_string=self.null_marker,
+            delimiter_replacement=' ',
+            direct=False,
+            columns=columns,
+        )
+
+    @property
+    def table(self):
+        return self.table_name
+
+    @property
+    def schema(self):
+        return self.get_snowflake_schema()
+
+    @property
+    def table_description(self):
+        optional = ''
+        if self.deleted_fields:
+            optional = '  Fields not included in the copy: {}'.format(', '.join(self.deleted_fields))
+        return "Copy of '{}' table from '{}' MySQL database on {}.{}".format(self.table_name, self.database, self.date.isoformat(), optional)
+
+    @property
+    def table_friendly_name(self):
+        return '{} from {}'.format(self.table_name, self.database)
+
+
+class ImportMysqlDatabaseToSnowflakeDatasetTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+    """
+    Provides entry point for importing a mysql database into Snowflake as a single dataset.
+
+    It is assumed that there is one database written to each dataset.
+    """
+
+    exclude = luigi.ListParameter(
+        default=(),
+        description='List of regular expressions matching database table names that should not be imported from MySQL to Snowflake.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(ImportMysqlDatabaseToSnowflakeDatasetTask, self).__init__(*args, **kwargs)
+        self.table_list = []
+        self.is_complete = False
+        self.required_tasks = None
+
+        # If we are overwriting the database output, then delete the entire marker table.
+        # That way, any future activity on it should only consist of inserts, rather than any deletes
+        # of existing marker entries.  There are quotas on deletes and upserts on a table, of no more
+        # than 96 per day.   This allows us to work around hitting those limits.
+        # Note that we have to do this early, before scheduling begins, so that no entries are present
+        # when scheduling occurs (so everything gets properly scheduled).
+        if self.overwrite:
+            # First, create a SnowflakeTarget object, so we can connect to Snowflake.  This is only
+            # for the purpose of deleting the marker table, so use dummy values.
+            credentials_target = ExternalURL(url=self.credentials).output()
+            target = SnowflakeTarget(
+                credentials_target=credentials_target,
+                database='dummy_db',
+                schema='dummy_schema',
+                table='dummy_table',
+                role='dummy_role',
+                warehouse="dummy_wh",
+                update_id="dummy_id",
+            )
+            # Now ask it to delete the marker table completely.
+            target.delete_marker_table()
+
+    def should_exclude_table(self, table_name):
+        """Determines whether to exclude a table during the import."""
+        if any(re.match(pattern, table_name) for pattern in self.exclude):
+            return True
+        return False
+
+    def requires(self):
+        if not self.table_list:
+            results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
+            unfiltered_table_list = [result[0].strip() for result in results]
+            self.table_list = [table_name for table_name in unfiltered_table_list if not self.should_exclude_table(table_name)]
+        if self.required_tasks is None:
+            self.required_tasks = []
+            for table_name in self.table_list:
+                self.required_tasks.append(
+                    LoadMysqlToSnowflakeTableTask(
+                        db_credentials=self.db_credentials,
+                        database=self.database,
+                        warehouse=self.warehouse,
+                        warehouse_path=self.warehouse_path,
+                        warehouse_subdirectory=self.warehouse_subdirectory,
+                        table_name=table_name,
+                        overwrite=self.overwrite,
+                        date=self.date,
+                        credentials=self.credentials,
                         exclude_field=self.exclude_field,
                     )
                 )
