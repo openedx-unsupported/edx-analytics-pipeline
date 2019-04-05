@@ -1,4 +1,7 @@
-"""Tests for S3-related utility functionality."""
+"""
+Tests for S3-related utility functionality.
+"""
+from __future__ import print_function
 
 from unittest import TestCase
 
@@ -25,7 +28,7 @@ class GenerateS3SourcesTestCase(TestCase):
         target_list = [self._make_key("{root}/{path}".format(root=root, path=path), size)
                        for path, size in path_info.iteritems()]
         s3_bucket.list = MagicMock(return_value=target_list)
-        print [(k.key, k.size) for k in target_list]
+        print([(k.key, k.size) for k in target_list])
 
         s3_bucket.name = bucket_name
         source = "s3://{bucket}/{root}".format(bucket=bucket_name, root=root)

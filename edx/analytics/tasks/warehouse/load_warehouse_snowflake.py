@@ -4,7 +4,7 @@ import os
 import luigi
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadTask
+from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadCSVTask, SnowflakeLoadDownstreamMixin
 from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
@@ -14,7 +14,7 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
 
 
-class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def table(self):
@@ -42,7 +42,7 @@ class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoad
         return ExternalURL(url=self.hive_partition_path('internal_reporting_certificates', self.date))
 
 
-class LoadInternalReportingCountryToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCountryToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
     """
     Loads the country table from Hive into the Vertica data warehouse.
     """
@@ -72,7 +72,7 @@ class LoadInternalReportingCountryToSnowflake(WarehouseMixin, SnowflakeLoadTask)
         return ExternalURL(url=self.hive_partition_path('internal_reporting_d_country', self.date))
 
 
-class LoadInternalReportingCourseToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCourseToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def insert_source_task(self):
@@ -92,7 +92,7 @@ class LoadInternalReportingCourseToSnowflake(WarehouseMixin, SnowflakeLoadTask):
         return CourseRecord.get_sql_schema()
 
 
-class LoadInternalReportingCourseSeatToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCourseSeatToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def insert_source_task(self):
@@ -112,7 +112,7 @@ class LoadInternalReportingCourseSeatToSnowflake(WarehouseMixin, SnowflakeLoadTa
         return CourseSeatRecord.get_sql_schema()
 
 
-class LoadInternalReportingCourseSubjectToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCourseSubjectToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def insert_source_task(self):
@@ -132,7 +132,7 @@ class LoadInternalReportingCourseSubjectToSnowflake(WarehouseMixin, SnowflakeLoa
         return CourseSubjectRecord.get_sql_schema()
 
 
-class LoadInternalReportingProgramCourseToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingProgramCourseToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def insert_source_task(self):
@@ -177,7 +177,7 @@ class LoadInternalReportingCourseCatalogToSnowflake(WarehouseMixin, SnowflakeLoa
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
 
 
-class LoadInternalReportingCourseStructureToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingCourseStructureToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     def __init__(self, *args, **kwargs):
         super(LoadInternalReportingCourseStructureToSnowflake, self).__init__(*args, **kwargs)
@@ -208,7 +208,7 @@ class LoadInternalReportingCourseStructureToSnowflake(WarehouseMixin, SnowflakeL
         return CourseBlockRecord.get_sql_schema()
 
 
-class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def insert_source_task(self):
@@ -227,7 +227,7 @@ class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadTask):
         return EnrollmentSummaryRecord.get_sql_schema()
 
 
-class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     def __init__(self, *args, **kwargs):
         super(LoadInternalReportingUserActivityToSnowflake, self).__init__(*args, **kwargs)
@@ -271,7 +271,7 @@ class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoad
         ]
 
 
-class LoadInternalReportingUserToSnowflake(WarehouseMixin, SnowflakeLoadTask):
+class LoadInternalReportingUserToSnowflake(WarehouseMixin, SnowflakeLoadCSVTask):
 
     @property
     def partition(self):

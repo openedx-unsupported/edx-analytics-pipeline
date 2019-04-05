@@ -76,6 +76,7 @@ test-acceptance-local-all:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 quality-docker-local:
+	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && pip install -r requirements/test.txt'
 	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/'
 	pycodestyle edx
 

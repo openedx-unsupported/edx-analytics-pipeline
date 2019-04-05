@@ -5,13 +5,14 @@ import json
 import logging
 
 import luigi
+import snowflake.connector
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-
-import snowflake.connector
-from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-from edx.analytics.tasks.util.url import ExternalURL
 from snowflake.connector import ProgrammingError
+
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
+from edx.analytics.tasks.util.s3_util import canonicalize_s3_url
+from edx.analytics.tasks.util.url import ExternalURL
 
 log = logging.getLogger(__name__)
 
@@ -90,9 +91,22 @@ class SnowflakeTarget(luigi.Target):
         self.create_marker_table()
 
         connection.cursor().execute(
-            """INSERT INTO {database}.{schema}.{marker_table} (update_id, target_table)
-               VALUES (%s, %s)""".format(database=self.database, schema=self.schema, marker_table=self.marker_table),
-            (self.update_id, "{database}.{schema}.{table}".format(database=self.database, schema=self.schema, table=self.table))
+            """
+            INSERT INTO {database}.{schema}.{marker_table} (update_id, target_table)
+            VALUES (%s, %s)
+            """.format(
+                database=self.database,
+                schema=self.schema,
+                marker_table=self.marker_table,
+            ),
+            (
+                self.update_id,
+                "{database}.{schema}.{table}".format(
+                    database=self.database,
+                    schema=self.schema,
+                    table=self.table,
+                ),
+            )
         )
 
         # make sure update is properly marked
@@ -112,8 +126,17 @@ class SnowflakeTarget(luigi.Target):
                 return False
 
             cursor = connection.cursor()
-            query = "SELECT 1 FROM {database}.{schema}.{marker_table} WHERE update_id='{update_id}' AND target_table='{database}.{schema}.{table}'".format(
-                database=self.database, schema=self.schema, marker_table=self.marker_table, update_id=self.update_id, table=self.table)
+            query = """
+            SELECT 1
+            FROM {database}.{schema}.{marker_table}
+            WHERE update_id='{update_id}' AND target_table='{database}.{schema}.{table}'
+            """.format(
+                database=self.database,
+                schema=self.schema,
+                marker_table=self.marker_table,
+                update_id=self.update_id,
+                table=self.table,
+            )
             log.debug(query)
             cursor.execute(query)
             row = cursor.fetchone()
@@ -135,8 +158,8 @@ class SnowflakeTarget(luigi.Target):
                 schema=self.schema,
             ))
             row = cursor.fetchone()
-        except ProgrammingError as e:
-            if "does not exist" in e.msg:
+        except ProgrammingError as err:
+            if "does not exist" in err.msg:
                 # If so then the query failed because the database or schema doesn't exist.
                 row = None
             else:
@@ -169,8 +192,14 @@ class SnowflakeTarget(luigi.Target):
         Delete all markers related to this table update.
         """
         if self.marker_table_exists(connection):
-            query = "DELETE FROM {database}.{schema}.{marker_table} where target_table='{database}.{schema}.{table}'".format(
-                database=self.database, schema=self.schema, marker_table=self.marker_table, table=self.table,
+            query = """
+            DELETE FROM {database}.{schema}.{marker_table}
+            WHERE target_table='{database}.{schema}.{table}'
+            """.format(
+                database=self.database,
+                schema=self.schema,
+                marker_table=self.marker_table,
+                table=self.table,
             )
             connection.cursor().execute(query)
 
@@ -234,20 +263,6 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
         raise NotImplementedError
 
     @property
-    def field_delimiter(self):
-        """
-        The delimiter in the data to be copied. Default is tab (\t).
-        """
-        return "\t"
-
-    @property
-    def null_marker(self):
-        """
-        The null sequence in the data to be copied. Default is Hive NULL (\\N).
-        """
-        return r'\\N'
-
-    @property
     def pattern(self):
         """
         Files matching this pattern will be used in the COPY operation.
@@ -260,7 +275,11 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
 
     def create_schema(self, connection):
         cursor = connection.cursor()
-        cursor.execute("CREATE SCHEMA IF NOT EXISTS {database}.{schema}".format(database=self.database, schema=self.schema))
+        cursor.execute(
+            "CREATE SCHEMA IF NOT EXISTS {database}.{schema}".format(
+                database=self.database, schema=self.schema,
+            )
+        )
 
     def create_table(self, connection):
         coldefs = ','.join(
@@ -273,29 +292,15 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
 
     def create_format(self, connection):
         """
-        Creates a named file format used for bulk loading data into Snowflake tables.
+        Invoke Snowflake's CREATE FILE FORMAT statement to create the named file format which
+        configures the loading.
+
+        The resulting file format name should be: {self.database}.{self.schema}.{self.file_format_name}
         """
-        query = """
-        CREATE OR REPLACE FILE FORMAT {database}.{schema}.{file_format_name}
-        TYPE = 'CSV' COMPRESSION = 'AUTO' FIELD_DELIMITER = '{field_delimiter}'
-        FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE' ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
-        EMPTY_FIELD_AS_NULL = FALSE ESCAPE_UNENCLOSED_FIELD = 'NONE'
-        NULL_IF = ('{null_marker}')
-        """.format(
-            database=self.database,
-            schema=self.schema,
-            file_format_name=self.file_format_name,
-            field_delimiter=self.field_delimiter,
-            null_marker=self.null_marker,
-        )
-        log.debug(query)
-        connection.cursor().execute(query)
+        raise NotImplementedError
 
     def create_stage(self, connection):
-        """
-        Creates a named external stage to use for loading data into Snowflake.
-        """
-        stage_url = self.input()['insert_source_task'].path
+        stage_url = canonicalize_s3_url(self.input()['insert_source_task'].path)
         query = """
         CREATE OR REPLACE STAGE {database}.{schema}.{table}_stage
             URL = '{stage_url}'
@@ -377,3 +382,79 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
 
     def update_id(self):
         return '{task_name}(date={key})'.format(task_name=self.task_family, key=self.date.isoformat())
+
+
+class SnowflakeLoadCSVTask(SnowflakeLoadTask):  # pylint: disable=abstract-method
+    """
+    Abstract Task for loading CSV data from s3 into a table in Snowflake.
+
+    Implementations should define the following properties:
+
+    - self.insert_source_task
+    - self.table
+    - self.columns
+    - self.file_format_name
+    """
+
+    @property
+    def field_delimiter(self):
+        """
+        The delimiter in the data to be copied. Default is tab (\t).
+        """
+        return "\t"
+
+    @property
+    def null_marker(self):
+        """
+        The null sequence in the data to be copied. Default is Hive NULL (\\N).
+        """
+        return r'\\N'
+
+    def create_format(self, connection):
+        query = """
+        CREATE OR REPLACE FILE FORMAT {database}.{schema}.{file_format_name}
+        TYPE = 'CSV' COMPRESSION = 'AUTO' FIELD_DELIMITER = '{field_delimiter}'
+        FIELD_OPTIONALLY_ENCLOSED_BY = 'NONE' ERROR_ON_COLUMN_COUNT_MISMATCH = TRUE
+        EMPTY_FIELD_AS_NULL = FALSE ESCAPE_UNENCLOSED_FIELD = 'NONE'
+        NULL_IF = ('{null_marker}')
+        """.format(
+            database=self.database,
+            schema=self.schema,
+            file_format_name=self.file_format_name,
+            field_delimiter=self.field_delimiter,
+            null_marker=self.null_marker,
+        )
+        log.debug(query)
+        connection.cursor().execute(query)
+
+
+class SnowflakeLoadJSONTask(SnowflakeLoadTask):  # pylint: disable=abstract-method
+    """
+    Abstract Task for loading JSON data from s3 into a table in Snowflake.  The resulting table will
+    contain a single VARIANT column called raw_json.
+
+    Implementations should define the following properties:
+
+    - self.insert_source_task
+    - self.table
+    - self.file_format_name
+    """
+
+    @property
+    def columns(self):
+        return [
+            ('raw_json', 'VARIANT'),
+        ]
+
+    def create_format(self, connection):
+        query = """
+        CREATE OR REPLACE FILE FORMAT {database}.{schema}.{file_format_name}
+        TYPE = 'JSON'
+        COMPRESSION = 'AUTO'
+        """.format(
+            database=self.database,
+            schema=self.schema,
+            file_format_name=self.file_format_name,
+        )
+        log.debug(query)
+        connection.cursor().execute(query)

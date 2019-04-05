@@ -36,6 +36,21 @@ vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3  # BSD
 snowflake-connector-python==1.7.9
 
+# To make BigQueryExtractTask work (needed for importing GA data into
+# Snowflake), do the following:
+#
+# 1. Uncomment the following requirements (replacing older version above).
+# 2. Run `make upgrade`.
+# 3. IMPORTANT: Remove the s3 `host` setting in luigi environment configs in analytics-secure.
+#
+#boto3==1.9.131          # Apache 2.0
+#google-api-python-client==1.7.8
+#google-cloud-bigquery==1.11.2
+#httplib2==0.12.1
+#luigi==2.8.3            # Apache License 2.0
+#psycopg2==2.8.1         # LGPL
+#python-dateutil==2.7.5  # BSD
+
 -e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi # Apache License 2.0
 
 -e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
