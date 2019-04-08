@@ -182,8 +182,27 @@ class EventExportTestCase(EventExportTestCaseBase):
             '{invalid json'
         ]
 
-        input_events = single_org_input + multiple_org_input + delayed_input + excluded_events
-        expected_output = expected_multiple_org_output + expected_single_org_output + expected_delayed_output
+        export_event_template = '{{"context":{{"org_id": "FooX"}},"time":"2014-05-20T00:10:30+00:00","event_source":"server","event":{{"_export": {0}}}}}'
+        expected_suppress_export_input = [
+            export_event_template.format('true'),
+            export_event_template.format('false'),
+            export_event_template.format('"n"'),
+            export_event_template.format('"f"'),
+            export_event_template.format('0'),
+            export_event_template.format('"0"'),
+            export_event_template.format('"false"'),
+            export_event_template.format('"no"'),
+        ]
+        expected_suppress_export_output = [
+            (
+                ('2014-05-20', 'FooX',),
+                expected_suppress_export_input[0]
+            ),
+        ]
+
+
+        input_events = single_org_input + multiple_org_input + delayed_input + excluded_events + expected_suppress_export_input
+        expected_output = expected_multiple_org_output + expected_single_org_output + expected_delayed_output + expected_suppress_export_output
 
         self.task.init_local()
 

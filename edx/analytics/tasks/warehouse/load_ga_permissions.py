@@ -9,7 +9,10 @@ import logging
 import luigi
 from google.oauth2 import service_account
 
-from apiclient.discovery import build
+try:
+    from apiclient.discovery import build
+except ImportError:
+    build = None
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
