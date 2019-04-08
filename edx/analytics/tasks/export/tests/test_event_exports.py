@@ -200,7 +200,6 @@ class EventExportTestCase(EventExportTestCaseBase):
             ),
         ]
 
-
         input_events = single_org_input + multiple_org_input + delayed_input + excluded_events + expected_suppress_export_input
         expected_output = expected_multiple_org_output + expected_single_org_output + expected_delayed_output + expected_suppress_export_output
 
