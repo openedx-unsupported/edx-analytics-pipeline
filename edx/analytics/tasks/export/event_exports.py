@@ -101,10 +101,11 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             log.debug('Unrecognized organization: org_id=%s', org_id or '')
             return
 
-        # Do not export events that have been flaged as non export
-        # Preferred value to not export is 'false'.
-        # Any event without an '_export' key will be sent as part of the export by default.
-        if str(event.get('event', {}).get('_export', 'true')).lower() in ('n', 'f', '0', 'false', 'no'):
+        # Do not export events that have been explicitly flagged as not being for export.
+        # Any event without an '_export' key will be sent as part of the export by default,
+        # and likewise any event without a falsey value. The preferred value to not export is 'false'.
+        event_data = eventlog.get_event_data(event)
+        if event_data and str(event_data.get('_export', 'true')).lower() in ('n', 'f', '0', 'false', 'no'):
             return
 
         # Check to see if the org_id is one that should be grouped with other org_ids.
