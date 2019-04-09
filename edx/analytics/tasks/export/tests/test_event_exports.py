@@ -179,12 +179,17 @@ class EventExportTestCase(EventExportTestCaseBase):
             self.EVENT_TEMPLATE.format(org_id='OtherOrgX', time=self.EXAMPLE_TIME),
             self.EVENT_TEMPLATE.format(org_id='bar', time='2013-12-31T23:59:59+00:00'),
             self.EVENT_TEMPLATE.format(org_id='bar', time='2015-01-01T00:00:00+00:00'),
-            '{invalid json'
+            '{invalid json',
         ]
 
         export_event_template = '{{"context":{{"org_id": "FooX"}},"time":"2014-05-20T00:10:30+00:00","event_source":"server","event":{{"_export": {0}}}}}'
+        export_browser_event_template = '{{"context":{{"org_id": "FooX"}},"time":"2014-05-20T00:10:30+00:00","event_source":"server","event":"{{\\\"_export\\\": {0}}}"}}'
         expected_suppress_export_input = [
+            # These should be exported:
+            '{"context":{"org_id": "FooX"},"time":"2014-05-20T00:10:30+00:00","event_source":"server","event":"bogus event"}',
             export_event_template.format('true'),
+            export_browser_event_template.format('true'),
+            # These should NOT be exported:
             export_event_template.format('false'),
             export_event_template.format('"n"'),
             export_event_template.format('"f"'),
@@ -192,12 +197,13 @@ class EventExportTestCase(EventExportTestCaseBase):
             export_event_template.format('"0"'),
             export_event_template.format('"false"'),
             export_event_template.format('"no"'),
+            export_browser_event_template.format('false'),
+            export_browser_event_template.format('"false"'),
         ]
         expected_suppress_export_output = [
-            (
-                ('2014-05-20', 'FooX',),
-                expected_suppress_export_input[0]
-            ),
+            (('2014-05-20', 'FooX',), expected_suppress_export_input[0]),
+            (('2014-05-20', 'FooX',), expected_suppress_export_input[1]),
+            (('2014-05-20', 'FooX',), expected_suppress_export_input[2]),
         ]
 
         input_events = single_org_input + multiple_org_input + delayed_input + excluded_events + expected_suppress_export_input
