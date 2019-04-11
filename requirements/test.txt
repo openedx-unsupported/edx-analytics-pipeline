@@ -12,22 +12,27 @@ ansible==1.4.5
 argparse==1.2.1
 asn1crypto==0.24.0
 astroid==1.4.9            # via pylint
+azure-common==1.1.18
+azure-nspkg==3.0.2
+azure-storage-blob==1.5.0
+azure-storage-common==1.4.0
+azure-storage-nspkg==3.1.0
 backports-abc==0.5
 backports.functools-lru-cache==1.5  # via pylint
-bcrypt==3.1.4
+bcrypt==3.1.6
 boto3==1.4.8
 boto==2.48.0
 botocore==1.8.50
-cachetools==2.1.0
-certifi==2018.4.16
-cffi==1.11.5
+cachetools==3.1.0
+certifi==2019.3.9
+cffi==1.12.2
 chardet==3.0.4
 ciso8601==1.0.3
-configparser==3.5.0       # via pylint
+configparser==3.7.4       # via pylint
 coverage==4.3.1
-cryptography==2.2.2
+cryptography==2.6.1
 ddt==1.1.1
-diff-cover==1.0.2
+diff-cover==1.0.7
 distlib==0.2.2
 docutils==0.14
 ecdsa==0.13
@@ -38,67 +43,74 @@ enum34==1.1.6
 filechunkio==1.8
 freezegun==0.3.9
 funcsigs==1.0.2           # via mock
-future==0.16.0
+future==0.17.1
 futures==3.2.0
-google-auth==1.5.0
+google-api-python-client==1.7.7
+google-auth-httplib2==0.0.3
+google-auth==1.6.3
 google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1
-google-resumable-media==0.3.1
-googleapis-common-protos==1.5.3
+google-resumable-media==0.3.2
+googleapis-common-protos==1.5.9
 graphitesend==0.10.0
 html5lib==1.0b3
-httplib2==0.11.3
+httplib2==0.12.1
 httpretty==0.8.14
 idna==2.6
-inflect==0.3.1            # via jinja2-pluralize
+ijson==2.3
+inflect==2.1.0            # via jinja2-pluralize
 ipaddress==1.0.22
 isort==4.2.15
 isoweek==1.3.3
 jinja2-pluralize==0.3.0   # via diff-cover
 jinja2==2.8.1
-jmespath==0.9.3
+jmespath==0.9.4
 lazy-object-proxy==1.3.1  # via astroid
 lockfile==0.12.2
-markupsafe==1.0
+markupsafe==1.1.1
 mccabe==0.6.1             # via pylint
 mock==2.0.0
 nose-ignore-docstring==0.2
 nose==1.3.7
 numpy==1.11.3
 pandas==0.13.0
-paramiko==2.4.1
+paramiko==2.4.2
 paypalrestsdk==1.9.0
-pbr==4.0.3
-protobuf==3.5.2.post1
+pbr==5.1.3
+protobuf==3.7.1
 psycopg2==2.6.2
-pyasn1-modules==0.2.1
-pyasn1==0.4.3
+pyasn1-modules==0.2.4
+pyasn1==0.4.5
 pycodestyle==2.3.1
-pycparser==2.18
+pycparser==2.19
 pycrypto==2.6.1
+pycryptodomex==3.8.0
 pygeoip==0.3.2
-pygments==2.2.0           # via diff-cover
+pygments==2.3.1           # via diff-cover
+pyjwt==1.7.1
 pylint==1.6.4
-pymongo==3.6.1
-pynacl==1.2.1
-pyopenssl==18.0.0
+pymongo==3.7.2
+pynacl==1.3.0
+pyopenssl==19.0.0
 python-cjson==1.1.0
 python-daemon==2.1.2
 python-dateutil==2.6.1
 python-gnupg==0.3.9
 pytz==2017.3
-pyyaml==3.12
+pyyaml==5.1
 requests==2.18.4
-rsa==3.4.2
+rsa==4.0
 s3transfer==0.1.13
 singledispatch==3.4.0.3
 six==1.10.0
+snowflake-connector-python==1.7.9
 stevedore==1.19.1
 tornado==4.5.3
 ua-parser==0.3.6
+uritemplate==3.0.0
 urllib3==1.22
 user-agents==0.3.2
 vertica-python==0.6.11
 wheel==0.30.0
-wrapt==1.10.11            # via astroid
+wrapt==1.11.1             # via astroid
 yarn-api-client==0.2.3
