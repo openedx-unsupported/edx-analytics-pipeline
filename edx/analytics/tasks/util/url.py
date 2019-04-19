@@ -25,7 +25,7 @@ from luigi.contrib.hdfs import format as hdfs_format
 from luigi.contrib.hdfs.target import HdfsTarget
 from luigi.contrib.s3 import S3Target
 
-from edx.analytics.tasks.util.s3_util import DEFAULT_KEY_ACCESS_POLICY, S3HdfsTarget, ScalableS3Client
+from edx.analytics.tasks.util.s3_util import DEFAULT_KEY_ACCESS_POLICY, S3HdfsTarget
 
 log = logging.getLogger(__name__)
 
@@ -220,7 +220,6 @@ def get_target_class_from_url(url, marker=False):
         # everything else off the url and pass that in to the target.
         url = parsed_url.path
     if issubclass(target_class, S3Target):
-        kwargs['client'] = ScalableS3Client()
         kwargs['policy'] = DEFAULT_KEY_ACCESS_POLICY
     if issubclass(target_class, GCSTarget):
         raise NotImplementedError(
