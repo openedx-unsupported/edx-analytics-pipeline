@@ -5,13 +5,13 @@ import json
 import logging
 
 import luigi
+import snowflake.connector
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
+from snowflake.connector import ProgrammingError
 
-import snowflake.connector
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL
-from snowflake.connector import ProgrammingError
 
 log = logging.getLogger(__name__)
 
