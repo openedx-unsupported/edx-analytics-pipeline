@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from fnmatch import fnmatch
-from urlparse import urlparse
+from urlparse import urlparse, urlunparse
 
 from luigi.contrib.hdfs.format import Plain
 from luigi.contrib.hdfs.target import HdfsTarget
@@ -122,22 +122,19 @@ def _filter_matches(patterns, names):
     return (n for n in names if func(n))
 
 
+# TODO: Once we upgrade to boto3 (luigi>=2.7.6), delete this class! In boto3/luigi>=2.7.6, we must
+# NOT pass `host` to the s3 client or else it will throw a KeyError.  boto3 will already default to
+# s3.amazonaws.com.
 class ScalableS3Client(S3Client):
     """
-    S3 client that adds support for defaulting host name.
+    S3 client that adds support for defaulting host name to s3.amazonaws.com.
     """
-    # TODO: Make this behavior configurable and submit this change upstream.
 
-    def __init__(self, aws_access_key_id=None, aws_secret_access_key=None, **kwargs):
-
-        if not aws_access_key_id:
-            aws_access_key_id = self._get_s3_config('aws_access_key_id')
-        if not aws_secret_access_key:
-            aws_secret_access_key = self._get_s3_config('aws_secret_access_key')
+    def __init__(self, *args, **kwargs):
         if 'host' not in kwargs:
             kwargs['host'] = self._get_s3_config('host') or 's3.amazonaws.com'
 
-        super(ScalableS3Client, self).__init__(aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key, **kwargs)
+        super(ScalableS3Client, self).__init__(*args, **kwargs)
 
 
 class S3HdfsTarget(HdfsTarget):
@@ -162,3 +159,29 @@ class S3HdfsTarget(HdfsTarget):
             if not hasattr(self, 's3_client'):
                 self.s3_client = ScalableS3Client()
             return AtomicS3File(safe_path, self.s3_client, policy=DEFAULT_KEY_ACCESS_POLICY)
+
+
+def canonicalize_s3_url(url):
+    """
+    Convert the given s3 URL into a form which is safe to use with external tools.
+
+    Specifically, URL Schemes such as "s3+https" are unrecognized by gsutil and Snowflake, and must
+    be converted to "s3".
+
+    Args:
+        url (str): An s3 URL.
+
+    Raises:
+        ValueError: if the scheme of the input url is unrecognized as S3 at all.
+    """
+    parsed_url = urlparse(url)
+    if parsed_url.scheme == 's3':
+        canonical_url = url  # Simple passthrough, no change needed.
+    elif parsed_url.scheme == 's3+https':
+        new_url_parts = parsed_url._replace(scheme='s3')
+        canonical_url = urlunparse(new_url_parts)
+    else:
+        raise ValueError(
+            'The URL scheme "{}" does not appear to be an S3 URL scheme.'.format(parsed_url.scheme)
+        )
+    return canonical_url

@@ -53,9 +53,9 @@ class BigQueryTarget(luigi.Target):
         self.update_id = update_id
         with credentials_target.open('r') as credentials_file:
             json_creds = json.load(credentials_file)
-            self.project_id = json_creds['project_id']
-            credentials = service_account.Credentials.from_service_account_info(json_creds)
-            self.client = bigquery.Client(credentials=credentials, project=self.project_id)
+        self.project_id = json_creds['project_id']
+        credentials = service_account.Credentials.from_service_account_info(json_creds)
+        self.client = bigquery.Client(credentials=credentials, project=self.project_id)
 
     def touch(self):
         self.create_marker_table()
