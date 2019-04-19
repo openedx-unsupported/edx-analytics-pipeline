@@ -6,28 +6,26 @@
 #
 --no-binary ansible
 
--e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
 -e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
 ansible==1.4.5
 argparse==1.2.1
 asn1crypto==0.24.0
-azure-common==1.1.18      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
+azure-common==1.1.19      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
 azure-nspkg==3.0.2        # via azure-common, azure-storage-nspkg
 azure-storage-blob==1.5.0  # via snowflake-connector-python
 azure-storage-common==1.4.0  # via azure-storage-blob
 azure-storage-nspkg==3.1.0  # via azure-storage-common
 backports-abc==0.5        # via tornado
 bcrypt==3.1.6
-boto3==1.4.8
+boto3==1.9.131
 boto==2.48.0
-botocore==1.8.50          # via boto3, s3transfer, snowflake-connector-python
+botocore==1.12.133        # via boto3, s3transfer, snowflake-connector-python
 cachetools==3.1.0         # via google-auth
 certifi==2019.3.9         # via requests, snowflake-connector-python, tornado
-cffi==1.12.2
+cffi==1.12.3
 chardet==3.0.4            # via requests
 ciso8601==1.0.3
 cryptography==2.6.1
-distlib==0.2.2
 docutils==0.14            # via botocore, python-daemon
 ecdsa==0.13
 edx-ccx-keys==0.2.1
@@ -36,14 +34,15 @@ elasticsearch==1.7.0
 enum34==1.1.6
 filechunkio==1.8
 future==0.17.1            # via snowflake-connector-python, vertica-python
-futures==3.2.0            # via azure-storage-blob, google-cloud-core, s3transfer
-google-api-python-client==1.7.7
+futures==3.2.0            # via azure-storage-blob, google-api-core, s3transfer
+google-api-core==1.9.0    # via google-cloud-bigquery, google-cloud-core
+google-api-python-client==1.7.8
 google-auth-httplib2==0.0.3  # via google-api-python-client
-google-auth==1.6.3        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
-google-cloud-bigquery==0.27.0
-google-cloud-core==0.27.1  # via google-cloud-bigquery
+google-auth==1.6.3        # via google-api-core, google-api-python-client, google-auth-httplib2
+google-cloud-bigquery==1.11.2
+google-cloud-core==0.29.1  # via google-cloud-bigquery
 google-resumable-media==0.3.2  # via google-cloud-bigquery
-googleapis-common-protos==1.5.9  # via google-cloud-core
+googleapis-common-protos==1.5.9  # via google-api-core
 graphitesend==0.10.0
 html5lib==1.0b3
 httplib2==0.12.1
@@ -54,18 +53,19 @@ isoweek==1.3.3
 jinja2==2.8.1
 jmespath==0.9.4           # via boto3, botocore
 lockfile==0.12.2          # via python-daemon
+luigi==2.8.3
 markupsafe==1.1.1
 numpy==1.11.3
 paramiko==2.4.2
 paypalrestsdk==1.9.0
 pbr==5.1.3                # via stevedore
-protobuf==3.7.1           # via google-cloud-core, googleapis-common-protos
-psycopg2==2.6.2
+protobuf==3.7.1           # via google-api-core, google-cloud-bigquery, googleapis-common-protos
+psycopg2==2.8.1
 pyasn1-modules==0.2.4     # via google-auth, snowflake-connector-python
 pyasn1==0.4.5
 pycparser==2.19
 pycrypto==2.6.1
-pycryptodomex==3.8.0      # via snowflake-connector-python
+pycryptodomex==3.8.1      # via snowflake-connector-python
 pygeoip==0.3.2
 pyjwt==1.7.1              # via snowflake-connector-python
 pymongo==3.7.2            # via edx-opaque-keys
@@ -73,18 +73,18 @@ pynacl==1.3.0
 pyopenssl==19.0.0         # via paypalrestsdk, snowflake-connector-python
 python-cjson==1.1.0
 python-daemon==2.1.2
-python-dateutil==2.6.1
+python-dateutil==2.7.5
 python-gnupg==0.3.9
 pytz==2017.3
 pyyaml==5.1
 requests==2.18.4
 rsa==4.0                  # via google-auth
-s3transfer==0.1.13        # via boto3
+s3transfer==0.2.0         # via boto3
 singledispatch==3.4.0.3   # via tornado
 six==1.10.0
 snowflake-connector-python==1.7.9
 stevedore==1.19.1
-tornado==4.5.3
+tornado==4.5.3            # via luigi
 ua-parser==0.3.6
 uritemplate==3.0.0        # via google-api-python-client
 urllib3==1.22
