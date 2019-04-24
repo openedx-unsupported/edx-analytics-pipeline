@@ -122,21 +122,6 @@ def _filter_matches(patterns, names):
     return (n for n in names if func(n))
 
 
-# TODO: Once we upgrade to boto3 (luigi>=2.7.6), delete this class! In boto3/luigi>=2.7.6, we must
-# NOT pass `host` to the s3 client or else it will throw a KeyError.  boto3 will already default to
-# s3.amazonaws.com.
-class ScalableS3Client(S3Client):
-    """
-    S3 client that adds support for defaulting host name to s3.amazonaws.com.
-    """
-
-    def __init__(self, *args, **kwargs):
-        if 'host' not in kwargs:
-            kwargs['host'] = self._get_s3_config('host') or 's3.amazonaws.com'
-
-        super(ScalableS3Client, self).__init__(*args, **kwargs)
-
-
 class S3HdfsTarget(HdfsTarget):
     """HDFS target that supports writing and reading files directly in S3."""
 
@@ -157,7 +142,7 @@ class S3HdfsTarget(HdfsTarget):
         else:
             safe_path = self.path.replace('s3n://', 's3://')
             if not hasattr(self, 's3_client'):
-                self.s3_client = ScalableS3Client()
+                self.s3_client = S3Client()
             return AtomicS3File(safe_path, self.s3_client, policy=DEFAULT_KEY_ACCESS_POLICY)
 
 

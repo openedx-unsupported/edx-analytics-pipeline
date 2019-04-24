@@ -14,10 +14,11 @@ import urlparse
 
 import gnupg
 
+from luigi.contrib.s3 import S3Client
+
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available
 from edx.analytics.tasks.tests.acceptance.services import shell
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id, get_org_id_for_course
-from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import url_path_join
 
 log = logging.getLogger(__name__)
@@ -198,7 +199,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         """
         today = datetime.datetime.utcnow().strftime('%Y-%m-%d')
-        bucket = ScalableS3Client().s3.get_bucket(self.config.get('exporter_output_bucket'))
+        bucket = S3Client().s3.get_bucket(self.config.get('exporter_output_bucket'))
         export_id = '{org}-{date}'.format(org=org_id, date=today)
         filename = export_id + '.zip'
         key = bucket.lookup(self.output_prefix + filename)

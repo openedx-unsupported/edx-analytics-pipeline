@@ -9,10 +9,10 @@ import unittest
 import boto
 import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
+from luigi.contrib.s3 import S3Client
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
-from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def when_s3_available(function):
     s3_available = getattr(when_s3_available, 's3_available', None)
     if s3_available is None:
         try:
-            connection = ScalableS3Client().s3
+            connection = S3Client().s3
             # ^ The above line will not error out if AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY
             # are set, so it can't be used to check if we have a valid connection to S3. Instead:
             connection.get_all_buckets()
@@ -142,7 +142,7 @@ class AcceptanceTestCase(unittest.TestCase):
 
     def setUp(self):
         try:
-            self.s3_client = ScalableS3Client()
+            self.s3_client = S3Client()
         except Exception:
             self.s3_client = None
 

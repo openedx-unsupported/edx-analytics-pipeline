@@ -10,7 +10,7 @@ ansible==1.4.5
 asn1crypto==0.24.0        # via cryptography
 bcrypt==3.1.6             # via paramiko
 boto==2.48.0
-cffi==1.12.2              # via bcrypt, cryptography, pynacl
+cffi==1.12.3              # via bcrypt, cryptography, pynacl
 cryptography==2.6.1       # via paramiko
 ecdsa==0.13
 enum34==1.1.6             # via cryptography
