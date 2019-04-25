@@ -704,27 +704,31 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         if self.output_root is None:
             self.output_root = self.warehouse_path
 
-        path = url_path_join(self.warehouse_path, 'payments')
-        path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
+        payments_path = url_path_join(self.warehouse_path, 'payments')
+        existing_paypal_targets = PathSetTask([payments_path], include=['*paypal.tsv']).output()
+        existing_paypal_paths = list(set([os.path.dirname(target.path) for target in existing_paypal_targets]))
+        existing_paypal_dates = sorted([path.rsplit('/', 2)[-1] for path in existing_paypal_paths])
 
-        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-        run_date = latest_completion_date + datetime.timedelta(days=1)
+        if existing_paypal_dates:
+            latest_completion_date = datetime.datetime.strptime(existing_paypal_dates[-1], "dt=%Y-%m-%d").date()
+            run_date = latest_completion_date + datetime.timedelta(days=1)
+            self.selection_interval = date_interval.Custom(self.interval_start, run_date)
+        else:
+            run_date = self.interval_start
+            self.selection_interval = None
 
-        self.selection_interval = date_interval.Custom(self.interval_start, run_date)
         self.run_interval = date_interval.Custom(run_date, self.interval_end)
 
     def requires(self):
 
-        yield PathSelectionByDateIntervalTask(
-            source=[url_path_join(self.warehouse_path, 'payments')],
-            interval=self.selection_interval,
-            pattern=['.*dt=(?P<date>\\d{4}-\\d{2}-\\d{2})/paypal\\.tsv'],
-            expand_interval=datetime.timedelta(0),
-            date_pattern='%Y-%m-%d',
-        )
+        if self.selection_interval:
+            yield PathSelectionByDateIntervalTask(
+                source=[url_path_join(self.warehouse_path, 'payments')],
+                interval=self.selection_interval,
+                pattern=['.*dt=(?P<date>\\d{4}-\\d{2}-\\d{2})/paypal\\.tsv'],
+                expand_interval=datetime.timedelta(0),
+                date_pattern='%Y-%m-%d',
+            )
 
         for day in self.run_interval:
             yield PaypalTransactionsByDayTask(
