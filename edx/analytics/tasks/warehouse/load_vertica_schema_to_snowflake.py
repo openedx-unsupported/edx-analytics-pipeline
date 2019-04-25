@@ -7,6 +7,7 @@ import logging
 import re
 
 import luigi
+
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
 from edx.analytics.tasks.common.vertica_export import get_vertica_results
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
