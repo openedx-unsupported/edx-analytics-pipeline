@@ -1,3 +1,7 @@
+--attempting to map anonymous_id to user_id and user_name
+--always looking over the last 3 days in case we fall behind, the pipeline fails, etc.
+--we de-dupe later so no concern about data integrity, this is just a bit more robust.
+
 DROP TABLE IF EXISTS business_intelligence.production.tmp_identify_daily;
 CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS business_intelligence.production.tmp_identify_daily ON COMMIT PRESERVE ROWS AS
 
