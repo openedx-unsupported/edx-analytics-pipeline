@@ -17,6 +17,7 @@ try:
     from google.cloud import bigquery
     from google.oauth2 import service_account
     from google.cloud.exceptions import NotFound
+    from google.api.core.exceptions import ServiceUnavailable
     bigquery_available = True  # pylint: disable=invalid-name
 except ImportError:
     log.warn('Unable to import Bigquery libraries')
@@ -35,7 +36,13 @@ def wait_for_job(job, check_error_result=True):
         if counter == RETRY_LIMIT:
             raise RuntimeError("Retry limit exceeded while waiting on job.")
 
-        job.reload()
+        try:
+            job.reload()
+        except ServiceUnavailable:
+            counter += 1
+            time.sleep(WAIT_DURATION)
+            continue
+
         if job.state == 'DONE':
             if check_error_result and job.error_result:
                 raise RuntimeError(job.errors)
