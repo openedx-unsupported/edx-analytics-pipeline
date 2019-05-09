@@ -122,6 +122,12 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         username = event.get('username', '').strip()
         if not username:
             return
+        if len(username) > 30:
+            # User retirement process generates usernames containing 54
+            # characters, at the time of writing.  It's unusual that an event
+            # would be emitted with a retired username, but the least we can do
+            # is skip these events.
+            return
 
         event_type = event.get('event_type')
         if event_type is None:
