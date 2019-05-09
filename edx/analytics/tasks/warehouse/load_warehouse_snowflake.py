@@ -13,6 +13,67 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import
 )
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
 
+class LoadInternalfOrderItemTransactionsToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
+
+    @property
+    def table(self):
+        return 'f_orderitem_transactions'
+
+    @property
+    def file_format_name(self):
+        return 'hive_tsv_format'
+
+    @property
+    def columns(self):
+        return [
+            ('order_audit_code', 'varchar(255)'),
+            ('orderitem_audit_code', 'varchar(255)'),
+            ('transaction_audit_code', 'varchar(255)'),
+            ('partner_short_code', 'varchar(8)'),
+            ('payment_ref_id', 'varchar(128)'),
+            ('order_id', 'integer'),
+            ('unique_order_id', 'varchar(255)'),
+            ('order_timestamp', 'timestamp'),
+            ('transaction_date', 'varchar(128)'),
+            ('transaction_id', 'varchar(128)'),
+            ('unique_transaction_id', 'varchar(255)'),
+            ('transaction_payment_gateway_id', 'varchar(128)'),
+            ('transaction_payment_gateway_account_id', 'varchar(128)'),
+            ('transaction_type', 'varchar(255)'),
+            ('transaction_payment_method', 'varchar(128)'),
+            ('transaction_amount', 'numeric(12,2)'),
+            ('transaction_iso_currency_code', 'varchar(12)'),
+            ('transaction_fee', 'numeric(12,2)'),
+            ('transaction_amount_per_item', 'numeric(12,2)'),
+            ('transaction_fee_per_item', 'numeric(12,2)'),
+            ('order_line_item_id', 'integer'),
+            ('unique_order_line_item_id', 'varchar(255)'),
+            ('order_line_item_product_id', 'integer'),
+            ('order_line_item_price', 'numeric(12,2)'),
+            ('order_line_item_unit_price', 'numeric(12,2)'),
+            ('order_line_item_quantity', 'integer'),
+            ('order_coupon_id', 'integer'),
+            ('order_discount_amount', 'numeric(12,2)'),
+            ('order_voucher_id', 'integer'),
+            ('order_voucher_code', 'varchar(255)'),
+            ('order_refunded_amount', 'numeric(12,2)'),
+            ('order_refunded_quantity', 'integer'),
+            ('order_user_id', 'integer'),
+            ('order_username', 'varchar(30)'),
+            ('order_user_email', 'varchar(254)'),
+            ('order_product_class', 'varchar(128)'),
+            ('order_product_detail', 'varchar(255)'),
+            ('order_course_id', 'varchar(255)'),
+            ('order_org_id', 'varchar(128)'),
+            ('order_processor', 'varchar(32)'),
+            ('course_uuid', 'varchar(255)'),
+            ('expiration_date', 'timestamp'),
+            ('created', 'timestamp DEFAULT now()'),
+        ]
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(url=self.hive_partition_path('reconciled_order_transactions', self.date))
 
 class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
 
