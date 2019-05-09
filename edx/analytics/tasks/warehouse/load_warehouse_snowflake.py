@@ -68,7 +68,7 @@ class LoadInternalfOrderItemTransactionsToSnowflake(WarehouseMixin, SnowflakeLoa
             ('order_processor', 'varchar(32)'),
             ('course_uuid', 'varchar(255)'),
             ('expiration_date', 'timestamp'),
-            ('created', 'timestamp DEFAULT now()'),
+            ('created', 'timestamp DEFAULT current_timestamp(0)'),
         ]
 
     @property
