@@ -146,7 +146,7 @@ class VerticaSchemaToSnowflakeTask(LoadVerticaTableFromS3ToSnowflakeMixin,
         """
         Determines whether to exclude a table during the import.
         """
-        if any(re.match(pattern, table_name) for pattern in self.exclude): # pylint: disable=not-an-iterable
+        if any(re.match(pattern, table_name) for pattern in self.exclude):  # pylint: disable=not-an-iterable
             return True
         return False
 
