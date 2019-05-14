@@ -1,9 +1,10 @@
 # This file describes this Open edX repo, as described in OEP-2:
-# http://open-edx-proposals.readthedocs.io/en/latest/oeps/oep-0002.html#specification
+# https://open-edx-proposals.readthedocs.io/en/latest/oep-0002-bp-repo-metadata.html#specification
 
+owner: edx/edx-data-engineering
 nick: pipe
+tags:
+  - analytics
+  - data-engineering
 oeps: {}
 openedx-release: {ref: release}
-owner: edx/analytics
-tags: [analytics]
-track-pulls: true
