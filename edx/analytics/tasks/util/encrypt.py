@@ -99,14 +99,14 @@ def _import_key_files(gpg_instance, key_file_targets, hadoop_counter_incr_func=D
                             log.error("Error key with fingerprint: '%s' and recipient '%s' has expired!!!",
                                       key_fingerprint, test_key["uids"])
                             for recipient in test_key["uids"]:
-                                hadoop_counter_incr_func("GPG Key for {} has expired".format(recipient.encode("ascii", "ignore")))
+                                hadoop_counter_incr_func(u"GPG Key for {} has expired".format(recipient))
                                 hadoop_counter_incr_func("Keys expired")
                         elif next_week > key_expire:
                             log.info("Warning key with fingerprint: " +
                                      "'%s' and recipient '%s' will expire in the next week",
                                      key_fingerprint, test_key["uids"])
                             for recipient in test_key["uids"]:
-                                hadoop_counter_incr_func("GPG Key for {} is near expiry".format(recipient.encode("ascii", "ignore")))
+                                hadoop_counter_incr_func(u"GPG Key for {} is near expiry".format(recipient))
                                 hadoop_counter_incr_func("Keys expiring")
 
 
