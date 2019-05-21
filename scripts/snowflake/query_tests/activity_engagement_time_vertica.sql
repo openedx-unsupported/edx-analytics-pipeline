@@ -1,25 +1,14 @@
 -- This SQL script creates a database, so needs higher privileges.
-USE ROLE ACCOUNTADMIN;
+--USE ROLE ACCOUNTADMIN;
 
 -- Create a new DB/schema/role for this test.
-DROP DATABASE IF EXISTS TEST_ACTIVITY_ENGAGE_TIME;
-CREATE DATABASE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME COMMENT='activity_engagement_time.sql test';
-USE DATABASE TEST_ACTIVITY_ENGAGE_TIME;
-CREATE SCHEMA IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA COMMENT='activity_engagement_time.sql test';
-CREATE OR REPLACE ROLE TEST_ACTIVITY_ENGAGE_TIME_ROLE COMMENT='activity_engagement_time.sql test';
-
--- Grant all privileges on the created DB/schema to the new role.
-GRANT ALL ON DATABASE TEST_ACTIVITY_ENGAGE_TIME TO TEST_ACTIVITY_ENGAGE_TIME_ROLE;
-GRANT ALL ON ALL SCHEMAS IN DATABASE TEST_ACTIVITY_ENGAGE_TIME TO TEST_ACTIVITY_ENGAGE_TIME_ROLE;
-GRANT ROLE SNOWFLAKE_EVALUATION_ROLE TO ROLE TEST_ACTIVITY_ENGAGE_TIME_ROLE;
-
--- The test role should be granted to your own user's role in order to view the data.
-GRANT ROLE TEST_ACTIVITY_ENGAGE_TIME_ROLE TO ROLE JULIASQ_EVAL_ROLE;
-USE ROLE TEST_ACTIVITY_ENGAGE_TIME_ROLE;
+DROP SCHEMA IF EXISTS TEST_ACTIVITY_ENGAGE_TIME CASCADE;
+CREATE SCHEMA IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME GRANT USAGE, CREATE ON SCHEMA TEST_ACTIVITY_ENGAGE_TIME TO public;
+-- USE SCHEMA TEST_ACTIVITY_ENGAGE_TIME;
 
 
 
-CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily (
+CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily (
         date DATE,
         user_id INTEGER,
         course_id VARCHAR(255),
@@ -33,22 +22,22 @@ CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_eng
         cnt_problem_activity INTEGER,
         is_engaged_forum INTEGER,
         cnt_forum_activity INTEGER
-) COMMENT='activity_engagement_time.sql test';
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+);
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --dummy insert to initialize the table
 
-INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily (date)
+INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily (date)
 SELECT
     '2012-08-31'
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily
+    TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily
 HAVING
     COUNT(date)=0;
 
 --daily record of what a user did in any given course on any given day
 
-INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily (
+INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily (
 
     SELECT
         date,
@@ -68,13 +57,13 @@ INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_da
         SUM(CASE WHEN activity_type = 'POSTED_FORUM' THEN 1 ELSE 0 END) AS is_engaged_forum,
         SUM(CASE WHEN activity_type = 'POSTED_FORUM' THEN number_of_activities ELSE 0 END) AS cnt_forum_activity
     FROM
-        production.production.f_user_activity a
+        production.f_user_activity a
     JOIN
     (
         SELECT
             MAX(date) AS latest_date
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily
+            TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily
     ) b
     ON
         a.date > b.latest_date
@@ -87,7 +76,7 @@ INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_da
 
 --rollup of user level view at the course level
 
-CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_course_daily AS
+CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_course_daily AS
 
 SELECT
     date,
@@ -103,18 +92,18 @@ SELECT
     SUM(is_engaged_forum) AS cnt_engaged_forum_users,
     SUM(cnt_forum_activity) AS sum_forum_activity
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily
+    TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily
 GROUP BY
     date,
     course_id;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_course_daily SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_course_daily SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_course_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_course_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 
 --initialize the eligible users table
 
-CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users (
+CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users (
         date DATE,
         user_id INTEGER,
         course_id VARCHAR(255),
@@ -124,13 +113,13 @@ CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activit
         course_pass_date DATE,
         days_from_content_availability INTEGER,
         week VARCHAR(255)
-) COMMENT='activity_engagement_time.sql test';
+);
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --insert earliest activity date to initialize table
 
-INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users (date)
+INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users (date)
 
 SELECT
     activity.min_date_activity
@@ -139,14 +128,14 @@ FROM
     SELECT
         MIN(date) AS min_date_users
     FROM
-        TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users
+        TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users
 ) users
 FULL OUTER JOIN
 (
     SELECT
         MIN(date) AS min_date_activity
     FROM
-        production.production.f_user_activity
+        production.f_user_activity
 ) activity
 ON
     1=1
@@ -156,23 +145,23 @@ WHERE
 
 --identify the new users that we want to start tracking for engagement
 
-CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_activity_engagement_eligible_users AS
+CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_activity_engagement_eligible_users ON COMMIT PRESERVE ROWS AS
 
 SELECT
     content_availability.user_id,
     content_availability.course_id,
     content_availability.content_availability_date,
-    TO_DATE(content_availability.first_enrollment_time) AS first_enrollment_date,
-    TO_DATE(content_availability.last_unenrollment_time) AS last_unenrollment_date,
+    DATE_TRUNC('DAY', content_availability.first_enrollment_time) AS first_enrollment_date,
+    DATE_TRUNC('DAY', content_availability.last_unenrollment_time) AS last_unenrollment_date,
     CASE
-        WHEN cert.has_passed = 1 THEN TO_DATE(cert.modified_date)
+        WHEN cert.has_passed = 1 THEN cert.modified_date::TIMESTAMP
         ELSE NULL
     END AS course_pass_date,
     course.course_start_date
 FROM
-    business_intelligence.production.user_content_availability_date content_availability
+    business_intelligence.user_content_availability_date content_availability
 JOIN
-    business_intelligence.production.course_master course
+    business_intelligence.course_master course
 ON
     content_availability.course_id = course.course_id
 AND
@@ -183,11 +172,11 @@ LEFT JOIN
         user_id,
         course_id
     FROM
-       business_intelligence.production.user_activity_engagement_eligible_users
+       business_intelligence.user_activity_engagement_eligible_users
     WHERE
         days_from_content_availability = 0
     AND
-        date BETWEEN DATEADD('day', -14, '2018-04-26') AND '2018-04-26'
+        date BETWEEN TIMESTAMPADD(day, -14, '4-26-2018'::TIMESTAMP) AND '4-26-2018'::TIMESTAMP
     GROUP BY
         user_id,
         course_id
@@ -197,19 +186,20 @@ ON
 AND
     content_availability.course_id = latest.course_id
 LEFT JOIN
-    production.production.d_user_course_certificate cert
+    production.d_user_course_certificate cert
 ON
     content_availability.user_id = cert.user_id
 AND
     content_availability.course_id = cert.course_id
 WHERE
-    latest.user_id IS NULL;
+    latest.user_id IS NULL
+;
 
 
 --add the new users from above into the master tracking table
 --add new dates for all users who are within 35 days of content availability
 
-INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users (
+INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users (
 
     SELECT
         cal.date,
@@ -252,7 +242,7 @@ INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_el
             course_pass_date,
             MAX(date) + 1 AS latest_date
         FROM
-            business_intelligence.production.user_activity_engagement_eligible_users
+            business_intelligence.user_activity_engagement_eligible_users
         GROUP BY
             user_id,
             course_id,
@@ -264,7 +254,7 @@ INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_el
             DATEDIFF('day', content_availability_date, MAX(date) + 1) BETWEEN 0 AND 34
     ) users
     JOIN
-        business_intelligence.production.calendar cal
+        business_intelligence.calendar cal
     ON
         cal.date BETWEEN users.latest_date AND CURRENT_DATE()
     AND
@@ -276,7 +266,7 @@ INSERT INTO TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_el
 --remove users from calculation as soon as they unenroll or complete
 --choosing to do this over the entire table everyday in case we add new engagement actions that we would like to backfill
 
-CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_user_activity_engagement_daily AS
+CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_user_activity_engagement_daily ON COMMIT PRESERVE ROWS AS
 
 SELECT
     users.date,
@@ -299,9 +289,9 @@ SELECT
     COALESCE(activity.is_engaged_forum, 0) AS is_engaged_forum,
     COALESCE(activity.cnt_forum_activity, 0) AS cnt_forum_activity
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_eligible_users users
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users users
 LEFT JOIN
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_activity_engagement_user_daily activity
+    TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily activity
 ON
     users.user_id = activity.user_id
 AND
@@ -319,12 +309,13 @@ AND
     users.date <= users.course_pass_date
     OR
     users.course_pass_date IS NULL
-);
+)
+;
 
 
 --daily rollup per (user_id, course_id)
 
-CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily AS
+CREATE TABLE IF NOT EXISTS TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily AS
 
 SELECT
     date,
@@ -363,13 +354,13 @@ GROUP BY
     cnt_problem_activity,
     is_engaged_forum,
     cnt_forum_activity;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --weekly rollup per (user_id, course_id)
 
-CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly AS
+CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly AS
 SELECT
     user_id,
     course_id,
@@ -382,18 +373,18 @@ SELECT
         ELSE 'high_engagement'
     END AS weekly_engagement_level
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily
 GROUP BY
     user_id,
     course_id,
     week;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --aggregated daily rollup
 
-CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily_agg AS
+CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily_agg AS
 SELECT
     daily.date,
     daily.course_id,
@@ -402,9 +393,9 @@ SELECT
     week1.weekly_engagement_level AS week_1_engagement_level,
     COUNT(1) AS cnt_users
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily daily
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily daily
 JOIN
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly week1
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly week1
 ON
     daily.user_id = week1.user_id
 AND
@@ -417,13 +408,13 @@ GROUP BY
     daily.week,
     daily.weekly_engagement_level,
     week1.weekly_engagement_level;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily_agg SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily_agg SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily_agg TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily_agg TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --aggregated weekly rollup
 
-CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly_agg AS
+CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg AS
 SELECT
     summary.course_id,
     summary.week,
@@ -431,7 +422,7 @@ SELECT
     week1.weekly_engagement_level AS week_1_engagement_level,
     COUNT(1) AS cnt_users
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly summary
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly summary
 JOIN
     (
         SELECT
@@ -439,7 +430,7 @@ JOIN
             course_id,
             weekly_engagement_level
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly
+            TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly
         WHERE
             week = 'week_1'
     ) week1
@@ -452,13 +443,13 @@ GROUP BY
     summary.week,
     summary.weekly_engagement_level,
     week1.weekly_engagement_level;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly_agg SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly_agg TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --Beginning of Daily Course and Course Level Week 1 Engagement Tables
 --Temp Table for Engagement Eligible Users by Date and Course_id
-CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_eligible AS
+CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_eligible ON COMMIT PRESERVE ROWS AS
 SELECT
     date,
     course_id,
@@ -470,7 +461,7 @@ FROM
             user_id,
             course_id
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily
+            TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily
         WHERE
             week = 'week_1'
         GROUP BY
@@ -479,11 +470,12 @@ FROM
     ) engagement_eligible
 GROUP BY
     date,
-    course_id;
+    course_id
+;
 
 
 --Temp table for Engaged Users by Date and Course_id
-CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_engaged AS
+CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_engaged ON COMMIT PRESERVE ROWS AS
 SELECT
     date,
     course_id,
@@ -495,7 +487,7 @@ FROM
             user_id,
             course_id
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily
+            TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily
         WHERE
             week = 'week_1'
         AND
@@ -506,11 +498,12 @@ FROM
     ) engaged
 GROUP BY
     date,
-    course_id;
+    course_id
+;
 
 
 --Temp table for High Engaged Users by Date and Course_id
-CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_high_engaged AS
+CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS tmp_daily_high_engaged ON COMMIT PRESERVE ROWS AS
 SELECT
     date,
     course_id,
@@ -522,7 +515,7 @@ FROM
             user_id,
             course_id
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_daily
+            TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily
         WHERE
             week = 'week_1'
         AND
@@ -533,12 +526,13 @@ FROM
     ) high_engaged
 GROUP BY
     date,
-    course_id;
+    course_id
+;
 
 
 
 --Combine all Tables into One Master Table
-CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_daily AS
+CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_daily AS
 SELECT
     cal.date,
     eligible.course_id,
@@ -547,7 +541,7 @@ SELECT
     COALESCE(high_engaged.week_1_cnt_high_engaged_users, 0) AS week_1_cnt_high_engaged_users,
     COALESCE(engaged.week_1_cnt_engaged_users, 0) - COALESCE(high_engaged.week_1_cnt_high_engaged_users, 0) AS week_1_cnt_minimal_engaged_users
 FROM
-    business_intelligence.production.calendar cal
+    business_intelligence.calendar cal
 LEFT JOIN
     tmp_daily_eligible eligible
 ON
@@ -564,12 +558,12 @@ ON
     cal.date = high_engaged.date
 AND
     eligible.course_id = high_engaged.course_id;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_daily SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_daily SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_daily TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 --Course Level Engagement Summary Table
-CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_summary AS
+CREATE TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_summary AS
 SELECT
     a.course_id,
     SUM(
@@ -598,25 +592,41 @@ SELECT
         CASE
             WHEN weekly_engagement_level IN ('minimal_engagement', 'high_engagement') THEN cnt_users
             ELSE 0 END
-        )/(CASE WHEN week_1_cnt_engagement_eligible_users = 0 THEN 1 ELSE week_1_cnt_engagement_eligible_users END) AS week_1_engagement_rate,
+        )/(CASE WHEN SUM(cnt_users) = 0 THEN 1 ELSE SUM(cnt_users) END) AS week_1_engagement_rate,
     SUM(
         CASE
             WHEN weekly_engagement_level = 'high_engagement' THEN cnt_users
             ELSE 0 END
-        )/(CASE WHEN week_1_cnt_engagement_eligible_users = 0 THEN 1 ELSE week_1_cnt_engagement_eligible_users END) AS week_1_high_engagement_rate,
+        )/(CASE WHEN SUM(cnt_users) = 0 THEN 1 ELSE SUM(cnt_users) END) AS week_1_high_engagement_rate,
     SUM(
         CASE
             WHEN weekly_engagement_level = 'minimal_engagement' THEN cnt_users
             ELSE 0 END
-        )/(CASE WHEN week_1_cnt_engagement_eligible_users = 0 THEN 1 ELSE week_1_cnt_engagement_eligible_users END) AS week_1_minimal_engagement_rate,
+        )/(CASE WHEN SUM(cnt_users) = 0 THEN 1 ELSE SUM(cnt_users) END) AS week_1_minimal_engagement_rate,
     SUM(
         CASE
             WHEN weekly_engagement_level = 'high_engagement' THEN cnt_users
             ELSE 0 END
-        )/(CASE WHEN week_1_cnt_users = 0 THEN 1 ELSE week_1_cnt_users END) AS week_1_return_rate,
-    COALESCE(week_2_cnt_engaged_users, 0)/(CASE WHEN week_1_cnt_users = 0 THEN 1 ELSE week_1_cnt_users END) AS week_1_retention_rate
+        )/(CASE WHEN SUM(
+        CASE
+            WHEN weekly_engagement_level IN ('minimal_engagement', 'high_engagement') THEN cnt_users
+            ELSE 0 END
+        ) = 0 THEN 1 ELSE SUM(
+        CASE
+            WHEN weekly_engagement_level IN ('minimal_engagement', 'high_engagement') THEN cnt_users
+            ELSE 0 END
+        ) END) AS week_1_return_rate,
+    COALESCE(week_2_cnt_engaged_users, 0)/(CASE WHEN SUM(
+        CASE
+            WHEN weekly_engagement_level IN ('minimal_engagement', 'high_engagement') THEN cnt_users
+            ELSE 0 END
+        ) = 0 THEN 1 ELSE SUM(
+        CASE
+            WHEN weekly_engagement_level IN ('minimal_engagement', 'high_engagement') THEN cnt_users
+            ELSE 0 END
+        ) END) AS week_1_retention_rate
 FROM
-    TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly_agg a
+    TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg a
 LEFT JOIN
     (
         SELECT
@@ -627,7 +637,7 @@ LEFT JOIN
                     ELSE 0 END
             ) AS week_2_cnt_engaged_users
         FROM
-            TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_user_activity_engagement_weekly_agg
+            TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg
         WHERE
             week_1_engagement_level IN ('minimal_engagement', 'high_engagement')
         AND
@@ -642,14 +652,24 @@ WHERE
 GROUP BY
     a.course_id,
     week_2_cnt_engaged_users;
-ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_summary SET COMMENT='activity_engagement_time.sql test';
+-- ALTER TABLE TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_summary SET COMMENT='activity_engagement_time.sql test';
 
-GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.TEST_SCHEMA.tt_course_week_1_engagement_summary TO ROLE SNOWFLAKE_EVALUATION_ROLE;
+-- GRANT SELECT ON TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_summary TO ROLE SNOWFLAKE_EVALUATION_ROLE;
 
 DROP TABLE IF EXISTS tmp_activity_engagement_eligible_users;
 DROP TABLE IF EXISTS tmp_user_activity_engagement_daily;
 DROP TABLE IF EXISTS tmp_daily_eligible;
 DROP TABLE IF EXISTS tmp_daily_engaged;
 DROP TABLE IF EXISTS tmp_daily_high_engaged;
+
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_user_daily;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_activity_engagement_course_daily;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_eligible_users;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_daily_agg;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_user_activity_engagement_weekly_agg;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_daily;
+SELECT COUNT(*) FROM TEST_ACTIVITY_ENGAGE_TIME.tt_course_week_1_engagement_summary;
 
 
