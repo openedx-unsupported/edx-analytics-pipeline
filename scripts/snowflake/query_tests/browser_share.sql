@@ -15,7 +15,7 @@ FROM
       ) AS month,
       CASE WHEN ee.lms_user_id IS NULL THEN 'consumer' ELSE 'enterprise' END AS user_type
     FROM events.events.json_event_records AS er
-    LEFT JOIN (
+    LEFT OUTER JOIN (
       SELECT distinct lms_user_id::string AS lms_user_id
       FROM business_intelligence.production.enterprise_enrollment
      ) AS ee
