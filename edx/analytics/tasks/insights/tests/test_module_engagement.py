@@ -184,6 +184,63 @@ class ModuleEngagementTaskMapLegacyKeysTest(InitializeLegacyKeysMixin, ModuleEng
 
 
 @ddt
+class ModuleEngagementTaskAnonymousUserTest(InitializeOpaqueKeysMixin, MapperTestMixin, TestCase):
+    """
+    Tests to verify that anonymous users are stored or omitted as configured.
+    """
+
+    DEFAULT_USER_ID = 10
+    DEFAULT_TIMESTAMP = "2013-12-17T15:38:32.805444"
+    DEFAULT_DATE = "2013-12-17"
+
+    def setUp(self):
+        super(ModuleEngagementTaskAnonymousUserTest, self).setUp()
+
+        self.initialize_ids()
+        self.anonymous_username = 'ANONYMOUS USER'
+        self.video_id = 'i4x-foo-bar-baz'
+        self.event_templates = {
+            'play_video': {
+                "host": "test_host",
+                "event_source": "browser",
+                "event_type": "play_video",
+                "context": {
+                    "course_id": self.course_id,
+                    "org_id": self.org_id,
+                },
+                "time": "{0}+00:00".format(self.DEFAULT_TIMESTAMP),
+                "ip": "127.0.0.1",
+                "event": '{"id": "%s", "currentTime": "23.4398", "code": "87389iouhdfh"}' % self.video_id,
+                "agent": "blah, blah, blah",
+                "page": None
+            },
+        }
+        self.default_event_template = 'play_video'
+
+
+    def create_task(self, store_anonymous_username=None):  # pylint: disable=arguments-differ
+        """Allow arguments to be passed to the task constructor."""
+        self.task = ModuleEngagementDataTask(
+            date=luigi.DateParameter().parse(self.DEFAULT_DATE),
+            store_anonymous_username=store_anonymous_username,
+            output_root='/fake/output',
+        )
+        self.task.init_local()
+
+    def test_no_store_anonymous_username(self):
+        self.create_task()
+        self.assert_no_map_output_for(self.create_event_log_line())
+
+    def test_store_anonymous_username(self):
+        self.create_task(store_anonymous_username=self.anonymous_username)
+        self.assert_single_map_output(
+            self.create_event_log_line(),
+            (self.encoded_course_id, self.anonymous_username, self.DEFAULT_DATE, 'video', self.video_id, 'viewed'),
+            1
+        )
+
+
+@ddt
 class ModuleEngagementTaskReducerTest(ReducerTestMixin, TestCase):
     """
     Tests to verify that engagement data is reduced properly
