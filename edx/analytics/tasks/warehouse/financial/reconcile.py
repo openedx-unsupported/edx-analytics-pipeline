@@ -15,7 +15,7 @@ from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask, Warehous
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.warehouse.financial.orders_import import OrderTableTask
+from edx.analytics.tasks.warehouse.financial.orders_import import FullOrderTableTask, OrderTableTask
 from edx.analytics.tasks.warehouse.financial.payment import PaymentTask
 
 log = logging.getLogger(__name__)
@@ -991,3 +991,53 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('course_uuid', 'VARCHAR(255)'),
             ('expiration_date', 'TIMESTAMP'),
         ]
+
+
+class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask):
+    """
+    Compare all orders and transactions.
+
+    """
+
+    def requires(self):
+        yield (
+            FullOrderTableTask(
+                import_date=self.import_date
+            ),
+            PaymentTask(
+                import_date=self.import_date,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            )
+        )
+
+
+class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportingOrderTransactionsToWarehouse):
+    """
+    Loads fullorder-transaction table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            ReconcileFullOrdersAndTransactionsTask(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                # Get the location of the Hive table, so it can be opened and read.
+                output_root=url_path_join(
+                    self.warehouse_path,
+                    'reconciled_fullorder_transactions',
+                    'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
+                ) + '/',
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            )
+        )
+
+    @property
+    def table(self):
+        return 'f_orderline_transactions'
+
+
