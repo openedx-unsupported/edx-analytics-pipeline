@@ -520,6 +520,7 @@ class ImportEcommerceUser(ImportMysqlToHiveTableTask):
             ('id', 'INT'),
             ('username', 'STRING'),
             ('email', 'STRING'),
+            ('lms_user_id', 'INT'),
         ]
 
 
