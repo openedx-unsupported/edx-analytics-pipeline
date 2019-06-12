@@ -499,8 +499,8 @@ class FullOrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     entitlements.expired_at AS expiration_date
 
                 FROM order_line ol
-                LEFT JOIN order_order o ON o.id = ol.order_id
-                LEFT JOIN ecommerce_user u ON u.id = o.user_id
+                INNER JOIN order_order o ON o.id = ol.order_id
+                INNER JOIN ecommerce_user u ON u.id = o.user_id
 
                 -- Order lines are associated with "child" products OR "standalone" products
                 LEFT JOIN catalogue_product cp ON cp.id = ol.product_id

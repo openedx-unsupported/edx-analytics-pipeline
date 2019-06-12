@@ -1041,3 +1041,61 @@ class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportin
         return 'f_orderline_transactions'
 
 
+class LoadInternalReportingFullOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            FullOrderTableTask(
+                import_date=self.import_date
+            )
+        )
+
+    @property
+    def table(self):
+        return 'full_orders'
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('order_processor', 'VARCHAR(32)'),
+            ('user_id', 'INTEGER'),
+            ('order_id', 'INTEGER'),
+            ('order_line_id', 'INTEGER'),
+            ('line_item_product_id', 'INTEGER'),
+            ('line_item_price', 'DECIMAL(12,2)'),
+            ('line_item_unit_price', 'DECIMAL(12,2)'),
+            ('line_item_quantity', 'INTEGER'),
+            ('product_class', 'VARCHAR(128)'),
+            ('course_key', 'VARCHAR(255)'),  # originally longtext
+            ('product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('username', 'VARCHAR(30)'),
+            ('user_email', 'VARCHAR(254)'),
+            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('iso_currency_code', 'VARCHAR(12)'),
+            ('coupon_id', 'INTEGER'),
+            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('voucher_id', 'INTEGER'),
+            ('voucher_code', 'VARCHAR(255)'),
+            ('status', 'VARCHAR(128)'),
+            ('refunded_amount', 'DECIMAL(12,2)'),
+            ('refunded_quantity', 'INTEGER'),
+            ('order_number', 'VARCHAR(128)'),
+            ('partner_short_code', 'VARCHAR(8)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
+         ]
+
+
