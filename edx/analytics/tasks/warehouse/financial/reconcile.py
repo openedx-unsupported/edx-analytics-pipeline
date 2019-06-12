@@ -1099,3 +1099,47 @@ class LoadInternalReportingFullOrdersToWarehouse(ReconcileOrdersAndTransactionsD
          ]
 
 
+class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            PaymentTask(
+                import_date=self.import_date,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            )
+        )
+
+    @property
+    def table(self):
+        return 'payments'
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('transaction_date', 'VARCHAR(128)'),
+            ('payment_gateway_id', 'VARCHAR(128)'),
+            ('payment_gateway_account_id', 'VARCHAR(128)'),
+            ('payment_ref_id', 'VARCHAR(128)'),
+            ('iso_currency_code', 'VARCHAR(12)'),
+            ('transaction_amount', 'DECIMAL(12,2)'),
+            ('transaction_fee', 'DECIMAL(12,2)'),
+            ('transaction_type', 'VARCHAR(255)'),
+            ('payment_method', 'VARCHAR(128)'),
+            ('payment_method_type', 'VARCHAR(128)'),
+            ('transaction_id', 'VARCHAR(128)'),
+         ]
+
+
