@@ -490,7 +490,7 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                     partner.short_code AS partner_short_code,
                     cuval.value_text AS course_uuid,
                     entitlements.expired_at AS expiration_date,
-                    "dummy" AS dummy_field
+                    COALESCE(parent.course_id, cp.course_id) AS dummy_field
 
                 FROM order_line ol
                 INNER JOIN order_order o ON o.id = ol.order_id
@@ -501,7 +501,7 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
 
                 -- Some product classes are associated with "parent" products, so find the parent for this product if it exists.
                 LEFT JOIN catalogue_product parent ON parent.id = cp.parent_id
-                LEFT JOIN catalogue_productclass cpc ON cpc.id = parent.product_class_id
+                LEFT JOIN catalogue_productclass cpc ON cpc.id = COALESCE(parent.product_class_id, cp.product_class_id)
 
                 -- Product attributes are effectively a key value store. Each product class has a set of attributes
                 -- associated with it that store additional data that is class-specific. For example, a T-shirt might
@@ -509,16 +509,19 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
 
                 -- For "seat" product class, line items will have a "course_key" attribute which will contain the course
                 -- key for the course that the user purchased a seat for
-                LEFT OUTER JOIN catalogue_productattribute ckat ON ckat.product_class_id = parent.product_class_id AND ckat.code = "course_key"
+                LEFT OUTER JOIN catalogue_productattribute ckat
+                    ON ckat.product_class_id = COALESCE(parent.product_class_id, cp.product_class_id) AND ckat.code = "course_key"
                 LEFT OUTER JOIN catalogue_productattributevalue ckval ON ckval.attribute_id = ckat.id AND ckval.product_id = cp.id
 
                 -- Seat and Course Entitlement products both have a certificate type attribute that corresponds to the type of certificate the
                 -- learner will receive after course completion. Common values include honor, professional, and verified.
-                LEFT OUTER JOIN catalogue_productattribute ctat ON ctat.product_class_id = parent.product_class_id AND ctat.code = "certificate_type"
+                LEFT OUTER JOIN catalogue_productattribute ctat
+                    ON ctat.product_class_id = COALESCE(parent.product_class_id, cp.product_class_id) AND ctat.code = "certificate_type"
                 LEFT OUTER JOIN catalogue_productattributevalue ctval ON ctval.attribute_id = ctat.id AND ctval.product_id = cp.id
 
                 -- Course Entitlement products have a UUID linking to the course
-                LEFT OUTER JOIN catalogue_productattribute cuat ON cuat.product_class_id = parent.product_class_id AND cuat.code = "UUID"
+                LEFT OUTER JOIN catalogue_productattribute cuat
+                    ON cuat.product_class_id = COALESCE(parent.product_class_id, cp.product_class_id) AND cuat.code = "UUID"
                 LEFT OUTER JOIN catalogue_productattributevalue cuval ON cuval.attribute_id = cuat.id AND cuval.product_id = cp.id
 
                 -- If the quantity > 1 for a particular line item it is possible that multiple refunds might be issued
