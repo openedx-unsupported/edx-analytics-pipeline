@@ -147,7 +147,7 @@ class LoadGoogleSpreadsheetToWarehouseWorkflow(PullWorksheetMixin, VerticaCopyTa
     """
 
     def requires(self):
-        credentials_target = ExternalURL(url=google_credentials).output()
+        credentials_target = ExternalURL(url=self.google_credentials).output()
         gs = self.create_google_spreadsheet_cient(credentials_target)
         spreadsheet = gs.open_by_key(self.spreadsheet_key)
         worksheets = spreadsheet.worksheets()
