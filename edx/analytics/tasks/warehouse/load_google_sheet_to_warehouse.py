@@ -95,7 +95,7 @@ class PullWorksheetDataTask(PullWorksheetMixin, luigi.Task):
 
 class LoadWorksheetToWarehouse(PullWorksheetMixin, VerticaCopyTask):
     """
-    Task to load data from a google sheet into the Vertica datawarehouse.
+    Task to load data from a google sheet into the Vertica data warehouse.
     """
 
     def create_table(self, connection):
