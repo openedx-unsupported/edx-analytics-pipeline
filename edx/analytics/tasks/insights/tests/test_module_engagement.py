@@ -217,7 +217,6 @@ class ModuleEngagementTaskAnonymousUserTest(InitializeOpaqueKeysMixin, MapperTes
         }
         self.default_event_template = 'play_video'
 
-
     def create_task(self, store_anonymous_username=None):  # pylint: disable=arguments-differ
         """Allow arguments to be passed to the task constructor."""
         self.task = ModuleEngagementDataTask(
