@@ -350,10 +350,9 @@ class BaseFullOrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('line_item_unit_price', hive_decimal_type(12, 2)),
             ('line_item_quantity', 'INT'),
             ('product_class', 'STRING'),
-            ('course_key', 'STRING'),
+            ('course_run_key', 'STRING'),
             ('product_detail', 'STRING'),
             ('username', 'STRING'),
-            ('user_email', 'STRING'),
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
             ('coupon_id', 'INT'),
@@ -367,7 +366,9 @@ class BaseFullOrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('partner_short_code', 'STRING'),
             ('course_uuid', 'STRING'),
             ('expiration_date', 'TIMESTAMP'),
-            ('dummy_field', 'STRING'),
+            ('product_course_id', 'STRING'),
+            ('lms_user_id', 'INT'),
+            ('partner_sku', 'STRING'),
         ]
 
     @property
@@ -447,7 +448,6 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                 -- Otto Records
                 SELECT
                     "otto" AS order_processor,
-                    -- TODO: switch this to u.lms_user_id, once that becomes available from master.
                     o.user_id AS user_id,
                     ol.order_id AS order_id,
                     ol.id AS line_item_id,
@@ -459,12 +459,9 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                     ol.unit_price_incl_tax AS line_item_unit_price,
                     ol.quantity AS line_item_quantity,
                     cpc.slug AS product_class,
-                    -- TODO: expand this to look in more places for a COURSE_ID.  Perhaps write out several?
-                    -- Needs discovery to see if there are matches....
-                    COALESCE(enrollments.course_id, ckval.value_text) AS course_key,
+                    COALESCE(enrollments.course_id, ckval.value_text) AS course_run_key,
                     ctval.value_text AS product_detail,
                     u.username AS username,
-                    u.email AS user_email,
                     o.date_placed AS date_placed,
                     o.currency AS iso_currency_code,
 
@@ -490,7 +487,9 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                     partner.short_code AS partner_short_code,
                     cuval.value_text AS course_uuid,
                     entitlements.expired_at AS expiration_date,
-                    COALESCE(parent.course_id, cp.course_id) AS dummy_field
+                    COALESCE(parent.course_id, cp.course_id) AS product_course_id,
+                    u.lms_user_id AS lms_user_id,
+                    ol.partner_sku AS partner_sku
 
                 FROM order_line ol
                 INNER JOIN order_order o ON o.id = ol.order_id
@@ -631,14 +630,13 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
                         WHEN pcr.orderitem_ptr_id IS NOT NULL THEN pcr.course_id  -- the course the user registered in
                         WHEN crc.orderitem_ptr_id IS NOT NULL THEN crc.course_id  -- the course the registration codes were generated for
                         WHEN d.orderitem_ptr_id IS NOT NULL THEN d.course_id      -- the course that the user donated to (may be NULL)
-                    END AS course_key,
+                    END AS course_run_key,
                     CASE
                         WHEN ci.orderitem_ptr_id IS NOT NULL THEN ci.mode         -- always "verified"
                         WHEN pcr.orderitem_ptr_id IS NOT NULL THEN pcr.mode       -- always "honor" even though the user paid for the seat
                         WHEN crc.orderitem_ptr_id IS NOT NULL THEN crc.mode       -- always "honor"
                     END AS product_detail,
                     au.username as username,
-                    au.email as user_email,
                     o.purchase_time AS date_placed,
                     UPPER(o.currency) AS iso_currency_code,
 
@@ -664,7 +662,9 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
                     -- These fields are not relevant to shoppingcart orders
                     NULL AS course_uuid,
                     NULL AS expiration_date,
-                    "dummy" AS dummy_field
+                    NULL AS product_course_id,
+                    o.user_id AS lms_user_id,
+                    NULL AS partner_sku
 
                 FROM shoppingcart_orderitem oi
                 JOIN shoppingcart_order o ON o.id = oi.order_id
