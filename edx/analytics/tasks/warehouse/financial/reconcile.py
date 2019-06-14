@@ -10,7 +10,7 @@ from operator import attrgetter
 import luigi.date_interval
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
