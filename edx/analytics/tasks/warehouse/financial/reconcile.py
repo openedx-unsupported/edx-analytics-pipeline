@@ -1339,7 +1339,60 @@ class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportin
         ]
 
 
-class LoadInternalReportingFullOttoOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+class BaseLoadFullOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        raise NotImplemented
+
+    @property
+    def table(self):
+        raise NotImplemented
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('order_processor', 'VARCHAR(32)'),
+            ('user_id', 'INTEGER'),
+            ('order_id', 'INTEGER'),
+            ('order_line_id', 'INTEGER'),
+            ('line_item_product_id', 'INTEGER'),
+            ('line_item_price', 'DECIMAL(12,2)'),
+            ('line_item_unit_price', 'DECIMAL(12,2)'),
+            ('line_item_quantity', 'INTEGER'),
+            ('product_class', 'VARCHAR(128)'),
+            ('course_key', 'VARCHAR(255)'),  # originally longtext
+            ('product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('username', 'VARCHAR(30)'),
+            ('user_email', 'VARCHAR(254)'),
+            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('iso_currency_code', 'VARCHAR(12)'),
+            ('coupon_id', 'INTEGER'),
+            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('voucher_id', 'INTEGER'),
+            ('voucher_code', 'VARCHAR(255)'),
+            ('status', 'VARCHAR(128)'),
+            ('refunded_amount', 'DECIMAL(12,2)'),
+            ('refunded_quantity', 'INTEGER'),
+            ('order_number', 'VARCHAR(128)'),
+            ('partner_short_code', 'VARCHAR(8)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('dummy_field', 'VARCHAR(128)'),
+        ]
+
+
+class LoadInternalReportingFullOttoOrdersToWarehouse(BaseLoadFullOrdersToWarehouse):
     """
     Loads full_order table from Hive into the Vertica data warehouse.
     """
@@ -1349,7 +1402,10 @@ class LoadInternalReportingFullOttoOrdersToWarehouse(ReconcileOrdersAndTransacti
 
         return (
             FullOttoOrderTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
             )
         )
 
@@ -1357,48 +1413,8 @@ class LoadInternalReportingFullOttoOrdersToWarehouse(ReconcileOrdersAndTransacti
     def table(self):
         return 'full_otto_orders'
 
-    @property
-    def auto_primary_key(self):
-        """No automatic primary key here."""
-        return None
 
-    @property
-    def columns(self):
-        """
-        Most values are mapped back to their original table definitions.
-        """
-        return [
-            ('order_processor', 'VARCHAR(32)'),
-            ('user_id', 'INTEGER'),
-            ('order_id', 'INTEGER'),
-            ('order_line_id', 'INTEGER'),
-            ('line_item_product_id', 'INTEGER'),
-            ('line_item_price', 'DECIMAL(12,2)'),
-            ('line_item_unit_price', 'DECIMAL(12,2)'),
-            ('line_item_quantity', 'INTEGER'),
-            ('product_class', 'VARCHAR(128)'),
-            ('course_key', 'VARCHAR(255)'),  # originally longtext
-            ('product_detail', 'VARCHAR(255)'),  # originally longtext
-            ('username', 'VARCHAR(30)'),
-            ('user_email', 'VARCHAR(254)'),
-            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
-            ('iso_currency_code', 'VARCHAR(12)'),
-            ('coupon_id', 'INTEGER'),
-            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
-            ('voucher_id', 'INTEGER'),
-            ('voucher_code', 'VARCHAR(255)'),
-            ('status', 'VARCHAR(128)'),
-            ('refunded_amount', 'DECIMAL(12,2)'),
-            ('refunded_quantity', 'INTEGER'),
-            ('order_number', 'VARCHAR(128)'),
-            ('partner_short_code', 'VARCHAR(8)'),
-            ('course_uuid', 'VARCHAR(255)'),
-            ('expiration_date', 'TIMESTAMP'),
-            ('dummy_field', 'VARCHAR(128)'),
-        ]
-
-
-class LoadInternalReportingFullShoppingcartOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+class LoadInternalReportingFullShoppingcartOrdersToWarehouse(BaseLoadFullOrdersToWarehouse):
     """
     Loads full_order table from Hive into the Vertica data warehouse.
     """
@@ -1408,7 +1424,10 @@ class LoadInternalReportingFullShoppingcartOrdersToWarehouse(ReconcileOrdersAndT
 
         return (
             FullShoppingcartOrderTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
             )
         )
 
@@ -1416,45 +1435,6 @@ class LoadInternalReportingFullShoppingcartOrdersToWarehouse(ReconcileOrdersAndT
     def table(self):
         return 'full_shoppingcart_orders'
 
-    @property
-    def auto_primary_key(self):
-        """No automatic primary key here."""
-        return None
-
-    @property
-    def columns(self):
-        """
-        Most values are mapped back to their original table definitions.
-        """
-        return [
-            ('order_processor', 'VARCHAR(32)'),
-            ('user_id', 'INTEGER'),
-            ('order_id', 'INTEGER'),
-            ('order_line_id', 'INTEGER'),
-            ('line_item_product_id', 'INTEGER'),
-            ('line_item_price', 'DECIMAL(12,2)'),
-            ('line_item_unit_price', 'DECIMAL(12,2)'),
-            ('line_item_quantity', 'INTEGER'),
-            ('product_class', 'VARCHAR(128)'),
-            ('course_key', 'VARCHAR(255)'),  # originally longtext
-            ('product_detail', 'VARCHAR(255)'),  # originally longtext
-            ('username', 'VARCHAR(30)'),
-            ('user_email', 'VARCHAR(254)'),
-            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
-            ('iso_currency_code', 'VARCHAR(12)'),
-            ('coupon_id', 'INTEGER'),
-            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
-            ('voucher_id', 'INTEGER'),
-            ('voucher_code', 'VARCHAR(255)'),
-            ('status', 'VARCHAR(128)'),
-            ('refunded_amount', 'DECIMAL(12,2)'),
-            ('refunded_quantity', 'INTEGER'),
-            ('order_number', 'VARCHAR(128)'),
-            ('partner_short_code', 'VARCHAR(8)'),
-            ('course_uuid', 'VARCHAR(255)'),
-            ('expiration_date', 'TIMESTAMP'),
-            ('dummy_field', 'VARCHAR(128)'),
-        ]
 
 
 class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
@@ -1466,9 +1446,14 @@ class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDow
         # This gets added to what requires() yields in VerticaCopyTask.
 
         return (
+            # TODO: This is not the right task.  The level it points to is too high for it to be opened and streamed.
+            # Not sure what the right way to do this is, so leavign it out of the "full" load for now.
             PaymentTask(
                 import_date=self.import_date,
-                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
             )
         )
 
@@ -1501,3 +1486,31 @@ class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDow
          ]
 
 
+class LoadFullOrderRelatedTablesTask(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+    """Provide entry-point for generating full order data for financial reports."""
+
+    def requires(self):
+        yield (
+            LoadInternalReportingFullOrderTransactionsToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            ),
+            LoadInternalReportingFullShoppingcartOrdersToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+            LoadInternalReportingFullOttoOrdersToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+        )
