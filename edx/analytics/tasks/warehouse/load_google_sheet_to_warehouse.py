@@ -61,6 +61,7 @@ DATA_TYPE_MAPPING = {
     'datetime': 'DATETIME',
 }
 
+
 def create_google_spreadsheet_client(credentials_target):
     with credentials_target.open('r') as credentials_file:
         json_creds = json.load(credentials_file)
