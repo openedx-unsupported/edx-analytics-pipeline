@@ -10,12 +10,14 @@ from operator import attrgetter
 import luigi.date_interval
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
+from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
-from edx.analytics.tasks.warehouse.financial.orders_import import OrderTableTask
+from edx.analytics.tasks.warehouse.financial.orders_import import (
+    FullOttoOrderTableTask, FullShoppingcartOrderTableTask, OrderTableTask
+)
 from edx.analytics.tasks.warehouse.financial.payment import PaymentTask
 
 log = logging.getLogger(__name__)
@@ -230,7 +232,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
         org = get_org_id_for_course(course_id)
         return self.shoppingcart_partners_dict.get(org) or self.default_partner_short_code
 
-    def _extract_transactions(self, values):
+    def extract_transactions(self, values):
         """
         Pulls orderitems and transactions out of input values iterable.
         """
@@ -313,7 +315,7 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
 
     def reducer(self, _key, values):
         """Convert orderitems and transactions into orderitem-transaction records."""
-        orderitems, transactions = self._extract_transactions(values)
+        orderitems, transactions = self.extract_transactions(values)
 
         # Check to see that all orderitems belong to the same order.
         distinct_order_ids = set([orderitem.order_id for orderitem in orderitems])
@@ -991,3 +993,547 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
             ('course_uuid', 'VARCHAR(255)'),
             ('expiration_date', 'TIMESTAMP'),
         ]
+
+
+# =======
+#
+# Add support here for "new" "full" order information, intended to be used for the next round of
+# "financial_reporting" SQL scripts.
+#
+# It creates a separate, parallel "full" order that changes some of the columns stored for orders but applies the same reconciliation logic.
+#
+# Changes include:
+#  * Removed email.
+#  * Added product_course_id, lms_user_id, and partner_sku fields.
+#
+# =======
+
+FULLORDERITEM_FIELDS = [
+    'order_processor',   # "shoppingcart" or "otto"
+    'user_id',  # this is the order system's user_id, not the same as auth_user's user_id.
+    'order_id',
+    'line_item_id',
+    'line_item_product_id',  # for "shoppingcart", this is the kind of orderitem table.
+    'line_item_price',
+    'line_item_unit_price',
+    'line_item_quantity',
+    'product_class',  # e.g. seat, donation
+    'course_id',  # Was called course_key, but is explicitly referenced in reconcile code as course_id.
+    'product_detail',  # contains course mode
+    'username',
+    'date_placed',
+    'iso_currency_code',
+    'coupon_id',
+    'discount_amount',
+    'voucher_id',
+    'voucher_code',
+    'status',
+    'refunded_amount',
+    'refunded_quantity',
+    'payment_ref_id',  # This is the value to compare with the transactions.
+    'partner_short_code',
+    'course_uuid',  # UUID of the course, NOT course run
+    'expiration_date',
+    'product_course_id',
+    'lms_user_id',
+    'partner_sku',
+]
+
+FULLORDERITEM_FIELD_INDICES = {field_name: index for index, field_name in enumerate(FULLORDERITEM_FIELDS)}
+
+BaseFullOrderItemRecord = namedtuple('FullOrderItemRecord', FULLORDERITEM_FIELDS)  # pylint: disable=invalid-name
+
+
+class FullOrderItemRecord(BaseFullOrderItemRecord):
+    """Override vanilla namedtuple to redefine types."""
+    def __new__(cls, *args, **kwargs):
+        result = super(FullOrderItemRecord, cls).__new__(cls, *args, **kwargs)
+        result = result._replace(  # pylint: disable=no-member,protected-access
+            refunded_amount=Decimal(result.refunded_amount),  # pylint: disable=no-member
+            line_item_price=Decimal(result.line_item_price),  # pylint: disable=no-member
+            line_item_unit_price=Decimal(result.line_item_unit_price),  # pylint: disable=no-member
+            discount_amount=Decimal(result.discount_amount),  # pylint: disable=no-member
+        )
+        return result
+
+
+FullOrderTransactionRecordBase = namedtuple("FullOrderTransactionRecord", [  # pylint: disable=invalid-name
+    "order_audit_code",
+    "orderitem_audit_code",
+    "transaction_audit_code",
+    "partner_short_code",
+    "payment_ref_id",
+    "order_id",
+    "unique_order_id",
+    "order_timestamp",
+    "transaction_date",
+    "transaction_id",
+    "unique_transaction_id",
+    "transaction_payment_gateway_id",
+    "transaction_payment_gateway_account_id",
+    "transaction_type",
+    "transaction_payment_method",
+    "transaction_amount",
+    "transaction_iso_currency_code",
+    "transaction_fee",
+    "transaction_amount_per_item",
+    "transaction_fee_per_item",
+    "order_line_item_id",
+    "unique_order_line_item_id",
+    "order_line_item_product_id",
+    "order_line_item_price",
+    "order_line_item_unit_price",
+    "order_line_item_quantity",
+    "order_coupon_id",
+    "order_discount_amount",
+    "order_voucher_id",
+    "order_voucher_code",
+    "order_refunded_amount",
+    "order_refunded_quantity",
+    "order_user_id",
+    "order_username",
+    "order_product_class",
+    "order_product_detail",
+    "order_course_id",
+    "order_org_id",
+    "order_processor",
+    "course_uuid",
+    "expiration_date",
+    "product_course_id",
+    "lms_user_id",
+    "partner_sku",
+    "order_status",
+])
+
+
+class FullOrderTransactionRecord(FullOrderTransactionRecordBase):
+    """Stores transaction-orderitem mapping output."""
+
+    def to_tsv(self):
+        """Serializes the record to a TSV-formatted string."""
+        return '\t'.join([str(v) if v is not None else "\\N" for v in self])
+
+    @staticmethod
+    def from_job_output(tsv_str):
+        """Constructor that reads format generated by to_tsv()."""
+        record = tsv_str.split('\t')
+        nulled_record = [v if v != "\\N" else None for v in record]
+        return FullOrderTransactionRecord(*nulled_record)
+
+
+class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask):
+    """
+    Compare all orders and transactions.
+
+    """
+
+    def requires(self):
+        yield (
+            FullOttoOrderTableTask(
+                import_date=self.import_date
+            ),
+            FullShoppingcartOrderTableTask(
+                import_date=self.import_date
+            ),
+            PaymentTask(
+                import_date=self.import_date,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            )
+        )
+
+    def mapper(self, line):
+        fields = line.split('\t')
+        if len(fields) == len(FULLORDERITEM_FIELDS):
+            # Assume it's an order.
+            record_type = FullOrderItemRecord.__name__
+            key_index = FULLORDERITEM_FIELDS.index('payment_ref_id')
+            key = fields[key_index]
+
+            # Convert Hive null values ('\\N') in fields like 'product_detail':
+            defaults = (
+                ('product_detail', ''),
+                ('refunded_amount', '0.0'),
+                ('refunded_quantity', '0'),
+                ('discount_amount', '0.0'),
+                ('coupon_id', None),
+                ('voucher_id', None),
+                ('voucher_code', ''),
+                ('partner_short_code', ''),
+                ('course_uuid', None),
+                ('expiration_date', None),
+                ('lms_user_id', None),
+                ('product_course_id', ''),
+                ('partner_sku', ''),
+            )
+            for field_name, default_value in defaults:
+                index = FULLORDERITEM_FIELD_INDICES[field_name]
+                if fields[index] == '\\N':
+                    fields[index] = default_value
+
+        elif len(fields) == len(TRANSACTION_FIELDS):
+            # Assume it's a transaction.
+            record_type = TransactionRecord.__name__
+            key = fields[3]  # payment_ref_id
+            # Convert nulls in 'transaction_fee'.
+            if fields[6] == '\\N':
+                fields[6] = None
+
+            # Edx-only: if the transaction was within a time period when
+            # Otto was storing basket-id values instead of payment_ref_ids in
+            # its transactions, then apply a heuristic to the transactions
+            # from that period to convert them to a payment_ref_id that should
+            # work in most cases.
+            if fields[0] > '2015-05-01' and fields[0] < '2015-06-14':
+                if len(key) <= 4 and key not in LOW_ORDER_ID_SHOPPINGCART_ORDERS:
+                    key = 'EDX-{}'.format(int(key) + 100000)
+        else:
+            raise ValueError("ERROR: unrecognized line with {} fields:  {}".format(len(fields), line))
+
+        yield key, (record_type, fields)
+
+    def extract_transactions(self, values):
+        """
+        Pulls orderitems and transactions out of input values iterable.
+        """
+        orderitems = []
+        transactions = []
+        for (record_type, fields) in values:
+            if record_type == 'FullOrderItemRecord':
+                if not fields[FULLORDERITEM_FIELD_INDICES['partner_short_code']]:
+                    fields[FULLORDERITEM_FIELD_INDICES['partner_short_code']] = self._get_partner(
+                        fields[FULLORDERITEM_FIELD_INDICES['course_id']]
+                    )
+                orderitems.append(FullOrderItemRecord(*fields))
+            elif record_type == 'TransactionRecord':
+                transactions.append(TransactionRecord(*fields))
+        # Standardize the ordering.
+        orderitems = sorted(orderitems, key=attrgetter('date_placed', 'line_item_id'))
+        transactions = sorted(transactions, key=attrgetter('date', 'transaction_id'))
+        return orderitems, transactions
+
+    def format_transaction_table_output(self, audit_code, transaction, orderitem, transaction_amount_per_item=None,
+                                        transaction_fee_per_item=None):
+        """Generate an output row from an orderitem and transaction."""
+
+        # Handle cases where per-item values are defaulted.
+        if transaction:
+            if transaction_amount_per_item is None:
+                transaction_amount_per_item = transaction.amount
+            if transaction_fee_per_item is None:
+                transaction_fee_per_item = transaction.transaction_fee
+
+        org_id = None
+        if orderitem:
+            org_id = get_org_id_for_course(orderitem.course_id)
+
+        result = [
+            audit_code[0],
+            audit_code[1],
+            audit_code[2],
+            orderitem.partner_short_code if orderitem else self.default_partner_short_code,
+            orderitem.payment_ref_id if orderitem else transaction.payment_ref_id,
+            orderitem.order_id if orderitem else None,
+            encode_id(orderitem.order_processor, "order_id", orderitem.order_id) if orderitem else None,
+            orderitem.date_placed if orderitem else None,
+            # transaction information
+            transaction.date if transaction else None,
+            transaction.transaction_id if transaction else None,
+            encode_id(transaction.payment_gateway_id, "transaction_id", transaction.transaction_id) if transaction else None,
+            transaction.payment_gateway_id if transaction else None,
+            transaction.payment_gateway_account_id if transaction else None,
+            transaction.transaction_type if transaction else None,
+            transaction.payment_method if transaction else None,
+            transaction.amount if transaction else None,
+            transaction.iso_currency_code if transaction else None,
+            transaction.transaction_fee if transaction else None,
+            # mapping information: part of transaction that applies to this orderitem
+            str(transaction_amount_per_item) if transaction_amount_per_item is not None else None,
+            str(transaction_fee_per_item) if transaction_fee_per_item is not None else None,
+            # orderitem information
+            orderitem.line_item_id if orderitem else None,
+            encode_id(orderitem.order_processor, "line_item_id", orderitem.line_item_id) if orderitem else None,
+            orderitem.line_item_product_id if orderitem else None,
+            orderitem.line_item_price if orderitem else None,
+            orderitem.line_item_unit_price if orderitem else None,
+            orderitem.line_item_quantity if orderitem else None,
+            orderitem.coupon_id if orderitem else None,
+            orderitem.discount_amount if orderitem else None,
+            orderitem.voucher_id if orderitem else None,
+            orderitem.voucher_code if orderitem else None,
+            orderitem.refunded_amount if orderitem else None,
+            orderitem.refunded_quantity if orderitem else None,
+            orderitem.user_id if orderitem else None,
+            orderitem.username if orderitem else None,
+            orderitem.product_class if orderitem else None,
+            orderitem.product_detail if orderitem else None,
+            orderitem.course_id if orderitem else None,
+            org_id if org_id is not None else None,
+            orderitem.order_processor if orderitem else None,
+            orderitem.course_uuid if orderitem else None,
+            orderitem.expiration_date if orderitem else None,
+            orderitem.product_course_id if orderitem else None,
+            orderitem.lms_user_id if orderitem else None,
+            orderitem.partner_sku if orderitem else None,
+            orderitem.status if orderitem else None,
+        ]
+        return (FullOrderTransactionRecord(*result).to_tsv(),)
+
+
+class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportingOrderTransactionsToWarehouse):
+    """
+    Loads fullorder-transaction table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            ReconcileFullOrdersAndTransactionsTask(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                # Get the location of the Hive table, so it can be opened and read.
+                output_root=url_path_join(
+                    self.warehouse_path,
+                    self.table,
+                    'dt=' + self.import_date.isoformat()  # pylint: disable=no-member
+                ) + '/',
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            )
+        )
+
+    @property
+    def table(self):
+        return 'f_orderline_transactions'
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('order_audit_code', 'VARCHAR(255)'),
+            ('orderitem_audit_code', 'VARCHAR(255)'),
+            ('transaction_audit_code', 'VARCHAR(255)'),
+            ('partner_short_code', 'VARCHAR(8)'),
+            ('payment_ref_id', 'VARCHAR(128)'),
+            ('order_id', 'INTEGER'),
+            ('unique_order_id', 'VARCHAR(255)'),
+            ('order_timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('transaction_date', 'VARCHAR(128)'),
+            ('transaction_id', 'VARCHAR(128)'),
+            ('unique_transaction_id', 'VARCHAR(255)'),
+            ('transaction_payment_gateway_id', 'VARCHAR(128)'),
+            ('transaction_payment_gateway_account_id', 'VARCHAR(128)'),
+            ('transaction_type', 'VARCHAR(255)'),
+            ('transaction_payment_method', 'VARCHAR(128)'),
+            ('transaction_amount', 'DECIMAL(12,2)'),
+            ('transaction_iso_currency_code', 'VARCHAR(12)'),
+            ('transaction_fee', 'DECIMAL(12,2)'),
+            ('transaction_amount_per_item', 'DECIMAL(12,2)'),
+            ('transaction_fee_per_item', 'DECIMAL(12,2)'),
+            ('order_line_item_id', 'INTEGER'),
+            ('unique_order_line_item_id', 'VARCHAR(255)'),
+            ('order_line_item_product_id', 'INTEGER'),
+            ('order_line_item_price', 'DECIMAL(12,2)'),
+            ('order_line_item_unit_price', 'DECIMAL(12,2)'),
+            ('order_line_item_quantity', 'INTEGER'),
+            ('order_coupon_id', 'INTEGER'),
+            ('order_discount_amount', 'DECIMAL(12,2)'),
+            ('order_voucher_id', 'INTEGER'),
+            ('order_voucher_code', 'VARCHAR(255)'),
+            ('order_refunded_amount', 'DECIMAL(12,2)'),
+            ('order_refunded_quantity', 'INTEGER'),
+            ('order_user_id', 'INTEGER'),
+            ('order_username', 'VARCHAR(30)'),
+            ('order_product_class', 'VARCHAR(128)'),
+            ('order_product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('order_course_id', 'VARCHAR(255)'),  # originally longtext
+            ('order_org_id', 'VARCHAR(128)'),  # pulled from course_id
+            ('order_processor', 'VARCHAR(32)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('order_product_course_id', 'VARCHAR(255)'),
+            ('order_lms_user_id', 'INTEGER'),
+            ('order_partner_sku', 'VARCHAR(128)'),
+            ('order_status', 'VARCHAR(128)'),
+        ]
+
+
+class BaseLoadFullOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        raise NotImplemented
+
+    @property
+    def table(self):
+        raise NotImplemented
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('order_processor', 'VARCHAR(32)'),
+            ('user_id', 'INTEGER'),
+            ('order_id', 'INTEGER'),
+            ('order_line_id', 'INTEGER'),
+            ('line_item_product_id', 'INTEGER'),
+            ('line_item_price', 'DECIMAL(12,2)'),
+            ('line_item_unit_price', 'DECIMAL(12,2)'),
+            ('line_item_quantity', 'INTEGER'),
+            ('product_class', 'VARCHAR(128)'),
+            ('course_key', 'VARCHAR(255)'),  # originally longtext
+            ('product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('username', 'VARCHAR(30)'),
+            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('iso_currency_code', 'VARCHAR(12)'),
+            ('coupon_id', 'INTEGER'),
+            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('voucher_id', 'INTEGER'),
+            ('voucher_code', 'VARCHAR(255)'),
+            ('status', 'VARCHAR(128)'),
+            ('refunded_amount', 'DECIMAL(12,2)'),
+            ('refunded_quantity', 'INTEGER'),
+            ('order_number', 'VARCHAR(128)'),
+            ('partner_short_code', 'VARCHAR(8)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('product_course_id', 'VARCHAR(255)'),
+            ('lms_user_id', 'INTEGER'),
+            ('partner_sku', 'VARCHAR(128)'),
+        ]
+
+
+class LoadInternalReportingFullOttoOrdersToWarehouse(BaseLoadFullOrdersToWarehouse):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            FullOttoOrderTableTask(
+                import_date=self.import_date,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'full_otto_orders'
+
+
+class LoadInternalReportingFullShoppingcartOrdersToWarehouse(BaseLoadFullOrdersToWarehouse):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            FullShoppingcartOrderTableTask(
+                import_date=self.import_date,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'full_shoppingcart_orders'
+
+
+class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
+    """
+    Loads full_order table from Hive into the Vertica data warehouse.
+    """
+    @property
+    def insert_source_task(self):
+        # This gets added to what requires() yields in VerticaCopyTask.
+
+        return (
+            # TODO: This is not the right task.  The level it points to is too high for it to be opened and streamed.
+            # Not sure what the right way to do this is, so leavign it out of the "full" load for now.
+            PaymentTask(
+                import_date=self.import_date,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed,
+                # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
+                # to just apply to the writing to Vertica, not to anything further upstream.
+                # overwrite=self.overwrite,
+            )
+        )
+
+    @property
+    def table(self):
+        return 'payments'
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here."""
+        return None
+
+    @property
+    def columns(self):
+        """
+        Most values are mapped back to their original table definitions.
+        """
+        return [
+            ('transaction_date', 'VARCHAR(128)'),
+            ('payment_gateway_id', 'VARCHAR(128)'),
+            ('payment_gateway_account_id', 'VARCHAR(128)'),
+            ('payment_ref_id', 'VARCHAR(128)'),
+            ('iso_currency_code', 'VARCHAR(12)'),
+            ('transaction_amount', 'DECIMAL(12,2)'),
+            ('transaction_fee', 'DECIMAL(12,2)'),
+            ('transaction_type', 'VARCHAR(255)'),
+            ('payment_method', 'VARCHAR(128)'),
+            ('payment_method_type', 'VARCHAR(128)'),
+            ('transaction_id', 'VARCHAR(128)'),
+        ]
+
+
+class LoadFullOrderRelatedTablesTask(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
+    """Provide entry-point for generating full order data for financial reports."""
+
+    def requires(self):
+        yield (
+            LoadInternalReportingFullOrderTransactionsToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            ),
+            LoadInternalReportingFullShoppingcartOrdersToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+            LoadInternalReportingFullOttoOrdersToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+        )
