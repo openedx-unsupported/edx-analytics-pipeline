@@ -7,7 +7,11 @@ from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import
     LoadInternalReportingEdServicesReportToWarehouse
 )
 from edx.analytics.tasks.warehouse.financial.reconcile import (
-    LoadInternalReportingOrderTransactionsToWarehouse, TransactionReportTask
+    LoadInternalReportingFullOrderTransactionsToWarehouse,
+    LoadInternalReportingFullOttoOrdersToWarehouse,
+    LoadInternalReportingFullShoppingcartOrdersToWarehouse,
+    LoadInternalReportingOrderTransactionsToWarehouse,
+    TransactionReportTask,
 )
 
 
@@ -43,6 +47,28 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
                 is_empty_transaction_allowed=self.is_empty_transaction_allowed
             ),
             LoadInternalReportingEdServicesReportToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+            LoadInternalReportingFullOrderTransactionsToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+            ),
+            LoadInternalReportingFullShoppingcartOrdersToWarehouse(
+                import_date=self.import_date,
+                n_reduce_tasks=self.n_reduce_tasks,
+                schema=self.schema,
+                credentials=self.credentials,
+                overwrite=self.overwrite,
+            ),
+            LoadInternalReportingFullOttoOrdersToWarehouse(
                 import_date=self.import_date,
                 n_reduce_tasks=self.n_reduce_tasks,
                 schema=self.schema,
