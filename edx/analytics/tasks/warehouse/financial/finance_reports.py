@@ -51,6 +51,9 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
                 credentials=self.credentials,
                 overwrite=self.overwrite,
             ),
+            # The following task performs transaction reconciliation on a more complete order record.
+            # Rather than hunt down all the places where the current table is being used, we instead
+            # output a separate one.
             LoadInternalReportingFullOrderTransactionsToWarehouse(
                 import_date=self.import_date,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -59,6 +62,7 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
                 overwrite=self.overwrite,
                 is_empty_transaction_allowed=self.is_empty_transaction_allowed
             ),
+            # The following tasks output the order tables that were used in the above reconciliation.
             LoadInternalReportingFullShoppingcartOrdersToWarehouse(
                 import_date=self.import_date,
                 n_reduce_tasks=self.n_reduce_tasks,
