@@ -71,6 +71,7 @@ class OrderItemRecord(BaseOrderItemRecord):
         )
         return result
 
+
 TRANSACTION_FIELDS = [
     'date',
     'payment_gateway_id',
@@ -994,7 +995,7 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
         ]
 
 
-#=======
+# =======
 #
 # Add support here for "new" "full" order information, intended to be used for the next round of
 # "financial_reporting" SQL scripts.
@@ -1005,7 +1006,7 @@ class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransa
 #  * Removed email.
 #  * Added product_course_id, lms_user_id, and partner_sku fields.
 #
-#=======
+# =======
 
 FULLORDERITEM_FIELDS = [
     'order_processor',   # "shoppingcart" or "otto"
@@ -1459,7 +1460,6 @@ class LoadInternalReportingFullShoppingcartOrdersToWarehouse(BaseLoadFullOrdersT
         return 'full_shoppingcart_orders'
 
 
-
 class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
     """
     Loads full_order table from Hive into the Vertica data warehouse.
@@ -1506,7 +1506,7 @@ class LoadInternalReportingPaymentsToWarehouse(ReconcileOrdersAndTransactionsDow
             ('payment_method', 'VARCHAR(128)'),
             ('payment_method_type', 'VARCHAR(128)'),
             ('transaction_id', 'VARCHAR(128)'),
-         ]
+        ]
 
 
 class LoadFullOrderRelatedTablesTask(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTaskMixin, luigi.WrapperTask):
