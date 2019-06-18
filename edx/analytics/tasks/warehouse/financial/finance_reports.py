@@ -6,7 +6,6 @@ from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
 from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import (
     LoadInternalReportingEdServicesReportToWarehouse
 )
-from edx.analytics.tasks.warehouse.financial.fees import LoadFeesToWarehouse
 from edx.analytics.tasks.warehouse.financial.reconcile import (
     LoadInternalReportingFullOrderTransactionsToWarehouse, LoadInternalReportingFullOttoOrdersToWarehouse,
     LoadInternalReportingFullShoppingcartOrdersToWarehouse, LoadInternalReportingOrderTransactionsToWarehouse,

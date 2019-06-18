@@ -39,8 +39,8 @@ class AffiliateWindowTaskMixin(OverwriteOutputMixin):
         description='The parent folder to write the Affiliate Window report data to.',
     )
     run_date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date() - datetime.timedelta(days=-1),
-        description='The date to generate a report for. Default is yesterday, UTC.',
+        default=datetime.datetime.utcnow().date(),
+        description='The date to generate a report for. Default is today, UTC.',
     )
     advertiser_id = luigi.Parameter(
         config_path={'section': 'affiliate_window', 'name': 'advertiser_id'},
@@ -65,9 +65,9 @@ class IntervalPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, WarehouseMix
     Determines a set of dates to pull, and requires them.
     """
     interval_end = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date() - datetime.timedelta(days=-1),
+        default=datetime.datetime.utcnow().date(),
         significant=False,
-        description='Default is yesterday, UTC.',
+        description='Default is today, UTC.',
     )
 
     # Overwrite parameter definition to make it optional.
@@ -137,7 +137,7 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
 
     Pulls are made for only a single day.
     """
-    run_date = luigi.DateParameter(
+    query_date = luigi.DateParameter(
         default=datetime.date.today(),
         description='Default is today.',
     )
@@ -151,8 +151,8 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
     @retry(should_retry=should_retry, timeout=DEFAULT_TIMEOUT_SECONDS)
     def fetch_report(self):
         params = (
-            ('startDate', self.run_date.strftime('%Y-%m-%dT00:00:00')),
-            ('endDate', self.run_date.strftime('%Y-%m-%dT23:59:59')),
+            ('startDate', self.query_date.strftime('%Y-%m-%dT00:00:00')),
+            ('endDate', self.query_date.strftime('%Y-%m-%dT23:59:59')),
             ('timezone', 'UTC'),
             ('accessToken', self.api_token),
         )
@@ -164,7 +164,7 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         return response.json()
 
     def run(self):
-        print("Fetching report from Affiliate Window for {}.".format(self.run_date))
+        print("Fetching report from Affiliate Window for {}.".format(self.query_date))
         transactions = self.fetch_report()
 
         # if there are no transactions in response something is wrong.
@@ -178,8 +178,8 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         """
         Output is in the form {output_root}/affiliate_window/{CCYY-mm}/affiliate_window_{CCYYmmdd}.json
         """
-        month_year_string = self.run_date.strftime('%Y-%m')  # pylint: disable=no-member
-        date_string = self.run_date.strftime('%Y%m%d')  # pylint: disable=no-member
+        month_year_string = self.query_date.strftime('%Y-%m')  # pylint: disable=no-member
+        date_string = self.query_date.strftime('%Y%m%d')  # pylint: disable=no-member
         filename = "affiliate_window_{date_string}.{report_format}".format(
             date_string=date_string,
             report_format=self.REPORT_FORMAT,
@@ -204,7 +204,7 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
 
     def requires(self):
         args = {
-            'run_date': self.run_date,
+            'query_date': self.run_date,
             'output_root': self.output_root,
             'advertiser_id': self.advertiser_id,
             'api_token': self.api_token,
@@ -260,5 +260,5 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         """
         date_string = self.run_date.strftime('%Y-%m-%d')  # pylint: disable=no-member
         filename = "affiliate_window.tsv"
-        url_with_filename = url_path_join(self.output_root, "dt="+date_string, filename)
+        url_with_filename = url_path_join(self.output_root, "dt=" + date_string, filename)
         return get_target_from_url(url_with_filename)

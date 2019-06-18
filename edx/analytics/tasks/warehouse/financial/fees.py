@@ -21,9 +21,9 @@ class AffiliateWindowTask(AffiliateWindowTaskMixin, WarehouseMixin, luigi.Wrappe
     """
     def requires(self):
         yield IntervalPullFromAffiliateWindowTask(
-                output_root=self.output_root,
-                interval_end=self.run_date,
-            )
+            output_root=self.output_root,
+            interval_end=self.run_date,
+        )
 
     def output(self):
         # TODO: Once VerticaCopyTask handles multiple input files update this
@@ -39,7 +39,7 @@ class AffiliateWindowTask(AffiliateWindowTaskMixin, WarehouseMixin, luigi.Wrappe
 
 class LoadFeesToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
-    Loads Affiliate Window table from Hive into the Vertica data warehouse.
+    An entry point to loading fee-related data to the warehouse.
     """
     run_date = luigi.DateParameter()
 
