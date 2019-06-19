@@ -6,11 +6,14 @@ End to end test of the per-module engagement workflow.
 import datetime
 import logging
 
+import ddt
+
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_elasticsearch_available
 
 log = logging.getLogger(__name__)
 
 
+@ddt.ddt
 class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
     """Ensure engagement data is populated in the result store incrementally."""
 
@@ -19,7 +22,35 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
     NUM_REDUCERS = 1
 
     @when_elasticsearch_available
-    def test_roster_generation(self):
+    @ddt.data(
+        (
+            {
+                'module-engagement': {
+                    'allow_empty_insert': True,
+                }
+            }, [], []
+        ), (
+            {
+                'module-engagement': {
+                    'allow_empty_insert': True,
+                    'store_anonymous_username': 'ANONYMOUS USER',
+                }
+            }, [
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'discussion_contributions', 'normal', 0.0, None),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problem_attempts', 'normal', 0.0, None),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problems_attempted', 'normal', 0.0, None),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problems_completed', 'normal', 0.0, None),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'videos_viewed', 'low', 0.0, 1.0),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'videos_viewed', 'normal', 1.0, None),
+                ('edX/DemoX/Demo_Course_3', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problem_attempts_per_completed', 'normal', 0.0, None),
+            ], [
+                (datetime.date(2015, 4, 16), 'edX/DemoX/Demo_Course_3', 'ANONYMOUS USER', 'video', 'i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f', 'viewed', 2)
+            ]
+        ),
+    )
+    @ddt.unpack
+    def test_roster_generation(self, config_override, extra_module_engagement_metric_ranges, extra_module_engagement_rows):
+
         for day in range(2, 17):
             fake_date = datetime.date(2015, 4, day)
             if day in (13, 16):
@@ -46,11 +77,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 '--date', '2015-04-17',
                 '--n-reduce-tasks', str(self.NUM_REDUCERS),
             ],
-            config_override={
-                'module-engagement': {
-                    'allow_empty_insert': True
-                }
-            }
+            config_override=config_override,
         )
 
         query = {"query": {"match_all": {}}}
@@ -214,7 +241,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 ('course-v1:edX+DemoX+Demo_Course_2015', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problem_attempts', 'normal', 0.0, None),
                 ('course-v1:edX+DemoX+Demo_Course_2015', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problems_attempted', 'normal', 0.0, None),
                 ('course-v1:edX+DemoX+Demo_Course_2015', datetime.date(2015, 4, 10), datetime.date(2015, 4, 17), 'problems_completed', 'normal', 0.0, None)
-            ]
+            ] + extra_module_engagement_metric_ranges
         )
 
         with self.export_db.cursor() as cursor:
@@ -244,5 +271,5 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                 (april_sixteenth, 'edX/DemoX/Demo_Course', 'honor', 'video', 'i4x-edX-DemoX-video-8c0028eb2a724f48a074bc184cd8635f', 'viewed', 1),
                 (april_sixteenth, 'edX/DemoX/Demo_Course_2', 'honor', 'discussion', 'cba3e4cd91d0466b9ac50926e495b76f', 'contributed', 3),
                 (april_sixteenth, 'edX/DemoX/Demo_Course_2', 'honor', 'problem', 'i4x://edX/DemoX/problem/a0effb954cca4759994f1ac9e9434bf4', 'attempted', 1),
-            ]
+            ] + extra_module_engagement_rows
         )
