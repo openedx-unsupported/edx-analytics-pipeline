@@ -445,7 +445,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
     def test_second_purchase(self, is_refunded_order, amount, transaction_status, orderitem_status):
         orderitem = self.create_orderitem(is_refunded=is_refunded_order)
         purchase1 = self.create_transaction()
-        purchase2 = self.create_transaction(amount=amount)
+        purchase2 = self.create_transaction(amount=amount, transaction_id=SECOND_TRANSACTION)
         self._check_output([orderitem, purchase1, purchase2], [
             {'transaction_audit_code': 'PURCHASE_ONE'},
             {'transaction_audit_code': transaction_status},
@@ -461,6 +461,17 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
         self._check_output([orderitem, purchase1, purchase2], [
             {'transaction_audit_code': 'PURCHASE_MISCHARGE', 'transaction_id': FIRST_TRANSACTION},
             {'transaction_audit_code': 'PURCHASE_FIRST', 'transaction_id': SECOND_TRANSACTION},
+        ], **{
+            'order_audit_code': 'ORDER_BALANCED',
+            'orderitem_audit_code': 'PURCHASED_BALANCE_MATCHING',
+        })
+
+    def test_two_duplicate_transactions_to_purchase(self):
+        orderitem = self.create_orderitem()
+        purchase1 = self.create_transaction()
+        purchase2 = self.create_transaction(transaction_id=FIRST_TRANSACTION, date=TEST_LATER_DATE)
+        self._check_output([orderitem, purchase1, purchase2], [
+            {'transaction_audit_code': 'PURCHASE_ONE', 'transaction_id': FIRST_TRANSACTION, 'transaction_date': TEST_DATE},
         ], **{
             'order_audit_code': 'ORDER_BALANCED',
             'orderitem_audit_code': 'PURCHASED_BALANCE_MATCHING',
@@ -515,7 +526,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
         orderitem = self.create_orderitem(is_refunded=is_refunded_order)
         purchase = self.create_transaction()
         refund1 = self.create_refunding_transaction()
-        refund2 = self.create_refunding_transaction(amount=amount)
+        refund2 = self.create_refunding_transaction(amount=amount, transaction_id=THIRD_TRANSACTION)
         self._check_output([orderitem, purchase, refund1, refund2], [
             {'transaction_audit_code': 'PURCHASE_ONE'},
             {'transaction_audit_code': 'REFUND_ONE' if is_refunded_order else 'REFUND_ONE_STATUS_NOT_REFUNDED'},
@@ -529,7 +540,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
         orderitem = self.create_orderitem(is_refunded=True)
         purchase = self.create_transaction()
         refund1 = self.create_refunding_transaction(amount='-30.00')
-        refund2 = self.create_refunding_transaction(amount='-20.00')
+        refund2 = self.create_refunding_transaction(amount='-20.00', transaction_id=THIRD_TRANSACTION)
         self._check_output([orderitem, purchase, refund1, refund2], [
             {'transaction_audit_code': 'PURCHASE_ONE'},
             {'transaction_audit_code': 'REFUND_FIRST'},
