@@ -25,7 +25,6 @@ class ImportEnterpriseCustomerTask(ImportMysqlToHiveTableTask):
             ('name', 'STRING'),
             ('active', 'BOOLEAN'),
             ('site_id', 'INT'),
-            ('catalog', 'INT'),
             ('enable_data_sharing_consent', 'BOOLEAN'),
             ('enforce_data_sharing_consent', 'STRING'),
             ('enable_audit_enrollment', 'BOOLEAN'),

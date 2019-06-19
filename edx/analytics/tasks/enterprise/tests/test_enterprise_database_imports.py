@@ -26,7 +26,7 @@ class ImportEnterpriseCustomerTaskTestCase(TestCase):
             USE default;
             DROP TABLE IF EXISTS `enterprise_enterprisecustomer`;
             CREATE EXTERNAL TABLE `enterprise_enterprisecustomer` (
-                `created` TIMESTAMP,`modified` TIMESTAMP,`uuid` STRING,`name` STRING,`active` BOOLEAN,`site_id` INT,`catalog` INT,`enable_data_sharing_consent` BOOLEAN,`enforce_data_sharing_consent` STRING,`enable_audit_enrollment` BOOLEAN,`enable_audit_data_reporting` BOOLEAN
+                `created` TIMESTAMP,`modified` TIMESTAMP,`uuid` STRING,`name` STRING,`active` BOOLEAN,`site_id` INT,`enable_data_sharing_consent` BOOLEAN,`enforce_data_sharing_consent` STRING,`enable_audit_enrollment` BOOLEAN,`enable_audit_data_reporting` BOOLEAN
             )
             PARTITIONED BY (dt STRING)
 
