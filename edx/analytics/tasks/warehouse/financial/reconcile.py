@@ -313,9 +313,29 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
             audit_code = (order_audit_code, 'NO_ORDERITEM', trans_audit_code)
             yield audit_code, transaction
 
+    def _deduplicate_transactions(self, transactions):
+        """
+        Due to various bugs in external pulls, it seems possible to get the same transactions appearing in
+        the transaction reports pulled on different days.  If we assume that the transaction ID is unique,
+        then we can handle these bugs by deduplicating based on transaction ID.  We will treat the first
+        transaction with a given ID as being the "real" transaction date, in the case of differing dates.
+        Since we're doing this in the reducer, we already know the transactions all share the same payment_ref_id.
+        We know the transactions are sorted by date, so we just take the first transaction we encounter
+        for each transaction_id.
+        """
+        new_transactions = []
+        seen_transaction_ids = set()
+        for transaction in transactions:
+            if transaction.transaction_id not in seen_transaction_ids:
+                new_transactions.append(transaction)
+                seen_transaction_ids.add(transaction.transaction_id)
+        return new_transactions
+
     def reducer(self, _key, values):
         """Convert orderitems and transactions into orderitem-transaction records."""
         orderitems, transactions = self.extract_transactions(values)
+
+        transactions = self._deduplicate_transactions(transactions)
 
         # Check to see that all orderitems belong to the same order.
         distinct_order_ids = set([orderitem.order_id for orderitem in orderitems])
