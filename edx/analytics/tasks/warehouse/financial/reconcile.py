@@ -1043,18 +1043,13 @@ FULLORDERITEM_FIELDS = [
     'username',
     'date_placed',
     'iso_currency_code',
-    'coupon_id',
     'discount_amount',
-    'voucher_id',
-    'voucher_code',
     'status',
     'refunded_amount',
     'refunded_quantity',
     'payment_ref_id',  # This is the value to compare with the transactions.
     'partner_short_code',
     'course_uuid',  # UUID of the course, NOT course run
-    'expiration_date',
-    'product_course_id',
     'lms_user_id',
     'partner_sku',
 ]
@@ -1104,10 +1099,7 @@ FullOrderTransactionRecordBase = namedtuple("FullOrderTransactionRecord", [  # p
     "order_line_item_price",
     "order_line_item_unit_price",
     "order_line_item_quantity",
-    "order_coupon_id",
     "order_discount_amount",
-    "order_voucher_id",
-    "order_voucher_code",
     "order_refunded_amount",
     "order_refunded_quantity",
     "order_user_id",
@@ -1118,8 +1110,6 @@ FullOrderTransactionRecordBase = namedtuple("FullOrderTransactionRecord", [  # p
     "order_org_id",
     "order_processor",
     "course_uuid",
-    "expiration_date",
-    "product_course_id",
     "lms_user_id",
     "partner_sku",
     "order_status",
@@ -1175,14 +1165,9 @@ class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask)
                 ('refunded_amount', '0.0'),
                 ('refunded_quantity', '0'),
                 ('discount_amount', '0.0'),
-                ('coupon_id', None),
-                ('voucher_id', None),
-                ('voucher_code', ''),
                 ('partner_short_code', ''),
                 ('course_uuid', None),
-                ('expiration_date', None),
                 ('lms_user_id', None),
-                ('product_course_id', ''),
                 ('partner_sku', ''),
             )
             for field_name, default_value in defaults:
@@ -1276,10 +1261,7 @@ class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask)
             orderitem.line_item_price if orderitem else None,
             orderitem.line_item_unit_price if orderitem else None,
             orderitem.line_item_quantity if orderitem else None,
-            orderitem.coupon_id if orderitem else None,
             orderitem.discount_amount if orderitem else None,
-            orderitem.voucher_id if orderitem else None,
-            orderitem.voucher_code if orderitem else None,
             orderitem.refunded_amount if orderitem else None,
             orderitem.refunded_quantity if orderitem else None,
             orderitem.user_id if orderitem else None,
@@ -1290,8 +1272,6 @@ class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask)
             org_id if org_id is not None else None,
             orderitem.order_processor if orderitem else None,
             orderitem.course_uuid if orderitem else None,
-            orderitem.expiration_date if orderitem else None,
-            orderitem.product_course_id if orderitem else None,
             orderitem.lms_user_id if orderitem else None,
             orderitem.partner_sku if orderitem else None,
             orderitem.status if orderitem else None,
@@ -1360,10 +1340,7 @@ class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportin
             ('order_line_item_price', 'DECIMAL(12,2)'),
             ('order_line_item_unit_price', 'DECIMAL(12,2)'),
             ('order_line_item_quantity', 'INTEGER'),
-            ('order_coupon_id', 'INTEGER'),
             ('order_discount_amount', 'DECIMAL(12,2)'),
-            ('order_voucher_id', 'INTEGER'),
-            ('order_voucher_code', 'VARCHAR(255)'),
             ('order_refunded_amount', 'DECIMAL(12,2)'),
             ('order_refunded_quantity', 'INTEGER'),
             ('order_user_id', 'INTEGER'),
@@ -1374,8 +1351,6 @@ class LoadInternalReportingFullOrderTransactionsToWarehouse(LoadInternalReportin
             ('order_org_id', 'VARCHAR(128)'),  # pulled from course_id
             ('order_processor', 'VARCHAR(32)'),
             ('course_uuid', 'VARCHAR(255)'),
-            ('expiration_date', 'TIMESTAMP'),
-            ('order_product_course_id', 'VARCHAR(255)'),
             ('order_lms_user_id', 'INTEGER'),
             ('order_partner_sku', 'VARCHAR(128)'),
             ('order_status', 'VARCHAR(128)'),
@@ -1406,33 +1381,28 @@ class BaseLoadFullOrdersToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixi
         """
         return [
             ('order_processor', 'VARCHAR(32)'),
-            ('user_id', 'INTEGER'),
+            ('order_user_id', 'INTEGER'),
             ('order_id', 'INTEGER'),
             ('order_line_id', 'INTEGER'),
             ('line_item_product_id', 'INTEGER'),
             ('line_item_price', 'DECIMAL(12,2)'),
             ('line_item_unit_price', 'DECIMAL(12,2)'),
             ('line_item_quantity', 'INTEGER'),
-            ('product_class', 'VARCHAR(128)'),
-            ('course_key', 'VARCHAR(255)'),  # originally longtext
-            ('product_detail', 'VARCHAR(255)'),  # originally longtext
-            ('username', 'VARCHAR(30)'),
-            ('timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
-            ('iso_currency_code', 'VARCHAR(12)'),
-            ('coupon_id', 'INTEGER'),
-            ('discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
-            ('voucher_id', 'INTEGER'),
-            ('voucher_code', 'VARCHAR(255)'),
-            ('status', 'VARCHAR(128)'),
-            ('refunded_amount', 'DECIMAL(12,2)'),
-            ('refunded_quantity', 'INTEGER'),
+            ('line_product_class', 'VARCHAR(128)'),
+            ('line_course_key', 'VARCHAR(255)'),  # originally longtext
+            ('line_product_detail', 'VARCHAR(255)'),  # originally longtext
+            ('order_username', 'VARCHAR(30)'),
+            ('order_timestamp', 'TIMESTAMP'),  # datetime seems to be interchangeable
+            ('order_iso_currency_code', 'VARCHAR(12)'),
+            ('line_discount_amount', 'DECIMAL(12,2)'),  # Total discount in currency amount, i.e. unit_discount * qty
+            ('line_status', 'VARCHAR(128)'),
+            ('line_refunded_amount', 'DECIMAL(12,2)'),
+            ('line_refunded_quantity', 'INTEGER'),
             ('order_number', 'VARCHAR(128)'),
-            ('partner_short_code', 'VARCHAR(8)'),
-            ('course_uuid', 'VARCHAR(255)'),
-            ('expiration_date', 'TIMESTAMP'),
-            ('product_course_id', 'VARCHAR(255)'),
-            ('lms_user_id', 'INTEGER'),
-            ('partner_sku', 'VARCHAR(128)'),
+            ('order_partner_short_code', 'VARCHAR(8)'),
+            ('line_course_uuid', 'VARCHAR(255)'),
+            ('order_lms_user_id', 'INTEGER'),
+            ('line_partner_sku', 'VARCHAR(128)'),
         ]
 
 
