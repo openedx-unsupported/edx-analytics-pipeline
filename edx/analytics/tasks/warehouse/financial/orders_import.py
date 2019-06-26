@@ -355,18 +355,13 @@ class BaseFullOrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
             ('username', 'STRING'),
             ('date_placed', 'TIMESTAMP'),
             ('iso_currency_code', 'STRING'),
-            ('coupon_id', 'INT'),
             ('discount_amount', hive_decimal_type(12, 2)),  # Total discount in currency amount, i.e. unit_discount * qty
-            ('voucher_id', 'INT'),
-            ('voucher_code', 'STRING'),
             ('status', 'STRING'),
             ('refunded_amount', hive_decimal_type(12, 2)),
             ('refunded_quantity', 'INT'),
             ('payment_ref_id', 'STRING'),
             ('partner_short_code', 'STRING'),
             ('course_uuid', 'STRING'),
-            ('expiration_date', 'TIMESTAMP'),
-            ('product_course_id', 'STRING'),
             ('lms_user_id', 'INT'),
             ('partner_sku', 'STRING'),
         ]
@@ -417,24 +412,12 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
             # Otto Current State, Line Item, and Coupon Tables.
             ImportCurrentOrderState(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
-            ImportCurrentOrderDiscountState(**kwargs),
-            ImportCouponVoucherIndirectionState(**kwargs),
-            ImportCouponVoucherState(**kwargs),
 
             # Otto Refund Tables.
             ImportCurrentRefundRefundLineState(**kwargs),
 
             # Otto Partner Information.
             ImportEcommercePartner(**kwargs),
-        )
-
-        kwargs['credentials'] = self.credentials
-        kwargs['database'] = self.database
-        yield (
-            # Other LMS tables.
-            ImportAuthUserTask(**kwargs),
-            ImportCourseEntitlementTask(**kwargs),
-            ImportStudentCourseEnrollmentTask(**kwargs),
         )
 
     @property
@@ -459,17 +442,13 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                     ol.unit_price_incl_tax AS line_item_unit_price,
                     ol.quantity AS line_item_quantity,
                     cpc.slug AS product_class,
-                    COALESCE(enrollments.course_id, ckval.value_text) AS course_run_key,
+                    ckval.value_text AS course_run_key,
                     ctval.value_text AS product_detail,
                     u.username AS username,
                     o.date_placed AS date_placed,
                     o.currency AS iso_currency_code,
 
-                    -- Discount/coupon/voucher information
-                    vcv.coupon_id AS coupon_id,
                     (ol.line_price_before_discounts_incl_tax - ol.line_price_incl_tax) AS discount_amount,
-                    od.voucher_id AS voucher_id,
-                    od.voucher_code AS voucher_code,
 
                     -- If a refund was found, mark this order as refunded
                     CASE
@@ -486,8 +465,6 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
 
                     partner.short_code AS partner_short_code,
                     cuval.value_text AS course_uuid,
-                    entitlements.expired_at AS expiration_date,
-                    COALESCE(parent.course_id, cp.course_id) AS product_course_id,
                     u.lms_user_id AS lms_user_id,
                     ol.partner_sku AS partner_sku
 
@@ -536,24 +513,9 @@ class FullOttoOrderTableTask(BaseFullOrderTableTask):
                     GROUP BY order_line_id
                 ) r ON r.order_line_id = ol.id
 
-                -- Get discount information. Each order may have zero or one voucher code applied.
-                -- We are relying on the ecommerce restriction that each order can have no more than one voucher
-                -- applied. If the order contains multiple line items, the AND condition below will join the discount
-                -- information only to the order line item(s) that were actually discounted.
-                LEFT OUTER JOIN order_orderdiscount od ON od.order_id = o.id AND (ol.line_price_incl_tax <> ol.line_price_before_discounts_incl_tax)
-                LEFT OUTER JOIN voucher_couponvouchers_vouchers vcvv ON vcvv.voucher_id = od.voucher_id
-                LEFT OUTER JOIN voucher_couponvouchers vcv ON vcv.id = vcvv.couponvouchers_id
-
                 -- Partner information
                 LEFT OUTER JOIN partner_partner partner ON partner.id = ol.partner_id
 
-                -- Get course entitlement data
-                LEFT OUTER JOIN entitlements_courseentitlement entitlements ON entitlements.order_number = o.number
-                    AND entitlements.course_uuid = REPLACE(cuval.value_text, "-", "")
-                LEFT OUTER JOIN student_courseenrollment enrollments ON enrollments.id = entitlements.enrollment_course_run_id
-
-                -- NO LONGER Only process complete orders
-                -- WHERE ol.status = "Complete"
         """
 
 
@@ -640,12 +602,8 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
                     o.purchase_time AS date_placed,
                     UPPER(o.currency) AS iso_currency_code,
 
-                    -- Coupon information. Shopping cart has no distinction between voucher codes and coupons.
-                    -- The tables also only store the percentage discount, not the discount amount, so calculate it:
-                    NULL AS coupon_id,
-                    ((oi.list_price - oi.unit_cost) * oi.qty) AS discount_amount, -- coupon.percentage_discount would have rounding issues
-                    coupon.id AS voucher_id,
-                    coupon.code AS voucher_code,
+                    -- Calculate size of actual discount. Calculating using coupon.percentage_discount would have rounding issues.
+                    ((oi.list_price - oi.unit_cost) * oi.qty) AS discount_amount,
 
                     -- Either "purchased" or "refunded"
                     oi.status AS status,
@@ -661,8 +619,6 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
 
                     -- These fields are not relevant to shoppingcart orders
                     NULL AS course_uuid,
-                    NULL AS expiration_date,
-                    NULL AS product_course_id,
                     o.user_id AS lms_user_id,
                     NULL AS partner_sku
 
@@ -676,18 +632,6 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
                 LEFT OUTER JOIN shoppingcart_paidcourseregistration pcr ON pcr.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_courseregcodeitem crc ON crc.orderitem_ptr_id = oi.id
                 LEFT OUTER JOIN shoppingcart_donation d ON d.orderitem_ptr_id = oi.id
-
-                -- Join coupon information. Need to use course_id because one order can contain multiple items,
-                -- but the database tables only link coupons to the whole order and not the specific line item.
-                LEFT OUTER JOIN shoppingcart_couponredemption couponred ON couponred.order_id = o.id
-                LEFT OUTER JOIN shoppingcart_coupon coupon ON (coupon.id = couponred.coupon_id AND coupon.course_id = (
-                    CASE
-                        WHEN ci.orderitem_ptr_id IS NOT NULL THEN ci.course_id
-                        WHEN pcr.orderitem_ptr_id IS NOT NULL THEN pcr.course_id
-                        WHEN crc.orderitem_ptr_id IS NOT NULL THEN crc.course_id
-                        WHEN d.orderitem_ptr_id IS NOT NULL THEN d.course_id
-                    END
-                ))
 
                 -- Ignore "cart", "defunct-cart" and "paying" statuses since they won't have corresponding transactions
                 WHERE oi.status IN ('purchased', 'refunded')
