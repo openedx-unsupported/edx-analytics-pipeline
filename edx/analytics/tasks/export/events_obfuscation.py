@@ -346,8 +346,8 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 
     def extra_modules(self):
         import numpy
-        import pygeoip
-        return [numpy, pygeoip]
+        import geoip2
+        return [numpy, geoip2]
 
 
 class EventObfuscationTask(ObfuscatorDownstreamMixin, MapReduceJobTaskMixin, luigi.WrapperTask):

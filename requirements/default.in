@@ -10,6 +10,7 @@ edx-ccx-keys==0.2.1     # AGPL
 edx-opaque-keys==0.4    # AGPL
 elasticsearch==1.7.0    # Apache
 filechunkio==1.8	# MIT
+geoip2==2.9.0		# Apache
 google-cloud-bigquery==0.27.0
 google-api-python-client==1.7.7
 graphitesend==0.10.0    # Apache
@@ -18,7 +19,6 @@ isoweek==1.3.3		# BSD
 numpy==1.11.3 		# BSD
 paypalrestsdk==1.9.0    # Paypal SDK License
 psycopg2==2.6.2     # LGPL
-pygeoip==0.3.2 		# LGPL
 python-cjson==1.1.0	# LGPL
 python-dateutil==2.6.1 	# BSD
 # There seems to be an issue(see: https://pagure.io/python-daemon/issue/18) with dependency installation on the

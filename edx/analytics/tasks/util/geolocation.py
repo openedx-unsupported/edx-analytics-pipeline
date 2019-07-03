@@ -8,11 +8,11 @@ import luigi
 from edx.analytics.tasks.util.url import ExternalURL
 
 try:
-    import pygeoip
+    import geoip2.database
 except ImportError:
     # The module will be imported on slave nodes even though they don't actually have the package installed.
     # The module is hopefully exported for tasks that actually use the module.
-    pygeoip = NotImplemented
+    geoip2 = NotImplemented
 
 
 UNKNOWN_COUNTRY = "UNKNOWN"
@@ -35,7 +35,7 @@ class GeolocationDownstreamMixin(object):
 class GeolocationMixin(GeolocationDownstreamMixin):
     """Provides support for initializing a geolocation object."""
 
-    geoip = None
+    geoip2 = None
 
     def requires_local(self):
         """Adds geolocation_data as a local requirement."""
@@ -67,7 +67,7 @@ class GeolocationMixin(GeolocationDownstreamMixin):
                     break
         self.temporary_data_file.seek(0)
 
-        self.geoip = pygeoip.GeoIP(self.temporary_data_file.name, pygeoip.STANDARD)
+        self.geoip = geoip2.database.Reader(self.temporary_data_file.name)
 
     def final_reducer(self):
         """Clean up after the reducer is done."""
@@ -77,12 +77,12 @@ class GeolocationMixin(GeolocationDownstreamMixin):
         return tuple()
 
     def extra_modules(self):
-        """Pygeoip is required by all tasks that perform geolocation."""
+        """geoip2 is required by all tasks that perform geolocation."""
         modules = super(GeolocationMixin, self).extra_modules()
         if not modules:
-            return [pygeoip]
+            return [geoip2]
         else:
-            return modules.append(pygeoip)
+            return modules.append(geoip2)
 
     def get_country_name(self, ip_address, debug_message=None):
         """
@@ -93,7 +93,7 @@ class GeolocationMixin(GeolocationDownstreamMixin):
 
         """
         try:
-            name = self.geoip.country_name_by_addr(ip_address)
+            name = (self.geoip.city(ip_address)).country.name
         except Exception:   # pylint:  disable=broad-except
             if debug_message:
                 log.exception("Encountered exception getting country name for ip_address '%s': %s.",
@@ -116,7 +116,7 @@ class GeolocationMixin(GeolocationDownstreamMixin):
 
         """
         try:
-            code = self.geoip.country_code_by_addr(ip_address)
+            code = (self.geoip.city(ip_address)).country.iso_code
         except Exception:   # pylint:  disable=broad-except
             if debug_message:
                 log.exception("Encountered exception getting country code for ip_address '%s': %s.",

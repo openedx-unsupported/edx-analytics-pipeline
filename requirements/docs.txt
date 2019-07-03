@@ -34,6 +34,7 @@ enum34==1.1.6
 filechunkio==1.8
 future==0.16.0
 futures==3.2.0
+geoip2==2.9.0
 google-auth==1.5.0
 google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1
@@ -60,7 +61,6 @@ pyasn1-modules==0.2.1
 pyasn1==0.4.3
 pycparser==2.18
 pycrypto==2.6.1
-pygeoip==0.3.2
 pygments==2.2.0           # via sphinx
 pymongo==3.6.1
 pynacl==1.2.1

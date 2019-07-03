@@ -32,6 +32,7 @@ enum34==1.1.6
 filechunkio==1.8
 future==0.17.1            # via vertica-python
 futures==3.2.0            # via google-cloud-core, s3transfer
+geoip2==2.9.0
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3  # via google-api-python-client
 google-auth==1.6.2        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
@@ -59,7 +60,6 @@ pyasn1-modules==0.2.3     # via google-auth
 pyasn1==0.4.3
 pycparser==2.18
 pycrypto==2.6.1
-pygeoip==0.3.2
 pymongo==3.7.2            # via edx-opaque-keys
 pynacl==1.2.1
 pyopenssl==18.0.0         # via paypalrestsdk
