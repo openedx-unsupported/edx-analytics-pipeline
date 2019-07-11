@@ -231,16 +231,15 @@ class EnterpriseEnrollmentDataTask(
                     ON enterprise_user.user_id = grades.user_id
                     AND enterprise_course_enrollment.course_id = grades.course_id
             LEFT JOIN (
-                    SELECT
-                        user_id,
-                        provider,
-                        MAX(uid) AS uid_full
-                    FROM
-                        social_auth_usersocialauth
-                    WHERE
-                        provider = 'tpa-saml'
-                    GROUP BY
-                        user_id, provider
+                    SELECT user_id, uid AS uid_full
+                    FROM social_auth_usersocialauth sauth_a
+                    INNER JOIN (
+                        SELECT MAX(id) AS id
+                        FROM social_auth_usersocialauth
+                        WHERE provider = 'tpa-saml'
+                        GROUP BY user_id
+                        ) sauth_b
+                            ON sauth_a.id = sauth_b.id
                 ) social_auth
                     ON enterprise_user.user_id = social_auth.user_id
             JOIN course_catalog course
