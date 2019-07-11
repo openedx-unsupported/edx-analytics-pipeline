@@ -34,7 +34,6 @@ else
 endif
 
 requirements:
-	pip install -r requirements/pip.txt
 	pip install -r requirements/default.txt --no-cache-dir
 	pip install -r requirements/extra.txt --no-cache-dir
 
