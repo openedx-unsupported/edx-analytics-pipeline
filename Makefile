@@ -2,7 +2,6 @@
 .PHONY:	requirements test test-requirements .tox upgrade
 
 uninstall:
-	pip install -r requirements/pip.txt
 	while pip uninstall -y edx.analytics.tasks; do true; done
 	python setup.py clean
 
@@ -105,7 +104,6 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	pip install -r requirements/pip.txt
 	pip install -r requirements/docs.txt --no-cache-dir
 	python setup.py install --force
 
