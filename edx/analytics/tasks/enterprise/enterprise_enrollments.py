@@ -178,7 +178,7 @@ class EnterpriseEnrollmentDataTask(
                     course.end_time AS course_end,
                     course.pacing_type AS course_pacing_type,
                     CASE
-                        WHEN course.pacing_type = 'self_paced' THEN 'Self Paced'
+                        WHEN course.pacing_type = 'self_paced' THEN CONCAT(course.weeks_to_complete, ' (Self Paced)')
                         ELSE CAST(CEIL(DATEDIFF(course.end_time, course.start_time) / 7) AS STRING)
                     END AS course_duration_weeks,
                     course.min_effort AS course_min_effort,
