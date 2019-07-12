@@ -1,4 +1,5 @@
 """Utility decorator for retrying functions that fail."""
+from __future__ import absolute_import
 
 import logging
 import time

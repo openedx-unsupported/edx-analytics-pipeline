@@ -197,12 +197,12 @@ class SqoopImportTestCase(unittest.TestCase):
         self.assertEquals(arglist[-3], 'column1,column2')
 
     def test_connect_with_null_string(self):
-        self.create_and_run_mysql_task(null_string='\\\\N')
+        self.create_and_run_mysql_task(null_string=r'\\N')
         arglist = self.get_call_args_after_run()
         self.assertEquals(arglist[-6], '--null-string')
-        self.assertEquals(arglist[-5], '\\\\N')
+        self.assertEquals(arglist[-5], r'\\N')
         self.assertEquals(arglist[-4], '--null-non-string')
-        self.assertEquals(arglist[-3], '\\\\N')
+        self.assertEquals(arglist[-3], r'\\N')
 
     def test_connect_with_fields_terminations(self):
         self.create_and_run_mysql_task(fields_terminated_by='\x01')

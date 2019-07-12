@@ -397,8 +397,8 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         super(UserVideoViewingTaskReducerTest, self).setUp()
         self.user_id = 10
         self.reduce_key = (self.user_id, self.COURSE_ID, self.VIDEO_MODULE_ID)
-        patcher = patch('edx.analytics.tasks.insights.video.urllib')
-        self.mock_urllib = patcher.start()
+        patcher = patch('edx.analytics.tasks.insights.video.urlopen')
+        self.mock_urlopen = patcher.start()
         self.addCleanup(patcher.stop)
 
     def test_simple_viewing(self):
@@ -634,7 +634,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         mock_response = MagicMock(spec=file)
         mock_response.code = 200
         mock_response.read.side_effect = [response_string, '']
-        self.mock_urllib.urlopen.return_value = mock_response
+        self.mock_urlopen.return_value = mock_response
 
     def test_pause_after_end_of_video(self):
         self.prepare_youtube_api_mock('PT1M2S')

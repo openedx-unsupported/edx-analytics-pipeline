@@ -1,5 +1,8 @@
 """Test the retry decorator"""
 
+from __future__ import absolute_import
+
+import six
 from datetime import datetime, timedelta
 from unittest import TestCase
 
@@ -73,7 +76,7 @@ class RetryTestCase(TestCase):
 
         some_func()
         self.assertEqual(self.func_call_counter, 4)
-        self.assertItemsEqual(self.mock_sleep.mock_calls, [call(0.5), call(1), call(2)])
+        six.assertCountEqual(self, self.mock_sleep.mock_calls, [call(0.5), call(1), call(2)])
 
     def test_different_base_delay(self):
 
@@ -85,7 +88,7 @@ class RetryTestCase(TestCase):
                 raise Exception('error')
 
         some_func()
-        self.assertItemsEqual(self.mock_sleep.mock_calls, [call(1), call(2), call(4), call(8)])
+        six.assertCountEqual(self, self.mock_sleep.mock_calls, [call(1), call(2), call(4), call(8)])
 
     def test_fatal_exception(self):
 

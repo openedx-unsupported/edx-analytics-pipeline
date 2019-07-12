@@ -1,6 +1,8 @@
 """
 Provide support for overwriting existing output files.
 """
+from __future__ import absolute_import
+
 import logging
 
 import luigi

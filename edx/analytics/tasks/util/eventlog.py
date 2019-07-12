@@ -4,9 +4,8 @@ import datetime
 import logging
 import re
 
-import cjson
-
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.fast_json import FastJson
 
 log = logging.getLogger(__name__)
 
@@ -15,14 +14,14 @@ PATTERN_JSON = re.compile(r'^.*?(\{.*\})\s*$')
 
 def decode_json(line):
     """Wrapper to decode JSON string in an implementation-independent way."""
-    # TODO: Verify correctness of cjson
-    return cjson.decode(line)
+    # TODO: Verify correctness of FastJson
+    return FastJson.loads(line)
 
 
 def encode_json(obj):
     """Wrapper to re-encode JSON string in an implementation-independent way."""
-    # TODO: Verify correctness of cjson
-    return cjson.encode(obj)
+    # TODO: Verify correctness of FastJson
+    return FastJson.dumps(obj)
 
 
 def parse_json_event(line, nested=False):

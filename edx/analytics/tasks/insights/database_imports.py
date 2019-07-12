@@ -1,6 +1,8 @@
 """
 Import data from external RDBMS databases into Hive.
 """
+from __future__ import absolute_import
+
 import datetime
 import logging
 import textwrap
@@ -91,7 +93,7 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
     def partition_location(self):
         """Provides location of Hive database table's partition data."""
         # The actual folder name where the data is stored is expected to be in the format <key>=<value>
-        partition_name = '='.join(self.partition.items()[0])
+        partition_name = '='.join(list(self.partition.items())[0])
         # Make sure that input path ends with a slash, to indicate a directory.
         # (This is necessary for S3 paths that are output from Hadoop jobs.)
         return url_path_join(self.table_location, partition_name + '/')
@@ -169,9 +171,8 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             database=self.database,
             # Hive expects NULL to be represented by the string "\N" in the data. You have to pass in "\\N" to sqoop
             # since it uses that string directly in the generated Java code, so "\\N" actually looks like "\N" to the
-            # Java code. In order to get "\\N" onto the command line we have to use another set of escapes to tell the
-            # python code to pass through the "\" character.
-            null_string='\\\\N',
+            # Java code. In order to write "\\N" in python, we use a raw string prefix `r`.
+            null_string=r'\\N',
             # It's unclear why, but this setting prevents us from correctly substituting nulls with \N.
             mysql_delimiters=False,
             # This is a string that is interpreted as an octal number, so it is equivalent to the character Ctrl-A

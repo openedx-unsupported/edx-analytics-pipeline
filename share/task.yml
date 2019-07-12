@@ -3,7 +3,7 @@
 - name: Configure luigi
   hosts: "{{ name }}"
   gather_facts: True
-  sudo: True
+  become: True
   vars:
     write_luigi_config: "yes"
     common_debian_variants:
@@ -60,93 +60,100 @@
       register: home_output
 
     - name: set the home variable
-      set_fact: home="{{ home_output.stdout }}"
+      set_fact: "home={{ home_output.stdout }}"
 
     - name: known_hosts file exists
       command: touch {{ home }}/.ssh/known_hosts creates={{ home }}/.ssh/known_hosts
 
     - name: git server in known_hosts file
-      lineinfile: >
-        dest={{ home }}/.ssh/known_hosts
-        regexp=^{{item.hostname}}
-        line="{{ item.hostname }} {{ item.public_key }}"
-      with_items: git_servers
+      lineinfile:
+        dest: "{{ home }}/.ssh/known_hosts"
+        regexp: "^{{item.hostname}}"
+        line: "{{ item.hostname }} {{ item.public_key }}"
+      loop: "{{ git_servers }}"
 
     - name: root directories created
       file: path={{ item }} state=directory owner=root group=root
-      sudo: True
+      become: True
       with_items:
         - "{{ root_data_dir }}"
         - "{{ root_log_dir }}"
 
     - name: working directories created
       file: path={{ item }} state=directory mode=777 owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
-      sudo: True
+      become: True
       with_items:
         - "{{ working_dir }}"
         - "{{ working_venv_dir }}"
 
     - name: log directory created
       file: path={{ item }} state=directory mode=777 owner={{ ansible_ssh_user }} group={{ ansible_ssh_user }}
-      sudo: True
+      become: True
       with_items:
         - "{{ log_dir }}"
 
     - name: make sure git is available on the Debian server
       command: apt-get install -q -y git
-      sudo: True
+      become: True
       when: ansible_distribution in common_debian_variants
 
     - name: make sure git is available on the RHEL server
       yum: pkg=git state=present
-      sudo: True
+      become: True
       when: ansible_distribution in common_redhat_variants
 
     - name: repositories checked out
-      git: >
-        repo={{ item.url }}
-        dest={{ working_dir }}/{{ item.dir_name }}
-        version=master
-      with_items: repos
+      git:
+        repo: "{{ item.url }}"
+        dest: "{{ working_dir }}/{{ item.dir_name }}"
+        version: master
+        force: yes
+      loop: "{{ repos }}"
 
     - name: branches fetched
-      command: git fetch --all chdir={{ working_dir }}/{{ item.dir_name }}
-      with_items: repos
+      command: "git fetch --all chdir={{ working_dir }}/{{ item.dir_name }}"
+      loop: "{{ repos }}"
 
     - name: origin/HEAD updated
-      command: git remote set-head origin --auto chdir={{ working_dir }}/{{ item.dir_name }}
-      with_items: repos
+      command: "git remote set-head origin --auto chdir={{ working_dir }}/{{ item.dir_name }}"
+      loop: "{{ repos }}"
 
     - name: branches checked out
-      command: git checkout {{ item.branch }} chdir={{ working_dir }}/{{ item.dir_name }}
-      with_items: repos
+      command: "git checkout {{ item.branch }} chdir={{ working_dir }}/{{ item.dir_name }}"
+      loop: "{{ repos }}"
 
     - name: ensure system packages are installed
       command: make system-requirements chdir={{ working_repo_dir }}
-      sudo: True
+      become: True
 
     - name: bootstrap pip on Debian
       command: apt-get install -q -y python-pip
-      sudo: True
+      become: True
       when: ansible_distribution in common_debian_variants
 
     - name: bootstrap pip on RHEL
       command: yum install -q -y python-pip
-      sudo: True
+      become: True
       when: ansible_distribution in common_redhat_variants
 
     - name: virtualenv installed
-      pip: name=virtualenv version=1.10.1
-      sudo: True
+      pip: name=virtualenv version=16.6.1
+      become: True
 
-    - name: check if virtualenv already created
-      stat: path={{ working_venv_dir }}/bin/activate
-      register: virtualenv_created
+    #- name: check if virtualenv already created
+    #  stat:
+    #    path: "{{ working_venv_dir }}/bin/activate"
+    #  register: virtualenv_created
+
+    # This is required for running unit tests inside docker, at least until the
+    # default image comes with a py3 compatible virtualenv.
+    - name: virtualenv deleted
+      shell: "rm -rf {{ working_venv_dir }}/*"
 
     - name: virtualenv created
       command: >
-        virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
-      when: not virtualenv_created.stat.exists
+        virtualenv --clear --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
+      #when: not virtualenv_created.stat.exists
 
     - name: update pip
       command: >
@@ -155,28 +162,32 @@
     - name: virtualenv initialized on Debian
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
-        chdir={{ working_repo_dir }}
+      args:
+        chdir: "{{ working_repo_dir }}"
       when: ansible_distribution in common_debian_variants
 
     - name: virtualenv initialized on RHEL
       shell: >
         . {{ working_venv_dir }}/bin/activate && make install
-        chdir={{ working_repo_dir }}
+      args:
+        chdir: "{{ working_repo_dir }}"
       when: ansible_distribution in common_redhat_variants
 
     - name: additional packages installed on Debian
       shell: >
         . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
-        chdir={{ working_repo_dir }}
+      args:
+        chdir: "{{ working_repo_dir }}"
       when: ansible_distribution in common_debian_variants
-      with_items: packages
+      loop: "{{ packages }}"
 
     - name: additional packages installed on RHEL
       shell: >
         . {{ working_venv_dir }}/bin/activate && pip install {{ item }}
-        chdir={{ working_repo_dir }}
+      args:
+        chdir: "{{ working_repo_dir }}"
       when: ansible_distribution in common_redhat_variants
-      with_items: packages
+      loop: "{{ packages }}"
 
     - name: logging configured
       template: src=logging.cfg.j2 dest={{ working_repo_dir }}/logging.cfg

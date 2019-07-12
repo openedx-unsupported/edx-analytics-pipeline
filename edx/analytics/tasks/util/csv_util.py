@@ -1,9 +1,11 @@
 """
 Simple CSV utilities.
 """
+from __future__ import absolute_import
 
 import csv
-from StringIO import StringIO
+from io import BytesIO
+import six
 
 
 class MySQLDumpDialect(csv.Dialect):
@@ -47,21 +49,21 @@ DIALECTS = {
     'mysqlexport': MySQLExportDialect
 }
 
-for dialect_name, dialect_class in DIALECTS.iteritems():
+for dialect_name, dialect_class in six.iteritems(DIALECTS):
     csv.register_dialect(dialect_name, dialect_class)
 
 
 def parse_line(line, dialect='excel'):
     """Parse one line of CSV in the dialect specified."""
     # csv.reader requires an iterable per row, so we wrap the line in a list
-    parsed = csv.reader([line], dialect=dialect).next()
+    parsed = next(csv.reader([line], dialect=dialect))
 
     return parsed
 
 
 def to_csv_line(row, dialect='excel'):
     """Return a CSV line by joining the values in row in the dialect specified."""
-    output = StringIO()
+    output = BytesIO()
     csv.writer(output, dialect=dialect).writerow(row)
 
     output.seek(0)

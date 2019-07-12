@@ -1,4 +1,6 @@
 """Tests for Order-transaction reconciliation and reporting."""
+from __future__ import absolute_import
+
 import uuid
 from unittest import TestCase
 
@@ -10,11 +12,13 @@ from edx.analytics.tasks.warehouse.financial.reconcile import (
     LOW_ORDER_ID_SHOPPINGCART_ORDERS, BaseOrderItemRecord, BaseTransactionRecord, OrderItemRecord,
     OrderTransactionRecord, ReconcileOrdersAndTransactionsTask, TransactionRecord
 )
+import six
+from six.moves import zip
 
 TEST_DATE = '2015-06-01'
 TEST_LATER_DATE = '2015-06-10'
 DEFAULT_REF_ID = "EDX-12345"
-HIVE_NULL = '\\N'
+HIVE_NULL = r'\N'
 FIRST_ORDER_ITEM = '2345678'
 SECOND_ORDER_ITEM = '2345679'
 FIRST_TRANSACTION = '123423453456'
@@ -206,7 +210,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
             # so that column names can be used instead of numbers.
             output_dict = record._asdict()  # pylint: disable=no-member,protected-access
             expected_columns.update(**extra_values)
-            for column_num, expected_value in expected_columns.iteritems():
+            for column_num, expected_value in six.iteritems(expected_columns):
                 self.assertEquals(output_dict[column_num], expected_value)
 
     def test_no_transaction(self):

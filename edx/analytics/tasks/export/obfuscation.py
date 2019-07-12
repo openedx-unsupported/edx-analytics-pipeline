@@ -1,11 +1,13 @@
 """Tasks to obfuscate course data for RDX."""
+from future.standard_library import install_aliases
+install_aliases()
 
 import errno
 import json
 import logging
 import os
 import tarfile
-import urlparse
+from urllib.parse import urlparse
 
 import luigi
 

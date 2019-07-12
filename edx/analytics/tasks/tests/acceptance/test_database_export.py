@@ -3,14 +3,17 @@ Run end-to-end acceptance tests. The goal of these tests is to emulate (as close
 validate user visible outputs.
 
 """
+from future.standard_library import install_aliases
+install_aliases()
 
 import datetime
 import logging
 import os
 import shutil
+import stat
 import tempfile
 import textwrap
-import urlparse
+from urllib.parse import urlparse
 
 import gnupg
 
@@ -56,7 +59,10 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         for dir_path in [self.external_files_dir, self.working_dir, self.validation_dir, self.gpg_dir]:
             os.makedirs(dir_path)
 
-        os.chmod(self.gpg_dir, 0700)
+        os.chmod(
+            self.gpg_dir,
+            stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR,  # equivalent to "0700" in Unix chmod.
+        )
 
         # The exporter expects this directory to already exist.
         os.makedirs(os.path.join(self.working_dir, 'course-data'))

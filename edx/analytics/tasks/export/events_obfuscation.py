@@ -6,10 +6,10 @@ import os
 import re
 from collections import defaultdict, namedtuple
 
-import cjson
 import luigi.date_interval
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.fast_json import FastJson
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
@@ -328,7 +328,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
             # Re-encode payload as a json string if it originally was one.
             # (This test works because we throw away string values that didn't parse as JSON.)
             if isinstance(event.get('event'), basestring):
-                event['event'] = cjson.encode(event_data)
+                event['event'] = FastJson.dumps(event_data)
             else:
                 event['event'] = event_data
 

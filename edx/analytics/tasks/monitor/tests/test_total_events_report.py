@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import textwrap
-from StringIO import StringIO
+from io import BytesIO
 from unittest import TestCase
 
 import pandas
@@ -86,7 +86,7 @@ class TestTotalEventsReport(TestCase):
         task.run()
         data = output_target.buffer.read()
 
-        result = pandas.read_csv(StringIO(data),
+        result = pandas.read_csv(BytesIO(data),
                                  na_values=['-'],
                                  index_col=False,
                                  header=None,

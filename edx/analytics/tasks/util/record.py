@@ -18,7 +18,7 @@ except ImportError:
     bigquery_available = False  # pylint: disable=invalid-name
 
 
-DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
+DEFAULT_NULL_VALUE = r'\N'  # This is the default string used by Hive to represent a NULL value.
 
 log = logging.getLogger(__name__)
 

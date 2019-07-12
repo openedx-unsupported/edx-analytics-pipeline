@@ -18,6 +18,33 @@ env:
     - secure: NLqmm18NpV3JRwD4CaugXm5cMWgxjdOA88xRFocmmVrduv0QT9JxBZFGebLYmFQOoKNJ23hz6g3EHe1aWfhLYnr1iUYerrwIriSI1wzuqbXJBRN6gO2n3YW+IfG83OLMZkOIMswT8MEdT3JPWVJL3bsocjHp8bYhRCt1KTCMJjY=
     - secure: aG8l39jaLFWXB5CEOOAR9mJTT3GnqxCl/oFM/7NvTZCBoSWIPIztpFhSAkRE9xSIiKUKXakZcL5H349NLC28jdlHPVsNAaKKt2YNhB6MjmePihp3RPwZGn8c/SjslwY7DPVUKMdWsI7AVNJBH8ab30OPxKwXFAMOiJJza206CYQ=
 
+# TODO: re-introduce the coverage test.
+matrix:
+  # Mark travis build as finished before jobs under allow_failures complete.
+  fast_finish: true
+
+  include:
+    # Standard unit tests.
+    - name: "Python 2.7 Unit Tests"
+      env: TEST_SUITE=test-docker
+
+    # Python 3 whitelisted and full unit test jobs.  Once python 3 support is
+    # complete, delete the whitelist job and remove the full job from
+    # allow_failures.
+    - name: "Python 3.x Whitelisted Unit Tests"
+      env: TEST_SUITE=test-docker-py3-whitelist
+    - name: "Python 3.x FULL Unit Tests"
+      env: TEST_SUITE=test-docker-py3
+
+    - name: "Quality Tests"
+      env: TEST_SUITE=quality-docker
+
+  # Names of jobs (defined above) that cannot fail the travis build even if
+  # they fail.
+  allow_failures:
+    - name: "Python 3.x FULL Unit Tests"
+    - name: "Quality Tests"  # This is here because isort is a hot mess right now.
+
 # Do NOT install Python requirements.
 # Doing so is a waste of time since they won't be used.
 install: true
@@ -37,10 +64,7 @@ before_install:
   # Ensure we have a place to store coverage output
   - mkdir -p coverage
 
-script:
-  - make test-docker
-  - make quality-docker
-  - make coverage-docker
+script: make $TEST_SUITE
 
 after_success:
   - pip install --upgrade codecov

@@ -20,7 +20,6 @@ import bson
 import certifi
 import chardet
 import ciso8601
-import cjson
 import filechunkio
 import idna
 import luigi
@@ -34,6 +33,11 @@ import requests
 import six
 import stevedore
 import urllib3
+cjson, ujson = None, None
+try:
+    import ujson
+except ImportError:
+    import cjson
 
 import edx.analytics.tasks
 
@@ -93,7 +97,7 @@ def main():
     # Tell luigi what dependencies to pass to the Hadoop nodes:
     # - edx.analytics.tasks is used to load the pipeline code, since we cannot trust all will be loaded automatically.
     # - boto is used for all direct interactions with s3.
-    # - cjson is used for all parsing event logs.
+    # - cjson/ujson is used for all parsing event logs.
     # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
     #   - opaque_keys extensions:  ccx_keys
@@ -101,7 +105,11 @@ def main():
     # - requests has several dependencies:
     #   - chardet, urllib3, certifi, idna
     luigi.contrib.hadoop.attach(edx.analytics.tasks)
-    luigi.contrib.hadoop.attach(boto, cjson, filechunkio, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests, pytz)
+    if cjson:
+        luigi.contrib.hadoop.attach(cjson)
+    if ujson:
+        luigi.contrib.hadoop.attach(ujson)
+    luigi.contrib.hadoop.attach(boto, filechunkio, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests, pytz)
 
     if configuration.getboolean('ccx', 'enabled', default=False):
         import ccx_keys

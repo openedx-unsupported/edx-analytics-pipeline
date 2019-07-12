@@ -1,4 +1,6 @@
 """Provide entry-point for generating finance reports."""
+from __future__ import absolute_import
+
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin

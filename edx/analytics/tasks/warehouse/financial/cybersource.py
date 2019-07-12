@@ -1,4 +1,5 @@
 """Collect information about payments from third-party sources for financial reporting."""
+from __future__ import absolute_import
 
 import csv
 import datetime
@@ -178,7 +179,7 @@ class DailyProcessFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
                         row['currency'],
                         row['amount'],
                         # Transaction fee
-                        '\\N',
+                        r'\N',
                         TRANSACTION_TYPE_MAP[row['transaction_type']],
                         # We currently only process credit card transactions with Cybersource
                         'credit_card',

@@ -23,7 +23,7 @@ pandas==0.13.0
 
 # Stuff for quality
 
-isort==4.2.15
+isort
 pycodestyle==2.3.1
 pylint==1.6.4
 

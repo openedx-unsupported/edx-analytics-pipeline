@@ -3,7 +3,7 @@
 
 uninstall:
 	pip install -r requirements/pip.txt
-	while pip uninstall -y edx.analytics.tasks; do true; done
+	pip uninstall -y edx.analytics.tasks
 	python setup.py clean
 
 install: requirements uninstall
@@ -28,7 +28,7 @@ docker-shell:
 system-requirements:
 ifeq (,$(wildcard /usr/bin/yum))
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
+	sudo apt-get install -y -q libmysqlclient-dev libpq-dev python-dev python3-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
 else
 	sudo yum install -y -q postgresql-devel libffi-devel
 endif
@@ -56,19 +56,47 @@ upgrade: ## update the requirements/*.txt files with the latest packages satisfy
 	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
 	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/test.txt requirements/test.in
 
-test-docker-local:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local test-local
-
+# Entry point for running python 2 unit tests in CI.
 test-docker:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local test-local
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make system-requirements reset-virtualenv test-requirements develop-local test-local
 
+# Entry point for running python 3 unit tests in CI.
 test-docker-py3:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv-py3 test-requirements develop-local test-local
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make system-requirements reset-virtualenv-py3 test-requirements develop-local test-local
+
+# Entry point for running python 3 unit tests in CI.  Only invokes a subset
+# (whitelist) of unit tests which are known to pass under python 3.
+test-docker-py3-whitelist:
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make system-requirements reset-virtualenv-py3 test-requirements develop-local test-local-py3-whitelist
 
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
+
+# Speical test-local target specifically for running a whitelist of tests which
+# are known to pass under python 3
+test-local-py3-whitelist:
+	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
+	rm -rf .coverage
+	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance' \
+	    edx.analytics.tasks.enterprise.tests \
+	    edx.analytics.tasks.insights.tests.test_database_imports \
+	    edx.analytics.tasks.insights.tests.test_grades \
+	    edx.analytics.tasks.monitor.tests.test_overall_events \
+	    edx.analytics.tasks.tests \
+	    edx.analytics.tasks.util.tests.helpers \
+	    edx.analytics.tasks.util.tests.opaque_key_mixins \
+	    edx.analytics.tasks.util.tests.test_decorators \
+	    edx.analytics.tasks.util.tests.test_geolocation \
+	    edx.analytics.tasks.util.tests.test_hive \
+	    edx.analytics.tasks.util.tests.test_retry \
+	    edx.analytics.tasks.util.tests.test_s3_util \
+	    edx.analytics.tasks.util.tests.test_url \
+	    edx.analytics.tasks.warehouse.financial.tests \
+	    edx.analytics.tasks.warehouse.tests.test_internal_reporting_active_users \
+	    edx.analytics.tasks.warehouse.tests.test_internal_reporting_database \
+	    edx.analytics.tasks.warehouse.tests.test_run_vertica_sql_scripts
 
 test: test-requirements develop test-local
 
@@ -98,7 +126,7 @@ quality-docker-local:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local quality-local
 
 quality-docker:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local quality-local
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make system-requirements reset-virtualenv test-requirements develop-local quality-local
 
 coverage-docker:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest coverage xml
