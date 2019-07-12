@@ -134,7 +134,7 @@ class RecordTestCase(TestCase):
         test_record = SampleStruct(None, 0, None)
         self.assertEqual(
             test_record.to_string_tuple(),
-            ('\\N', '0', '\\N')
+            (r'\N', '0', r'\N')
         )
 
     def test_to_string_tuple_custom_nulls(self):
@@ -152,7 +152,7 @@ class RecordTestCase(TestCase):
         self.assertEqual(test_record.date, datetime.date(2015, 11, 1))
 
     def test_from_string_tuple_nulls(self):
-        string_tuple = ('\\N', '0', '2015-11-01')
+        string_tuple = (r'\N', '0', '2015-11-01')
         test_record = SampleStruct.from_string_tuple(string_tuple)
         self.assertEqual(test_record.name, None)
         self.assertEqual(test_record.index, 0)

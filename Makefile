@@ -3,7 +3,7 @@
 
 uninstall:
 	pip install -r requirements/pip.txt
-	while pip uninstall -y edx.analytics.tasks; do true; done
+	pip uninstall -y edx.analytics.tasks
 	python setup.py clean
 
 install: requirements uninstall
@@ -28,7 +28,7 @@ docker-shell:
 system-requirements:
 ifeq (,$(wildcard /usr/bin/yum))
 	# This is not great, we can't use these libraries on slave nodes using this method.
-	sudo apt-get install -y -q libmysqlclient-dev libpq-dev python-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
+	sudo apt-get install -y -q libmysqlclient-dev libpq-dev python-dev python3-dev libffi-dev libssl-dev libxml2-dev libxslt1-dev
 else
 	sudo yum install -y -q postgresql-devel libffi-devel
 endif

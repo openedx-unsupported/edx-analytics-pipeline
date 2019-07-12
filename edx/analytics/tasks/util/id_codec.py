@@ -1,10 +1,13 @@
 """Various helper utilities to calculate reversible one-to-one mappings of sensitive ids."""
+from __future__ import absolute_import
 
 import base64
 import logging
 import random
 
 import luigi
+from six.moves import map
+from six.moves import range
 
 try:
     import numpy as np
@@ -15,13 +18,17 @@ except ImportError:
 
 
 def encode_id(scope, id_type, id_value):
-    """Encode a scope-type-value tuple into a single ID string."""
-    return base64.b32encode('|'.join([scope, id_type, id_value]))
+    """
+    Encode a scope-type-value tuple into a single ID string.
+
+    All inputs must be bytestrings (or `str` in python 2).
+    """
+    return base64.b32encode(b'|'.join([scope, id_type, id_value]))
 
 
 def decode_id(encoded_id):
     """Decode an ID string back to the original scope-type-value tuple."""
-    scope, id_type, id_value = base64.b32decode(encoded_id).split('|')
+    scope, id_type, id_value = base64.b32decode(encoded_id).split(b'|')
     return scope, id_type, id_value
 
 
@@ -49,7 +56,7 @@ class PermutationGenerator(object):
         """Return a random permutation matrix of dimension matrix_dim using seed."""
         rng = random.Random(seed)
         # Decide where each bit goes.
-        mapping = range(matrix_dim)
+        mapping = list(range(matrix_dim))
         rng.shuffle(mapping)
         # Then make a matrix that does that.
         permutation = np.zeros((matrix_dim, matrix_dim), dtype=int)

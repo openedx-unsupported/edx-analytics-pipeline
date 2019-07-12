@@ -110,8 +110,8 @@ class TestCourseSubjects(TestCase):
         expected = {
             'course_id': 'foo',
             'date': '2015-06-25',
-            'subject_uri': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
-            'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_uri': r'\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_title': r'\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
             'subject_language': 'en',
         }
         self.assertTrue(self.check_subject_entry(data, 0, expected))
@@ -250,7 +250,7 @@ class TestCourseSubjects(TestCase):
             'course_id': 'bar',
             'date': '2015-06-25',
             'subject_uri': '/course/subject/testing',
-            'subject_title': '\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
+            'subject_title': r'\N',  # pylint: disable-msg=anomalous-unicode-escape-in-string
             'subject_language': 'en'
         }
         # We expect only one row, a row for the course with a course_id.

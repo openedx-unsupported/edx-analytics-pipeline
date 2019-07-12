@@ -1,9 +1,10 @@
 """
 Emulates a luigi target, storing all data in memory.
 """
+from __future__ import absolute_import
 
 from contextlib import contextmanager
-from StringIO import StringIO
+from io import StringIO
 
 
 class FakeTarget(object):

@@ -8,25 +8,24 @@
 
 -e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
 -e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
-ansible==1.4.5
+ansible==2.8.2
 argparse==1.2.1
 asn1crypto==0.24.0
-azure-common==1.1.21      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
+azure-common==1.1.23      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
 azure-nspkg==3.0.2        # via azure-common, azure-storage-nspkg
 azure-storage-blob==2.0.1  # via snowflake-connector-python
 azure-storage-common==2.0.0  # via azure-storage-blob
 azure-storage-nspkg==3.1.0  # via azure-storage-common
 backports-abc==0.5        # via tornado
-bcrypt==3.1.6
 boto3==1.4.8
 boto==2.48.0
 botocore==1.8.50          # via boto3, s3transfer, snowflake-connector-python
 cachetools==3.1.1         # via google-auth
-certifi==2019.3.9         # via requests, snowflake-connector-python, tornado
+certifi==2019.6.16        # via requests, snowflake-connector-python, tornado
 cffi==1.12.3
 chardet==3.0.4            # via requests
 ciso8601==1.0.3
-cryptography==2.6.1
+cryptography==2.7
 distlib==0.2.2
 docutils==0.14            # via botocore, python-daemon
 ecdsa==0.13
@@ -36,7 +35,7 @@ elasticsearch==1.7.0
 enum34==1.1.6
 filechunkio==1.8
 future==0.17.1            # via snowflake-connector-python, vertica-python
-futures==3.2.0            # via azure-storage-blob, google-cloud-core, s3transfer
+futures==3.3.0 ; python_version == "2.7"
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3  # via google-api-python-client
 google-auth==1.6.3        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
@@ -47,9 +46,9 @@ googleapis-common-protos==1.6.0  # via google-cloud-core
 graphitesend==0.10.0
 gspread==3.1.0
 html5lib==1.0b3
-httplib2==0.12.3
+httplib2==0.13.0          # via google-api-python-client, google-auth-httplib2
 idna==2.6                 # via requests, snowflake-connector-python
-ijson==2.3                # via snowflake-connector-python
+ijson==2.4                # via snowflake-connector-python
 ipaddress==1.0.22
 isoweek==1.3.3
 jinja2==2.10.1
@@ -57,27 +56,25 @@ jmespath==0.9.4           # via boto3, botocore
 lockfile==0.12.2          # via python-daemon
 markupsafe==1.1.1
 numpy==1.11.3
-paramiko==2.4.2
 paypalrestsdk==1.9.0
-pbr==5.2.1                # via stevedore
-protobuf==3.8.0           # via google-cloud-core, googleapis-common-protos
-psycopg2==2.6.2
+pbr==5.4.0                # via stevedore
+protobuf==3.9.0           # via google-cloud-core, googleapis-common-protos
+psycopg2==2.8.3
 pyasn1-modules==0.2.5     # via google-auth, snowflake-connector-python
-pyasn1==0.4.5
+pyasn1==0.4.5             # via pyasn1-modules, rsa, snowflake-connector-python
 pycparser==2.19
 pycrypto==2.6.1
 pycryptodomex==3.8.2      # via snowflake-connector-python
 pygeoip==0.3.2
 pyjwt==1.7.1              # via snowflake-connector-python
 pymongo==3.8.0            # via edx-opaque-keys
-pynacl==1.3.0
 pyopenssl==19.0.0         # via paypalrestsdk, snowflake-connector-python
-python-cjson==1.1.0
+python-cjson==1.2.1 ; python_version <= "2.7"
 python-daemon==2.1.2
 python-dateutil==2.6.1
 python-gnupg==0.3.9
 pytz==2017.3
-pyyaml==5.1
+pyyaml==5.1.1
 requests==2.18.4
 rsa==4.0                  # via google-auth
 s3transfer==0.1.13        # via boto3
@@ -93,3 +90,6 @@ user-agents==0.3.2
 vertica-python==0.6.11
 wheel==0.30.0
 yarn-api-client==0.2.3
+
+# The following packages are considered to be unsafe in a requirements file:
+# setuptools==41.0.1        # via google-cloud-core, protobuf, python-daemon

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import csv
 import hashlib
 import json
@@ -374,19 +376,19 @@ class AcceptanceTestCase(unittest.TestCase):
             assert_frame_equal(data, expected)
         except AssertionError:
             pandas.set_option('display.max_columns', None)
-            print '----- The report generated this data: -----'
-            print data
-            print '----- vs expected: -----'
-            print expected
+            print('----- The report generated this data: -----')
+            print(data)
+            print('----- vs expected: -----')
+            print(expected)
             if data.shape != expected.shape:
-                print "Data shapes differ."
+                print("Data shapes differ.")
             else:
                 for index, _series in data.iterrows():
                     # Try to print a more helpful/localized difference message:
                     try:
                         assert_series_equal(data.iloc[index, :], expected.iloc[index, :])
                     except AssertionError:
-                        print "First differing row: {index}".format(index=index)
+                        print("First differing row: {index}".format(index=index))
             raise
 
     @staticmethod

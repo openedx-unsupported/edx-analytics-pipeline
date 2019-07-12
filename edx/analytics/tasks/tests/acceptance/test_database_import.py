@@ -50,7 +50,7 @@ class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
         ))
 
         def map_null_to_hive_null(row):
-            return ['\\N' if x == 'NULL' else x for x in row]
+            return [r'\N' if x == 'NULL' else x for x in row]
 
         output_rows = [x.split('\t') for x in hive_output.splitlines() if '\t' in x]
         output_rows = map(map_null_to_hive_null, output_rows)
@@ -59,16 +59,16 @@ class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
 
         expected_rows = [
             [
-                '1', '1', 'edX/Open_DemoX/edx_demo_course', '\\N', 'version-1', 'grading-policy-1',
+                '1', '1', 'edX/Open_DemoX/edx_demo_course', r'\N', 'version-1', 'grading-policy-1',
                 '0.7', 'C', '2017-01-31 00:05:00', '2017-02-01 00:00:00', '2017-02-01 00:00:00',
             ],
             [
-                '2', '2', 'edX/Open_DemoX/edx_demo_course', '\\N', 'version-1', 'grading-policy-1',
+                '2', '2', 'edX/Open_DemoX/edx_demo_course', r'\N', 'version-1', 'grading-policy-1',
                 '0.8', 'B', '2017-01-31 00:05:00', '2017-02-01 00:00:00', '2017-02-01 00:00:00',
             ],
             [
-                '3', '3', 'edX/Open_DemoX/edx_demo_course', '\\N', 'version-1', 'grading-policy-1',
-                '0.2', 'Fail', '\\N', '2017-02-01 00:00:00', '2017-02-01 00:00:00',
+                '3', '3', 'edX/Open_DemoX/edx_demo_course', r'\N', 'version-1', 'grading-policy-1',
+                '0.2', 'Fail', r'\N', '2017-02-01 00:00:00', '2017-02-01 00:00:00',
             ],
         ]
 

@@ -7,7 +7,7 @@ import json
 import math
 import os
 import shutil
-import StringIO
+from io import StringIO
 import tempfile
 from unittest import TestCase
 
@@ -830,7 +830,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, TestCase,
             }
         }
         metadata_dict[self.answer_id].update(**kwargs)
-        answer_metadata = StringIO.StringIO(json.dumps(metadata_dict))
+        answer_metadata = StringIO(json.dumps(metadata_dict))
         self.task.load_answer_metadata(answer_metadata)
 
     def test_non_submission_choice_with_metadata(self):

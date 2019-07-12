@@ -1,2 +1,10 @@
 # Generic URLs are not yet supported by pip-compile.
 http://cdn.mysql.com/Downloads/Connector-Python/mysql-connector-python-1.2.2.zip  	# GPL v2 with FOSS License Exception
+
+# When pip-compile is run under python 3, it omits all packages with a python 2
+# condition.  Re-add them here, pre-pinned.
+python-cjson==1.1.0 ; python_version <= "2.7"
+
+# When pip-compile is run under python 2, it omits all packages with a python 3
+# condition.  Re-add them here, pre-pinned.
+ujson==1.35 ; python_version > "2.7"

@@ -6,7 +6,7 @@ import os
 import shutil
 import tempfile
 import textwrap
-from StringIO import StringIO
+from io import StringIO
 from unittest import TestCase
 
 import pandas

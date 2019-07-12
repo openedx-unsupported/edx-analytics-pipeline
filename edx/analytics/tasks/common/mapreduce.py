@@ -7,7 +7,7 @@ import gzip
 import logging
 import logging.config
 import os
-import StringIO
+from io import StringIO
 from hashlib import md5
 
 import luigi
@@ -183,7 +183,7 @@ class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
     """
 
     def group(self, input):
-        output = StringIO.StringIO()
+        output = StringIO()
         lines = []
         for i, line in enumerate(input):
             parts = line.rstrip('\n').split('\t')
@@ -197,7 +197,7 @@ class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
     def run_job(self, job):
         job.init_hadoop()
         job.init_mapper()
-        map_output = StringIO.StringIO()
+        map_output = StringIO()
         input_targets = luigi.task.flatten(job.input_hadoop())
         for input_target in input_targets:
             # if file is a directory, then assume that it's Hadoop output,
@@ -232,7 +232,7 @@ class EmulatedMapReduceJobRunner(luigi.contrib.hadoop.JobRunner):
         try:
             reduce_output = job.output().open('w')
         except Exception:
-            reduce_output = StringIO.StringIO()
+            reduce_output = StringIO()
 
         try:
             job._run_reducer(reduce_input, reduce_output)

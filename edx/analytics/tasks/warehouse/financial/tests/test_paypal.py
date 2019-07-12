@@ -1,7 +1,8 @@
+from __future__ import absolute_import
 
 import xml.etree.cElementTree as ET
 from collections import OrderedDict
-from cStringIO import StringIO
+from io import BytesIO
 from unittest import TestCase
 
 import httpretty
@@ -16,6 +17,8 @@ from edx.analytics.tasks.warehouse.financial.paypal import (
     PaypalReportMetadataRequest, PaypalReportRequest, PaypalReportResultsRequest, PaypalTimeoutError,
     PaypalTransactionsByDayTask, SettlementReportRecord
 )
+import six
+from six.moves import zip
 
 TEST_URL = 'http://test.api/endpoint'
 
@@ -30,9 +33,9 @@ class XmlRequestMixin(object):
 
     def on_post_return_xml(self):
         element_tree = ET.ElementTree(self.response_xml_root)
-        string_buffer = StringIO()
-        element_tree.write(string_buffer, encoding='UTF-8', xml_declaration=True)
-        response_xml_root_string = string_buffer.getvalue()
+        bytes_buffer = BytesIO()
+        element_tree.write(bytes_buffer, encoding='UTF-8', xml_declaration=True)
+        response_xml_root_string = bytes_buffer.getvalue()
         httpretty.register_uri(httpretty.POST, TEST_URL, response_xml_root_string)
 
     def remove_xml_node(self, path):
@@ -42,7 +45,7 @@ class XmlRequestMixin(object):
 
     def set_xml_node_text(self, path, value):
         element = self.response_xml_root.findall(path)[0]
-        element.text = unicode(value)
+        element.text = six.text_type(value)
 
     def parse_request_xml(self):
         http_request = httpretty.last_request()

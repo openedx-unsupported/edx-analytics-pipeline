@@ -14,6 +14,7 @@ Makes use of external user information.
     read from the same directory as the database dump being analyzed.
 
 """
+from __future__ import print_function
 
 import argparse
 import errno
@@ -24,11 +25,11 @@ import logging
 import os
 import sys
 from collections import defaultdict, namedtuple
-from cStringIO import StringIO
+from io import StringIO
 
-import cjson
 from pyinstrument import Profiler
 
+from edx.analytics.tasks.util.fast_json import FastJson
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.obfuscate_util import Obfuscator, backslash_decode_value, backslash_encode_value
@@ -378,12 +379,12 @@ class BulkObfuscator(object):
             log.info(u"Obfuscated %s event with event_type = '%s'", event_source, event_type)
 
             if event_json_decoded:
-                # TODO: should really use cjson, if that were originally used for decoding the json.
+                # TODO: should really use FastJson, if that were originally used for decoding the json.
                 updated_event_data = json.dumps(updated_event_data)
 
             event['event'] = updated_event_data
 
-        # TODO: should really use cjson, if that were originally used for decoding the json.
+        # TODO: should really use FastJson, if that were originally used for decoding the json.
         return json.dumps(event)
 
     def obfuscate_courseware_file(self, input_filepath, output_dir):
@@ -440,7 +441,7 @@ class BulkObfuscator(object):
         # is not escaped in the same way.  In particular, we will not decode and encode it.
         state_str = record.state.replace('\\\\', '\\')
         try:
-            state_dict = cjson.decode(state_str, all_unicode=True)
+            state_dict = FastJson.loads(state_str)
         except Exception as exc:
             log.exception(u"Unable to parse state as JSON for record %s: type = %s, state = %r", record.id, type(state_str), state_str)
             return line
@@ -539,7 +540,7 @@ class BulkObfuscator(object):
         # are also different, as to when \u notation is used for a character as
         # opposed to a utf8 encoding of the character.
         try:
-            entry = cjson.decode(line, all_unicode=True)
+            entry = FastJson.loads(line)
         except ValueError as exc:
             log.error("Failed to parse json for line: %r", line)
             return ""
@@ -698,7 +699,7 @@ def main():
     finally:
         if profiler:
             profiler.stop()
-            print >>sys.stderr, profiler.output_text(unicode=True, color=True)
+            print(profiler.output_text(unicode=True, color=True), file=sys.stderr)
 
 
 if __name__ == '__main__':

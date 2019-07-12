@@ -3,6 +3,8 @@ Run end-to-end acceptance tests. The goal of these tests is to emulate (as close
 validate user visible outputs.
 
 """
+from future.standard_library import install_aliases
+install_aliases()
 
 import datetime
 import logging
@@ -10,7 +12,7 @@ import os
 import shutil
 import tempfile
 import textwrap
-import urlparse
+from urllib.parse import urlparse
 
 import gnupg
 
