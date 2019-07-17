@@ -45,6 +45,9 @@ reset-virtualenv:
 	# without bash, environment variables are not available
 	bash -c 'virtualenv --clear ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline'
 
+reset-virtualenv-py3:
+	bash -c 'virtualenv --clear --python=$$(which python3) ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline'
+
 upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
 	pip install -qr requirements/pip-tools.txt
 	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/pip-tools.txt requirements/pip-tools.in
@@ -59,6 +62,9 @@ test-docker-local:
 test-docker:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local test-local
 
+test-docker-py3:
+	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv-py3 test-requirements develop-local test-local
+
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
@@ -69,11 +75,20 @@ test: test-requirements develop test-local
 test-acceptance: test-requirements
 	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
 
+test-acceptance-py3: test-requirements
+	LUIGI_CONFIG_PATH='config/test.cfg' python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
+
 test-acceptance-local:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
 
+test-acceptance-local-py3:
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+
 test-acceptance-local-all:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+
+test-acceptance-local-all-py3:
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 quality-local:
 	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/'
