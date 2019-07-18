@@ -48,6 +48,9 @@ def main():
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
     parser.add_argument('--package', action='append', help='pip install these packages in the pipeline virtual environment')
     parser.add_argument('--extra-repo', action='append', help="""additional git repositories to checkout on the cluster during the deployment""")
+    parser.add_argument('--python-version',
+                        help='Python version that will be used to run pipelines task e.g., /usr/bin/python3.6',
+                        default=None)
     arguments, extra_args = parser.parse_known_args()
     arguments.launch_task_arguments = extra_args
 
@@ -187,6 +190,8 @@ def convert_args_to_extra_vars(arguments, uid):
         extra_vars['write_luigi_config'] = False
     if arguments.virtualenv_extra_args:
         extra_vars['virtualenv_extra_args'] = arguments.virtualenv_extra_args
+    if arguments.python_version:
+        extra_vars['python_version'] = arguments.python_version
     if arguments.package:
         extra_vars['packages'] = arguments.package
 

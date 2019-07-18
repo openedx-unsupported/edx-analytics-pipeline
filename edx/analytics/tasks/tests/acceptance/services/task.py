@@ -67,6 +67,9 @@ class TaskService(object):
                 if 'wheel_url' in self.config:
                     command.extend(['--wheel-url', self.config['wheel_url']])
 
+                if 'python_version' in self.config:
+                    command.extend(['--python-version', self.config['python_version']])
+
                 command.extend(task_args)
                 command.append('--local-scheduler')
             else:
