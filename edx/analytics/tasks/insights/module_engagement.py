@@ -101,6 +101,14 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
     date = luigi.DateParameter()
     output_root = luigi.Parameter()
 
+    # Optional parameters
+    store_anonymous_username = luigi.Parameter(
+        description='Set this parameter to a string which will not overlap with a valid username, e.g. "ANONYMOUS USER".'
+                    ' Must be <= 30 characters.',
+        default='',
+        config_path={'section': 'module-engagement', 'name': 'store_anonymous_username'},
+    )
+
     # Override superclass to disable this parameter
     interval = None
 
@@ -120,8 +128,13 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         event, date_string = value
 
         username = event.get('username', '').strip()
+
+        # Skip anonymous records, unless configured to store them
         if not username:
-            return
+            if not self.store_anonymous_username:
+                return
+            username = self.store_anonymous_username
+
         if len(username) > 30:
             # User retirement process generates usernames containing 54
             # characters, at the time of writing.  It's unusual that an event
