@@ -1421,19 +1421,37 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
         default=0.75,
         significant=False
     )
+    host = luigi.Parameter(
+        config_path={'section': 'elasticsearch', 'name': 'host'},
+        description=ElasticsearchIndexTask.host.description,
+        default=[]
+    )
 
     def requires(self):
         overwrite_from_date = self.date - datetime.timedelta(days=self.overwrite_n_days)
-        yield ModuleEngagementRosterIndexTask(
-            date=self.date,
-            indexing_tasks=self.indexing_tasks,
-            scale_factor=self.scale_factor,
-            obfuscate=self.obfuscate,
-            n_reduce_tasks=self.n_reduce_tasks,
-            overwrite_from_date=overwrite_from_date,
-            overwrite=self.overwrite,
-            throttle=self.throttle
-        )
+
+        # For clients that don't use Elasticsearch (or Insights), don't run ModuleEngagementRosterIndexTask.
+        # Instead, just create the partition, so the data is available in hive.
+        if self.host:
+            yield ModuleEngagementRosterIndexTask(
+                date=self.date,
+                indexing_tasks=self.indexing_tasks,
+                scale_factor=self.scale_factor,
+                obfuscate=self.obfuscate,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite_from_date=overwrite_from_date,
+                overwrite=self.overwrite,
+                throttle=self.throttle
+            )
+        else:
+            yield ModuleEngagementRosterPartitionTask(
+                mapreduce_engine=self.mapreduce_engine,
+                n_reduce_tasks=self.n_reduce_tasks,
+                overwrite=self.overwrite,
+                date=self.date,
+                overwrite_from_date=self.overwrite_from_date,
+            )
+
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
             date=self.date,
             overwrite_from_date=overwrite_from_date,
