@@ -9,7 +9,7 @@ from io import StringIO
 
 class FakeTarget(object):
     """Fake Luigi-like target that saves data in memory, using a StringIO buffer."""
-    def __init__(self, path=None, value=''):
+    def __init__(self, path=None, value=u''):
         self.value = value
         self.path = path
 
@@ -19,7 +19,7 @@ class FakeTarget(object):
 
     @value.setter
     def value(self, value):
-        self.buffer = StringIO(value)
+        self.buffer = StringIO(unicode(value))
         # Rewind the buffer head so the value can be read
         self.buffer.seek(0)
 

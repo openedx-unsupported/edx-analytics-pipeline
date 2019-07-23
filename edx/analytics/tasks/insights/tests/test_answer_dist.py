@@ -830,7 +830,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, TestCase,
             }
         }
         metadata_dict[self.answer_id].update(**kwargs)
-        answer_metadata = StringIO(json.dumps(metadata_dict))
+        answer_metadata = StringIO(unicode(json.dumps(metadata_dict)))
         self.task.load_answer_metadata(answer_metadata)
 
     def test_non_submission_choice_with_metadata(self):
