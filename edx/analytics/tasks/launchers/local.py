@@ -184,7 +184,7 @@ def output_dependency_tree(cmdline_args):
     """Print out a tree representation of the dependencies of the given task."""
     with luigi.cmdline_parser.CmdlineParser.global_instance(cmdline_args) as command_parser:
         task = command_parser.get_task_obj()
-        print print_dependency_tree(task)
+        print(print_dependency_tree(task))
 
 
 if __name__ == '__main__':
