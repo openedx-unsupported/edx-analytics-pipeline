@@ -146,7 +146,8 @@ class VerticaTarget(luigi.Target):
                 """.format(marker_schema=self.marker_schema, marker_table=self.marker_table)
             )
         except vertica_python.errors.QueryError as err:
-            if 'Sqlstate: 42710' in err.args[0]:  # This Sqlstate will appear if the marker table already exists.
+            # Sqlstate 42710 will appear if the marker table already exists.
+            if 'Sqlstate:' in err.args[0] and '42710' in err.args[0]:
                 pass
             else:
                 raise

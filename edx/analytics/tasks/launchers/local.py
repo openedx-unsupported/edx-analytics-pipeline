@@ -20,7 +20,8 @@ import bson
 import certifi
 import chardet
 import ciso8601
-import filechunkio
+import __future__
+import future
 import idna
 import luigi
 import luigi.configuration
@@ -35,9 +36,11 @@ import stevedore
 import urllib3
 cjson, ujson = None, None
 try:
-    import ujson
+     import ujson
+     ujson_found = True
 except ImportError:
-    import cjson
+     import cjson
+     ujson_found = False
 
 import edx.analytics.tasks
 
@@ -98,18 +101,19 @@ def main():
     # - edx.analytics.tasks is used to load the pipeline code, since we cannot trust all will be loaded automatically.
     # - boto is used for all direct interactions with s3.
     # - cjson/ujson is used for all parsing event logs.
-    # - filechunkio is used for multipart uploads of large files to s3.
     # - opaque_keys is used to interpret serialized course_ids
     #   - opaque_keys extensions:  ccx_keys
     #   - dependencies of opaque_keys:  bson, stevedore, six
     # - requests has several dependencies:
     #   - chardet, urllib3, certifi, idna
     luigi.contrib.hadoop.attach(edx.analytics.tasks)
-    if cjson:
-        luigi.contrib.hadoop.attach(cjson)
-    if ujson:
+    if ujson_found:
         luigi.contrib.hadoop.attach(ujson)
-    luigi.contrib.hadoop.attach(boto, filechunkio, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests, pytz)
+    else:
+        luigi.contrib.hadoop.attach(cjson)
+    luigi.contrib.hadoop.attach(boto, opaque_keys, bson, stevedore, six, ciso8601, chardet, urllib3, certifi, idna, requests, pytz)
+    # Try to get this to work with Python3 as well:
+    luigi.contrib.hadoop.attach(__future__, future)
 
     if configuration.getboolean('ccx', 'enabled', default=False):
         import ccx_keys
@@ -184,7 +188,7 @@ def output_dependency_tree(cmdline_args):
     """Print out a tree representation of the dependencies of the given task."""
     with luigi.cmdline_parser.CmdlineParser.global_instance(cmdline_args) as command_parser:
         task = command_parser.get_task_obj()
-        print print_dependency_tree(task)
+        print(print_dependency_tree(task))
 
 
 if __name__ == '__main__':

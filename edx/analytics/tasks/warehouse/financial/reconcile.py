@@ -904,7 +904,7 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, Wareh
 
         # first load all records in memory so that we can sort them
         for record_str in self.input().open('r'):
-            record = OrderTransactionRecord.from_job_output(record_str)
+            record = OrderTransactionRecord.from_job_output(record_str.decode('utf8'))
 
             if record.transaction_date is not None and record.transaction_date != '':  # pylint: disable=no-member
                 all_records.append(record)
