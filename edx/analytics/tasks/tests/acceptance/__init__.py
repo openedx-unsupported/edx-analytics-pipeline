@@ -211,7 +211,7 @@ class AcceptanceTestCase(unittest.TestCase):
         task_config_override = {
             'hadoop': {
                 'python-executable': os.environ('HADOOP_PYTHON_EXECUTABLE', '/usr/bin/python')
-            }
+            },
             'hive': {
                 'database': database_name,
                 'warehouse_path': self.warehouse_path
