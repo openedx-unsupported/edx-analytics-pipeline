@@ -195,7 +195,7 @@ def convert_args_to_extra_vars(arguments, uid):
     if arguments.virtualenv_extra_args:
         extra_vars['virtualenv_extra_args'] = arguments.virtualenv_extra_args
     if arguments.python_version:
-        extra_vars['python_version'] = arguments.python_version
+        extra_vars['virtualenv_python'] = arguments.python_version
     if arguments.package:
         extra_vars['packages'] = arguments.package
 
