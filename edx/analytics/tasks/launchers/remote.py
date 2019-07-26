@@ -121,6 +121,8 @@ def run_task_playbook(inventory, arguments, uid):
     if arguments.workflow_profiler:
         env_vars['WORKFLOW_PROFILER'] = arguments.workflow_profiler
         env_vars['WORKFLOW_PROFILER_PATH'] = log_dir
+    if arguments.python_version:
+        env_vars['HADOOP_PYTHON_EXECUTABLE'] = arguments.python_version
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 

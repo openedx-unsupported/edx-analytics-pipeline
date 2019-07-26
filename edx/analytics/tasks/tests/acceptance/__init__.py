@@ -209,6 +209,9 @@ class AcceptanceTestCase(unittest.TestCase):
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
         self.edx_rest_api_cache_root = url_path_join(self.test_src, 'edx-rest-api-cache')
         task_config_override = {
+            'hadoop': {
+                'python-executable': os.environ('HADOOP_PYTHON_EXECUTABLE', '/usr/bin/python')
+            }
             'hive': {
                 'database': database_name,
                 'warehouse_path': self.warehouse_path
