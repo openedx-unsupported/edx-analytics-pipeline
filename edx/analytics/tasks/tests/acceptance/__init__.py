@@ -208,9 +208,11 @@ class AcceptanceTestCase(unittest.TestCase):
         elasticsearch_alias = 'alias_test_' + self.identifier
         self.warehouse_path = url_path_join(self.test_root, 'warehouse')
         self.edx_rest_api_cache_root = url_path_join(self.test_src, 'edx-rest-api-cache')
+        # Use config directly, rather than os.getenv('HADOOP_PYTHON_EXECUTABLE', '/usr/bin/python')
+        python_executable = self.config.get('python_version', '/usr/bin/python')
         task_config_override = {
             'hadoop': {
-                'python-executable': os.getenv('HADOOP_PYTHON_EXECUTABLE', '/usr/bin/python')
+                'python-executable': python_executable,
             },
             'hive': {
                 'database': database_name,
