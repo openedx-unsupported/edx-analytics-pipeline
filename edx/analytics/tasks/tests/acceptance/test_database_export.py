@@ -3,9 +3,6 @@ Run end-to-end acceptance tests. The goal of these tests is to emulate (as close
 validate user visible outputs.
 
 """
-from future.standard_library import install_aliases
-install_aliases()
-
 import datetime
 import logging
 import os
@@ -13,8 +10,7 @@ import shutil
 import stat
 import tempfile
 import textwrap
-from urllib.parse import urlparse
-
+from six.moves.urllib.parse import urlparse
 import gnupg
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available

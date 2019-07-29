@@ -1,14 +1,11 @@
 """Tasks for aggregating statistics about video viewing."""
-from future.standard_library import install_aliases
-install_aliases()
-
 import datetime
 import json
 import logging
 import math
 import re
 import textwrap
-from urllib.request import urlopen
+from six.moves.urllib.request import urlopen
 from collections import namedtuple
 
 import ciso8601

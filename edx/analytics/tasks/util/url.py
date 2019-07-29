@@ -9,13 +9,11 @@ Examples::
     hdfs://some/directory/
 """
 from __future__ import absolute_import
-from future.standard_library import install_aliases
-install_aliases()
 
 import logging
 import os
 import time
-from urllib.parse import urlparse, urlunparse
+from six.moves.urllib.parse import urlparse, urlunparse
 import six
 
 import luigi

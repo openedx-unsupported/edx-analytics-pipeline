@@ -1,14 +1,11 @@
 """Test course blocks tasks."""
-from future.standard_library import install_aliases
-install_aliases()
-
 import json
 import logging
 import os
 import shutil
 import tempfile
 from unittest import TestCase
-from urllib.parse import urlencode
+from six.moves.urllib.parse import urlencode
 
 import httpretty
 from ddt import data, ddt, unpack

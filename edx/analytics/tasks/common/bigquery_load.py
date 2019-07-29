@@ -1,6 +1,4 @@
 from __future__ import absolute_import
-from future.standard_library import install_aliases
-install_aliases()
 
 import json
 import logging
@@ -8,7 +6,7 @@ import os
 import subprocess
 import tempfile
 import time
-from urllib.parse import urlparse
+from six.moves.urllib.parse import urlparse
 
 import luigi
 

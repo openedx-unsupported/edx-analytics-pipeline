@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 """Execute tasks on a remote EMR cluster."""
-from future.standard_library import install_aliases
-install_aliases()
-
 import argparse
 import json
 import os
@@ -10,7 +7,7 @@ import pipes
 import sys
 import uuid
 from subprocess import PIPE, Popen
-from urllib.parse import urlparse, parse_qsl
+from six.moves.urllib.parse import urlparse, parse_qsl
 
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
