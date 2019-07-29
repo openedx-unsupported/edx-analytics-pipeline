@@ -163,6 +163,8 @@ class ImportMysqlToHiveTableTask(DatabaseImportMixin, ImportIntoHiveTableTask):
             # TODO: We may want to make the explicit passing in of columns optional as it prevents a direct transfer.
             # Make sure delimiters and nulls etc. still work after removal.
             columns=[c[0] for c in self.columns],
+            # Because we are setting columns, direct mode won't work, so try to say so right away.
+            direct=False,
             destination=self.partition_location,
             credentials=self.credentials,
             num_mappers=self.num_mappers,
