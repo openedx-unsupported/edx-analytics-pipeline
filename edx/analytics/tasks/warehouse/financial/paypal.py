@@ -661,7 +661,9 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
             # identifier for the transaction
             payment_record.paypal_transaction_id,
         ]
-        output_tsv_file.write(b'\t'.join(field.encode('utf-8') for field in record) + b'\n')
+        # output_tsv_file.write(b'\t'.join(field.encode('utf-8') for field in record) + b'\n')
+        # Apparently the write wants str, not bytes.
+        output_tsv_file.write('\t'.join(field for field in record) + '\n')        
 
     def output(self):
         # NOTE: both the cybersource and paypal tasks write to the payments folder
@@ -714,10 +716,12 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-        run_date = latest_completion_date + datetime.timedelta(days=1)
+        if dates:
+            latest_date = sorted(dates)[-1]
+            latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+            run_date = latest_completion_date + datetime.timedelta(days=1)
+        else:
+            run_date = self.interval_start
 
         self.selection_interval = date_interval.Custom(self.interval_start, run_date)
         self.run_interval = date_interval.Custom(run_date, self.interval_end)

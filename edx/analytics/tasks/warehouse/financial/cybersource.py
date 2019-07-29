@@ -86,11 +86,11 @@ class DailyPullFromCybersourceTask(PullFromCybersourceTaskMixin, luigi.Task):
             raise Exception(msg)
 
         # if there are no transactions in response, there will be no merchant id.
-        if self.merchant_id not in response.content and not self.is_empty_transaction_allowed:
+        if self.merchant_id.encode('utf8') not in response.content and not self.is_empty_transaction_allowed:
             raise Exception('No transactions to process.')
 
         with self.output().open('w') as output_file:
-            output_file.write(response.content)
+            output_file.write(response.content.decode('utf8'))
 
     def output(self):
         """Output is in the form {output_root}/cybersource/{CCYY-mm}/cybersource_{merchant}_{CCYYmmdd}.csv"""
@@ -230,10 +230,12 @@ class IntervalPullFromCybersourceTask(PullFromCybersourceTaskMixin, WarehouseMix
         path_targets = PathSetTask([path], include=[file_pattern], include_zero_length=True).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-        run_date = latest_completion_date + datetime.timedelta(days=1)
+        if dates:
+            latest_date = sorted(dates)[-1]
+            latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+            run_date = latest_completion_date + datetime.timedelta(days=1)
+        else:
+            run_date = self.interval_start
 
         # Limit intervals to merchant account close date(if any).
         if self.merchant_close_date:
