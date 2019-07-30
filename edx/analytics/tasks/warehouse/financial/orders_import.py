@@ -298,7 +298,7 @@ class OrderTableTask(DatabaseImportMixin, HiveTableFromQueryTask):
                     -- the complete line item quantity and amount
                     IF(oi.status = 'refunded', oi.qty * oi.unit_cost, NULL) AS refunded_amount,
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
-                    oi.order_id AS payment_ref_id,
+                    CAST(oi.order_id AS STRING) AS payment_ref_id,
 
                     -- The partner short code is extracted from the course ID during order reconciliation.
                     '' AS partner_short_code,
@@ -612,7 +612,7 @@ class FullShoppingcartOrderTableTask(BaseFullOrderTableTask):
                     -- the complete line item quantity and amount
                     IF(oi.status = 'refunded', oi.qty * oi.unit_cost, NULL) AS refunded_amount,
                     IF(oi.status = 'refunded', oi.qty, NULL) AS refunded_quantity,
-                    oi.order_id AS payment_ref_id,
+                    CAST(oi.order_id AS STRING) AS payment_ref_id,
 
                     -- The partner short code is extracted from the course ID during order reconciliation.
                     '' AS partner_short_code,
