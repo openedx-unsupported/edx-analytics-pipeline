@@ -154,7 +154,8 @@ class ReconcileOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsDownstrea
     def requires(self):
         yield (
             OrderTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                verbose=True,
             ),
             PaymentTask(
                 import_date=self.import_date,
@@ -1153,14 +1154,16 @@ class ReconcileFullOrdersAndTransactionsTask(ReconcileOrdersAndTransactionsTask)
     def requires(self):
         yield (
             FullOttoOrderTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                verbose=True,
             ),
             FullShoppingcartOrderTableTask(
-                import_date=self.import_date
+                import_date=self.import_date,
+                verbose=True,
             ),
             PaymentTask(
                 import_date=self.import_date,
-                is_empty_transaction_allowed=self.is_empty_transaction_allowed
+                is_empty_transaction_allowed=self.is_empty_transaction_allowed,
             )
         )
 
@@ -1442,6 +1445,7 @@ class LoadInternalReportingFullOttoOrdersToWarehouse(BaseLoadFullOrdersToWarehou
         return (
             FullOttoOrderTableTask(
                 import_date=self.import_date,
+                verbose=True,
                 # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
                 # to just apply to the writing to Vertica, not to anything further upstream.
                 # overwrite=self.overwrite,
@@ -1464,6 +1468,7 @@ class LoadInternalReportingFullShoppingcartOrdersToWarehouse(BaseLoadFullOrdersT
         return (
             FullShoppingcartOrderTableTask(
                 import_date=self.import_date,
+                verbose=True,
                 # DO NOT PASS OVERWRITE FURTHER.  We mean for overwrite here
                 # to just apply to the writing to Vertica, not to anything further upstream.
                 # overwrite=self.overwrite,
