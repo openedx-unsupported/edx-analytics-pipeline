@@ -17,9 +17,9 @@ azure-storage-blob==2.0.1  # via snowflake-connector-python
 azure-storage-common==2.0.0  # via azure-storage-blob
 azure-storage-nspkg==3.1.0  # via azure-storage-common
 backports-abc==0.5        # via tornado
-boto3==1.9.196
+boto3==1.9.198
 boto==2.48.0
-botocore==1.12.196        # via boto3, s3transfer, snowflake-connector-python
+botocore==1.12.198        # via boto3, s3transfer, snowflake-connector-python
 cachetools==3.1.1         # via google-auth
 certifi==2019.6.16        # via requests, snowflake-connector-python, tornado
 cffi==1.12.3
@@ -46,7 +46,7 @@ googleapis-common-protos==1.6.0  # via google-cloud-core
 graphitesend==0.10.0
 gspread==3.1.0
 html5lib==1.0b3
-httplib2==0.13.0          # via google-api-python-client, google-auth-httplib2
+httplib2==0.13.1          # via google-api-python-client, google-auth-httplib2
 idna==2.6                 # via requests, snowflake-connector-python
 ijson==2.4                # via snowflake-connector-python
 ipaddress==1.0.22
@@ -79,8 +79,8 @@ requests==2.18.4
 rsa==4.0                  # via google-auth
 s3transfer==0.2.1         # via boto3
 singledispatch==3.4.0.3   # via tornado
-six==1.10.0
-snowflake-connector-python==1.8.5
+six==1.12.0
+snowflake-connector-python==1.8.6
 stevedore==1.19.1
 tornado==4.5.3
 ua-parser==0.3.6

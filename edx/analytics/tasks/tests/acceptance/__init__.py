@@ -1,4 +1,5 @@
 from __future__ import print_function
+from __future__ import absolute_import
 
 import csv
 import hashlib
@@ -16,6 +17,7 @@ from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
 from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -125,7 +127,7 @@ def as_list_param(value, escape_quotes=True):
 def coerce_columns_to_string(row):
     # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
     # them into string before comparison with expected output.   Also a challenge with 'None' values.
-    return [unicode(x) for x in row]
+    return [six.text_type(x) for x in row]
 
 
 def read_csv_fixture_as_list(fixture_file_path):

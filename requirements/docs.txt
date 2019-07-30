@@ -19,9 +19,9 @@ azure-storage-common==2.0.0
 azure-storage-nspkg==3.1.0
 babel==2.7.0              # via sphinx
 backports-abc==0.5
-boto3==1.9.196
+boto3==1.9.198
 boto==2.48.0
-botocore==1.12.196
+botocore==1.12.198
 cachetools==3.1.1
 certifi==2019.6.16
 cffi==1.12.3
@@ -48,7 +48,7 @@ googleapis-common-protos==1.6.0
 graphitesend==0.10.0
 gspread==3.1.0
 html5lib==1.0b3
-httplib2==0.13.0
+httplib2==0.13.1
 idna==2.6
 ijson==2.4
 imagesize==1.1.0          # via sphinx
@@ -83,9 +83,9 @@ requests==2.18.4
 rsa==4.0
 s3transfer==0.2.1
 singledispatch==3.4.0.3
-six==1.10.0
+six==1.12.0
 snowballstemmer==1.9.0    # via sphinx
-snowflake-connector-python==1.8.5
+snowflake-connector-python==1.8.6
 sphinx==1.5.1
 stevedore==1.19.1
 tornado==4.5.3

@@ -10,7 +10,4 @@ Jinja2		        # BSD
 pycrypto==2.6.1 	# public domain
 wheel==0.30.0
 future                  # MIT
-
-# Add this here, not because it's needed here, but because
-# 1.11.0 will collide with a dependency in default.in.
-six==1.10.0
+six                     # MIT
