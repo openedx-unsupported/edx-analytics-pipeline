@@ -11,31 +11,39 @@
 ansible==2.8.3
 argparse==1.2.1
 asn1crypto==0.24.0
+attrs==19.1.0             # via jsonschema
 azure-common==1.1.23      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
-azure-nspkg==3.0.2        # via azure-common, azure-storage-nspkg
 azure-storage-blob==2.0.1  # via snowflake-connector-python
 azure-storage-common==2.0.0  # via azure-storage-blob
 azure-storage-nspkg==3.1.0  # via azure-storage-common
 backports-abc==0.5        # via tornado
+bcrypt==3.1.7             # via cybersource-rest-client-python, paramiko
 boto3==1.9.198
 boto==2.48.0
 botocore==1.12.198        # via boto3, s3transfer, snowflake-connector-python
 cachetools==3.1.1         # via google-auth
-certifi==2019.6.16        # via requests, snowflake-connector-python, tornado
+certifi==2019.6.16        # via cybersource-rest-client-python, requests, snowflake-connector-python
 cffi==1.12.3
-chardet==3.0.4            # via requests
+chardet==3.0.4            # via cybersource-rest-client-python, requests
 ciso8601==1.0.3
+configparser==3.7.4       # via cybersource-rest-client-python
+coverage==4.5.3           # via cybersource-rest-client-python
+crypto==1.4.1             # via cybersource-rest-client-python
 cryptography==2.7
+cybersource-rest-client-python==0.0.8
+datetime==4.3             # via cybersource-rest-client-python
 distlib==0.2.2
 docutils==0.14            # via botocore, python-daemon
 ecdsa==0.13
 edx-ccx-keys==0.2.1
 edx-opaque-keys==0.4
 elasticsearch==1.7.0
-enum34==1.1.6
+enum34==1.1.6             # via cybersource-rest-client-python
+extras==1.0.0             # via cybersource-rest-client-python, python-subunit, testtools
 filechunkio==1.8
+fixtures==3.0.0           # via cybersource-rest-client-python, testtools
+funcsigs==1.0.2           # via cybersource-rest-client-python
 future==0.17.1
-futures==3.3.0 ; python_version == "2.7"
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3  # via google-api-python-client
 google-auth==1.6.3        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
@@ -47,49 +55,70 @@ graphitesend==0.10.0
 gspread==3.1.0
 html5lib==1.0b3
 httplib2==0.13.1          # via google-api-python-client, google-auth-httplib2
-idna==2.6                 # via requests, snowflake-connector-python
+idna==2.6                 # via cybersource-rest-client-python, requests, snowflake-connector-python
 ijson==2.4                # via snowflake-connector-python
-ipaddress==1.0.22
+ipaddress==1.0.22         # via cybersource-rest-client-python
 isoweek==1.3.3
 jinja2==2.10.1
 jmespath==0.9.4           # via boto3, botocore
+jsonschema==3.0.1         # via cybersource-rest-client-python
+linecache2==1.0.0         # via cybersource-rest-client-python, traceback2
 lockfile==0.12.2          # via python-daemon
+logger==1.4               # via cybersource-rest-client-python
 markupsafe==1.1.1
+naked==0.1.31             # via crypto, cybersource-rest-client-python
+nose==1.3.7               # via cybersource-rest-client-python
 numpy==1.11.3
+paramiko==2.6.0           # via cybersource-rest-client-python
 paypalrestsdk==1.9.0
-pbr==5.4.1                # via stevedore
+pbr==5.4.1                # via cybersource-rest-client-python, fixtures, stevedore, testtools
 protobuf==3.9.0           # via google-cloud-core, googleapis-common-protos
 psycopg2==2.8.3
-pyasn1-modules==0.2.5     # via google-auth, snowflake-connector-python
-pyasn1==0.4.5             # via pyasn1-modules, rsa, snowflake-connector-python
+pyasn1-modules==0.2.5     # via google-auth
+pyasn1==0.4.5             # via cybersource-rest-client-python, pyasn1-modules, rsa, x509
 pycparser==2.19
 pycrypto==2.6.1
-pycryptodomex==3.8.2      # via snowflake-connector-python
+pycryptodome==3.8.2       # via cybersource-rest-client-python
+pycryptodomex==3.8.2      # via cybersource-rest-client-python, snowflake-connector-python
 pygeoip==0.3.2
-pyjwt==1.7.1              # via snowflake-connector-python
+pyjwt==1.7.1              # via cybersource-rest-client-python, snowflake-connector-python
 pymongo==3.8.0            # via edx-opaque-keys
-pyopenssl==19.0.0         # via paypalrestsdk, snowflake-connector-python
-python-cjson==1.2.1 ; python_version <= "2.7"
+pynacl==1.3.0             # via cybersource-rest-client-python, paramiko
+pyopenssl==19.0.0         # via cybersource-rest-client-python, paypalrestsdk, snowflake-connector-python
+pypi==2.1                 # via cybersource-rest-client-python
+pyrsistent==0.15.4        # via jsonschema
 python-daemon==2.2.3
 python-dateutil==2.6.1
 python-gnupg==0.3.9
+python-mimeparse==1.6.0   # via cybersource-rest-client-python, testtools
+python-subunit==1.3.0     # via cybersource-rest-client-python
+python-toolbox==1.0.7     # via cybersource-rest-client-python
 pytz==2017.3
 pyyaml==5.1.1
 requests==2.18.4
-rsa==4.0                  # via google-auth
+rsa==4.0                  # via cybersource-rest-client-python, google-auth
 s3transfer==0.2.1         # via boto3
+shellescape==3.4.1        # via crypto, cybersource-rest-client-python
 singledispatch==3.4.0.3   # via tornado
 six==1.12.0
 snowflake-connector-python==1.8.6
 stevedore==1.19.1
+testtools==2.3.0          # via cybersource-rest-client-python, fixtures, python-subunit
 tornado==4.5.3
+traceback2==1.4.0         # via cybersource-rest-client-python, testtools, unittest2
+typing==3.7.4             # via cybersource-rest-client-python
 ua-parser==0.3.6
+ujson==1.35 ; python_version > "2.7"
+unittest2==1.1.0          # via testtools
 uritemplate==3.0.0        # via google-api-python-client
 urllib3==1.22
 user-agents==0.3.2
 vertica-python==0.6.11
 wheel==0.30.0
+x509==0.1                 # via cybersource-rest-client-python
 yarn-api-client==0.2.3
+zope.interface==4.6.0     # via cybersource-rest-client-python, datetime
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools==41.0.1        # via google-cloud-core, protobuf, python-daemon
+# pip==19.2.1               # via cybersource-rest-client-python
+# setuptools==41.0.1        # via cybersource-rest-client-python, google-cloud-core, jsonschema, protobuf, python-daemon, python-toolbox, zope.interface

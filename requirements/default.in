@@ -38,6 +38,7 @@ vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3  # BSD
 snowflake-connector-python
 futures; python_version == "2.7"
+cybersource-rest-client-python==0.0.8
 
 -e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi # Apache License 2.0
 
