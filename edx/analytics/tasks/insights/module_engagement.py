@@ -1421,10 +1421,10 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
         default=0.75,
         significant=False
     )
-    host = luigi.Parameter(
+    host = luigi.ListParameter(
         config_path={'section': 'elasticsearch', 'name': 'host'},
         description=ElasticsearchIndexTask.host.description,
-        default=[]
+        default=[],
     )
 
     def requires(self):
@@ -1449,7 +1449,7 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
                 n_reduce_tasks=self.n_reduce_tasks,
                 overwrite=self.overwrite,
                 date=self.date,
-                overwrite_from_date=self.overwrite_from_date,
+                overwrite_from_date=overwrite_from_date,
             )
 
         yield ModuleEngagementSummaryMetricRangesMysqlTask(
