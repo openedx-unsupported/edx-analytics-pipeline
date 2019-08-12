@@ -387,14 +387,27 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
                 log.debug(query)
                 connection.cursor().execute(query)
             else:
-                # commit only if both operations completed successfully.
+                # commit is only necessary if we're not getting an implicit commit from the rename
                 connection.commit()
-        except Exception:
-            connection.rollback()
+        except Exception as e:
+            log.error(str(e))
+            if connection.is_connected():
+                connection.rollback()
             raise
         finally:
-            # Drop the tables here in case the job hits a failure.
-            self.drop_temp_tables(connection)
+            # Some errors will close the connection
+            if not connection.is_connected():
+                connection = self.output().connect()
+
+            try:
+                # Try to drop the tables here in case the job hits a failure.
+                self.drop_temp_tables(connection)
+            except mysql.connector.Error:
+                # Eat this exception so that the original culprit gets raised.
+                # If something earlier failed we can expect that these tables
+                # may not exist, but at least log the failure.
+                log.error("Unable to drop temp tables, might not exist?")
+
             connection.close()
 
     def check_mysql_availability(self):
