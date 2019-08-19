@@ -392,5 +392,5 @@ class VerticaSchemaToBigQueryTask(luigi.WrapperTask):
                     vertica_schema_name=self.vertica_schema_name,
                     vertica_warehouse_name=self.vertica_warehouse_name,
                     vertica_credentials=self.vertica_credentials,
-                    exclude=self.exclude,
+                    exclude=['user_transcript'],
                 )
