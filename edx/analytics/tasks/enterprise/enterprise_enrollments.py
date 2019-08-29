@@ -162,7 +162,7 @@ class EnterpriseEnrollmentDataTask(
                     enterprise_user.user_id AS lms_user_id,
                     enterprise_user.id AS enterprise_user_id,
                     enterprise_course_enrollment.course_id,
-                    enterprise_course_enrollment.created AS enrollment_created_timestamp,
+                    enrollment.created AS enrollment_created_timestamp,
                     enrollment.mode AS user_current_enrollment_mode,
                     consent.granted AS consent_granted,
                     grades.letter_grade,
