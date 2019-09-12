@@ -143,6 +143,13 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2016, 9, 1, 0, 0), datetime.datetime(2016, 12, 1, 0, 0), 'instructor_paced', '13', 2, 4,
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test5@example.com', 'test_user5', 'edX+Open_DemoX',
              'US', None, None, None, 'Percentage, 100 (#6)', 0.85, 300.00, 56.00, None],
+
+            ['0381d3cb033846d48a5cb1475b589d7f', 'Enterprise 1', 16, 5, 'course-v1:edX+Testing102x+1T2017',
+             datetime.datetime(2019, 9, 4, 21, 8, 8), 'verified', 1, '', 0,
+             datetime.datetime(2019, 9, 4, 16, 27, 34), 'dory', 1, 'All about acceptance testing Part 3!',
+             datetime.datetime(2016, 12, 1, 0, 0), datetime.datetime(2017, 2, 1, 0, 0), 'instructor_paced', '9', 2, 5,
+             datetime.datetime(2019, 9, 3, 23, 14, 35), 'test6@example.com', 'test_user6', 'edX+Testing102',
+             'US', None, None, None, None, 0.3, 100.00, 0, None],
         ]
 
         return [tuple(row) for row in expected]

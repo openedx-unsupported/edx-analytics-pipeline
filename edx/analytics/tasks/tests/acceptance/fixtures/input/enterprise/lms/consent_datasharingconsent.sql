@@ -28,4 +28,5 @@ INSERT INTO `consent_datasharingconsent` VALUES
   (6,'2016-03-22 21:08:08.432870','2016-03-22 21:08:08.432870','test_user',0,'course-v1:edX+Testing102x+1T2017','0381d3cb033846d48a5cb1475b589d7f'),
   (7,'2014-06-27 16:02:38','2014-06-27 16:02:38','test_user5',1,'edX/Open_DemoX/edx_demo_course','0381d3cb033846d48a5cb1475b589d7f'),
   (8,'2016-03-22 20:56:09.320098','2016-03-22 20:56:09.320098','test_user5',1,'course-v1:edX+Open_DemoX+edx_demo_course2','0381d3cb033846d48a5cb1475b589d7f'),
-  (9,'2016-03-22 21:08:08.432870','2016-03-22 21:08:08.432870','test_user5',1,'course-v1:edX+Testing102x+1T2017','0381d3cb033846d48a5cb1475b589d7f');
+  (9,'2016-03-22 21:08:08.432870','2016-03-22 21:08:08.432870','test_user5',1,'course-v1:edX+Testing102x+1T2017','0381d3cb033846d48a5cb1475b589d7f'),
+  (10,'2019-09-04 21:08:08.432870','2019-09-04 21:08:08.432870','test_user6',1,'course-v1:edX+Testing102x+1T2017','0381d3cb033846d48a5cb1475b589d7f');
