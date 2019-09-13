@@ -167,7 +167,7 @@ class EnterpriseEnrollmentDataTask(
                     consent.granted AS consent_granted,
                     grades.letter_grade,
                     CASE
-                        WHEN grades.passed_timestamp IS NOT NULL AND NULLIF(grades.letter_grade,'') IS NOT NULL THEN 1
+                        WHEN grades.passed_timestamp IS NOT NULL AND grades.letter_grade <> '' AND grades.letter_grade IS NOT NULL THEN 1
                         ELSE 0
                     END AS has_passed,
                     grades.passed_timestamp,
