@@ -70,10 +70,10 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         expected = [
             ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'verified', 1, 1, 1, 0],
+             'honor', 1, 1, 1, 0],
             ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'honor', 1, 1, 1, 0],
+             'verified', 1, 1, 1, 0],
             ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
              'honor', 0, 0, 3, 2],
@@ -99,7 +99,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             cursor.execute(
                 '''
                   SELECT {columns}
-                  FROM   course_meta_summary_enrollment
+                  FROM   course_meta_summary_enrollment ORDER BY enrollment_mode
                 '''.format(columns=','.join(columns))
             )
             results = cursor.fetchall()
