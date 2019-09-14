@@ -68,12 +68,6 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
     def expected_enrollment_summary_results(self, enable_course_catalog):
         """Returns expected results with course catalog data removed if enable_course_catalog is False."""
         expected = [
-            ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
-             datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'verified', 1, 1, 1, 0],
-            ['course-v1:edX+Open_DemoX+edx_demo_course2', 'All about acceptance testing!', 'edX+Open_DemoX',
-             datetime.datetime(2016, 6, 1), datetime.datetime(2016, 9, 1), 'self_paced', 'Archived',
-             'verified', 1, 1, 1, 0],
             ['edX/Open_DemoX/edx_demo_course', 'All about acceptance testing!', 'edX+Open_DemoX',
              datetime.datetime(2016, 9, 1), datetime.datetime(2016, 12, 1), 'instructor_paced', 'Current',
              'honor', 0, 0, 3, 2],
