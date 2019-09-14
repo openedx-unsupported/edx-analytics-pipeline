@@ -93,13 +93,12 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             cursor.execute(
                 '''
                   SELECT {columns}
-                  FROM   course_meta_summary_enrollment ORDER BY enrollment_mode
+                  FROM   course_meta_summary_enrollment
                 '''.format(columns=','.join(columns))
             )
             results = cursor.fetchall()
 
         expected = self.expected_enrollment_summary_results(enable_course_catalog)
-        log.info('Results of enrollment_summary_table: %s', results)
         self.assertItemsEqual(expected, results)
 
     def validate_gender(self):
