@@ -99,6 +99,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
             results = cursor.fetchall()
 
         expected = self.expected_enrollment_summary_results(enable_course_catalog)
+        log.info('Results of enrollment_summary_table: %s', results)
         self.assertItemsEqual(expected, results)
 
     def validate_gender(self):
