@@ -22,5 +22,4 @@ INSERT INTO `social_auth_usersocialauth` VALUES
   (2,12,'tpa-saml','ent1:ron', '{}'),
   (3,13,'tpa-saml','ent2:ron', '{}'),
   (4,13,'tpa-saml','ent2:hermione', '{}'),
-  (5,15,'tpa-saml','ent1:ginny', '{}'),
-  (6,16,'tpa-saml','ent1:dory', '{}');
+  (5,15,'tpa-saml','ent1:ginny', '{}');
