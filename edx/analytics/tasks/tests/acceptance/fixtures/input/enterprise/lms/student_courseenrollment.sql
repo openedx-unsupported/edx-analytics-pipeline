@@ -26,4 +26,5 @@ INSERT INTO `student_courseenrollment` VALUES
   (30,14,'course-v1:edX+Testing102x+1T2017','2016-03-22 21:08:08.432870',1,'credit'),
   (31,15,'edX/Open_DemoX/edx_demo_course','2014-06-27 16:02:38',1,'verified'),
   (32,15,'course-v1:edX+Open_DemoX+edx_demo_course2','2016-03-22 20:56:09.320098',1,'verified'),
-  (33,15,'course-v1:edX+Testing102x+1T2017','2016-03-22 21:08:08.432870',1,'credit');
+  (33,15,'course-v1:edX+Testing102x+1T2017','2016-03-22 21:08:08.432870',1,'credit'),
+  (34,16,'course-v1:edX+Testing102x+1T2017','2019-03-22 20:56:09.320098',1,'verified');
