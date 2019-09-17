@@ -74,6 +74,11 @@ class EnterpriseUserAcceptanceTest(AcceptanceTestCase):
             ['0381d3cb033846d48a5cb1475b589d7f', 15, 4, 'ginny',
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test5@example.com',
              'test_user5', 'US', None],
+
+            ['0381d3cb033846d48a5cb1475b589d7f', 16, 5, 'dory',
+             datetime.datetime(2019, 9, 3, 23, 14, 35), 'test6@example.com',
+             'test_user6', 'US', None],
+
         ]
 
         return [tuple(row) for row in expected]
