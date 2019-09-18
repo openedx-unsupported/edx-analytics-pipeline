@@ -9,7 +9,9 @@ import luigi
 
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask, BigQueryTarget
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
-from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask, SnowflakeTarget
+from edx.analytics.tasks.common.snowflake_load import (
+    SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask, SnowflakeTarget
+)
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
@@ -713,7 +715,6 @@ class LoadMysqlToSnowflakeTableTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadFrom
             direct=False,
             columns=columns,
         )
-
 
     @property
     def table(self):
