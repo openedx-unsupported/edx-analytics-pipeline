@@ -270,6 +270,17 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
         """
         return ''
 
+    @property
+    def qualified_stage_name(self):
+        """
+        Fully qualified stage name.
+        """
+        return "{database}.{schema}.{table}_stage".format(
+            database=self.sf_database,
+            schema=self.schema,
+            table=self.table,
+        )
+
     def create_table(self, connection):
         coldefs = ','.join(
             '{name} {definition}'.format(name=name, definition=definition) for name, definition in self.columns
@@ -295,14 +306,14 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
     def create_stage(self, connection):
         stage_url = canonicalize_s3_url(self.input()['insert_source_task'].path)
         query = """
-        CREATE OR REPLACE STAGE {database}.{schema}.{table}_stage
+        CREATE OR REPLACE STAGE {stage_name}
             URL = '{stage_url}'
             CREDENTIALS = (AWS_KEY_ID='{aws_key_id}' AWS_SECRET_KEY='{aws_secret_key}')
             FILE_FORMAT = {database}.{schema}.{file_format_name};
         """.format(
+            stage_name=self.qualified_stage_name,
             database=self.sf_database,
             schema=self.schema,
-            table=self.table,
             stage_url=stage_url,
             aws_key_id=self.output().aws_key_id,
             aws_secret_key=self.output().aws_secret_key,
@@ -326,13 +337,13 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
     def copy(self, connection):
         query = """
         COPY INTO {database}.{schema}.{table}
-        FROM @{database}.{schema}.{table}_{date}_stage
+        FROM @{stage_name}
         PATTERN='{pattern}'
         """.format(
             database=self.sf_database,
             schema=self.schema,
             table=self.table,
-            date=self.date.strftime('%Y_%m_%d'),
+            stage_name=self.qualified_stage_name,
             pattern=self.pattern,
         )
         log.debug(query)
