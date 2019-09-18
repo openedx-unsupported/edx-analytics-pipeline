@@ -160,7 +160,7 @@ class LoadInternalReportingCourseCatalogToSnowflake(WarehouseMixin, SnowflakeLoa
         kwargs = {
             'date': self.date,
             'credentials': self.credentials,
-            'database': self.database,
+            'sf_database': self.sf_database,
             'schema': self.schema,
             'warehouse': self.warehouse,
             'role': self.role,
@@ -315,7 +315,7 @@ class LoadWarehouseSnowflakeTask(SnowflakeLoadDownstreamMixin, WarehouseMixin, l
         kwargs = {
             'date': self.date,
             'credentials': self.credentials,
-            'database': self.database,
+            'sf_database': self.sf_database,
             'schema': self.schema,
             'warehouse': self.warehouse,
             'role': self.role,
