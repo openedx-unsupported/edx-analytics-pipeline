@@ -792,6 +792,8 @@ class ImportMysqlDatabaseToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, Snowfl
                         db_credentials=self.db_credentials,
                         sf_database=self.sf_database,
                         schema=self.schema,
+                        scratch_schema=self.scratch_schema,
+                        run_id=self.run_id,
                         warehouse=self.warehouse,
                         role=self.role,
                         warehouse_path=self.warehouse_path,
