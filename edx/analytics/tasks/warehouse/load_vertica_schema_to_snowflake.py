@@ -85,9 +85,8 @@ class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, 
     @property
     def insert_source_task(self):
         """
-        We are already exporting vertica tables to S3 using SqoopImportFromVertica through VerticaSchemaToBigQueryTask
-        workflow, so we specify ExternalURL here instead. In the future we can change this to a
-        SqoopImportFromVertica task.
+        This assumes we have already exported vertica tables to S3 using SqoopImportFromVertica through VerticaSchemaToS3Task
+        workflow, so we specify ExternalURL here.
         """
         partition_path_spec = HivePartition('dt', self.date).path_spec
         intermediate_warehouse_path = url_path_join(self.warehouse_path, 'import/vertica/sqoop/')

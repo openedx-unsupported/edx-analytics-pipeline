@@ -155,7 +155,6 @@ class VerticaTableToS3Task(OverwriteOutputMixin, luigi.Task):
     def __init__(self, *args, **kwargs):
         super(VerticaTableToS3Task, self).__init__(*args, **kwargs)
         self.required_tasks = None
-        self.table_schema = None
         self.vertica_source_table_schema = None
 
     def requires(self):
@@ -204,6 +203,75 @@ class VerticaTableToS3Task(OverwriteOutputMixin, luigi.Task):
             delimiter_replacement=self.sqoop_delimiter_replacement,
             timezone_adjusted_column_list=self.timestamptz_column_list,
         )
+
+
+@workflow_entry_point
+class VerticaSchemaToS3Task(luigi.WrapperTask):
+    """
+    A task that copies all the tables in a Vertica schema to S3, so other jobs can load from there.
+
+    Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
+    VerticaTableToS3Task task for each table.
+    """
+    overwrite = luigi.BoolParameter(
+        default=False,
+        significant=False,
+        description='Indicates if the target data sources should be removed prior to generating.'
+    )
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date.  This parameter is used to isolate intermediate datasets.'
+    )
+    exclude = luigi.ListParameter(
+        default=[],
+        description='The Vertica tables that are to be excluded from exporting.'
+    )
+    vertica_warehouse_name = luigi.Parameter(
+        default='warehouse',
+        description='The Vertica warehouse that houses the schema being copied.'
+    )
+    vertica_schema_name = luigi.Parameter(
+        description='The Vertica schema being copied. '
+    )
+    vertica_credentials = luigi.Parameter(
+        config_path={'section': 'vertica-export', 'name': 'credentials'},
+        description='Path to the external Vertica access credentials file.',
+    )
+    s3_warehouse_path = luigi.Parameter(
+        config_path={'section': 'hive', 'name': 'warehouse_path'},
+        description='The warehouse path to store intermediate data on S3.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(VerticaSchemaToS3Task, self).__init__(*args, **kwargs)
+
+    def should_exclude_table(self, table_name):
+        """Determines whether to exclude a table during the import."""
+        if any(re.match(pattern, table_name) for pattern in self.exclude):
+            return True
+        return False
+
+    def requires(self):
+        yield ExternalURL(url=self.vertica_credentials)
+
+        intermediate_warehouse_path = url_path_join(self.s3_warehouse_path, 'import/vertica/sqoop/')
+
+        query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
+                "".format(schema_name=self.vertica_schema_name)
+        table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
+
+        for table_name in table_list:
+            if not self.should_exclude_table(table_name):
+                yield VerticaTableToS3Task(
+                    date=self.date,
+                    overwrite=self.overwrite,
+                    intermediate_warehouse_path=intermediate_warehouse_path,
+                    table_name=table_name,
+                    vertica_schema_name=self.vertica_schema_name,
+                    vertica_warehouse_name=self.vertica_warehouse_name,
+                    vertica_credentials=self.vertica_credentials,
+                    exclude=self.exclude,
+                )
 
 
 class LoadVerticaTableToBigQuery(BigQueryLoadTask):
@@ -311,10 +379,10 @@ class LoadVerticaTableToBigQuery(BigQueryLoadTask):
 @workflow_entry_point
 class VerticaSchemaToBigQueryTask(luigi.WrapperTask):
     """
-    A task that copies all the tables in a Vertica schema to S3.
+    A task that copies all the tables in a Vertica schema to BigQuery via S3.
 
     Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
-    LoadVerticaToS3TableTask task for each table.
+    LoadVerticaTableToBigQuery task for each table.
     """
     overwrite = luigi.BoolParameter(
         default=False,
