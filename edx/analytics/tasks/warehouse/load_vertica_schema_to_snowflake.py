@@ -9,14 +9,14 @@ import re
 import luigi
 
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
-from edx.analytics.tasks.common.vertica_export import get_vertica_results
+from edx.analytics.tasks.common.vertica_export import get_vertica_results, VerticaTableFromS3Mixin, VerticaSchemaExportMixin
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 
 log = logging.getLogger(__name__)
 
 
-class LoadVerticaTableFromS3ToSnowflakeMixin(WarehouseMixin):
+class LoadVerticaTableFromS3ToSnowflakeMixin(VerticaTableFromS3Mixin, WarehouseMixin):
     """
     Common parameters for loading a vertica table from S3 to Snowflake.
     """
@@ -112,7 +112,7 @@ class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, 
 
     @property
     def null_marker(self):
-        return "NNULLL"
+        return self.sqoop_null_string
 
     @property
     def pattern(self):
@@ -120,12 +120,13 @@ class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, 
 
     @property
     def field_delimiter(self):
-        return r'\x01'
+        return self.sqoop_fields_terminated_by
 
 
-class VerticaSchemaToSnowflakeTask(LoadVerticaTableFromS3ToSnowflakeMixin,
-                                   SnowflakeLoadDownstreamMixin,
-                                   luigi.WrapperTask):
+class LoadVerticaSchemaToSnowflakeTask(VerticaSchemaExportMixin,
+                                       LoadVerticaTableFromS3ToSnowflakeMixin,
+                                       SnowflakeLoadDownstreamMixin,
+                                       luigi.WrapperTask):
     """
     A task that copies all the tables in a Vertica schema to S3.
 
@@ -136,41 +137,27 @@ class VerticaSchemaToSnowflakeTask(LoadVerticaTableFromS3ToSnowflakeMixin,
         default=datetime.datetime.utcnow().date(),
         description='Current run date.  This parameter is used to isolate intermediate datasets.'
     )
-    exclude = luigi.ListParameter(
-        default=[],
-        description='The Vertica tables that are to be excluded from exporting.'
-    )
-
-    def should_exclude_table(self, table_name):
-        """
-        Determines whether to exclude a table during the import.
-        """
-        if any(re.match(pattern, table_name) for pattern in self.exclude):  # pylint: disable=not-an-iterable
-            return True
-        return False
 
     def requires(self):
-        query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
-                "".format(schema_name=self.vertica_schema_name)
-        table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
+        yield ExternalURL(url=self.vertica_credentials)
 
-        for table_name in table_list:
-            if not self.should_exclude_table(table_name):
-
-                yield LoadVerticaTableFromS3ToSnowflake(
-                    warehouse_path=self.warehouse_path,
-                    date=self.date,
-                    overwrite=self.overwrite,
-                    credentials=self.credentials,
-                    warehouse=self.warehouse,
-                    role=self.role,
-                    sf_database=self.sf_database,
-                    schema=self.schema,
-                    table_name=table_name,
-                    vertica_schema_name=self.vertica_schema_name,
-                    vertica_warehouse_name=self.vertica_warehouse_name,
-                    vertica_credentials=self.vertica_credentials,
-                )
+        for table_name in self.get_table_list_for_schema():
+            yield LoadVerticaTableFromS3ToSnowflake(
+                warehouse_path=self.warehouse_path,
+                date=self.date,
+                overwrite=self.overwrite,
+                credentials=self.credentials,
+                warehouse=self.warehouse,
+                role=self.role,
+                sf_database=self.sf_database,
+                schema=self.schema,
+                table_name=table_name,
+                vertica_schema_name=self.vertica_schema_name,
+                vertica_warehouse_name=self.vertica_warehouse_name,
+                vertica_credentials=self.vertica_credentials,
+                sqoop_null_string=self.sqoop_null_string,
+                sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+            )
 
     def complete(self):
         # OverwriteOutputMixin changes the complete() method behavior, so we override it.

@@ -12,7 +12,7 @@ from google.cloud import bigquery
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask
 from edx.analytics.tasks.common.sqoop import SqoopImportFromVertica
 from edx.analytics.tasks.util.decorators import workflow_entry_point
-from edx.analytics.tasks.util.hive import HivePartition
+from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
@@ -27,6 +27,41 @@ except ImportError:
     # On hadoop slave nodes we don't have Vertica client libraries installed so it is pointless to ship this package to
     # them, instead just fail noisily if we attempt to use these libraries.
     vertica_client_available = False  # pylint: disable=invalid-name
+
+
+# Define default values to be used by Sqoop when exporting tables from Vertica, whether for loading in
+# BigQuery or Snowflake.
+
+VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER = r'\x01'
+
+VERTICA_EXPORT_DEFAULT_NULL_MARKER = 'NNULLL'
+
+VERTICA_EXPORT_DEFAULT_DELIMITER_REPLACEMENT = ' '
+
+VERTICA_TO_BIGQUERY_FIELD_MAPPING = {
+    'boolean': 'bool',
+    'integer': 'int64',
+    'int': 'int64',
+    'bigint': 'int64',
+    'varbinary': 'bytes',
+    'long varbinary': 'bytes',
+    'binary': 'bytes',
+    'char': 'string',
+    'varchar': 'string',
+    'long varchar': 'string',
+    'money': 'float64',
+    'numeric': 'float64',
+    'float': 'float64',
+    'date': 'date',
+    'time': 'time',
+    # Due to an error with the Vertica JDBC client time zone information is stripped prior to extracting.  All
+    # timestamptz and timetz values are coerced to UTC (manually in the case of timestamptz).
+    'timetz': 'time',
+    'timestamptz': 'datetime',
+    'timestamp': 'datetime'
+}
+
+# (Note that Vertica-to-Snowflake mappings are found in warehouse/load_vertica_schema_to_snowflake.py.)
 
 
 def get_vertica_results(credentials, query):
@@ -54,30 +89,6 @@ def get_vertica_results(credentials, query):
     return results
 
 
-VERTICA_TO_BIGQUERY_FIELD_MAPPING = {
-    'boolean': 'bool',
-    'integer': 'int64',
-    'int': 'int64',
-    'bigint': 'int64',
-    'varbinary': 'bytes',
-    'long varbinary': 'bytes',
-    'binary': 'bytes',
-    'char': 'string',
-    'varchar': 'string',
-    'long varchar': 'string',
-    'money': 'float64',
-    'numeric': 'float64',
-    'float': 'float64',
-    'date': 'date',
-    'time': 'time',
-    # Due to an error with the Vertica JDBC client time zone information is stripped prior to extracting.  All
-    # timestamptz and timetz values are coerced to UTC (manually in the case of timestamptz).
-    'timetz': 'time',
-    'timestamptz': 'datetime',
-    'timestamp': 'datetime'
-}
-
-
 def get_vertica_table_schema(credentials, schema_name, table_name):
     """
     Returns the Vertica schema in the format (column name, column type, nullable?) for the indicated table.
@@ -103,7 +114,85 @@ def get_vertica_table_schema(credentials, schema_name, table_name):
     return results
 
 
-class VerticaTableToS3Task(OverwriteOutputMixin, luigi.Task):
+class VerticaTableFromS3Mixin(object):
+    """
+    Defines Sqoop parameters to be used in the loading of exported data from S3.
+
+    The parameters for null-string and field-terminator should be
+    matched by the loaders that load Vertica-exported data from S3.
+
+    The delimiter replacement is only used when dumping, not loading, so it is excluded.
+    """
+    sqoop_null_string = luigi.Parameter(
+        default=VERTICA_EXPORT_DEFAULT_NULL_MARKER,
+        description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.'
+    )
+    sqoop_fields_terminated_by = luigi.Parameter(
+        default=VERTICA_EXPORT_DEFAULT_FIELD_TERMINATOR,
+        description='The field delimiter used by Sqoop.'
+    )
+
+
+class VerticaTableToS3Mixin(VerticaTableFromS3Mixin):
+    """
+    Defines Sqoop parameters to be used in the export of Vertica data to S3.
+
+    The parameters for null-string and field-terminator should be
+    matched by the loaders that load Vertica-exported data from S3.
+
+    The delimiter replacement is only used when dumping, not loading, so it is added here.
+    """
+    sqoop_delimiter_replacement = luigi.Parameter(
+        default=VERTICA_EXPORT_DEFAULT_DELIMITER_REPLACEMENT,
+        description='The string replacement value for special characters encountered by Sqoop when exporting from '
+                    'Vertica.'
+    )
+
+
+class LoadVerticaTableFromS3Mixin(object):
+
+    vertica_warehouse_name = luigi.Parameter(
+        default='warehouse',
+        description='The Vertica warehouse that houses the schema being copied.'
+    )
+    vertica_schema_name = luigi.Parameter(
+        description='The Vertica schema being copied. '
+    )
+    vertica_credentials = luigi.Parameter(
+        config_path={'section': 'vertica-export', 'name': 'credentials'},
+        description='Path to the external Vertica access credentials file.',
+    )
+
+
+class VerticaSchemaExportMixin(LoadVerticaTableFromS3Mixin):
+
+    exclude = luigi.ListParameter(
+        default=[],
+        description='The Vertica tables that are to be excluded from exporting.'
+    )
+
+    # Cache list for tables in schema, to reduce repeated calls to Vertica.
+    _table_names_list = None
+
+    def should_exclude_table(self, table_name):
+        """
+        Determines whether to exclude a table during the import.
+        """
+        if any(re.match(pattern, table_name) for pattern in self.exclude):  # pylint: disable=not-an-iterable
+            return True
+        return False
+
+    def get_table_list_for_schema(self):
+        if not self._table_names_list:
+            query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
+                    "".format(schema_name=self.vertica_schema_name)
+            table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
+
+            self._table_names_list = [table_name for table_name in table_list if not self.should_exclude_table(table_name)]
+        return self._table_names_list
+
+
+class VerticaTableToS3Task(VerticaTableToS3Mixin, OverwriteOutputMixin, luigi.Task):
     """
     Export a table from Vertica to S3 using sqoop.
 
@@ -116,19 +205,6 @@ class VerticaTableToS3Task(OverwriteOutputMixin, luigi.Task):
     )
     intermediate_warehouse_path = luigi.Parameter(
         description='A dictionary specifying the S3-centric configuration.'
-    )
-    sqoop_null_string = luigi.Parameter(
-        default='null',
-        description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.'
-    )
-    sqoop_fields_terminated_by = luigi.Parameter(
-        default=',',
-        description='The field delimiter used by Sqoop.'
-    )
-    sqoop_delimiter_replacement = luigi.Parameter(
-        default=' ',
-        description='The string replacement value for special characters encountered by Sqoop when exporting from '
-                    'Vertica.'
     )
     column_list = luigi.ListParameter(
         description='The column names being extracted from this table.'
@@ -206,7 +282,7 @@ class VerticaTableToS3Task(OverwriteOutputMixin, luigi.Task):
 
 
 @workflow_entry_point
-class VerticaSchemaToS3Task(luigi.WrapperTask):
+class VerticaSchemaToS3Task(VerticaSchemaExportMixin, WarehouseMixin, luigi.WrapperTask):
     """
     A task that copies all the tables in a Vertica schema to S3, so other jobs can load from there.
 
@@ -222,59 +298,32 @@ class VerticaSchemaToS3Task(luigi.WrapperTask):
         default=datetime.datetime.utcnow().date(),
         description='Current run date.  This parameter is used to isolate intermediate datasets.'
     )
-    exclude = luigi.ListParameter(
-        default=[],
-        description='The Vertica tables that are to be excluded from exporting.'
-    )
-    vertica_warehouse_name = luigi.Parameter(
-        default='warehouse',
-        description='The Vertica warehouse that houses the schema being copied.'
-    )
-    vertica_schema_name = luigi.Parameter(
-        description='The Vertica schema being copied. '
-    )
-    vertica_credentials = luigi.Parameter(
-        config_path={'section': 'vertica-export', 'name': 'credentials'},
-        description='Path to the external Vertica access credentials file.',
-    )
-    s3_warehouse_path = luigi.Parameter(
-        config_path={'section': 'hive', 'name': 'warehouse_path'},
-        description='The warehouse path to store intermediate data on S3.'
-    )
 
     def __init__(self, *args, **kwargs):
         super(VerticaSchemaToS3Task, self).__init__(*args, **kwargs)
 
-    def should_exclude_table(self, table_name):
-        """Determines whether to exclude a table during the import."""
-        if any(re.match(pattern, table_name) for pattern in self.exclude):
-            return True
-        return False
-
     def requires(self):
         yield ExternalURL(url=self.vertica_credentials)
 
-        intermediate_warehouse_path = url_path_join(self.s3_warehouse_path, 'import/vertica/sqoop/')
+        intermediate_warehouse_path = url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
 
-        query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
-                "".format(schema_name=self.vertica_schema_name)
-        table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
-
-        for table_name in table_list:
-            if not self.should_exclude_table(table_name):
-                yield VerticaTableToS3Task(
-                    date=self.date,
-                    overwrite=self.overwrite,
-                    intermediate_warehouse_path=intermediate_warehouse_path,
-                    table_name=table_name,
-                    vertica_schema_name=self.vertica_schema_name,
-                    vertica_warehouse_name=self.vertica_warehouse_name,
-                    vertica_credentials=self.vertica_credentials,
-                    exclude=self.exclude,
-                )
+        for table_name in self.get_table_list_for_schema():
+            yield VerticaTableToS3Task(
+                date=self.date,
+                overwrite=self.overwrite,
+                intermediate_warehouse_path=intermediate_warehouse_path,
+                table_name=table_name,
+                vertica_schema_name=self.vertica_schema_name,
+                vertica_warehouse_name=self.vertica_warehouse_name,
+                vertica_credentials=self.vertica_credentials,
+                sqoop_null_string=self.sqoop_null_string,
+                sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+                sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
+                exclude=self.exclude,
+            )
 
 
-class LoadVerticaTableToBigQuery(BigQueryLoadTask):
+class LoadVerticaTableToBigQuery(VerticaTableToS3Task, BigQueryLoadTask):
     """Copies one table from Vertica through S3/GCP into BigQuery."""
 
     intermediate_warehouse_path = luigi.Parameter(
@@ -327,15 +376,15 @@ class LoadVerticaTableToBigQuery(BigQueryLoadTask):
 
     @property
     def field_delimiter(self):
-        return '\x01'
+        return VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
 
     @property
     def null_marker(self):
-        return 'NNULLL'
+        return VERTICA_EXPORT_DEFAULT_NULL_MARKER
 
     @property
     def delimiter_replacement(self):
-        return ' '
+        return VERTICA_EXPORT_DEFAULT_DELIMITER_REPLACEMENT
 
     @property
     def schema(self):
@@ -377,7 +426,7 @@ class LoadVerticaTableToBigQuery(BigQueryLoadTask):
 
 
 @workflow_entry_point
-class VerticaSchemaToBigQueryTask(luigi.WrapperTask):
+class VerticaSchemaToBigQueryTask(VerticaSchemaExportMixin, luigi.WrapperTask):
     """
     A task that copies all the tables in a Vertica schema to BigQuery via S3.
 
@@ -392,21 +441,6 @@ class VerticaSchemaToBigQueryTask(luigi.WrapperTask):
     date = luigi.DateParameter(
         default=datetime.datetime.utcnow().date(),
         description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
-    exclude = luigi.ListParameter(
-        default=[],
-        description='The Vertica tables that are to be excluded from exporting.'
-    )
-    vertica_warehouse_name = luigi.Parameter(
-        default='warehouse',
-        description='The Vertica warehouse that houses the schema being copied.'
-    )
-    vertica_schema_name = luigi.Parameter(
-        description='The Vertica schema being copied. '
-    )
-    vertica_credentials = luigi.Parameter(
-        config_path={'section': 'vertica-export', 'name': 'credentials'},
-        description='Path to the external Vertica access credentials file.',
     )
     bigquery_dataset = luigi.Parameter(
         default=None,
@@ -426,12 +460,6 @@ class VerticaSchemaToBigQueryTask(luigi.WrapperTask):
 
     def __init__(self, *args, **kwargs):
         super(VerticaSchemaToBigQueryTask, self).__init__(*args, **kwargs)
-
-    def should_exclude_table(self, table_name):
-        """Determines whether to exclude a table during the import."""
-        if any(re.match(pattern, table_name) for pattern in self.exclude):
-            return True
-        return False
 
     def requires(self):
         yield ExternalURL(url=self.vertica_credentials)
