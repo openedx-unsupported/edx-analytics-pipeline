@@ -2,77 +2,32 @@
 Tasks to load a Vertica schema into Snowflake.
 """
 
-import datetime
 import logging
-import re
 
 import luigi
 
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
-from edx.analytics.tasks.common.vertica_export import get_vertica_results, VerticaTableFromS3Mixin, VerticaSchemaExportMixin
-from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
-from edx.analytics.tasks.util.url import ExternalURL, url_path_join
+from edx.analytics.tasks.common.vertica_export import LoadVerticaTableFromS3Mixin, VerticaSchemaExportMixin, VerticaTableExportMixin
+from edx.analytics.tasks.util.url import ExternalURL
+
 
 log = logging.getLogger(__name__)
 
 
-class LoadVerticaTableFromS3ToSnowflakeMixin(VerticaTableFromS3Mixin, WarehouseMixin):
-    """
-    Common parameters for loading a vertica table from S3 to Snowflake.
-    """
-    vertica_warehouse_name = luigi.Parameter(
-        default='warehouse',
-        description='The Vertica warehouse that houses the schema being copied.'
-    )
-    vertica_schema_name = luigi.Parameter(
-        description='The Vertica schema being copied. '
-    )
-    vertica_credentials = luigi.Parameter(
-        config_path={'section': 'vertica-export', 'name': 'credentials'},
-        description='Path to the external Vertica access credentials file.',
-    )
-
-
-class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, SnowflakeLoadFromHiveTSVTask):
+class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, LoadVerticaTableFromS3Mixin, SnowflakeLoadFromHiveTSVTask):
     """
     Task to load a vertica table from S3 into Snowflake.
     """
 
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
-    table_name = luigi.Parameter(
-        description='The Vertica table being copied.'
-    )
-
     def snowflake_compliant_schema(self):
         """
-        Returns the Vertica schema in the format (column name, column type, nullable?) for the indicated table.
+        Returns the Snowflake schema in the format (column name, column type) for the indicated table.
+
+        Information about "nullable" or required fields is not included.
         """
-
-        query = """
-        SELECT column_name, data_type FROM columns
-        WHERE table_schema='{schema}' AND table_name='{table}'
-        ORDER BY ordinal_position
-        """.format(
-            schema=self.vertica_schema_name,
-            table=self.table_name
-        )
-        results = []
-        rows = get_vertica_results(self.vertica_credentials, query)
-
-        for row in rows:
-            column_name = row[0]
-            field_type = row[1]
-
+        for column_name, field_type, _ in self.vertica_table_schema:
             if column_name == 'start':
                 column_name = '"{}"'.format(column_name)
-
-            if field_type.lower() in ['long varbinary']:
-                log.error('Error Vertica jdbc tool is unable to export field type \'%s\'.  This field will be '
-                          'excluded from the extract.', field_type.lower())
-                continue
             elif field_type.lower().startswith('long'):
                 field_type = field_type.lower().lstrip('long ')
             elif '(40' in field_type.lower():
@@ -88,15 +43,7 @@ class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, 
         This assumes we have already exported vertica tables to S3 using SqoopImportFromVertica through VerticaSchemaToS3Task
         workflow, so we specify ExternalURL here.
         """
-        partition_path_spec = HivePartition('dt', self.date).path_spec
-        intermediate_warehouse_path = url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
-        url = url_path_join(intermediate_warehouse_path,
-                            self.vertica_warehouse_name,
-                            self.vertica_schema_name,
-                            self.table_name,
-                            partition_path_spec) + '/'
-
-        return ExternalURL(url=url)
+        return ExternalURL(url=self.s3_location_for_table)
 
     @property
     def table(self):
@@ -123,29 +70,22 @@ class LoadVerticaTableFromS3ToSnowflake(LoadVerticaTableFromS3ToSnowflakeMixin, 
         return self.sqoop_fields_terminated_by
 
 
-class LoadVerticaSchemaToSnowflakeTask(VerticaSchemaExportMixin,
-                                       LoadVerticaTableFromS3ToSnowflakeMixin,
-                                       SnowflakeLoadDownstreamMixin,
-                                       luigi.WrapperTask):
+class LoadVerticaSchemaFromS3ToSnowflakeTask(VerticaSchemaExportMixin, LoadVerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
     """
-    A task that copies all the tables in a Vertica schema to S3.
+    A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
 
     Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
     LoadVerticaTableFromS3ToSnowflake task for each table.
     """
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
 
     def requires(self):
         yield ExternalURL(url=self.vertica_credentials)
 
         for table_name in self.get_table_list_for_schema():
-            yield LoadVerticaTableFromS3ToSnowflake(
-                warehouse_path=self.warehouse_path,
+            yield LoadVerticaTableFromS3ToSnowflakeTask(
                 date=self.date,
                 overwrite=self.overwrite,
+                intermediate_warehouse_path=self.intermediate_warehouse_path,
                 credentials=self.credentials,
                 warehouse=self.warehouse,
                 role=self.role,
