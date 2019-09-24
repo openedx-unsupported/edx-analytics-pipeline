@@ -39,7 +39,7 @@ VERTICA_TO_BIGQUERY_FIELD_MAPPING = {
 }
 
 
-class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, LoadVerticaTableFromS3Mixin, BigQueryLoadTask):
+class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTableFromS3Mixin, BigQueryLoadTask):
     """Copies one table from S3 through GCP into BigQuery, after having been dumped from Vertica to S3."""
 
     def __init__(self, *args, **kwargs):

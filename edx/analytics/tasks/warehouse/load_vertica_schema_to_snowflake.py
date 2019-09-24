@@ -14,7 +14,7 @@ from edx.analytics.tasks.util.url import ExternalURL
 log = logging.getLogger(__name__)
 
 
-class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, LoadVerticaTableFromS3Mixin, SnowflakeLoadFromHiveTSVTask):
+class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadFromHiveTSVTask):
     """
     Task to load a vertica table from S3 into Snowflake.
     """
@@ -70,7 +70,7 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, LoadVertica
         return self.sqoop_fields_terminated_by
 
 
-class LoadVerticaSchemaFromS3ToSnowflakeTask(VerticaSchemaExportMixin, LoadVerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+class LoadVerticaSchemaFromS3ToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
     """
     A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
 

@@ -122,7 +122,7 @@ class VerticaTableToS3Mixin(VerticaTableFromS3Mixin):
     )
 
 
-class LoadVerticaTableFromS3Mixin(WarehouseMixin):
+class VerticaExportMixin(WarehouseMixin):
 
     vertica_warehouse_name = luigi.Parameter(
         default='warehouse',
@@ -137,7 +137,7 @@ class LoadVerticaTableFromS3Mixin(WarehouseMixin):
     )
 
 
-class VerticaTableExportMixin(LoadVerticaTableFromS3Mixin):
+class VerticaTableExportMixin(VerticaExportMixin):
     """A set of parameters and methods used by classes that dump or load a Vertica table."""
 
     date = luigi.DateParameter(
@@ -184,7 +184,7 @@ class VerticaTableExportMixin(LoadVerticaTableFromS3Mixin):
         return url
 
 
-class VerticaSchemaExportMixin(LoadVerticaTableFromS3Mixin):
+class VerticaSchemaExportMixin(VerticaExportMixin):
     """A set of parameters and methods used by classes that dump or load a Vertica schema."""
 
     date = luigi.DateParameter(
