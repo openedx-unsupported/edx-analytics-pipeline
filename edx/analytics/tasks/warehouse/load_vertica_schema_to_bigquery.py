@@ -42,7 +42,7 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, LoadVerticaT
     """Copies one table from S3 through GCP into BigQuery, after having been dumped from Vertica to S3."""
 
     def __init__(self, *args, **kwargs):
-        super(LoadVerticaTableToBigQuery, self).__init__(*args, **kwargs)
+        super(LoadVerticaTableFromS3ToBigQueryTask, self).__init__(*args, **kwargs)
         self.bigquery_compliant_schema = None
         self.timestamptz_column_list = None
 

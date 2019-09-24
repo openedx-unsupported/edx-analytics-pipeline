@@ -232,7 +232,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
     discovered at run time.
     """
     def __init__(self, *args, **kwargs):
-        super(VerticaTableToS3Task, self).__init__(*args, **kwargs)
+        super(ExportVerticaTableToS3Task, self).__init__(*args, **kwargs)
         self._required_tasks = None
         self._sqoop_dump_vertica_table_task = None
 
