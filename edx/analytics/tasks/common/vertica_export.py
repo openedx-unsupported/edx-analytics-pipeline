@@ -239,7 +239,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
     def requires(self):
         if self._required_tasks is None:
             self._required_tasks = {
-                'credentials': ExternalURL(url=self.credentials),
+                'credentials': ExternalURL(url=self.vertica_credentials),
                 'sqoop_dump_vertica_table_task': self.sqoop_dump_vertica_table_task,
             }
         return self._required_tasks
