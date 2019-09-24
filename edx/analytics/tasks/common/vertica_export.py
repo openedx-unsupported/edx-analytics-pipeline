@@ -313,7 +313,6 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
                 vertica_schema_name=self.vertica_schema_name,
                 vertica_warehouse_name=self.vertica_warehouse_name,
                 vertica_credentials=self.vertica_credentials,
-                exclude=self.exclude,
                 sqoop_null_string=self.sqoop_null_string,
                 sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
                 sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,

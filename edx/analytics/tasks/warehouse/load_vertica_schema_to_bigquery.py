@@ -135,7 +135,6 @@ class LoadVerticaSchemaFromS3ToBigQueryTask(VerticaSchemaExportMixin, luigi.Wrap
                 vertica_schema_name=self.vertica_schema_name,
                 vertica_warehouse_name=self.vertica_warehouse_name,
                 vertica_credentials=self.vertica_credentials,
-                exclude=self.exclude,
             )
 
 
