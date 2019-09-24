@@ -305,7 +305,7 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
         yield ExternalURL(url=self.vertica_credentials)
 
         for table_name in self.get_table_list_for_schema():
-            yield VerticaTableToS3Task(
+            yield ExportVerticaTableToS3Task(
                 date=self.date,
                 overwrite=self.overwrite,
                 table_name=table_name,
