@@ -7,7 +7,7 @@ import luigi
 from google.cloud.bigquery import SchemaField
 
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask
-from edx.analytics.tasks.common.vertica_export import LoadVerticaTableFromS3Mixin, VerticaSchemaExportMixin, VerticaTableExportMixin
+from edx.analytics.tasks.common.vertica_export import VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.url import ExternalURL
 
