@@ -25,6 +25,7 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTabl
 
         Information about "nullable" or required fields is not included.
         """
+        results = []
         for column_name, field_type, _ in self.vertica_table_schema:
             if column_name == 'start':
                 column_name = '"{}"'.format(column_name)
