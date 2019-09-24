@@ -4,6 +4,7 @@ Supports exporting data from Vertica to S3, for loading into other databases.
 import logging
 
 import luigi
+from google.cloud.bigquery import SchemaField
 
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadTask
 from edx.analytics.tasks.common.vertica_export import LoadVerticaTableFromS3Mixin, VerticaSchemaExportMixin, VerticaTableExportMixin
@@ -70,15 +71,23 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, LoadVerticaT
 
     @property
     def schema(self):
-        """The BigQuery compliant schema."""
+        """
+        The BigQuery compliant schema.
+
+        Returns a list of SchemaField objects, which contain the name, type and mode of the field.
+        """
         if self.bigquery_compliant_schema is None:
             res = []
             for field_name, vertica_field_type, nullable in self.vertica_table_schema:
                 # column_name, data_type, is_nullable
                 if vertica_field_type in VERTICA_TO_BIGQUERY_FIELD_MAPPING:
-                    res.append(bigquery.SchemaField(field_name,
-                                                    VERTICA_TO_BIGQUERY_FIELD_MAPPING[vertica_field_type],
-                                                    mode='NULLABLE' if nullable else 'REQUIRED'))
+                    res.append(
+                        SchemaField(
+                            field_name,
+                            VERTICA_TO_BIGQUERY_FIELD_MAPPING[vertica_field_type],
+                            mode='NULLABLE' if nullable else 'REQUIRED'
+                        )
+                    )
                 else:
                     raise RuntimeError('Error for field {field}: Vertica type {type} does not have a mapping to '
                                        'BigQuery'.format(field=field_name, type=vertica_field_type))
