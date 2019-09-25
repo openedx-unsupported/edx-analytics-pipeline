@@ -29,9 +29,10 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTabl
         for column_name, field_type, _ in self.vertica_table_schema:
             if column_name == 'start':
                 column_name = '"{}"'.format(column_name)
-            elif field_type.startswith('long '):
+            if field_type.startswith('long '):
                 field_type = field_type.lstrip('long ')
-            elif '(40' in field_type:
+            elif 'numeric(40' in field_type:
+                # Snowflake only handles numerics up to 38.
                 field_type = field_type.rsplit('(')[0]
 
             results.append((column_name, field_type))
