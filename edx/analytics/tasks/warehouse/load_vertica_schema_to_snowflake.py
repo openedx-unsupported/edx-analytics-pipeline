@@ -1,5 +1,5 @@
 """
-Tasks to load a Vertica schema into Snowflake.
+Tasks to load a Vertica schema from S3 into Snowflake.
 """
 
 import logging
@@ -16,7 +16,7 @@ log = logging.getLogger(__name__)
 
 class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadFromHiveTSVTask):
     """
-    Task to load a vertica table from S3 into Snowflake.
+    Task to load a Vertica table from S3 into Snowflake.
     """
 
     def snowflake_compliant_schema(self):
@@ -29,12 +29,12 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTabl
         for column_name, field_type, _ in self.vertica_table_schema:
             if column_name == 'start':
                 column_name = '"{}"'.format(column_name)
-            elif field_type.lower().startswith('long'):
-                field_type = field_type.lower().lstrip('long ')
-            elif '(40' in field_type.lower():
+            elif field_type.startswith('long '):
+                field_type = field_type.lstrip('long ')
+            elif '(40' in field_type:
                 field_type = field_type.rsplit('(')[0]
 
-            results.append((column_name, field_type.lower()))
+            results.append((column_name, field_type))
 
         return results
 

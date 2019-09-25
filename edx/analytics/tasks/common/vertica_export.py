@@ -18,7 +18,6 @@ log = logging.getLogger(__name__)
 
 try:
     import vertica_python
-    from vertica_python.errors import QueryError
     vertica_client_available = True  # pylint: disable=invalid-name
 except ImportError:
     log.warn('Unable to import Vertica client libraries')
@@ -64,25 +63,26 @@ def get_vertica_results(credentials, query):
 
 def get_vertica_table_schema(credentials, schema_name, table_name):
     """
-    Returns the Vertica schema in the format (column name, column type, nullable?) for the indicated table.
+    Returns the Vertica schema in the format (column name, column type, is_nullable) for the indicated table.
+
+    The column_type value is lowercased, but the size information is not stripped.
     """
 
-    query = "select column_name, data_type, is_nullable from columns where table_schema='{schema}' and " \
-            "table_name='{table}' order by ordinal_position;".format(schema=schema_name, table=table_name)
+    query = "SELECT column_name, data_type, is_nullable FROM columns WHERE table_schema='{schema}' AND " \
+            "table_name='{table}' ORDER BY ordinal_position;".format(schema=schema_name, table=table_name)
     results = []
     rows = get_vertica_results(credentials, query)
 
     for row in rows:
         column_name = row[0]
+        field_type = row[1].lower()
         nullable = row[2]
-        field_type = row[1]
-        field_type = field_type.rsplit('(')[0]
 
-        if field_type.lower() in ['long varbinary']:
+        if field_type.rsplit('(')[0] in ['long varbinary']:
             log.error('Error Vertica jdbc tool is unable to export field type \'%s\'.  This field will be '
-                      'excluded from the extract.', field_type.lower())
+                      'excluded from the extract.', field_type)
         else:
-            results.append((column_name, field_type.lower(), nullable))
+            results.append((column_name, field_type, nullable))
 
     return results
 
@@ -123,6 +123,7 @@ class VerticaTableToS3Mixin(VerticaTableFromS3Mixin):
 
 
 class VerticaExportMixin(WarehouseMixin):
+    """Information about Vertica warehouse, schema, and credentials are needed by all classes involved in exporting and loading."""
 
     vertica_warehouse_name = luigi.Parameter(
         default='warehouse',
@@ -264,7 +265,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
             timestamptz_column_list = []
             for field_name, vertica_field_type, _ in self.vertica_table_schema:
                 column_list.append(field_name)
-                if vertica_field_type in ['timestamptz']:
+                if vertica_field_type.rsplit('(')[0] in ['timestamptz']:
                     timestamptz_column_list.append(field_name)
 
             if len(column_list) <= 0:

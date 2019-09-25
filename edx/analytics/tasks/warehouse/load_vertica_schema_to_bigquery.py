@@ -44,8 +44,7 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTable
 
     def __init__(self, *args, **kwargs):
         super(LoadVerticaTableFromS3ToBigQueryTask, self).__init__(*args, **kwargs)
-        self.bigquery_compliant_schema = None
-        self.timestamptz_column_list = None
+        self._bigquery_compliant_schema = None
 
     @property
     def table(self):
@@ -76,10 +75,12 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTable
 
         Returns a list of SchemaField objects, which contain the name, type and mode of the field.
         """
-        if self.bigquery_compliant_schema is None:
+        if self._bigquery_compliant_schema is None:
             res = []
             for field_name, vertica_field_type, nullable in self.vertica_table_schema:
-                # column_name, data_type, is_nullable
+                # Above is analogous to "column_name, data_type, is_nullable" in Vertica.
+                # In BigQuery, strip off all sizes before remapping, because BigQuery doesn't want size information.
+                vertica_field_type = vertica_field_type.rsplit('(')[0]
                 if vertica_field_type in VERTICA_TO_BIGQUERY_FIELD_MAPPING:
                     res.append(
                         SchemaField(
@@ -91,8 +92,8 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTable
                 else:
                     raise RuntimeError('Error for field {field}: Vertica type {type} does not have a mapping to '
                                        'BigQuery'.format(field=field_name, type=vertica_field_type))
-            self.bigquery_compliant_schema = res
-        return self.bigquery_compliant_schema
+            self._bigquery_compliant_schema = res
+        return self._bigquery_compliant_schema
 
     @property
     def insert_source_task(self):
@@ -102,10 +103,10 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTable
 @workflow_entry_point
 class LoadVerticaSchemaFromS3ToBigQueryTask(VerticaSchemaExportMixin, luigi.WrapperTask):
     """
-    A task that copies all the tables in a Vertica schema to BigQuery via S3.
+    A task that copies all the tables in a Vertica schema to BigQuery from where they were written in S3.
 
     Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
-    LoadVerticaTableToBigQuery task for each table.
+    LoadVerticaTableFromS3ToBigQueryTask task for each table.
     """
     overwrite = luigi.BoolParameter(
         default=False,
