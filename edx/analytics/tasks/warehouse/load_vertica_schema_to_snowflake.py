@@ -7,9 +7,10 @@ import logging
 import luigi
 
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
-from edx.analytics.tasks.common.vertica_export import VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin
+from edx.analytics.tasks.common.vertica_export import (
+    VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin
+)
 from edx.analytics.tasks.util.url import ExternalURL
-
 
 log = logging.getLogger(__name__)
 
