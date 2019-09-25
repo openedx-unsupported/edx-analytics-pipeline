@@ -1,6 +1,7 @@
 """
-Supports exporting data from Vertica to S3, for loading into other databases.
+Tasks to load a Vertica schema from S3 into BigQuery.
 """
+
 import logging
 
 import luigi
@@ -81,7 +82,7 @@ class LoadVerticaTableFromS3ToBigQueryTask(VerticaTableExportMixin, VerticaTable
             for field_name, vertica_field_type, nullable in self.vertica_table_schema:
                 # Above is analogous to "column_name, data_type, is_nullable" in Vertica.
                 # In BigQuery, strip off all sizes before remapping, because BigQuery doesn't want size information.
-                vertica_field_type = vertica_field_type.rsplit('(')[0]
+                vertica_field_type = vertica_field_type.split('(')[0]
                 if vertica_field_type in VERTICA_TO_BIGQUERY_FIELD_MAPPING:
                     res.append(
                         SchemaField(

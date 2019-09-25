@@ -78,7 +78,7 @@ def get_vertica_table_schema(credentials, schema_name, table_name):
         field_type = row[1].lower()
         nullable = row[2]
 
-        if field_type.rsplit('(')[0] in ['long varbinary']:
+        if field_type.split('(')[0] in ['long varbinary']:
             log.error('Error Vertica jdbc tool is unable to export field type \'%s\'.  This field will be '
                       'excluded from the extract.', field_type)
         else:
@@ -123,7 +123,7 @@ class VerticaTableToS3Mixin(VerticaTableFromS3Mixin):
 
 
 class VerticaExportMixin(WarehouseMixin):
-    """Information about Vertica warehouse, schema, and credentials are needed by all classes involved in exporting and loading."""
+    """Information about Vertica that is needed by all classes involved in exporting data and also in loading it elsewhere."""
 
     vertica_warehouse_name = luigi.Parameter(
         default='warehouse',
@@ -136,6 +136,21 @@ class VerticaExportMixin(WarehouseMixin):
         config_path={'section': 'vertica-export', 'name': 'credentials'},
         description='Path to the external Vertica access credentials file.',
     )
+    intermediate_warehouse_path = luigi.Parameter(
+        description='A path specifying the S3 root for storing dumps from Vertica.',
+        default=None,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(VerticaExportMixin, self).__init__(*args, **kwargs)
+        # If no explicit value is passed in, use the default.
+        if self.intermediate_warehouse_path is None:
+            self.intermediate_warehouse_path = self.default_intermediate_warehouse_path
+
+    @property
+    def default_intermediate_warehouse_path(self):
+        """Define root URL under which data should be written to or read from in S3."""
+        return url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
 
 
 class VerticaTableExportMixin(VerticaExportMixin):
@@ -148,16 +163,9 @@ class VerticaTableExportMixin(VerticaExportMixin):
     table_name = luigi.Parameter(
         description='The Vertica table being dumped to S3.'
     )
-    intermediate_warehouse_path = luigi.Parameter(
-        description='A path specifying the S3 root for storing dumps from Vertica.',
-        default=None,
-    )
 
     def __init__(self, *args, **kwargs):
         super(VerticaTableExportMixin, self).__init__(*args, **kwargs)
-        # If no explicit value is passed in, use the same default that schema-level classes would have used.
-        if self.intermediate_warehouse_path is None:
-            self.intermediate_warehouse_path = url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
         self.vertica_source_table_schema = None
 
     @property
@@ -200,11 +208,6 @@ class VerticaSchemaExportMixin(VerticaExportMixin):
     def __init__(self, *args, **kwargs):
         super(VerticaSchemaExportMixin, self).__init__(*args, **kwargs)
         self._table_names_list = None
-
-    @property
-    def intermediate_warehouse_path(self):
-        """Define root URL under which data should be written to or read from in S3."""
-        return url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
 
     def should_exclude_table(self, table_name):
         """Determine whether to exclude a table during the import, based on regex matching agains specified patterns."""
@@ -265,7 +268,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
             timestamptz_column_list = []
             for field_name, vertica_field_type, _ in self.vertica_table_schema:
                 column_list.append(field_name)
-                if vertica_field_type.rsplit('(')[0] in ['timestamptz']:
+                if vertica_field_type.split('(')[0] in ['timestamptz']:
                     timestamptz_column_list.append(field_name)
 
             if len(column_list) <= 0:
@@ -294,7 +297,7 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
     A task that copies all the tables in a Vertica schema to S3, so other jobs can load from there.
 
     Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
-    VerticaTableToS3Task task for each table.
+    ExportVerticaTableToS3Task task for each table.
     """
     overwrite = luigi.BoolParameter(
         default=False,
