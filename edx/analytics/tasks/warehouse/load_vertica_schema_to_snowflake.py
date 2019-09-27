@@ -94,6 +94,8 @@ class LoadVerticaSchemaFromS3ToSnowflakeTask(VerticaSchemaExportMixin, VerticaTa
                 role=self.role,
                 sf_database=self.sf_database,
                 schema=self.schema,
+                scratch_schema=self.scratch_schema,
+                run_id=self.run_id,
                 table_name=table_name,
                 vertica_schema_name=self.vertica_schema_name,
                 vertica_warehouse_name=self.vertica_warehouse_name,
