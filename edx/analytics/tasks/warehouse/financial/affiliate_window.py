@@ -167,6 +167,8 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         print("Fetching report from Affiliate Window for {}.".format(self.query_date))
         transactions = self.fetch_report()
 
+        print("{} transactions found from Affiliate Window.".format(len(transactions)))
+
         # if there are no transactions in response something is wrong.
         if not transactions:
             raise Exception('No transactions to process.')
@@ -217,9 +219,20 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         print("Processing Affiliate Window report for {}".format(self.run_date))
         with self.input().open('r') as input_file:
             reader = json.load(input_file)
+
+            print("{} transactions found in JSON loaded from disk.".format(len(reader)))
+
             with self.output().open('w') as output_file:
                 writer = csv.writer(output_file, delimiter="\t")
+                found_ids = set()
+
                 for row in reader:
+                    if row['id'] in found_ids:
+                        raise Exception("Found duplicate id: {}!".format(row['id']))
+
+                    print("Writing id {}".format(row['id']))
+                    found_ids.add(row['id'])
+
                     # Break out commonly used fields, put entire row blob into last column
                     result = [
                         row['id'],
