@@ -224,14 +224,14 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
 
             with self.output().open('w') as output_file:
                 writer = csv.writer(output_file, delimiter="\t")
-                found_ids = []
+                found_ids = set()
 
                 for row in reader:
                     if row['id'] in found_ids:
                         raise Exception("Found duplicate id: {}!".format(row['id']))
 
                     print("Writing id {}".format(row['id']))
-                    found_ids.append(row['id'])
+                    found_ids.add(row['id'])
 
                     # Break out commonly used fields, put entire row blob into last column
                     result = [
