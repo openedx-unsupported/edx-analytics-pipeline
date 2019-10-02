@@ -1,6 +1,8 @@
 """
 Tasks to support pulling Affiliate Window reports from their REST API to the data warehouse.
 """
+from __future__ import absolute_import, print_function
+
 import csv
 import datetime
 import json
@@ -264,7 +266,7 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
                         json.dumps(row)
                     ]
 
-                    result = [col if col is not None else '\N' for col in result]
+                    result = [col if col is not None else r'\N' for col in result]
                     writer.writerow(result)
 
     def output(self):

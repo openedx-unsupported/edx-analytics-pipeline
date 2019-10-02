@@ -1,14 +1,18 @@
 """
 Emulates a luigi target, storing all data in memory.
 """
+from __future__ import absolute_import
 
 from contextlib import contextmanager
-from StringIO import StringIO
+from io import BytesIO
+import six
 
 
 class FakeTarget(object):
-    """Fake Luigi-like target that saves data in memory, using a StringIO buffer."""
-    def __init__(self, path=None, value=''):
+    """
+    Fake Luigi-like target that saves data in memory, using a BytesIO buffer.
+    """
+    def __init__(self, path=None, value=b''):
         self.value = value
         self.path = path
 
@@ -18,7 +22,7 @@ class FakeTarget(object):
 
     @value.setter
     def value(self, value):
-        self.buffer = StringIO(value)
+        self.buffer = BytesIO(value)
         # Rewind the buffer head so the value can be read
         self.buffer.seek(0)
 

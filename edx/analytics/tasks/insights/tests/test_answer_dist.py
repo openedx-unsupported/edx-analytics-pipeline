@@ -2,12 +2,13 @@
 Tests for tasks that calculate answer distributions.
 
 """
+from __future__ import absolute_import
 import hashlib
 import json
 import math
 import os
 import shutil
-import StringIO
+from io import BytesIO
 import tempfile
 from unittest import TestCase
 
@@ -20,6 +21,7 @@ from edx.analytics.tasks.insights.answer_dist import (
 )
 from edx.analytics.tasks.util.tests.config import OPTION_REMOVED, with_luigi_config
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
+import six
 
 
 class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):
@@ -73,7 +75,7 @@ class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):
     @staticmethod
     def _update_with_kwargs(data_dict, **kwargs):
         """Updates a dict from kwargs only if it modifies a top-level value."""
-        for key, value in kwargs.iteritems():
+        for key, value in six.iteritems(kwargs):
             if key in data_dict:
                 data_dict[key] = value
 
@@ -317,7 +319,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
                 submission: dictionary of all responses submitted at once for a user
                 attempt_category: a string that is 'first' for a user's first submission and 'last' otherwise
             """
-            for answer_id, submission_data in submission.iteritems():
+            for answer_id, submission_data in six.iteritems(submission):
                 answer_id_data = {
                     "answer": submission_data['answer'],
                     "problem_display_name": None,
@@ -830,7 +832,7 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, TestCase,
             }
         }
         metadata_dict[self.answer_id].update(**kwargs)
-        answer_metadata = StringIO.StringIO(json.dumps(metadata_dict))
+        answer_metadata = BytesIO(json.dumps(metadata_dict).encode('utf-8'))
         self.task.load_answer_metadata(answer_metadata)
 
     def test_non_submission_choice_with_metadata(self):
@@ -944,7 +946,7 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
 
         # To test sorting, the first sample is made to sort after the
         # second sample.
-        column_values_2 = [(k, unicode(k) + u'\u2603') for k in field_names]
+        column_values_2 = [(k, six.text_type(k) + u'\u2603') for k in field_names]
         column_values_2[3] = (column_values_2[3][0], 10)
         column_values_1 = list(column_values_2)
         column_values_1[4] = (column_values_1[4][0], u'ZZZZZZZZZZZ')
@@ -958,9 +960,9 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
         self.assertEquals(mock_output_file.write.mock_calls[0], call(expected_header_string))
 
         # Confirm that the second sample appears before the first.
-        expected_row_1 = ','.join(unicode(v[1]).encode('utf8') for v in column_values_2) + '\r\n'
+        expected_row_1 = b','.join(six.text_type(v[1]).encode('utf8') for v in column_values_2) + b'\r\n'
         self.assertEquals(mock_output_file.write.mock_calls[1], call(expected_row_1))
-        expected_row_2 = ','.join(unicode(v[1]).encode('utf8') for v in column_values_1) + '\r\n'
+        expected_row_2 = b','.join(six.text_type(v[1]).encode('utf8') for v in column_values_1) + b'\r\n'
         self.assertEquals(mock_output_file.write.mock_calls[2], call(expected_row_2))
 
     def test_output_path_for_legacy_key(self):

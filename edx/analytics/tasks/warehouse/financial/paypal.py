@@ -5,6 +5,7 @@ documentation for the API:
 
 https://developer.paypal.com/docs/classic/payflow/reporting/
 """
+from __future__ import absolute_import
 
 import datetime
 import logging
@@ -12,7 +13,7 @@ import os
 import time
 import xml.etree.cElementTree as ET
 from collections import OrderedDict, namedtuple
-from cStringIO import StringIO
+from io import BytesIO
 from decimal import Decimal
 
 import luigi
@@ -24,6 +25,8 @@ from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask,
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+import six
+from six.moves import range
 
 log = logging.getLogger(__name__)
 
@@ -180,7 +183,10 @@ class PaypalMalformedResponseError(PaypalError):
     def __init__(self, message, root_node=None):
         with_tree = message
         if root_node:
-            with_tree = message + ':' + ET.tostring(root_node, encoding='UTF-8', method='xml')
+            with_tree = u'{}:{}'.format(
+                message,
+                ET.tostring(root_node, encoding='UTF-8', method='xml').decode('utf-8'),
+            )
 
         super(PaypalMalformedResponseError, self).__init__(with_tree)
 
@@ -216,11 +222,11 @@ class PaypalApiRequest(object):
         self.append_request_node(root_node)
 
         # NOTE: we have to use this API to get the XML declaration, it is suboptimal that we have to construct a
-        # StringIO buffer to write to.
+        # BytesIO buffer to write to.
         tree = ET.ElementTree(root_node)
-        string_buffer = StringIO()
-        tree.write(string_buffer, encoding='UTF-8', xml_declaration=True)
-        return string_buffer.getvalue()
+        bytes_buffer = BytesIO()
+        tree.write(bytes_buffer, encoding='UTF-8', xml_declaration=True)
+        return bytes_buffer.getvalue()
 
     def append_authentication_node(self, root_node):
         """Inject the authentication elements into the request."""
@@ -228,7 +234,7 @@ class PaypalApiRequest(object):
 
         for attribute in ('user', 'vendor', 'partner', 'password'):
             child_node = ET.SubElement(auth_node, attribute)
-            child_node.text = unicode(getattr(self, attribute))
+            child_node.text = six.text_type(getattr(self, attribute))
 
     def append_request_node(self, root_node):
         """Inject the request-specific elements into the request."""
@@ -339,17 +345,17 @@ class PaypalReportRequest(PaypalApiRequest):
         # WARNING: the paypal XML parser is position sensitive. Do NOT change the ordering of the fields in the request.
         request_node = ET.SubElement(root_node, 'runReportRequest')
         name_node = ET.SubElement(request_node, 'reportName')
-        name_node.text = unicode(self.report_name)
+        name_node.text = six.text_type(self.report_name)
 
-        for param_name, param_value in self.report_params.iteritems():
+        for param_name, param_value in six.iteritems(self.report_params):
             param_node = ET.SubElement(request_node, 'reportParam')
             param_name_node = ET.SubElement(param_node, 'paramName')
-            param_name_node.text = unicode(param_name)
+            param_name_node.text = six.text_type(param_name)
             param_value_node = ET.SubElement(param_node, 'paramValue')
-            param_value_node.text = unicode(param_value)
+            param_value_node.text = six.text_type(param_value)
 
         page_size_node = ET.SubElement(request_node, 'pageSize')
-        page_size_node.text = unicode(self.page_size)
+        page_size_node.text = six.text_type(self.page_size)
 
 
 ColumnMetadata = namedtuple('ColumnMetadata', ('name', 'data_type'))  # pylint: disable=invalid-name
@@ -411,7 +417,7 @@ class PaypalReportMetadataRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getMetaDataRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
 
 
 class PaypalReportDataResponse(PaypalApiResponse):
@@ -465,9 +471,9 @@ class PaypalReportDataRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getDataRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
         page_num_node = ET.SubElement(request_node, 'pageNum')
-        page_num_node.text = unicode(self.page_num)
+        page_num_node.text = six.text_type(self.page_num)
 
 
 class PaypalReportResultsRequest(PaypalApiRequest):
@@ -487,7 +493,7 @@ class PaypalReportResultsRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getResultsRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
 
 
 BaseSettlementReportRecord = namedtuple('SettlementReportRecord', [  # pylint: disable=invalid-name
@@ -655,7 +661,9 @@ class PaypalTransactionsByDayTask(PaypalTaskMixin, luigi.Task):
             # identifier for the transaction
             payment_record.paypal_transaction_id,
         ]
-        output_tsv_file.write('\t'.join(record) + '\n')
+        # output_tsv_file.write(b'\t'.join(field.encode('utf-8') for field in record) + b'\n')
+        # Apparently the write wants str, not bytes.
+        output_tsv_file.write('\t'.join(field for field in record) + '\n')        
 
     def output(self):
         # NOTE: both the cybersource and paypal tasks write to the payments folder
@@ -708,10 +716,12 @@ class PaypalTransactionsIntervalTask(PaypalTaskMixin, WarehouseMixin, luigi.Wrap
         path_targets = PathSetTask([path], include=['*paypal.tsv']).output()
         paths = list(set([os.path.dirname(target.path) for target in path_targets]))
         dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-        run_date = latest_completion_date + datetime.timedelta(days=1)
+        if dates:
+            latest_date = sorted(dates)[-1]
+            latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+            run_date = latest_completion_date + datetime.timedelta(days=1)
+        else:
+            run_date = self.interval_start
 
         self.selection_interval = date_interval.Custom(self.interval_start, run_date)
         self.run_interval = date_interval.Custom(run_date, self.interval_end)

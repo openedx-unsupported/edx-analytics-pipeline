@@ -435,7 +435,7 @@ def coerce_for_mysql_connect(input):
         return input
     # Hive indicates a null value with the string "\N"
     # We represent an infinite value with the string "inf", MySQL has no such representation so we use NULL
-    if input in ('None', '\\N', 'inf', '-inf'):
+    if input in ('None', r'\N', 'inf', '-inf'):
         return None
     if isinstance(input, str):
         return input.decode('utf-8')

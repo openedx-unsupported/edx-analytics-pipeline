@@ -434,7 +434,7 @@ def find_name_context(text, log_context=DEFAULT_LOG_CONTEXT):
 
 # Find phone numbers.
 PHONE_CONTEXT = re.compile(
-    r'(\bphone:|\bp:|b\c:|\bcall me\b|\(home\)|\(cell\)|my phone|phone number)',
+    r'(\bphone:|\bp:|\bc:|\bcall me\b|\(home\)|\(cell\)|my phone|phone number)',
     re.IGNORECASE,
 )
 

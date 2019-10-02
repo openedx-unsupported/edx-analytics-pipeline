@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 """Execute tasks on a remote EMR cluster."""
-
 import argparse
 import json
 import os
@@ -8,7 +7,7 @@ import pipes
 import sys
 import uuid
 from subprocess import PIPE, Popen
-from urlparse import parse_qsl, urlparse
+from six.moves.urllib.parse import urlparse, parse_qsl
 
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
@@ -119,6 +118,8 @@ def run_task_playbook(inventory, arguments, uid):
     if arguments.workflow_profiler:
         env_vars['WORKFLOW_PROFILER'] = arguments.workflow_profiler
         env_vars['WORKFLOW_PROFILER_PATH'] = log_dir
+    if arguments.python_version:
+        env_vars['HADOOP_PYTHON_EXECUTABLE'] = arguments.python_version
 
     env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
 
@@ -191,7 +192,7 @@ def convert_args_to_extra_vars(arguments, uid):
     if arguments.virtualenv_extra_args:
         extra_vars['virtualenv_extra_args'] = arguments.virtualenv_extra_args
     if arguments.python_version:
-        extra_vars['python_version'] = arguments.python_version
+        extra_vars['virtualenv_python'] = arguments.python_version
     if arguments.package:
         extra_vars['packages'] = arguments.package
 

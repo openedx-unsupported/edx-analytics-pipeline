@@ -13,7 +13,8 @@ from __future__ import absolute_import
 import logging
 import os
 import time
-import urlparse
+from six.moves.urllib.parse import urlparse, urlunparse
+import six
 
 import luigi
 import luigi.configuration
@@ -124,7 +125,7 @@ URL_SCHEME_TO_MARKER_TARGET_CLASS = {
 
 def get_target_class_from_url(url, marker=False):
     """Returns a luigi target class based on the url scheme"""
-    parsed_url = urlparse.urlparse(url)
+    parsed_url = urlparse(url)
 
     if marker:
         target_class = URL_SCHEME_TO_MARKER_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_MARKER_TARGET_CLASS)
@@ -174,6 +175,13 @@ def url_path_join(url, *extra_path):
     Returns:
         The URL with the path component joined with `extra_path` argument.
     """
-    (scheme, netloc, path, params, query, fragment) = urlparse.urlparse(url)
+    (scheme, netloc, path, params, query, fragment) = urlparse(url)
     joined_path = os.path.join(path, *extra_path)
-    return urlparse.urlunparse((scheme, netloc, joined_path, params, query, fragment))
+    return urlunparse((
+        six.text_type(scheme),
+        six.text_type(netloc),
+        six.text_type(joined_path),
+        six.text_type(params),
+        six.text_type(query),
+        six.text_type(fragment),
+    ))

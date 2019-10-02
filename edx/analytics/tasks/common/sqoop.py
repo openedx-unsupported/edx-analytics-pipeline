@@ -1,6 +1,8 @@
 """
 Gather data using Sqoop table dumps run on RDBMS databases.
 """
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging
@@ -296,7 +298,12 @@ class SqoopImportRunner(luigi.contrib.hadoop.JobRunner):
             metadata['end_time'] = datetime.datetime.utcnow().isoformat()
             try:
                 with job.metadata_output().open('w') as metadata_file:
-                    json.dump(metadata, metadata_file)
+                    # Under python 2, json.dumps() will return ascii-only bytes, so .encode('utf-8')
+                    # is a no-op.  Under python 3, json.dumps() will return ascii-only unicode, so
+                    # .encode('utf-8') will return bytes, thus normalizing the output to bytes
+                    # across all python versions.
+                    metadata_file.write(json.dumps(metadata).encode('utf-8'))
+                    metadata_file.flush()
             except Exception:
                 log.exception("Unable to dump metadata information.")
                 pass

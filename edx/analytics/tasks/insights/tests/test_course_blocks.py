@@ -1,12 +1,11 @@
 """Test course blocks tasks."""
-
 import json
 import logging
 import os
 import shutil
 import tempfile
 from unittest import TestCase
-from urllib import urlencode
+from six.moves.urllib.parse import urlencode
 
 import httpretty
 from ddt import data, ddt, unpack
@@ -53,7 +52,7 @@ class CourseBlocksTestMixin(object):
         """Create a tab-separated file containing the given course_ids."""
         with open(self.input_file, 'w') as output:
             for course_id in course_ids:
-                output.write("\t".join([course_id, 'Name', 'Org', 'Number', 'http://'] + ['\\N'] * 9))
+                output.write("\t".join([course_id, 'Name', 'Org', 'Number', 'http://'] + [r'\N'] * 9))
                 output.write("\r\n")
 
     def cleanup(self, dirname):
@@ -174,18 +173,18 @@ class CourseBlocksApiDataReducerTaskTest(CourseBlocksTestMixin, ReducerTestMixin
     # data tuple fields are given in this order:
     # (block_id,block_type,display_name,is_root,is_orphan,is_dag,parent_block_id,course_path,sort_idx)
     @data(
-        ((('abc', 'course', 'ABC', '1', '0', '0', '\\N', '', '0'),), False),
-        ((('abc', 'course', 'ABC', '1', '0', '0', '\\N', '', '0'),), True),
-        ((('abc', 'block', 'ABC', '1', '0', '0', '\\N', '', '0'),
+        ((('abc', 'course', 'ABC', '1', '0', '0', r'\N', '', '0'),), False),
+        ((('abc', 'course', 'ABC', '1', '0', '0', r'\N', '', '0'),), True),
+        ((('abc', 'block', 'ABC', '1', '0', '0', r'\N', '', '0'),
           ('def', 'block', 'DEF', '0', '0', '0', 'abc', 'ABC', '1'),
           ('jkl', 'block', 'JKL', '0', '0', '1', 'def', 'ABC / DEF', '2'),
           ('vwx', 'block', 'VWX', '0', '0', '0', 'jkl', 'ABC / DEF / JKL', '3'),
           ('mno', 'block', 'MNO', '0', '0', '0', 'def', 'ABC / DEF', '4'),
           ('pqr', 'block', 'PQR', '0', '0', '0', 'mno', 'ABC / DEF / MNO', '5'),
           ('stu', 'block', 'STU', '0', '0', '0', 'abc', 'ABC', '6'),
-          ('ghi', 'block', 'GHI', '0', '1', '0', '\\N', '(Deleted block :)', '8')), False),
-        ((('ghi', 'block', 'GHI', '0', '1', '0', '\\N', '(Deleted block :)', '-1'),
-          ('abc', 'block', 'ABC', '1', '0', '0', '\\N', '', '0'),
+          ('ghi', 'block', 'GHI', '0', '1', '0', r'\N', '(Deleted block :)', '8')), False),
+        ((('ghi', 'block', 'GHI', '0', '1', '0', r'\N', '(Deleted block :)', '-1'),
+          ('abc', 'block', 'ABC', '1', '0', '0', r'\N', '', '0'),
           ('def', 'block', 'DEF', '0', '0', '0', 'abc', 'ABC', '1'),
           ('jkl', 'block', 'JKL', '0', '0', '1', 'def', 'ABC / DEF', '2'),
           ('vwx', 'block', 'VWX', '0', '0', '0', 'jkl', 'ABC / DEF / JKL', '3'),

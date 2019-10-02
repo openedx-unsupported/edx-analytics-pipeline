@@ -1,4 +1,6 @@
-"""Test course list tasks."""
+"""
+Test course list tasks.
+"""
 import json
 import logging
 import os
@@ -6,7 +8,7 @@ import shutil
 import tempfile
 from datetime import datetime
 from unittest import TestCase
-from urllib import urlencode
+from six.moves.urllib.parse import urlencode
 
 import httpretty
 from ddt import data, ddt, unpack

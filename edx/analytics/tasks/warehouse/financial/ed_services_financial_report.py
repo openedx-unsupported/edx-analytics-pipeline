@@ -1,4 +1,6 @@
 """Generates a financial report to be delivered to our good friends in Ed Services."""
+from __future__ import absolute_import
+
 import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin

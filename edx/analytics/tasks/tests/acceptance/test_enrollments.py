@@ -5,7 +5,7 @@ End to end test of demographic trends.
 import datetime
 import logging
 import os
-from cStringIO import StringIO
+from io import StringIO
 
 import pandas
 from ddt import data, ddt

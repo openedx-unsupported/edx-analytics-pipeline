@@ -1,8 +1,9 @@
 """
 Tasks associated with pulling and storing financial fees related data.
 """
-import logging
+from __future__ import absolute_import
 
+import logging
 import luigi
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask

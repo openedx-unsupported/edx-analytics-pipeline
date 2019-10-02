@@ -1,8 +1,11 @@
-"""A canonical calendar that can be joined with other tables to provide information about dates."""
-
+"""
+A canonical calendar that can be joined with other tables to provide information about dates.
+"""
+from __future__ import absolute_import
 
 import logging
 from datetime import timedelta
+import six
 
 import luigi.configuration
 
@@ -63,7 +66,7 @@ class CalendarTask(CalendarDownstreamMixin, luigi.Task):
                     (week.sunday() + timedelta(1)).isoformat(),
                     iso_weekday
                 )
-                output_file.write('\t'.join([unicode(v).encode('utf8') for v in column_values]) + '\n')
+                output_file.write(b'\t'.join([six.text_type(v).encode('utf-8') for v in column_values]) + b'\n')
 
 
 class CalendarTableTask(CalendarDownstreamMixin, HiveTableTask):

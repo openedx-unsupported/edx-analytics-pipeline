@@ -4,7 +4,7 @@ import datetime
 import gzip
 import json
 import logging
-import StringIO
+from io import StringIO
 from collections import defaultdict
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
@@ -108,7 +108,7 @@ class EnrollmentValidationAcceptanceTest(AcceptanceTestCase):
         histogram = defaultdict(int)  # int() returns 0
         for output in outputs:
             # Read S3 file into a buffer, since the S3 file doesn't support seek() and tell().
-            gzip_output = StringIO.StringIO()
+            gzip_output = StringIO()
             with output.open('r') as event_file:
                 gzip_output.write(event_file.read())
             gzip_output.seek(0)

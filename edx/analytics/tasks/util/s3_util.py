@@ -5,7 +5,7 @@ import logging
 import os
 import time
 from fnmatch import fnmatch
-from urlparse import urlparse, urlunparse
+from six.moves.urllib.parse import urlparse, urlunparse
 
 from luigi.contrib.hdfs.format import Plain
 from luigi.contrib.hdfs.target import HdfsTarget

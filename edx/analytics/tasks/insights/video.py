@@ -5,7 +5,7 @@ import logging
 import math
 import re
 import textwrap
-import urllib
+from six.moves.urllib.request import urlopen
 from collections import namedtuple
 
 import ciso8601
@@ -475,7 +475,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             video_url = "https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(
                 youtube_id, self.api_key
             )
-            video_file = urllib.urlopen(video_url)
+            video_file = urlopen(video_url)
             content = json.load(video_file)
             items = content.get('items', [])
             if len(items) > 0:

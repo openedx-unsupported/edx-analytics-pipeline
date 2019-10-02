@@ -8,11 +8,11 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree
 
-import cjson
 import luigi
 import yaml
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from edx.analytics.tasks.util.fast_json import FastJson
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util.file_util import copy_file_to_file, read_config_file
 from edx.analytics.tasks.util.obfuscate_util import (
@@ -194,7 +194,7 @@ class ObfuscateCoursewareStudentModule(ObfuscateSqlDumpTask):
             if state_str == 'NULL':
                 updated_state_dict = {}
             else:
-                state_dict = cjson.decode(state_str, all_unicode=True)
+                state_dict = FastJson.loads(state_str)
                 # Traverse the dictionary, looking for entries that need to be scrubbed.
                 updated_state_dict = self.obfuscator.obfuscate_structure(state_dict, u"state", user_info)
         except Exception:   # pylint:  disable=broad-except
@@ -204,7 +204,7 @@ class ObfuscateCoursewareStudentModule(ObfuscateSqlDumpTask):
 
         if updated_state_dict is not None:
             # Can't reset values, so update original fields.
-            updated_state = cjson.encode(updated_state_dict).replace('\\', '\\\\')
+            updated_state = FastJson.dumps(updated_state_dict).replace('\\', '\\\\')
             row[4] = updated_state
             if self.obfuscator.is_logging_enabled():
                 log.info(u"Obfuscated state for user_id '%s' module_id '%s'", user_id, row[2])
