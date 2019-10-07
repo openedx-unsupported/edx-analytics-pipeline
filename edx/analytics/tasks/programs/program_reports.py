@@ -43,7 +43,7 @@ class BuildProgramReportsTask(luigi.Task):
 
         return SqoopImportFromVertica(
             schema_name='programs_reporting',
-            table_name='learner_enrollments',
+            table_name='z_test_table',
             credentials=self.credentials,
             database=self.warehouse_name,
             columns=self.column_list,
