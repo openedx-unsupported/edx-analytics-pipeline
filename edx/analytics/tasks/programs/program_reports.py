@@ -39,7 +39,7 @@ class BuildProgramReportsTask(luigi.Task):
     )
 
     def requires(self):
-        target_url = url_path_join(self.output_root, 'export')
+        target_url = url_path_join(self.output_root, 'mydata')
 
         return SqoopImportFromVertica(
             schema_name='programs_reporting',
