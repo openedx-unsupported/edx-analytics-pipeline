@@ -8,13 +8,14 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
+    """ Generates CSV reports on program enrollment """
 
     credentials = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'credentials'},
         description='Path to the external access credentials file.',
     )
     output_root = luigi.Parameter(
-        description='URL pointing to the location reports should be stored'
+        description='URL pointing to the location reports should be stored',
     )
     schema_name = luigi.Parameter(
         default='programs_reporting',
@@ -26,23 +27,24 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
     )
     warehouse_name = luigi.Parameter(
         default='docker',
-        description='The Vertica warehouse that houses the report schema.'
+        description='The Vertica warehouse that houses the report schema.',
     )
     sqoop_null_string = luigi.Parameter(
         default='null',
-        description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.'
+        description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.',
     )
     sqoop_fields_terminated_by = luigi.Parameter(
         default=',',
-        description='The field delimiter used by Sqoop.'
+        description='The field delimiter used by Sqoop.',
     )
     sqoop_delimiter_replacement = luigi.Parameter(
         default=' ',
         description='The string replacement value for special characters encountered by Sqoop when exporting from '
-                    'Vertica.'
+                    'Vertica.',
     )
     overwrite = luigi.BoolParameter(
         default=True,
+        description='Whether or not to overwrite existing outputs',
     )
 
     def requires(self):
@@ -65,19 +67,23 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
             self.schema_name,
             self.table_name,
         )
-        
+ 
         column_list = []
         for field_name, vertica_field_type, _ in table_schema:
             column_list.append(field_name)
 
         with self.input().open('r') as input_file:
             lines = input_file.read().splitlines()
-            print(lines)
 
         with self.output().open('w') as output_file:
-            output_file.write(','.join(column_list) + '\n')
+            # print csv rows to console until we have s3 access
+            print('--CSV CONTENT--')
+            header = ','.join(column_list)
+            output_file.write(header + '\n')
+            print(header)
             for line in lines:
                 output_file.write(line + '\n')
+                print(line)
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'result.csv'))
