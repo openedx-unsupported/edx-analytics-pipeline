@@ -1,11 +1,14 @@
+import datetime
+from itertools import islice
+import logging
+
 import luigi
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
-from edx.analytics.tasks.common.sqoop import SqoopImportFromVertica
 from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+
+log = logging.getLogger(__name__)
 
 class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
     """ Generates CSV reports on program enrollment """
@@ -17,12 +20,16 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
     output_root = luigi.Parameter(
         description='URL pointing to the location reports should be stored',
     )
+    date = luigi.Parameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date. Used to tag report date'
+    )
     schema_name = luigi.Parameter(
         default='programs_reporting',
         description='Vertica schema containing reporting table',
     )
     table_name = luigi.Parameter(
-        default='z_test_table',
+        default='learner_enrollments',
         description='Table containing enrollment rows to report on',
     )
     warehouse_name = luigi.Parameter(
@@ -60,6 +67,14 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
             overwrite=False,
         )
 
+    def print_result_head(self):
+        """Temp debug function to print head of file to console until we can access s3"""
+        import pdb; pdb.set_trace()
+        log.info('--CSV CONTENT--')
+        with self.output().open('r') as result_file:
+            head = list(islice(result_file, 100))
+            log.info(''.join(head))
+
     def run(self):
 
         table_schema = get_vertica_table_schema(
@@ -76,14 +91,12 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
             lines = input_file.read().splitlines()
 
         with self.output().open('w') as output_file:
-            # print csv rows to console until we have s3 access
-            print('--CSV CONTENT--')
             header = ','.join(column_list)
             output_file.write(header + '\n')
-            print(header)
             for line in lines:
                 output_file.write(line + '\n')
-                print(line)
+
+        self.print_result_head()
 
     def output(self):
-        return get_target_from_url(url_path_join(self.output_root, 'result.csv'))
+        return get_target_from_url(url_path_join(self.output_root, '{}.csv'.format(self.date)))
