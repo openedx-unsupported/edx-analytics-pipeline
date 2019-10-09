@@ -1,16 +1,18 @@
+import csv
 import datetime
 from itertools import islice
 import logging
 
 import luigi
 
+from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
 
-class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
+class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
     """ Generates CSV reports on program enrollment """
 
     credentials = luigi.Parameter(
@@ -67,15 +69,7 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
             overwrite=False,
         )
 
-    def print_result_head(self):
-        """Temp debug function to print head of file to console until we can access s3"""
-        with self.output().open('r') as result_file:
-            lines = result_file.read().splitlines()
-            log.info('--CSV CONTENT--')
-            log.info(''.join(lines[:100]))
-
-    def run(self):
-
+    def get_columns(self):
         table_schema = get_vertica_table_schema(
             self.credentials,
             self.schema_name,
@@ -85,17 +79,30 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
         column_list = []
         for field_name, vertica_field_type, _ in table_schema:
             column_list.append(field_name)
+        return column_list
 
-        with self.input().open('r') as input_file:
-            lines = input_file.read().splitlines()
+    def mapper(self, line):
+        """ Group input by program"""
+        program_id = line.split(',')[1]
+        yield program_id, line
 
-        with self.output().open('w') as output_file:
-            header = ','.join(column_list)
-            output_file.write(header + '\n')
-            for line in lines:
-                output_file.write(line + '\n')
+    def multi_output_reducer(self, key, values, output_file):
+        columns = self.get_columns()
 
-        self.print_result_head()
+        writer = csv.DictWriter(output_file, columns)
+        writer.writerow(dict(
+            (k, k) for k in columns
+        ))
 
-    def output(self):
-        return get_target_from_url(url_path_join(self.output_root, '{}.csv'.format(self.date)))
+        row_data = []
+        for content in values:
+            fields = content.split(',')
+            row = {field_key: field_value for field_key, field_value in zip(columns, fields)}
+            row_data.append(row)
+
+        for row_dict in row_data:
+            writer.writerow(row_dict)
+
+    def output_path_for_key(self, key):
+        filename = u'{}.csv'.format(self.date)
+        return url_path_join(self.output_root, key, filename)
