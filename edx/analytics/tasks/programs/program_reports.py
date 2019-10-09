@@ -54,18 +54,18 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
         description='Whether or not to overwrite existing outputs',
     )
 
-    def requires(self):
-
-        return ExportVerticaTableToS3Task(
-            vertica_schema_name=self.schema_name,
-            table_name=self.table_name,
-            vertica_credentials=self.credentials,
-            vertica_warehouse_name=self.warehouse_name,
-            sqoop_null_string=self.sqoop_null_string,
-            sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
-            sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
-            overwrite=False,
-        )
+    # def requires(self):
+    #
+    #     return ExportVerticaTableToS3Task(
+    #         vertica_schema_name=self.schema_name,
+    #         table_name=self.table_name,
+    #         vertica_credentials=self.credentials,
+    #         vertica_warehouse_name=self.warehouse_name,
+    #         sqoop_null_string=self.sqoop_null_string,
+    #         sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+    #         sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
+    #         overwrite=False,
+    #     )
 
     def print_result_head(self):
         """Temp debug function to print head of file to console until we can access s3"""
@@ -76,26 +76,34 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
 
     def run(self):
 
-        table_schema = get_vertica_table_schema(
-            self.credentials,
-            self.schema_name,
-            self.table_name,
-        )
- 
-        column_list = []
-        for field_name, vertica_field_type, _ in table_schema:
-            column_list.append(field_name)
+        # table_schema = get_vertica_table_schema(
+        #     self.credentials,
+        #     self.schema_name,
+        #     self.table_name,
+        # )
+        #
+        # column_list = []
+        # for field_name, vertica_field_type, _ in table_schema:
+        #     column_list.append(field_name)
+        #
+        # with self.input().open('r') as input_file:
+        #     lines = input_file.read().splitlines()
 
-        with self.input().open('r') as input_file:
-            lines = input_file.read().splitlines()
+        log.error("HASSAN_ERROR")
+        log.info("HASSAN_INFO")
+        log.debug("HASSAN_DEBUG")
+        self.is_complete=True
+        
+        # with self.output().open('w') as output_file:
+        #     header = ','.join(column_list)
+        #     output_file.write(header + '\n')
+        #     for line in lines:
+        #         output_file.write(line + '\n')
+        #
+        #self.print_result_head()
 
-        with self.output().open('w') as output_file:
-            header = ','.join(column_list)
-            output_file.write(header + '\n')
-            for line in lines:
-                output_file.write(line + '\n')
-
-        self.print_result_head()
+    def complete(self):
+        return self.is_complete
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, '{}.csv'.format(self.date)))
