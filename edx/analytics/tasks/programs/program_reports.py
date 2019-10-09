@@ -73,6 +73,7 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
         with self.output().open('r') as result_file:
             head = list(islice(result_file, 50))
             log.info(''.join(head))
+            result_file.close()
 
     def run(self):
 
