@@ -71,7 +71,7 @@ class BuildProgramReportsTask(OverwriteOutputMixin, luigi.Task):
         """Temp debug function to print head of file to console until we can access s3"""
         log.info('--CSV CONTENT--')
         with self.output().open('r') as result_file:
-            head = list(islice(result_file, 100))
+            head = list(islice(result_file, 50))
             log.info(''.join(head))
 
     def run(self):
