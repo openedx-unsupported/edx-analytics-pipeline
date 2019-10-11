@@ -56,6 +56,10 @@ class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask)
         description='Whether or not to overwrite existing outputs',
     )
 
+    def __init__(self, *args, **kwargs):
+        super(BuildProgramReportsTask, self).__init__(*args, **kwargs)
+        self.columns = self.get_columns()
+
     def requires(self):
 
         return ExportVerticaTableToS3Task(
@@ -87,17 +91,16 @@ class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask)
         yield program_id, line
 
     def multi_output_reducer(self, key, values, output_file):
-        columns = self.get_columns()
 
-        writer = csv.DictWriter(output_file, columns)
+        writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
-            (k, k) for k in columns
+            (k, k) for k in self.columns
         ))
 
         row_data = []
         for content in values:
             fields = content.split(',')
-            row = {field_key: field_value for field_key, field_value in zip(columns, fields)}
+            row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
             row_data.append(row)
 
         for row_dict in row_data:
