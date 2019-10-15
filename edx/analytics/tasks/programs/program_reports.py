@@ -58,10 +58,9 @@ class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask)
 
     def __init__(self, *args, **kwargs):
         super(BuildProgramReportsTask, self).__init__(*args, **kwargs)
-        self.columns = self.get_columns()
+        self.columns = self.get_column_names()
 
     def requires(self):
-
         return ExportVerticaTableToS3Task(
             vertica_schema_name=self.schema_name,
             table_name=self.table_name,
@@ -74,6 +73,7 @@ class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask)
         )
 
     def get_columns(self):
+        # TODO: any way to make this callable on __init__()?
         table_schema = get_vertica_table_schema(
             self.credentials,
             self.schema_name,
@@ -85,13 +85,31 @@ class BuildProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask)
             column_list.append(field_name)
         return column_list
 
+    def get_column_names(self):
+        return [
+            'User ID',
+            'Program Title',
+            'Program ID',
+            'Program UUID',
+            'Course ID',
+            'Track',
+            'Created',
+        ]
+
+    def run(self):
+        """
+        Clear out output if overwrite requested.
+        """
+        self.remove_output_on_overwrite()
+
+        super(BuildProgramReportsTask, self).run()
+
     def mapper(self, line):
         """ Group input by program"""
         program_id = line.split(',')[1]
         yield program_id, line
 
     def multi_output_reducer(self, key, values, output_file):
-
         writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
             (k, k) for k in self.columns
