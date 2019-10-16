@@ -592,7 +592,6 @@ class CourseRecord(Record):
     marketing_url = StringField(nullable=True, length=1024)
     min_effort = IntegerField(nullable=True)
     max_effort = IntegerField(nullable=True)
-    weeks_to_complete = IntegerField(nullable=True)
     announcement_time = DateTimeField(nullable=True)
     reporting_type = StringField(nullable=True, length=20)
 
