@@ -94,7 +94,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         Group input by program
         """
         # TODO: we should make first column the key (uuid)
-        program_uuid = line.split(',')[3]
+        program_uuid = line.split(',')[2]
         yield program_uuid, line
 
     def multi_output_reducer(self, key, values, output_file):
