@@ -930,6 +930,85 @@ class TransactionReportTask(ReconcileOrdersAndTransactionsDownstreamMixin, Wareh
         ))
 
 
+class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCopyTask):
+
+    date = luigi.DateParameter()
+
+    @property
+    def table(self):
+        return 'base_transactions'
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        return None
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here; user's id is enough."""
+        return None
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(
+            url=url_path_join(self.warehouse_path, 'import', 'vertica', 'sqoop', 'warehouse', 'finance', self.table,  self.partition.path_spec) + '/'
+        )
+
+    @property
+    def columns(self):
+        return [
+            ('org_id_key', 'INT'),
+            ('white_label', 'BOOLEAN'),
+            ('course_id_key', 'INT'),
+            ('transaction_fiscal_year INT NOT', 'NULL'),
+            ('transaction_fiscal_quarter', 'INT'),
+            ('payment_date', 'DATE'),
+            ('order_timestamp', 'TIMESTAMP'),
+            ('payment_ref_id_key', 'INT'),
+            ('initial_transaction', 'BOOLEAN'),
+            ('order_product_class', 'VARCHAR(128)'),
+            ('order_product_detail', 'VARCHAR(255)'),
+            ('user_id', 'INT'),
+            ('transaction_type', 'VARCHAR(255)'),
+            ('order_id', 'INT'),
+            ('order_product_count', 'INT'),
+            ('order_voucher_id', 'INT'),
+            ('order_voucher_code', 'VARCHAR(255)'),
+            ('order_line_id', 'INT'),
+            ('order_product_id', 'INT'),
+            ('partner_sku', 'VARCHAR(128)'),
+            ('line_item_list_price', 'NUMERIC(12,2)'),
+            ('line_item_sales_price', 'NUMERIC(12,2)'),
+            ('line_item_discount', 'NUMERIC(12,2)'),
+            ('transaction_amount_per_item', 'NUMERIC(12,2)'),
+            ('payment_ref_id', 'VARCHAR(128)'),
+            ('transaction_id', 'VARCHAR(255)'),
+            ('transaction_payment_gateway_id', 'VARCHAR(128)'),
+            ('transaction_payment_gateway_account_id', 'VARCHAR(128)'),
+            ('transaction_payment_method', 'VARCHAR(128)'),
+            ('transaction_iso_currency_code', 'VARCHAR(12)'),
+            ('order_username', 'VARCHAR(30)'),
+            ('course_run_id_number', 'INT'),
+            ('order_course_id', 'VARCHAR(255)'),
+            ('order_org_id', 'VARCHAR(128)'),
+            ('order_processor', 'VARCHAR(32)'),
+            ('course_uuid', 'VARCHAR(255)'),
+            ('expiration_date', 'TIMESTAMP'),
+            ('duplicate_charges', 'BOOLEAN'),
+            ('duplicate_refunds', 'BOOLEAN'),
+            ('single_transaction_refund', 'BOOLEAN'),
+            ('duplicate_charges_without_refund', 'BOOLEAN'),
+            ('transaction_key', 'INT'),
+            ('unique_transaction_id', 'VARCHAR(255)'),
+            ('created_time', 'TIMESTAMPTZ DEFAULT NOW()')
+        ]
+
+
 class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
     """
     Loads order-transaction table from Hive into the Vertica data warehouse.
