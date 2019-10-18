@@ -14,7 +14,7 @@ from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopy
 from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask, WarehouseMixin, hive_decimal_type
 from edx.analytics.tasks.util.id_codec import encode_id
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
-from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from edx.analytics.tasks.util.url import get_target_from_url, url_path_join, ExternalURL
 from edx.analytics.tasks.warehouse.financial.orders_import import (
     FullOttoOrderTableTask, FullShoppingcartOrderTableTask, OrderTableTask
 )
