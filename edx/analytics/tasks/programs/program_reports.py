@@ -71,7 +71,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
             sqoop_null_string=self.sqoop_null_string,
             sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
             sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
-            overwrite=False,
+            overwrite=self.overwrite,
         )
 
     def get_column_names(self):
@@ -137,7 +137,4 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
             'Program ID',
             'Program Title',
             'Program UUID',
-            'Course ID',
-            'Track',
-            'Created',
         ]
