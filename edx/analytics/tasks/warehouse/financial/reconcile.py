@@ -940,7 +940,7 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
         return "E'\001'"
     @property
     def copy_null_sequence(self):
-        return 'NNULLL'
+        return "'NNULLL'"
 
     @property
     def table(self):
