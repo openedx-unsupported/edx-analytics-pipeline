@@ -937,7 +937,7 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
     @property
     def copy_delimiter(self):
         """The delimiter in the data to be copied.  Default is tab (\t)"""
-        return u'\x01'
+        return "\x01"
     @property
     def copy_null_sequence(self):
         return 'NNULLL'
