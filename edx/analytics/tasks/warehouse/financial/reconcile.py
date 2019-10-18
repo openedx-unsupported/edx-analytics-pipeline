@@ -965,7 +965,7 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
             ('org_id_key', 'INT'),
             ('white_label', 'BOOLEAN'),
             ('course_id_key', 'INT'),
-            ('transaction_fiscal_year INT NOT', 'NULL'),
+            ('transaction_fiscal_year', 'INT NOT NULL'),
             ('transaction_fiscal_quarter', 'INT'),
             ('payment_date', 'DATE'),
             ('order_timestamp', 'TIMESTAMP'),
