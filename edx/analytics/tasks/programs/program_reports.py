@@ -98,6 +98,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         yield program_uuid, line
 
     def multi_output_reducer(self, key, values, output_file):
+        log.info('\n\n****mapping key {}****\n'.format(key))
         writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
             (k, k) for k in self.columns
@@ -111,6 +112,8 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
 
         for row_dict in row_data:
             writer.writerow(row_dict)
+        
+        log.info('\n\n****done for key {}****\n'.format(key))
 
     def output_path_for_key(self, key):
         filename = u'{}__{}.csv'.format(self.report_name, self.date)
