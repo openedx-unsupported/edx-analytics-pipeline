@@ -964,7 +964,7 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
     @property
     def insert_source_task(self):
         return ExternalURL(
-            url=url_path_join(self.warehouse_path, 'import', 'vertica', 'sqoop', 'warehouse', 'finance', self.table,  'dt={}'.format(self.date.isoformat())) + '/'
+            url=url_path_join(self.warehouse_path, 'import', 'vertica', 'sqoop', 'warehouse', 'finance', 'base_transactions',  'dt={}'.format(self.date.isoformat())) + '/'
         )
 
     @property
