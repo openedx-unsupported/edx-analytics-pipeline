@@ -693,7 +693,7 @@ class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogM
 
     @property
     def table(self):
-        return 'd_course'
+        return 'd_course_20190707'
 
     @property
     def columns(self):
