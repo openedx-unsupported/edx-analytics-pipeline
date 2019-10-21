@@ -944,7 +944,7 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
 
     @property
     def table(self):
-        return 'base_transactions'
+        return 'base_transactions_20190708'
 
     @property
     def default_columns(self):
