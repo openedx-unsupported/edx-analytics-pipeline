@@ -67,7 +67,7 @@ class LoadInternalReportingCertificatesToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def table(self):
-        return 'd_user_course_certificate'
+        return 'd_user_course_certificate_20190707'
 
     @property
     def default_columns(self):
