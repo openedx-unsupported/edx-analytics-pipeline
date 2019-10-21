@@ -133,8 +133,23 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
         This must match the order they are stored in the exported warehouse table
         """
         return [
-            'User ID',
-            'Program ID',
+            'Authoring Institution',
             'Program Title',
             'Program UUID',
+            'User ID',
+            'Username',
+            'Name',
+            'User Key',
+            'Course Title',
+            'Course Run Key',
+            'External Course Key',
+            'Track',
+            'Grade',
+            'Letter Grade',
+            'Date First Enrolled',
+            'Date Last Unenrolled',
+            'Currently Enrolled',
+            'Date First Upgraded to Verified',
+            'Completed',
+            'Date Completed'
         ]
