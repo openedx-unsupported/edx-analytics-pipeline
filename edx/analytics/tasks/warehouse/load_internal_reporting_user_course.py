@@ -25,7 +25,7 @@ class LoadUserCourseSummary(WarehouseMixin, VerticaCopyTask):
 
     @property
     def table(self):
-        return 'd_user_course'
+        return 'd_user_course_20190707'
 
     @property
     def default_columns(self):

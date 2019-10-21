@@ -94,7 +94,7 @@ class LoadInternalReportingUserToWarehouse(WarehouseMixin, VerticaCopyTask):
 
     @property
     def table(self):
-        return 'd_user'
+        return 'd_user_20190707'
 
     @property
     def default_columns(self):
