@@ -45,7 +45,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.',
     )
     sqoop_fields_terminated_by = luigi.Parameter(
-        default=',',
+        default='\t',
         description='The field delimiter used by Sqoop.',
     )
     sqoop_delimiter_replacement = luigi.Parameter(
@@ -94,11 +94,10 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         Group input by program
         """
         # TODO: we should make first column the key (uuid)
-        program_uuid = line.split(',')[2]
+        program_uuid = line.split('\t')[2]
         yield program_uuid, line
 
     def multi_output_reducer(self, key, values, output_file):
-        log.info('\n\n****mapping key {}****\n'.format(key))
         writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
             (k, k) for k in self.columns
@@ -106,15 +105,13 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
 
         row_data = []
         for content in values:
-            fields = content.split(',')
+            fields = content.split('\t')
             row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
             row_data.append(row)
 
         for row_dict in row_data:
             writer.writerow(row_dict)
         
-        log.info('\n\n****done for key {}****\n'.format(key))
-
     def output_path_for_key(self, key):
         filename = u'{}__{}.csv'.format(self.report_name, self.date)
         return url_path_join(self.output_root, key, filename)
