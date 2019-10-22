@@ -1032,7 +1032,7 @@ class LoadInternalReportingDimCourseRunToWarehouse(WarehouseMixin, VerticaCopyTa
 
     @property
     def table(self):
-        return 'dim_course_run_20190708'
+        return 'dim_course_run_20190707'
 
     @property
     def default_columns(self):
