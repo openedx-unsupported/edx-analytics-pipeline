@@ -1017,6 +1017,73 @@ class LoadInternalReportingBaseTransactionsToWarehouse(WarehouseMixin, VerticaCo
         ]
 
 
+class LoadInternalReportingDimCourseRunToWarehouse(WarehouseMixin, VerticaCopyTask):
+
+    date = luigi.DateParameter()
+
+    @property
+    def copy_delimiter(self):
+        """The delimiter in the data to be copied.  Default is tab (\t)"""
+        return "E'\001'"
+
+    @property
+    def copy_null_sequence(self):
+        return "'NNULLL'"
+
+    @property
+    def table(self):
+        return 'dim_course_run_20190708'
+
+    @property
+    def default_columns(self):
+        """List of tuples defining name and definition of automatically-filled columns."""
+        return None
+
+    @property
+    def auto_primary_key(self):
+        """No automatic primary key here; user's id is enough."""
+        return None
+
+    @property
+    def partition_value(self):
+        """ Use a dynamic partition value based on the date parameter. """
+        return self.date.isoformat()  # pylint: disable=no-member
+
+    @property
+    def insert_source_task(self):
+        return ExternalURL(
+            url=url_path_join(self.warehouse_path, 'import', 'vertica', 'sqoop', 'warehouse', 'business_intelligence', 'dim_course_run',  'dt={}'.format(self.date.isoformat())) + '/'
+        )
+
+    @property
+    def columns(self):
+        return [
+            ('course_id_number', 'INT'),
+            ('course_run_id_number', 'INT'),
+            ('course_id', 'varchar(255)'),
+            ('run_created_timestamp', 'timestamp'),
+            ('run_modified_timestamp', 'timestamp'),
+            ('run_title', 'varchar(255)'),
+            ('run_start', 'timestamp'),
+            ('run_end', 'timestamp'),
+            ('run_enrollment_start_timestamp', 'timestamp'),
+            ('run_enrollment_end_timestamp', 'timestamp'),
+            ('run_announcement_timestamp', 'timestamp'),
+            ('run_verified_upgrade_deadline', 'timestamp'),
+            ('run_short_description', 'varchar(65000)'),
+            ('run_full_description', 'varchar(65000)'),
+            ('min_effort', 'INT'),
+            ('max_effort', 'INT'),
+            ('pacing_type', 'varchar(255)'),
+            ('course_run_uuid', 'char(32)'),
+            ('course_state', 'varchar(255)'),
+            ('mobile_available', 'INT'),
+            ('eligible_for_financial_aid', 'INT'),
+            ('verified_seat_price', 'numeric(10,2)')
+        ]
+
+
+
 class LoadInternalReportingOrderTransactionsToWarehouse(ReconcileOrdersAndTransactionsDownstreamMixin, WarehouseMixin, VerticaCopyTask):
     """
     Loads order-transaction table from Hive into the Vertica data warehouse.
