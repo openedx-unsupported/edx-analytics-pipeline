@@ -140,6 +140,7 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
             'Authoring Institution',
             'Program Title',
             'Program UUID',
+            'Program Type',
             'User ID',
             'Username',
             'Name',

@@ -30,6 +30,7 @@ class ProgramReportTestMixin(object):
             ('authoring_institution', org_key),
             ('program_title', 'Test Program'),
             ('program_uuid', program_uuid),
+            ('program_type', 'masters'),
             ('user_id', 10),
             ('username', 'test_user'),
             ('name', 'User'),
