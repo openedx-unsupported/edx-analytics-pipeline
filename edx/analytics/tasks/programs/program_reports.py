@@ -95,13 +95,15 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
 
     def mapper(self, line):
         """
-        Group input by program
+        Group input by authoring institution and program
         """
-        # TODO: we should make first column the key (uuid)
         (org, program_title, program_uuid, content) = line.split('\t', 3)
         yield (org, program_uuid), line
 
     def multi_output_reducer(self, key, values, output_file):
+        """
+        Map export values to report output fields and write to csv.  Drops any extra columns
+        """
         writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
             (k, k) for k in self.columns

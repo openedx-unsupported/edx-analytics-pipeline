@@ -25,6 +25,7 @@ class ProgramReportTestMixin(object):
             shutil.rmtree(dirname)
 
     def create_enrollment_input(self, org_key, program_uuid, *args, **kwargs):
+        """Create import row matching sqoop output on the learner_enrollments table"""
         learner_enrollment_template = OrderedDict([
             ('authoring_institution', org_key),
             ('program_title', 'Test Program'),
@@ -49,12 +50,12 @@ class ProgramReportTestMixin(object):
         for key, value in kwargs.items():
             learner_enrollment_template[key] = value
 
-        export_string = ''        
+        export_row = ''        
         for field, value in learner_enrollment_template.items():
             if value is None:
                 value = 'null'
-            export_string += str(value) + '\t'
-        return export_string.rstrip('\t')
+            export_row += str(value) + '\t'
+        return export_row.rstrip('\t')
 
 class LearnerProgramReportMapTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
 
@@ -83,7 +84,7 @@ class LearnerProgramReportReduceTest(ProgramReportTestMixin, ReducerTestMixin, T
         super(LearnerProgramReportReduceTest, self).setUp()
 
     def validate_output_files(self, expected):
-        # Ensure each output file contains the correct data
+        """Ensure each output file contains the correct data"""
         for program_key in expected.keys():
             filename = os.path.join(self.output_dir, program_key[0], program_key[1], 'learner_report__{}.csv'.format(self.DATE))
             with open(filename) as report_file:
@@ -94,6 +95,7 @@ class LearnerProgramReportReduceTest(ProgramReportTestMixin, ReducerTestMixin, T
                 self.assertEquals(num_lines, len(expected[program_key]))
 
     def create_expected_output(self, inputs):
+        """Resturns list of lines expected in an output file"""
         # first line is header
         header = ','.join(BuildLearnerProgramReportTask.get_column_names())
         expected = [header]
