@@ -75,7 +75,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
             sqoop_null_string=self.sqoop_null_string,
             sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
             sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
-            overwrite=self.overwrite,
+            overwrite=(self.overwrite_export and self.overwrite),
         )
 
     def get_column_names(self):
