@@ -57,6 +57,10 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         default=True,
         description='Whether or not to overwrite existing outputs',
     )
+    overwrite_export = luigi.BoolParameter(
+        default=False,
+        description='Weather or not to overwrite existing database export'
+    )
 
     def __init__(self, *args, **kwargs):
         super(BaseProgramReportsTask, self).__init__(*args, **kwargs)
@@ -94,8 +98,8 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         Group input by program
         """
         # TODO: we should make first column the key (uuid)
-        program_uuid = line.split('\t')[2]
-        yield program_uuid, line
+        (org, program_title, program_uuid, content) = line.split('\t', 3)
+        yield (org, program_uuid), line
 
     def multi_output_reducer(self, key, values, output_file):
         writer = csv.DictWriter(output_file, self.columns)
@@ -103,18 +107,15 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
             (k, k) for k in self.columns
         ))
 
-        row_data = []
         for content in values:
             fields = content.split('\t')
             row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
-            row_data.append(row)
-
-        for row_dict in row_data:
-            writer.writerow(row_dict)
+            writer.writerow(row)
         
     def output_path_for_key(self, key):
+        org_key, program_uuid = key
         filename = u'{}__{}.csv'.format(self.report_name, self.date)
-        return url_path_join(self.output_root, key, filename)
+        return url_path_join(self.output_root, org_key, program_uuid, filename)
 
 
 class BuildLearnerProgramReportTask(BaseProgramReportsTask):
@@ -125,8 +126,9 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
     report_name = luigi.Parameter(
         default='learner_report'
     )
-   
-    def get_column_names(self):
+
+    @staticmethod
+    def get_column_names():
         """
         List names of columns as they should appear in the CSV.
 
