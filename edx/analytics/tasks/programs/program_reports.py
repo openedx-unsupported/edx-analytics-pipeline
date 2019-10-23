@@ -11,6 +11,7 @@ from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_p
 
 log = logging.getLogger(__name__)
 
+
 class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
     """ Generates CSV reports on program enrollment """
 
@@ -59,7 +60,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
     )
     overwrite_export = luigi.BoolParameter(
         default=False,
-        description='Weather or not to overwrite existing database export'
+        description='Whether or not to overwrite existing database export'
     )
 
     def __init__(self, *args, **kwargs):
@@ -84,7 +85,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
 
         This must match the order they are stored in the exported warehouse table
         """
-        return []  # should be implemented by child 
+        return []  # should be implemented by child
 
     def run(self):
         """
@@ -105,15 +106,13 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
         Map export values to report output fields and write to csv.  Drops any extra columns
         """
         writer = csv.DictWriter(output_file, self.columns)
-        writer.writerow(dict(
-            (k, k) for k in self.columns
-        ))
+        writer.writeheader()
 
         for content in values:
             fields = content.split('\t')
             row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
             writer.writerow(row)
-        
+
     def output_path_for_key(self, key):
         org_key, program_uuid = key
         filename = u'{}__{}.csv'.format(self.report_name, self.date)
@@ -121,7 +120,7 @@ class BaseProgramReportsTask(OverwriteOutputMixin, MultiOutputMapReduceJobTask):
 
 
 class BuildLearnerProgramReportTask(BaseProgramReportsTask):
-    
+
     table_name = luigi.Parameter(
         default='learner_enrollments',
     )
