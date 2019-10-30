@@ -40,4 +40,5 @@ INSERT INTO `catalogue_product` VALUES
   (15,'standalone',NULL,'AccTest 40% off Otto Credit','901A4FE566','',NULL,'2016-03-22 20:50:27.485071','2016-03-22 20:50:27.538182',1,NULL,3,NULL,NULL),
   (16,'parent',NULL,'edX Test Course','parent-demo-edx-Testing-1T2017','',NULL,'2015-08-06 19:06:21','2015-08-06 19:21:06',1,NULL,1,'course-v1:edX+Testing102x+1T2017',NULL),
   (17,'child',NULL,'edX Test Course (ID verified)','demo-edx-Testing-1T2017-id-verified','',NULL,'2015-08-06 19:06:21','2015-08-06 19:21:06',1,1,NULL,'course-v1:edX+Testing102x+1T2017','2016-12-12 00:00:00'),
-  (18,'child',NULL,'A demonstration course (audit track)','demo-demox-democourse-1T2015-audit','',NULL,'2015-08-06 19:06:21','2015-08-06 19:21:06',0,1,NULL,'edX/Open_DemoX/edx_demo_course','2016-12-12 00:00:00');
+  (18,'child',NULL,'A demonstration course (audit track)','demo-demox-democourse-1T2015-audit','',NULL,'2015-08-06 19:06:21','2015-08-06 19:21:06',0,1,NULL,'edX/Open_DemoX/edx_demo_course','2016-12-12 00:00:00'),
+  (19,'parent',NULL,'Parent Course Entitlement for Demo Professional Course','parent-demo-edx-Entitlement-1T2017','',NULL,'2015-08-06 19:06:21','2015-08-06 19:21:06',1,NULL,7,NULL,NULL);

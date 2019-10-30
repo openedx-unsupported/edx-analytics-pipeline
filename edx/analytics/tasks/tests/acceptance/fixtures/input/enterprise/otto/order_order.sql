@@ -40,4 +40,5 @@ INSERT INTO `order_order` VALUES
   (8,'EDX-100026','USD',56.00,56.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:02:09.032234',26,NULL,NULL,1,43),
   (9,'EDX-100027','USD',20.00,20.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:04:08.048200',27,NULL,NULL,1,43),
   (10,'EDX-100028','USD',60.00,60.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:09:45.318743',28,NULL,NULL,1,43),
-  (11,'EDX-100029','USD',0.00,0.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:02:09.032234',29,NULL,NULL,1,43);
+  (11,'EDX-100029','USD',0.00,0.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:02:09.032234',29,NULL,NULL,1,43),
+  (12,'EDX-157042','USD',225.00,225.00,0.00,0.00,'No shipping required','no-shipping-required','Complete','','2016-03-22 21:02:09.032234',30,NULL,NULL,1,43);

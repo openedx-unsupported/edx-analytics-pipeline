@@ -15,8 +15,9 @@ from edx.analytics.tasks.enterprise.enterprise_database_imports import (
     ImportUserSocialAuthTask, ImportVoucherTask
 )
 from edx.analytics.tasks.insights.database_imports import (
-    ImportAuthUserProfileTask, ImportAuthUserTask, ImportCurrentOrderDiscountState, ImportCurrentOrderLineState,
-    ImportCurrentOrderState, ImportEcommerceUser, ImportPersistentCourseGradeTask, ImportProductCatalog,
+    ImportAuthUserProfileTask, ImportAuthUserTask, ImportCourseEntitlementTask, ImportCurrentOrderDiscountState,
+    ImportCurrentOrderLineState, ImportCurrentOrderState, ImportEcommerceUser, ImportPersistentCourseGradeTask,
+    ImportProductCatalog, ImportProductCatalogAttributes, ImportProductCatalogAttributeValues,
     ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import (
@@ -252,7 +253,10 @@ class EnterpriseEnrollmentDataTask(
             LEFT JOIN (
                     SELECT
                         ecommerce_user.username AS username,
-                        ecommerce_catalogue_product.course_id AS course_id,
+                        CASE
+                            WHEN ecommerce_catalogue_product.course_id is not NULL THEN ecommerce_catalogue_product.course_id
+                            ELSE student_course_enrollment.course_id
+                        END AS course_id,
                         ecommerce_order_line.line_price_before_discounts_excl_tax AS course_price,
                         ecommerce_order.total_incl_tax AS discount_price,
                         CASE
@@ -277,20 +281,30 @@ class EnterpriseEnrollmentDataTask(
                         ON ecommerce_order_line.order_id = ecommerce_order.id
                     JOIN catalogue_product ecommerce_catalogue_product
                         ON ecommerce_catalogue_product.id = ecommerce_order_line.product_id
+                    JOIN catalogue_productattribute productattribute
+                        ON productattribute.code = 'UUID'
+                    LEFT JOIN catalogue_productattributevalue productattributevalue
+                        ON productattributevalue.attribute_id = productattribute.id
+                        AND productattributevalue.product_id = ecommerce_catalogue_product.id
                     INNER JOIN (
                             SELECT
                                 ecomm_order.user_id AS user_id,
                                 ecomm_product.course_id AS course_id,
+                                productattributevalue.value_text AS course_uuid,
                                 MAX(ecomm_order_line.line_price_before_discounts_excl_tax) AS course_price
                             FROM order_order ecomm_order
                             JOIN order_line ecomm_order_line
                                 ON ecomm_order.id = ecomm_order_line.order_id
                             JOIN catalogue_product ecomm_product
                                 ON ecomm_order_line.product_id = ecomm_product.id
-                            GROUP BY ecomm_order.user_id, ecomm_product.course_id
+                            JOIN catalogue_productattribute productattribute
+                                ON productattribute.code = 'UUID'
+                            LEFT JOIN catalogue_productattributevalue productattributevalue
+                                ON productattributevalue.attribute_id = productattribute.id
+                                AND productattributevalue.product_id = ecomm_product.id
+                            GROUP BY ecomm_order.user_id, ecomm_product.course_id, productattributevalue.value_text
                     ) ecomm_order_product
                         ON ecommerce_user.id = ecomm_order_product.user_id
-                        AND ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
                         AND ecommerce_order_line.line_price_before_discounts_excl_tax = ecomm_order_product.course_price
                     LEFT JOIN order_orderdiscount ecommerce_order_discount
                         ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
@@ -300,6 +314,14 @@ class EnterpriseEnrollmentDataTask(
                         ON ecommerce_order_discount.offer_id = ecommerce_offer.id
                     LEFT JOIN offer_benefit ecommerce_benefit
                         ON ecommerce_offer.benefit_id = ecommerce_benefit.id
+                    LEFT JOIN entitlements_courseentitlement courseentitlement
+                        ON courseentitlement.course_uuid = REPLACE(ecomm_order_product.course_uuid, '-', '')
+                        AND courseentitlement.order_number = ecommerce_order.number
+                        AND courseentitlement.enrollment_course_run_id IS NOT NULL
+                    LEFT JOIN student_courseenrollment student_course_enrollment
+                        ON student_course_enrollment.id = courseentitlement.enrollment_course_run_id
+                    WHERE ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
+                            OR productattributevalue.value_text = ecomm_order_product.course_uuid
                 ) ecommerce_data
                     ON auth_user.username = ecommerce_data.username
                     AND enterprise_course_enrollment.course_id = ecommerce_data.course_id
@@ -323,6 +345,7 @@ class EnterpriseEnrollmentDataTask(
         yield (
             ImportAuthUserTask(),
             ImportAuthUserProfileTask(),
+            ImportCourseEntitlementTask(),
             ImportEnterpriseCustomerTask(),
             ImportEnterpriseCustomerUserTask(),
             ImportEnterpriseCourseEnrollmentUserTask(),
@@ -352,6 +375,8 @@ class EnterpriseEnrollmentDataTask(
         }
         yield (
             ImportProductCatalog(**kwargs),
+            ImportProductCatalogAttributes(**kwargs),
+            ImportProductCatalogAttributeValues(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
             ImportCurrentOrderDiscountState(**kwargs),
             ImportVoucherTask(**kwargs),
