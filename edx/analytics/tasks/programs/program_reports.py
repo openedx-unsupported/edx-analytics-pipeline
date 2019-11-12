@@ -6,9 +6,7 @@ import luigi
 from luigi.util import inherits
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.vertica_export import (
-    VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, ExportVerticaTableToS3Task, get_vertica_table_schema
-)
+from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
@@ -221,7 +219,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
-        fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+        fields = line.split(self.sqoop_fields_terminated_by.encode('ascii'))
 
         authoring_org = fields[0]
         program_title = fields[1]
@@ -254,7 +252,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         authoring_org, program_type, program_uuid, program_title, user_id, course_key, timestamp = key
 
         for value in values:
-            fields = value.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+            fields = value.split(self.sqoop_fields_terminated_by.encode('ascii'))
 
             program_completed = string_to_bool(fields[20])
 
@@ -306,7 +304,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     def mapper(self, line):
         """Yield a (key, value) tuple for each learner enrolled in a program."""
 
-        # although we originally split on the VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER,
+        # although we originally split on the sqoop_fields_terminated_by parameter,
         # the writer of the previous reduce task uses a tab delimeter
         fields = line.split('\t')
 
@@ -347,7 +345,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         num_masters_enrollents = 0
 
         for value in values:
-            # although we originally split on the VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER,
+            # although we originally split on the sqoop_fields_terminated_by parameter,
             # the writer of the previous reduce task uses a tab delimeter
             fields = value.split('\t')
 
