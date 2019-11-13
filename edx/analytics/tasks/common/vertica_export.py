@@ -44,6 +44,11 @@ def get_vertica_results(credentials, query):
         cred = json.load(credentials_file)
 
     # Externalize autocommit and read timeout
+    # WE CHANGED DATABASE FROM WAREHOUSE TO DOCKER
+    # connection = vertica_python.connect(user=cred.get('username'), password=cred.get('password'), host=cred.get('host'),
+    #                                     port=cred.get('port'), database='docker', autocommit=False,
+    #                                     read_timeout=None)
+
     connection = vertica_python.connect(user=cred.get('username'), password=cred.get('password'), host=cred.get('host'),
                                         port=cred.get('port'), database='warehouse', autocommit=False,
                                         read_timeout=None)

@@ -56,7 +56,17 @@ class ProgramsReportTaskMixin(object):
     )
 
 
-class BaseProgramReportsTask(OverwriteOutputMixin, ProgramsReportTaskMixin, MultiOutputMapReduceJobTask):
+class RemoveOutputMixin(object):
+
+    def run(self):
+        """
+        Clear out output if overwrite requested.
+        """
+        self.remove_output_on_overwrite()
+        super(RemoveOutputMixin, self).run()
+
+
+class BaseProgramReportsTask(OverwriteOutputMixin, ProgramsReportTaskMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """ Generates CSV reports on program enrollment """
 
     report_name = luigi.Parameter(
@@ -89,17 +99,10 @@ class BaseProgramReportsTask(OverwriteOutputMixin, ProgramsReportTaskMixin, Mult
 
         This must match the order they are stored in the exported warehouse table
         """
-        return []  # should be implemented by child
+        raise NotImplementedError
 
     def multi_output_reducer(self, key, values, output_file):
-        pass  # should be implemented by child
-
-    def run(self):
-        """
-        Clear out output if overwrite requested.
-        """
-        self.remove_output_on_overwrite()
-        super(BaseProgramReportsTask, self).run()
+        raise NotImplementedError
 
     def mapper(self, line):
         """
@@ -170,16 +173,6 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
             writer.writerow(row)
 
 
-class RemoveOutputMixin(object):
-
-    def run(self):
-        """
-        Clear out output if overwrite requested.
-        """
-        self.remove_output_on_overwrite()
-        super(RemoveOutputMixin, self).run()
-
-
 class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
         A Map Reduce task that combines multiple course run enrollment records for a single course into a single
@@ -190,6 +183,18 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         enrollment date information for all runs, the learner's entry year is none.
         The course is considered completed by the user if at least one run of the course is completed.
     """
+    AUTHORING_ORG_INDEX = 0
+    PROGRAM_TITLE_INDEX = 1
+    PROGRAM_UUID_INDEX = 2
+    PROGRAM_TYPE_INDEX = 3
+    USER_ID_INDEX = 4
+    TRACK_INDEX = 11
+    ENTRY_YEAR_INDEX = 14
+    COURSE_RUN_COMPLETED_INDEX = 18
+    PROGRAM_COMPLETED_INDEX = 20
+    COURSE_KEY_INDEX = 21
+    TIMESTAMP_INDEX = 22
+
     date = luigi.Parameter(
         default=datetime.datetime.utcnow().date(),
         description='Current run date. Used to tag report date'
@@ -221,13 +226,13 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         """Yield a (key, value) tuple for each course run enrollment record."""
         fields = line.split(self.sqoop_fields_terminated_by.encode('ascii'))
 
-        authoring_org = fields[0]
-        program_title = fields[1]
-        program_uuid = fields[2]
-        program_type = fields[3]
-        user_id = fields[4]
-        course_key = fields[21]
-        timestamp = fields[22]
+        authoring_org = fields[self.AUTHORING_ORG_INDEX]
+        program_title = fields[self.PROGRAM_TITLE_INDEX]
+        program_uuid = fields[self.PROGRAM_UUID_INDEX]
+        program_type = fields[self.PROGRAM_TYPE_INDEX]
+        user_id = fields[self.USER_ID_INDEX]
+        course_key = fields[self.COURSE_KEY_INDEX]
+        timestamp = fields[self.TIMESTAMP_INDEX]
 
         yield (authoring_org, program_type, program_uuid, program_title, user_id, course_key, timestamp), line
 
@@ -254,16 +259,16 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         for value in values:
             fields = value.split(self.sqoop_fields_terminated_by.encode('ascii'))
 
-            program_completed = string_to_bool(fields[20])
+            program_completed = string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
 
-            track = fields[11]
+            track = fields[self.TRACK_INDEX]
             tracks.add(track)
 
-            is_course_run_completed = string_to_bool(fields[18])
+            is_course_run_completed = string_to_bool(fields[self.COURSE_RUN_COMPLETED_INDEX])
             completed = completed or is_course_run_completed
 
-            if fields[14] != self.sqoop_null_string:
-                year = datetime.datetime.strptime(fields[14], '%Y-%m-%d %H:%M:%S.%f').year
+            if fields[self.ENTRY_YEAR_INDEX] != self.sqoop_null_string:
+                year = datetime.datetime.strptime(fields[self.ENTRY_YEAR_INDEX], '%Y-%m-%d %H:%M:%S.%f').year
                 entry_years.add(year)
 
         # the method that writes the output of the reducers to a file writes the elements of the output as a tab separated string,
@@ -298,6 +303,17 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         It also includes whether the learner has completed the program.
     """
 
+    AUTHORING_ORG_INDEX = 0
+    PROGRAM_TYPE_INDEX = 1
+    PROGRAM_TITLE_INDEX = 2
+    PROGRAM_UUID_INDEX = 3
+    USER_ID_INDEX = 4
+    TRACK_INDEX = 5
+    ENTRY_YEAR_INDEX = 6
+    COURSE_COMPLETED_INDEX = 7
+    PROGRAM_COMPLETED_INDEX = 8
+    TIMESTAMP_INDEX = 9
+
     def requires(self):
         return self.clone(CombineCourseEnrollmentsTask)
 
@@ -308,13 +324,13 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         # the writer of the previous reduce task uses a tab delimeter
         fields = line.split('\t')
 
-        authoring_org = fields[0]
-        program_type = fields[1]
-        program_title = fields[2]
-        program_uuid = fields[3]
-        user_id = fields[4]
-        entry_year = fields[6]
-        timestamp = fields[9]
+        authoring_org = fields[self.AUTHORING_ORG_INDEX]
+        program_type = fields[self.PROGRAM_TYPE_INDEX]
+        program_title = fields[self.PROGRAM_TITLE_INDEX]
+        program_uuid = fields[self.PROGRAM_UUID_INDEX]
+        user_id = fields[self.USER_ID_INDEX]
+        entry_year = fields[self.ENTRY_YEAR_INDEX]
+        timestamp = fields[self.TIMESTAMP_INDEX]
 
         yield (authoring_org, program_type, program_title, program_uuid, user_id, entry_year, timestamp), line
 
@@ -351,13 +367,13 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
 
             num_enrollments += 1
 
-            is_course_completed = string_to_bool(fields[7])
+            is_course_completed = string_to_bool(fields[self.COURSE_COMPLETED_INDEX])
             if is_course_completed:
                 num_completed_courses += 1
 
-            is_program_completed = is_program_completed or string_to_bool(fields[8])
+            is_program_completed = is_program_completed or string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
 
-            tracks = fields[5].split(',')
+            tracks = fields[self.TRACK_INDEX].split(',')
             for track in tracks:
                 if track == 'audit':
                     num_audit_enrollments += 1
@@ -387,6 +403,20 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             - the number of learners with 1+...10+ completed courses
             - the number of learners who have completed the program
     """
+    AUTHORING_ORG_INDEX = 0
+    PROGRAM_TYPE_INDEX = 1
+    PROGRAM_TITLE_INDEX = 2
+    PROGRAM_UUID_INDEX = 3
+    USER_ID_INDEX = 4
+    ENTRY_YEAR_INDEX = 5
+    NUM_ENROLLMENTS_INDEX = 6
+    NUM_COMPLETED_COURSES_INDEX = 7
+    NUM_AUDIT_ENROLLMENTS_INDEX = 8
+    NUM_VERIFIED_ENROLLMENTS_INDEX = 9
+    NUM_PROFESSIONAL_ENROLLMENTS_INDEX = 10
+    NUM_MASTERS_ENROLLMENTS_INDEX = 11
+    PROGRAM_COMPLETED_INDEX = 12
+    TIMESTAMP_INDEX = 13
 
     def requires(self):
         return self.clone(CountCourseEnrollmentsTask)
@@ -394,12 +424,12 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     def mapper(self, line):
         """Yield a (key, value) tuple for each program."""
         fields = line.split('\t')
-        authoring_org = fields[0]
-        program_type = fields[1]
-        program_title = fields[2]
-        program_uuid = fields[3]
-        entry_year = fields[5]
-        timestamp = fields[13]
+        authoring_org = fields[self.AUTHORING_ORG_INDEX]
+        program_type = fields[self.PROGRAM_TYPE_INDEX]
+        program_title = fields[self.PROGRAM_TITLE_INDEX]
+        program_uuid = fields[self.PROGRAM_UUID_INDEX]
+        entry_year = fields[self.ENTRY_YEAR_INDEX]
+        timestamp = fields[self.TIMESTAMP_INDEX]
 
         yield (authoring_org, program_type, program_title, program_uuid, entry_year, timestamp), line
 
@@ -438,16 +468,16 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             fields = value.split('\t')
 
             total_num_learners += 1
-            total_num_enrollments += int(fields[6])
+            total_num_enrollments += int(fields[self.NUM_ENROLLMENTS_INDEX])
 
-            is_program_completed = fields[12]
+            is_program_completed = fields[self.PROGRAM_COMPLETED_INDEX]
             if string_to_bool(is_program_completed):
                 total_num_program_completions += 1
 
-            num_audit_enrollments = int(fields[8])
-            num_verified_enrollments = int(fields[9])
-            num_professional_enrollments = int(fields[10])
-            num_masters_enrollments = int(fields[11])
+            num_audit_enrollments = int(fields[self.NUM_AUDIT_ENROLLMENTS_INDEX])
+            num_verified_enrollments = int(fields[self.NUM_VERIFIED_ENROLLMENTS_INDEX])
+            num_professional_enrollments = int(fields[self.NUM_PROFESSIONAL_ENROLLMENTS_INDEX])
+            num_masters_enrollments = int(fields[self.NUM_MASTERS_ENROLLMENTS_INDEX])
 
             for num in range(num_audit_enrollments):
                 num_learners_in_audit[num] += 1
