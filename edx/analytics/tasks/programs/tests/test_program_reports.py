@@ -233,9 +233,9 @@ class CountCourseEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, 
 
         super(CountCourseEnrollmentsMapperTest, self).setUp()
 
-    def test_counting(self):
+    def test_mapper(self):
         line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2018', 'True', 'True', 'null'])
-        self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2018', 'null'), line)
+        self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null'), line)
 
 
 class CountCourseEnrollmentReducerTest(ProgramReportTestMixin, ReducerTestMixin, TestCase):
@@ -254,19 +254,19 @@ class CountCourseEnrollmentReducerTest(ProgramReportTestMixin, ReducerTestMixin,
         super(CountCourseEnrollmentReducerTest, self).setUp()
 
     def test_reducer(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2019', 'null')
+        self.reduce_key = (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null')
 
         input = [
             '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2019', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2017', 'True', 'False', 'null']),
             '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2019', 'False', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'no-id-professional', '2019', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2018', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2018', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'no-id-professional', 'null', 'False', 'False', 'null']),
             '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'professional', '2019', 'True', 'False', 'null'])
         ]
 
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2019', len(input), 5, 3, 1, 2, 2, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2017', len(input), 5, 3, 1, 2, 2, False, 'null'],))
 
 
 class CountProgramCohortEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):

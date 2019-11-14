@@ -180,7 +180,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
 
         The distinct enrollment tracks are joined together.
         The year of the earliest enrollment in any run of a course is used as the learner's entry year in that course. If there is no
-        enrollment date information for all runs, the learner's entry year is none.
+        enrollment date information for all runs, the learner's entry year is null.
         The course is considered completed by the user if at least one run of the course is completed.
     """
     AUTHORING_ORG_INDEX = 0
@@ -300,7 +300,9 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
                 - professional or no-id-professional
                 - masters
 
-        It also includes whether the learner has completed the program.
+        It also includes
+            - whether the learner has completed the program
+            - the earliest year a learner has enrolled in any course within the program as that learner's entry year
     """
 
     AUTHORING_ORG_INDEX = 0
@@ -308,7 +310,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     PROGRAM_TITLE_INDEX = 2
     PROGRAM_UUID_INDEX = 3
     USER_ID_INDEX = 4
-    TRACK_INDEX = 5
+    TRACKS_INDEX = 5
     ENTRY_YEAR_INDEX = 6
     COURSE_COMPLETED_INDEX = 7
     PROGRAM_COMPLETED_INDEX = 8
@@ -329,14 +331,13 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         program_title = fields[self.PROGRAM_TITLE_INDEX]
         program_uuid = fields[self.PROGRAM_UUID_INDEX]
         user_id = fields[self.USER_ID_INDEX]
-        entry_year = fields[self.ENTRY_YEAR_INDEX]
         timestamp = fields[self.TIMESTAMP_INDEX]
 
-        yield (authoring_org, program_type, program_title, program_uuid, user_id, entry_year, timestamp), line
+        yield (authoring_org, program_type, program_title, program_uuid, user_id, timestamp), line
 
     def reducer(self, key, values):
         """
-            For a given key, representing a learner enrolled in a program at a particular time,
+            For a given key, representing a learner enrolled in a program,
             do some aggregation on the values, which repesent course enrollments in said program.
 
             In particular, count
@@ -348,10 +349,13 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
                     - professional or no-id-professional
                     - masters
 
-            Also include whether the learner has completed the program.
+            Also include
+                - whether the learner has completed the program
+                - the earliest year a learner has enrolled in any course within the program as that learner's entry year
         """
-        authoring_org, program_type, program_title, program_uuid, user_id, entry_year, timestamp = key
+        authoring_org, program_type, program_title, program_uuid, user_id, timestamp = key
 
+        entry_years = set()
         is_program_completed = False
         num_enrollments = 0
         num_completed_courses = 0
@@ -373,7 +377,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
 
             is_program_completed = is_program_completed or string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
 
-            tracks = fields[self.TRACK_INDEX].split(',')
+            tracks = fields[self.TRACKS_INDEX].split(',')
             for track in tracks:
                 if track == 'audit':
                     num_audit_enrollments += 1
@@ -383,6 +387,17 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
                     num_professional_enrollments += 1
                 elif track == 'masters':
                     num_masters_enrollents += 1
+
+            if fields[self.ENTRY_YEAR_INDEX] != 'null':
+                entry_years.add(fields[self.ENTRY_YEAR_INDEX])
+
+        # find the learner's entry year across all courses they have enrolled in as part of a program
+        # find the minimum value for the entry year excluding null; if null is the only value,
+        # then entry year is null
+        if len(entry_years) > 0:
+            entry_year = min(entry_years)
+        else:
+            entry_year = 'null'
 
         yield [authoring_org, program_type, program_title, program_uuid, user_id, entry_year, num_enrollments, num_completed_courses, num_audit_enrollments, num_verified_enrollments, num_professional_enrollments, num_masters_enrollents, is_program_completed, timestamp]
 
