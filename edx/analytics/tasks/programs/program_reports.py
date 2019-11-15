@@ -218,14 +218,40 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         default='null',
         description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.',
     )
-
     sqoop_fields_terminated_by = luigi.Parameter(
         default=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER,
         description='The field delimiter used by Sqoop.'
     )
 
+    vertica_credentials = luigi.Parameter(
+        config_path={'section': 'vertica-export', 'name': 'credentials'},
+        description='Path to the external access credentials file.',
+    )
+    table_name = luigi.Parameter(
+        default='learner_enrollments',
+        description='Table containing enrollment rows to report on',
+    )
+    vertica_warehouse_name = luigi.Parameter(
+        default='docker',
+        description='The Vertica warehouse that houses the report schema.',
+    )
+    sqoop_delimiter_replacement = luigi.Parameter(
+        default=' ',
+        description='The string replacement value for special characters encountered by Sqoop when exporting from '
+                    'Vertica.',
+    )
+
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        # return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return ExportVerticaTableToS3Task(
+            vertica_schema_name=self.vertica_schema_name,
+            sqoop_null_string=self.sqoop_null_string,
+            sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+            overwrite=self.overwrite_export and self.overwrite,
+            vertica_credentials=self.vertica_credentials,
+            vertica_warehouse_name=self.vertica_warehouse_name,
+            table_name=self.table_name,
+        )
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
@@ -296,9 +322,9 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CombineCourseEnrollments/'))
 
-CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
-CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
-CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
+# CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
+# CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
+# CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
 
 class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
@@ -328,8 +354,38 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     PROGRAM_COMPLETED_INDEX = 9
     TIMESTAMP_INDEX = 10
 
+    date = luigi.Parameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date. Used to tag report date'
+    )
+    output_root = luigi.Parameter(
+        description='URL pointing to the location reports should be stored',
+    )
+    overwrite = luigi.BoolParameter(
+        default=True,
+        description='Whether or not to overwrite existing outputs',
+    )
+    overwrite_export = luigi.BoolParameter(
+        default=False,
+        description='Whether or not to overwrite existing database export'
+    )
+    vertica_schema_name = luigi.Parameter(
+        default='programs_reporting',
+        description='Vertica schema containing reporting table',
+    )
+    sqoop_null_string = luigi.Parameter(
+        default='null',
+        description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.',
+    )
+
+    sqoop_fields_terminated_by = luigi.Parameter(
+        default=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER,
+        description='The field delimiter used by Sqoop.'
+    )
+
     def requires(self):
-        return self.clone(CombineCourseEnrollments)
+        # return self.clone(CombineCourseEnrollments)
+        return self.clone(CombineCourseEnrollmentsTask)
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each learner enrolled in a program."""
@@ -416,9 +472,9 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CountCourseEnrollments/'))
 
-CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
-CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
-CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
+# CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
+# CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
+# CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
 
 class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
@@ -538,9 +594,9 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
 
-CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
-CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
-CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
+# CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
+# CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
+# CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
 class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """A Map Reduce task that writes a program's aggregate enrollment data to organization-program specific file."""
@@ -645,6 +701,6 @@ def string_to_bool(value):
 # CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
 # CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
-BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
-BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
-BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
+# BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
+# BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
+# BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
