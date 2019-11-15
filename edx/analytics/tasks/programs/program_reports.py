@@ -296,6 +296,9 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CombineCourseEnrollments/'))
 
+CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
+CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
+CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
 
 class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
@@ -326,7 +329,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     TIMESTAMP_INDEX = 10
 
     def requires(self):
-        return self.clone(CombineCourseEnrollmentsTask)
+        return self.clone(CombineCourseEnrollments)
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each learner enrolled in a program."""
@@ -413,6 +416,9 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CountCourseEnrollments/'))
 
+CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
+CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
+CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
 
 class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
@@ -443,7 +449,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     TIMESTAMP_INDEX = 13
 
     def requires(self):
-        return self.clone(CountCourseEnrollmentsTask)
+        return self.clone(CountCourseEnrollments)
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each program."""
@@ -532,6 +538,9 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
 
+CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
+CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
+CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
 class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """A Map Reduce task that writes a program's aggregate enrollment data to organization-program specific file."""
@@ -545,7 +554,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         self.columns = self.get_column_names()
 
     def requires(self):
-        return self.clone(CountProgramCohortEnrollmentsTask)
+        return self.clone(CountProgramCohortEnrollments)
 
     @staticmethod
     def get_column_names():
@@ -624,17 +633,17 @@ def string_to_bool(value):
 # In future versions of Luigi, this is fixed. This is a temporary workaround.
 
 
-CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
-CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
-CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
+# CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
+# CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
+# CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
 
-CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
-CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
-CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
-
-CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
-CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
-CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
+# CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
+# CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
+# CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
+# 
+# CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
+# CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
+# CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
 BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
 BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
