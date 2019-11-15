@@ -6,7 +6,7 @@ import luigi
 from luigi.util import inherits
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema, import VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
+from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema, VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
