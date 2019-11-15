@@ -6,7 +6,7 @@ import luigi
 from luigi.util import inherits
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
-from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema
+from edx.analytics.tasks.common.vertica_export import ExportVerticaTableToS3Task, get_vertica_table_schema, import VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
@@ -217,6 +217,11 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
     sqoop_null_string = luigi.Parameter(
         default='null',
         description='A string replacement value for any (null) values encountered by Sqoop when exporting from Vertica.',
+    )
+
+    sqoop_fields_terminated_by = luigi.Parameter(
+        default=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER,
+        description='The field delimiter used by Sqoop.'
     )
 
     def requires(self):
