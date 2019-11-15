@@ -189,7 +189,7 @@ class CombineCourseEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTestMix
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, track='verified'),
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, track='audit')
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,masters,verified', 'null', False, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,masters,verified', 3, 'null', False, False, 'null'],))
 
     def test_reducer_entry_year(self):
         self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', 'null')
@@ -198,7 +198,7 @@ class CombineCourseEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTestMix
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, date_first_enrolled=str(datetime(2019, 12, 31, 10, 30, 15, 5))),
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, date_first_enrolled=str(datetime(2018, 12, 31, 10, 30, 15, 5)))
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 2018, False, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 2, 2018, False, False, 'null'],))
 
     def test_reducer_entry_year_null_enrollment_time(self):
         self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', 'null')
@@ -207,7 +207,7 @@ class CombineCourseEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTestMix
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, date_first_enrolled='null'),
         ]
 
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 'null', False, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 1, 'null', False, False, 'null'],))
 
     def test_reducer_course_completed(self):
         self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', 'null')
@@ -216,7 +216,7 @@ class CombineCourseEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTestMix
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER),
             self.create_enrollment_input(self.org_key, self.program_uuid, delimeter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, completed=True)
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 'null', True, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 2, 'null', True, False, 'null'],))
 
 
 class CountCourseEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
@@ -234,7 +234,7 @@ class CountCourseEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, 
         super(CountCourseEnrollmentsMapperTest, self).setUp()
 
     def test_mapper(self):
-        line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2018', 'True', 'True', 'null'])
+        line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2', '2018', 'True', 'True', 'null'])
         self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null'), line)
 
 
@@ -257,16 +257,16 @@ class CountCourseEnrollmentReducerTest(ProgramReportTestMixin, ReducerTestMixin,
         self.reduce_key = (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null')
 
         input = [
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2017', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2018', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2018', 'False', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'no-id-professional', 'null', 'False', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'professional', '2019', 'True', 'False', 'null'])
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2', '2017', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '1', '2018', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2', '2018', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'no-id-professional', '1', 'null', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'professional', '1', '2019', 'True', 'False', 'null'])
         ]
 
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2017', len(input), 5, 3, 1, 2, 2, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2017', 9, 5, 3, 1, 2, 2, False, 'null'],))
 
 
 class CountProgramCohortEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):

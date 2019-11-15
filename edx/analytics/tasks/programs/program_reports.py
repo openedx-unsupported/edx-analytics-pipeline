@@ -252,11 +252,14 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         entry_years = set()
         completed = False
         program_completed = False
+        num_course_run_enrollments = 0
         tracks = set()
 
         authoring_org, program_type, program_uuid, program_title, user_id, course_key, timestamp = key
 
         for value in values:
+            num_course_run_enrollments += 1
+
             fields = value.split(self.sqoop_fields_terminated_by.encode('ascii'))
 
             program_completed = string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
@@ -283,7 +286,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         else:
             entry_year = 'null'
 
-        yield [authoring_org, program_type, program_title, program_uuid, user_id, tracks, entry_year, completed, program_completed, timestamp]
+        yield [authoring_org, program_type, program_title, program_uuid, user_id, tracks, num_course_run_enrollments, entry_year, completed, program_completed, timestamp]
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CombineCourseEnrollments/'))
@@ -311,10 +314,11 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     PROGRAM_UUID_INDEX = 3
     USER_ID_INDEX = 4
     TRACKS_INDEX = 5
-    ENTRY_YEAR_INDEX = 6
-    COURSE_COMPLETED_INDEX = 7
-    PROGRAM_COMPLETED_INDEX = 8
-    TIMESTAMP_INDEX = 9
+    NUM_COURSE_RUN_ENROLLMENTS_INDEX = 6
+    ENTRY_YEAR_INDEX = 7
+    COURSE_COMPLETED_INDEX = 8
+    PROGRAM_COMPLETED_INDEX = 9
+    TIMESTAMP_INDEX = 10
 
     def requires(self):
         return self.clone(CombineCourseEnrollmentsTask)
@@ -357,7 +361,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
 
         entry_years = set()
         is_program_completed = False
-        num_enrollments = 0
+        num_course_run_enrollments = 0
         num_completed_courses = 0
         num_audit_enrollments = 0
         num_verified_enrollments = 0
@@ -369,7 +373,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
             # the writer of the previous reduce task uses a tab delimeter
             fields = value.split('\t')
 
-            num_enrollments += 1
+            num_course_run_enrollments += int(fields[self.NUM_COURSE_RUN_ENROLLMENTS_INDEX])
 
             is_course_completed = string_to_bool(fields[self.COURSE_COMPLETED_INDEX])
             if is_course_completed:
@@ -399,7 +403,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         else:
             entry_year = 'null'
 
-        yield [authoring_org, program_type, program_title, program_uuid, user_id, entry_year, num_enrollments, num_completed_courses, num_audit_enrollments, num_verified_enrollments, num_professional_enrollments, num_masters_enrollents, is_program_completed, timestamp]
+        yield [authoring_org, program_type, program_title, program_uuid, user_id, entry_year, num_course_run_enrollments, num_completed_courses, num_audit_enrollments, num_verified_enrollments, num_professional_enrollments, num_masters_enrollents, is_program_completed, timestamp]
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CountCourseEnrollments/'))
@@ -424,7 +428,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     PROGRAM_UUID_INDEX = 3
     USER_ID_INDEX = 4
     ENTRY_YEAR_INDEX = 5
-    NUM_ENROLLMENTS_INDEX = 6
+    NUM_COURSE_RUN_ENROLLMENTS_INDEX = 6
     NUM_COMPLETED_COURSES_INDEX = 7
     NUM_AUDIT_ENROLLMENTS_INDEX = 8
     NUM_VERIFIED_ENROLLMENTS_INDEX = 9
@@ -467,7 +471,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         authoring_org, program_type, program_title, program_uuid, entry_year, timestamp = key
 
         total_num_learners = 0
-        total_num_enrollments = 0
+        total_num_course_run_enrollments = 0
         total_num_program_completions = 0
 
         # TODO: make this dynamic based on the number of courses in a program; hard coded to 10
@@ -483,7 +487,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             fields = value.split('\t')
 
             total_num_learners += 1
-            total_num_enrollments += int(fields[self.NUM_ENROLLMENTS_INDEX])
+            total_num_course_run_enrollments += int(fields[self.NUM_COURSE_RUN_ENROLLMENTS_INDEX])
 
             is_program_completed = fields[self.PROGRAM_COMPLETED_INDEX]
             if string_to_bool(is_program_completed):
@@ -511,7 +515,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             for num in range(num_completed_courses):
                 num_learners_completed_courses[num] += 1
 
-        row = [authoring_org, program_type, program_title, program_uuid, entry_year, total_num_learners, total_num_enrollments]
+        row = [authoring_org, program_type, program_title, program_uuid, entry_year, total_num_learners, total_num_course_run_enrollments]
         for num in num_learners_in_audit + num_learners_in_verified + num_learners_in_professional + num_learners_in_masters + num_learners_completed_courses:
             row.append(num)
 
@@ -554,11 +558,12 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
             'Total Learners',
             'Total Number Enrollments',
         ]
-        columns.extend(['Number of Learners in {}+ Audit'.format(num) for num in range(num_courses)])
-        columns.extend(['Number of Learners in {}+ Verified'.format(num) for num in range(num_courses)])
-        columns.extend(['Number of Learners in {}+ Professional'.format(num) for num in range(num_courses)])
-        columns.extend(['Number of Learners in {}+ Master\'s'.format(num) for num in range(num_courses)])
-        columns.extend(['Number of Learners Completed {}+ Courses'.format(num) for num in range(num_courses)])
+        columns.extend(['Number of Learners in {}+ Audit'.format(num) for num in range(1, num_courses + 1)])
+        columns.extend(['Number of Learners in {}+ Verified'.format(num) for num in range(1, num_courses + 1)])
+        columns.extend(['Number of Learners in {}+ Professional'.format(num) for num in range(1, num_courses + 1)])
+        columns.extend(['Number of Learners in {}+ Master\'s'.format(num) for num in range(1, num_courses + 1)])
+        columns.extend(['Number of Learners Completed {}+ Courses'.format(num) for num in range(1, num_courses + 1)])
+        columns.append('Total Number of Program Completions')
         columns.append('Timestamp')
         return columns
 
