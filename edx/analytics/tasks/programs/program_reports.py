@@ -173,7 +173,7 @@ class BuildLearnerProgramReportTask(BaseProgramReportsTask):
             writer.writerow(row)
 
 
-class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
+class CombineCourseEnrollmentsTask(OverwriteOutputMixin, MapReduceJobTask):
     """
         A Map Reduce task that combines multiple course run enrollment records for a single course into a single
         record per course. It does some aggregation on data that may differ across multiple enrollments in the same course.
@@ -240,6 +240,13 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
         description='The string replacement value for special characters encountered by Sqoop when exporting from '
                     'Vertica.',
     )
+
+    def run(self):
+        """
+        Clear out output if overwrite requested.
+        """
+        self.remove_output_on_overwrite()
+        super(CombineCourseEnrollmentsTask, self).run()
 
     def requires(self):
         # return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
