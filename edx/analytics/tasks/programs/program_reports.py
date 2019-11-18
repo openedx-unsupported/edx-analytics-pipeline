@@ -241,13 +241,6 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, MapReduceJobTask):
                     'Vertica.',
     )
 
-    def run(self):
-        """
-        Clear out output if overwrite requested.
-        """
-        self.remove_output_on_overwrite()
-        super(CombineCourseEnrollmentsTask, self).run()
-
     def requires(self):
         # return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
         return ExportVerticaTableToS3Task(
@@ -262,7 +255,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, MapReduceJobTask):
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
-        fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER)
+        fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
 
         authoring_org = fields[self.AUTHORING_ORG_INDEX]
         program_title = fields[self.PROGRAM_TITLE_INDEX]
