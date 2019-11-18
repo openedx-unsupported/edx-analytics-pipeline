@@ -5,7 +5,6 @@ import logging
 import re
 
 import cjson
-
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
 log = logging.getLogger(__name__)

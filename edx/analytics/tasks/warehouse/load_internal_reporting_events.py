@@ -13,16 +13,16 @@ import logging
 import re
 from importlib import import_module
 
-import ciso8601
 import dateutil
 import luigi
 import luigi.task
 import pytz
-import ua_parser
-import user_agents
 from luigi.configuration import get_config
 from luigi.date_interval import DateInterval
 
+import ciso8601
+import ua_parser
+import user_agents
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin

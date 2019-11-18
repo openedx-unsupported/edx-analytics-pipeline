@@ -9,8 +9,8 @@ import json
 from contextlib import closing
 
 import luigi
-import mysql.connector
 
+import mysql.connector
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 

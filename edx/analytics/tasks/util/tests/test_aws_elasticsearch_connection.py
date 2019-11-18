@@ -2,11 +2,11 @@
 import socket
 from unittest import TestCase
 
-from boto.exception import BotoServerError
-from elasticsearch.exceptions import ElasticsearchException, TransportError
 from mock import patch
 
+from boto.exception import BotoServerError
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsElasticsearchConnection, AwsHttpConnection
+from elasticsearch.exceptions import ElasticsearchException, TransportError
 
 
 class AwsElasticsearchConnectionTests(TestCase):

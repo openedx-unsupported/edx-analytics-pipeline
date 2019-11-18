@@ -36,14 +36,14 @@ import json
 import logging
 
 import luigi
-from google.auth.transport.requests import AuthorizedSession
-from google.oauth2 import service_account
-from gspread import client
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from google.auth.transport.requests import AuthorizedSession
+from google.oauth2 import service_account
+from gspread import client
 
 log = logging.getLogger(__name__)
 

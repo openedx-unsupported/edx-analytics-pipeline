@@ -8,7 +8,6 @@ import logging
 import os
 
 import pandas
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 
 log = logging.getLogger(__name__)

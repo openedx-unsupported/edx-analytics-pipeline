@@ -8,12 +8,11 @@ import unittest
 
 import boto
 import pandas
-from pandas.util.testing import assert_frame_equal, assert_series_equal
-
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
 from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 log = logging.getLogger(__name__)
 

@@ -4,8 +4,9 @@ import shutil
 import tempfile
 from contextlib import contextmanager
 
-import gnupg
 from jinja2 import Template
+
+import gnupg
 
 
 @contextmanager

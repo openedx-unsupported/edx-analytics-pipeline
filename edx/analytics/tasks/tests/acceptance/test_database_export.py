@@ -13,7 +13,6 @@ import textwrap
 import urlparse
 
 import gnupg
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available
 from edx.analytics.tasks.tests.acceptance.services import shell
 from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id, get_org_id_for_course

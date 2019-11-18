@@ -48,13 +48,22 @@ reset-virtualenv:
 reset-virtualenv-py3:
 	bash -c 'virtualenv --clear --python=$$(which python3) ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline'
 
+
+REQ_FILES = \
+	requirements/pip-tools \
+	requirements/base \
+	requirements/default \
+	requirements/docs \
+	requirements/test
+
+upgrade: export CUSTOM_COMPILE_COMMAND=make upgrade
 upgrade: ## update the requirements/*.txt files with the latest packages satisfying requirements/*.in
 	pip install -qr requirements/pip-tools.txt
-	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/pip-tools.txt requirements/pip-tools.in
-	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/base.txt requirements/base.in
-	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/default.txt requirements/default.in
-	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/docs.txt requirements/docs.in
-	CUSTOM_COMPILE_COMMAND="make upgrade" pip-compile --upgrade -o requirements/test.txt requirements/test.in
+	@for f in $(REQ_FILES); do \
+		echo ; \
+		echo "== $$f ===============================" ; \
+		pip-compile -v --no-emit-trusted-host --no-index --rebuild --upgrade -o $$f.txt $$f.in || exit 1; \
+	done
 
 test-docker-local:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local test-local

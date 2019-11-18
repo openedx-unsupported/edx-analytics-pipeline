@@ -7,9 +7,8 @@ import logging
 import os
 
 import pandas
-from pandas.util.testing import assert_frame_equal
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param, when_vertica_available
+from pandas.util.testing import assert_frame_equal
 
 log = logging.getLogger(__name__)
 

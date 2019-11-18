@@ -3,7 +3,6 @@ import json
 from contextlib import closing, contextmanager
 
 import mysql.connector
-
 from edx.analytics.tasks.util.url import get_target_from_url
 
 

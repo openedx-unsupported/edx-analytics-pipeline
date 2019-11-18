@@ -12,7 +12,6 @@ import tempfile
 from unittest import TestCase
 
 from mock import Mock, call
-from opaque_keys.edx.locator import CourseLocator
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.answer_dist import (
@@ -20,6 +19,7 @@ from edx.analytics.tasks.insights.answer_dist import (
 )
 from edx.analytics.tasks.util.tests.config import OPTION_REMOVED, with_luigi_config
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
+from opaque_keys.edx.locator import CourseLocator
 
 
 class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):

@@ -7,14 +7,14 @@ import json
 import logging
 
 import luigi
-from apiclient.discovery import build
-from google.oauth2 import service_account
 
+from apiclient.discovery import build
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import BooleanField, DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from google.oauth2 import service_account
 
 
 class PullGoogleAnalyticsDataMixin(WarehouseMixin, OverwriteOutputMixin):

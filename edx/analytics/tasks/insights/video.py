@@ -8,12 +8,12 @@ import textwrap
 import urllib
 from collections import namedtuple
 
-import ciso8601
 import luigi
 from luigi import configuration
 from luigi.contrib.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
 
+import ciso8601
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin

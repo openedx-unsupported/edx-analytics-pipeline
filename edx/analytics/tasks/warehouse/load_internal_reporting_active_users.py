@@ -3,9 +3,9 @@
 import datetime
 import logging
 
-import isoweek
 import luigi
 
+import isoweek
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.common.vertica_load import IncrementalVerticaCopyTask, VerticaCopyTaskMixin

@@ -4,11 +4,11 @@ import gzip
 import logging
 from collections import defaultdict
 
-import gnupg
 import luigi.date_interval
 import yaml
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+import gnupg
 from edx.analytics.tasks.common.mapreduce import MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionMixin
 from edx.analytics.tasks.util import eventlog

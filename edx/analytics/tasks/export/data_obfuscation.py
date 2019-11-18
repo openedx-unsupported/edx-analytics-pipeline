@@ -8,10 +8,10 @@ import tarfile
 import tempfile
 import xml.etree.ElementTree
 
-import cjson
 import luigi
 import yaml
 
+import cjson
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util.file_util import copy_file_to_file, read_config_file

@@ -3,11 +3,11 @@ Tests for utilities that parse event logs.
 """
 from unittest import TestCase
 
-from ccx_keys.locator import CCXLocator
 from ddt import data, ddt, unpack
-from opaque_keys.edx.locator import CourseLocator
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+from ccx_keys.locator import CCXLocator
+from opaque_keys.edx.locator import CourseLocator
 
 VALID_COURSE_ID = unicode(CourseLocator(org='org', course='course_id', run='course_run'))
 VALID_LEGACY_COURSE_ID = "org/course_id/course_run"

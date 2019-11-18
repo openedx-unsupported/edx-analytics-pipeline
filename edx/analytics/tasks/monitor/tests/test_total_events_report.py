@@ -9,9 +9,9 @@ import textwrap
 from StringIO import StringIO
 from unittest import TestCase
 
-import pandas
 from mock import MagicMock
 
+import pandas
 from edx.analytics.tasks.monitor.total_events_report import TotalEventsReport
 from edx.analytics.tasks.util.tests.target import FakeTarget
 

@@ -7,7 +7,6 @@ import logging
 import os
 
 import pandas
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, coerce_columns_to_string, when_vertica_available
 from edx.analytics.tasks.util.url import url_path_join
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord

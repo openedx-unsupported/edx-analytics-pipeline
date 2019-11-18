@@ -9,12 +9,12 @@ import logging
 import math
 from operator import itemgetter
 
-import html5lib
 import luigi
 from luigi.configuration import get_config
 
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
+import html5lib
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTaskMixin
 from edx.analytics.tasks.common.pathutil import PathSetTask

@@ -2,7 +2,6 @@ import datetime
 import os
 
 import luigi
-from google.cloud import bigquery
 
 from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
 from edx.analytics.tasks.common.pathutil import PathSetTask
@@ -13,6 +12,7 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import
     CourseRecord, CourseSeatRecord, CourseSubjectRecord, ProgramCourseRecord
 )
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
+from google.cloud import bigquery
 
 
 class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTask):

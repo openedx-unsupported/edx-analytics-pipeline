@@ -7,9 +7,9 @@ import logging
 import os
 from cStringIO import StringIO
 
-import pandas
 from ddt import data, ddt
 
+import pandas
 from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.url import url_path_join

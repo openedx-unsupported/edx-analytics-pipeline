@@ -4,7 +4,6 @@ import tempfile
 from unittest import TestCase
 
 import gnupg
-
 from edx.analytics.tasks.util.encrypt import _import_key_files, make_encrypted_file
 from edx.analytics.tasks.util.tempdir import make_temp_directory
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join

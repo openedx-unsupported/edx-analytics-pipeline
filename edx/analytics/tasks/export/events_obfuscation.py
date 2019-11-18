@@ -6,9 +6,9 @@ import os
 import re
 from collections import defaultdict, namedtuple
 
-import cjson
 import luigi.date_interval
 
+import cjson
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import PathSetTask

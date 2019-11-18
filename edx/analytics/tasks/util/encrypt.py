@@ -7,7 +7,6 @@ import tempfile
 from contextlib import contextmanager
 
 import gnupg
-
 from edx.analytics.tasks.util.file_util import copy_file_to_file
 from edx.analytics.tasks.util.tempdir import make_temp_directory
 

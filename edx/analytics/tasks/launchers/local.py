@@ -15,27 +15,27 @@ import sys
 import warnings
 from contextlib import contextmanager
 
-import boto
-import bson
 import certifi
 import chardet
-import ciso8601
-import cjson
-import filechunkio
 import idna
 import luigi
 import luigi.configuration
 import luigi.contrib.hadoop
 import luigi.retcodes
-import opaque_keys
 import pyinstrument
 import pytz
 import requests
 import six
-import stevedore
 import urllib3
 
+import boto
+import bson
+import ciso8601
+import cjson
 import edx.analytics.tasks
+import filechunkio
+import opaque_keys
+import stevedore
 
 # Tell urllib3 to switch the ssl backend to PyOpenSSL.
 # see https://urllib3.readthedocs.org/en/latest/security.html#pyopenssl

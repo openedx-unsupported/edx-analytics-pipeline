@@ -8,11 +8,10 @@ import logging
 import os.path
 import re
 
-from pandas import read_csv
-from pandas.util.testing import assert_frame_equal
-
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param
 from edx.analytics.tasks.util.url import url_path_join
+from pandas import read_csv
+from pandas.util.testing import assert_frame_equal
 
 log = logging.getLogger(__name__)
 

@@ -4,9 +4,8 @@ Test for tasks extensions using entry points
 """
 from unittest import TestCase
 
-from stevedore.extension import ExtensionManager
-
 from edx.analytics.tasks import EXTENSION_NAMESPACE
+from stevedore.extension import ExtensionManager
 
 
 class TestExtensions(TestCase):

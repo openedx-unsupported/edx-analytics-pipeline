@@ -7,7 +7,6 @@ import logging
 import os
 
 import pandas
-
 from edx.analytics.tasks.tests.acceptance import (
     AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available
 )

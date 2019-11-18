@@ -4,10 +4,10 @@ import datetime
 import json
 import unittest
 
-import ciso8601
 import luigi
 from ddt import data, ddt, unpack
 
+import ciso8601
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin
 from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value

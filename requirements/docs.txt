@@ -9,8 +9,8 @@
 -e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
 -e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
 alabaster==0.7.12         # via sphinx
-ansible==1.4.5
-argparse==1.2.1
+ansible==2.9.1
+argparse==1.4.0
 asn1crypto==1.2.0
 azure-common==1.1.23
 azure-nspkg==3.0.2
@@ -20,37 +20,38 @@ azure-storage-nspkg==3.1.0
 babel==2.7.0              # via sphinx
 backports-abc==0.5
 bcrypt==3.1.7
-boto3==1.4.8
-boto==2.48.0
-botocore==1.8.50
+boto3==1.10.19
+boto==2.49.0
+botocore==1.13.19
 cachetools==3.1.1
 certifi==2019.9.11
-cffi==1.13.1
+cffi==1.13.2
 chardet==3.0.4
-ciso8601==1.0.3
+ciso8601==2.1.2
 cryptography==2.8
 distlib==0.2.2
 docutils==0.15.2
-ecdsa==0.13
-edx-ccx-keys==0.2.1
-edx-opaque-keys==0.4
-elasticsearch==1.7.0
+ecdsa==0.14.1
+edx-ccx-keys==1.0.0
+edx-opaque-keys==2.0.1
+elasticsearch==7.1.0
 enum34==1.1.6
 filechunkio==1.8
-future==0.18.1
+future==0.18.2
 futures==3.3.0
-google-api-python-client==1.7.7
+google-api-core==1.14.3
+google-api-python-client==1.7.11
 google-auth-httplib2==0.0.3
-google-auth==1.6.3
-google-cloud-bigquery==0.27.0
-google-cloud-core==0.27.1
-google-resumable-media==0.4.1
+google-auth==1.7.1
+google-cloud-bigquery==1.22.0
+google-cloud-core==1.0.3
+google-resumable-media==0.5.0
 googleapis-common-protos==1.6.0
 graphitesend==0.10.0
 gspread==3.1.0
-html5lib==1.0b3
+html5lib==1.0.1
 httplib2==0.14.0
-idna==2.6
+idna==2.8
 ijson==2.5.1
 imagesize==1.1.0          # via sphinx
 ipaddress==1.0.23
@@ -59,47 +60,52 @@ jinja2==2.10.3
 jmespath==0.9.4
 lockfile==0.12.2
 markupsafe==1.1.1
-numpy==1.11.3
+numpy==1.16.5
 oscrypto==1.1.0
+packaging==19.2           # via sphinx
 paramiko==2.6.0
-paypalrestsdk==1.9.0
+paypalrestsdk==1.13.1
 pbr==5.4.3
 protobuf==3.10.0
-psycopg2==2.6.2
+psycopg2==2.8.4
 pyasn1-modules==0.2.7
-pyasn1==0.4.7
+pyasn1==0.4.8
 pycparser==2.19
 pycrypto==2.6.1
-pycryptodomex==3.9.0
+pycryptodomex==3.9.3
 pygeoip==0.3.2
 pygments==2.4.2           # via sphinx
 pyjwt==1.7.1
 pymongo==3.9.0
 pynacl==1.3.0
-pyopenssl==19.0.0
-python-cjson==1.1.0
-python-daemon==2.1.2
-python-dateutil==2.6.1
-python-gnupg==0.3.9
-pytz==2017.3
+pyopenssl==19.1.0
+pyparsing==2.4.5          # via packaging
+python-cjson==1.2.1
+python-daemon==2.2.4
+python-dateutil==2.8.0
+python-gnupg==0.4.5
+pytz==2019.3
 pyyaml==5.1.2
-requests==2.18.4
+requests==2.22.0
 rsa==4.0
-s3transfer==0.1.13
+s3transfer==0.2.1
 singledispatch==3.4.0.3
-six==1.10.0
+six==1.13.0
 snowballstemmer==2.0.0    # via sphinx
-snowflake-connector-python==2.0.2
-sphinx==1.5.1
-stevedore==1.19.1
+snowflake-connector-python==2.0.4
+sphinx==1.8.5
+sphinxcontrib-websupport==1.1.2  # via sphinx
+stevedore==1.31.0
 tornado==4.5.3
-ua-parser==0.3.6
+typing==3.7.4.1           # via sphinx
+ua-parser==0.8.0
 uritemplate==3.0.0
-urllib3==1.22
-user-agents==0.3.2
-vertica-python==0.6.11
-wheel==0.30.0
-yarn-api-client==0.2.3
+urllib3==1.24.3
+user-agents==2.0
+vertica-python==0.10.0
+webencodings==0.5.1
+wheel==0.33.6
+yarn-api-client==1.0.1
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools==41.4.0        # via google-cloud-core, protobuf, python-daemon
+# setuptools==41.6.0        # via google-api-core, google-auth, protobuf, python-daemon, sphinx
