@@ -322,9 +322,9 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CombineCourseEnrollments/'))
 
-CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
-CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
-CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
+# CombineCourseEnrollments = inherits(ExportVerticaTableToS3Task)(CombineCourseEnrollmentsTask)
+# CombineCourseEnrollments.__name__ = 'CombineCourseEnrollments'
+# CombineCourseEnrollments.__class__._reg.append(CombineCourseEnrollments)
 
 class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapReduceJobTask):
     """
@@ -384,7 +384,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     )
 
     def requires(self):
-        return self.clone(CombineCourseEnrollments)
+        return self.clone(CombineCourseEnrollmentsTask)
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each learner enrolled in a program."""
@@ -683,14 +683,14 @@ def string_to_bool(value):
 # of class A, A appears twice. When super() in called in the run method, A is returned, leading to infinite recursion.
 # In future versions of Luigi, this is fixed. This is a temporary workaround.
 
-CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
-CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
-CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
+# CountCourseEnrollments = inherits(CombineCourseEnrollments)(CountCourseEnrollmentsTask)
+# CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
+# CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
 
-CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
-CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
-CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
+# CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
+# CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
+# CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
-BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
-BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
-BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
+# BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
+# BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
+# BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
