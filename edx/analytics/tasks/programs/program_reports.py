@@ -246,7 +246,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
-        fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+        fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER)
 
         authoring_org = fields[self.AUTHORING_ORG_INDEX]
         program_title = fields[self.PROGRAM_TITLE_INDEX]
