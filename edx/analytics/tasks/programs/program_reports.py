@@ -242,7 +242,16 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapR
     )
 
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        # return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return ExportVerticaTableToS3Task(
+            vertica_schema_name=self.vertica_schema_name,
+            sqoop_null_string=self.sqoop_null_string,
+            sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+            overwrite=self.overwrite_export and self.overwrite,
+            vertica_credentials=self.vertica_credentials,
+            vertica_warehouse_name=self.vertica_warehouse_name,
+            table_name=self.table_name,
+        )
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
