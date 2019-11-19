@@ -3,11 +3,12 @@
 import datetime
 import logging
 import re
+import ciso8601
+import pytz
+
 from six.moves import zip_longest
 from collections import OrderedDict
 
-import ciso8601
-import pytz
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
 try:
