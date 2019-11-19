@@ -7,9 +7,8 @@ from collections import OrderedDict
 
 import ciso8601
 import pytz
-from six.moves import zip_longest
-
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
+from six.moves import zip_longest
 
 try:
     from google.cloud.bigquery import SchemaField
