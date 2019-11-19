@@ -8,10 +8,10 @@ from unittest import TestCase
 
 import luigi
 import luigi.task
-from mock import MagicMock, patch, sentinel
 
 from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.warehouse.run_vertica_sql_script import RunVerticaSqlScriptTask
+from mock import MagicMock, patch, sentinel
 
 
 class RunVerticaSqlScriptTaskTest(TestCase):
