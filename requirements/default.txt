@@ -46,7 +46,7 @@ google-resumable-media==0.4.1  # via google-cloud-bigquery
 googleapis-common-protos==1.6.0  # via google-cloud-core
 graphitesend==0.10.0
 gspread==3.1.0
-html5lib==1.0b3
+html5lib==1.0.1
 httplib2==0.14.0
 idna==2.6                 # via requests, snowflake-connector-python
 ijson==2.5.1              # via snowflake-connector-python

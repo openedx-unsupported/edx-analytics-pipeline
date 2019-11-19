@@ -6,5 +6,8 @@ nick: pipe
 tags:
   - analytics
   - data-engineering
-oeps: {}
+  - backend-toolings
+oeps:
+    oep-2: True
+    oep-10: True
 openedx-release: {ref: release}
