@@ -1,9 +1,12 @@
 """Tests for Sqoop import task."""
 
+from __future__ import absolute_import
+
 import json
 import textwrap
 import unittest
 
+import six
 from mock import MagicMock, Mock, patch, sentinel
 
 from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql, SqoopImportFromVertica
@@ -79,7 +82,7 @@ class SqoopImportTestCase(unittest.TestCase):
             "additional_metadata": additional_metadata,
         }
         # remove options marked as None
-        trimmed_kws = {k: v for k, v in kw_args.iteritems() if v is not None}
+        trimmed_kws = {k: v for k, v in six.iteritems(kw_args) if v is not None}
         task = SqoopImportFromVertica(**trimmed_kws)
         return task
 

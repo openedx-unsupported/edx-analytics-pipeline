@@ -13,12 +13,12 @@ from __future__ import absolute_import
 import logging
 import os
 import time
-import urlparse
 
 import luigi
 import luigi.configuration
 import luigi.contrib.hdfs
 import luigi.contrib.s3
+import six.moves.urllib.parse
 from luigi.contrib.hdfs import format as hdfs_format
 from luigi.contrib.hdfs.target import HdfsTarget
 from luigi.contrib.s3 import S3Target
@@ -124,7 +124,7 @@ URL_SCHEME_TO_MARKER_TARGET_CLASS = {
 
 def get_target_class_from_url(url, marker=False):
     """Returns a luigi target class based on the url scheme"""
-    parsed_url = urlparse.urlparse(url)
+    parsed_url = six.moves.urllib.parse.urlparse(url)
 
     if marker:
         target_class = URL_SCHEME_TO_MARKER_TARGET_CLASS.get(parsed_url.scheme, DEFAULT_MARKER_TARGET_CLASS)
@@ -174,6 +174,6 @@ def url_path_join(url, *extra_path):
     Returns:
         The URL with the path component joined with `extra_path` argument.
     """
-    (scheme, netloc, path, params, query, fragment) = urlparse.urlparse(url)
+    (scheme, netloc, path, params, query, fragment) = six.moves.urllib.parse.urlparse(url)
     joined_path = os.path.join(path, *extra_path)
-    return urlparse.urlunparse((scheme, netloc, joined_path, params, query, fragment))
+    return six.moves.urllib.parse.urlunparse((scheme, netloc, joined_path, params, query, fragment))

@@ -1,11 +1,16 @@
+from __future__ import absolute_import, print_function
+
 import json
 import sys
+
 import boto3
 import graphitesend
 import requests
+import six
 import yaml
-from edx.analytics.tasks.util.retry import retry
 from yarn_api_client import HistoryServer
+
+from edx.analytics.tasks.util.retry import retry
 
 
 def query_metadata_service(path=''):
@@ -22,7 +27,7 @@ def query_metadata_service(path=''):
         r = requests.get('http://169.254.169.254/latest/meta-data/' + path)
         return r.text
     except Exception as e:
-        print "[collect-hadoop-metrics] exception when querying instance metadata service for path '{}': {}".format(path, e)
+        print("[collect-hadoop-metrics] exception when querying instance metadata service for path '{}': {}".format(path, e))
         return None
 
 
@@ -69,7 +74,7 @@ def get_job_flow_id():
             parsed = json.loads(job_flow_file.read())
             job_flow_id = parsed.get('jobFlowId', None)
     except:
-        print "[collect-hadoop-metrics] Error reading job flow information.  Not on AWS/EMR?"
+        print("[collect-hadoop-metrics] Error reading job flow information.  Not on AWS/EMR?")
 
     return job_flow_id
 
@@ -86,7 +91,7 @@ def get_cluster_name():
 
             return cluster['Cluster']['Name']
         except:
-            print "[collect-hadoop-metrics] Error querying EMR API for cluster name"
+            print("[collect-hadoop-metrics] Error querying EMR API for cluster name")
             return None
 
     return None
@@ -171,7 +176,7 @@ def facet_metrics(metrics, templates, context={}):
     """
     output_metrics = []
 
-    for metric, data in metrics.iteritems():
+    for metric, data in six.iteritems(metrics):
         # Merge our context with any tags for the metric.
         merged_context = context.copy()
         merged_context.update(data.get('context', {}))
@@ -199,9 +204,9 @@ def collect_metrics(hs_address, metric_templates):
     # Load up the context for where we're running.
     context = get_context()
 
-    print "[collect-hadoop-metrics] Context for this run:"
-    for (k,v) in context.iteritems():
-        print "                 {} => {}".format(k, v)
+    print("[collect-hadoop-metrics] Context for this run:")
+    for (k,v) in six.iteritems(context):
+        print("                 {} => {}".format(k, v))
 
     formatted_metrics = {}
 
@@ -211,7 +216,7 @@ def collect_metrics(hs_address, metric_templates):
 
     jobs = response.data.get('jobs', {})
     if jobs is None:
-        print "[collect-hadoop-metrics] HistoryServer indicates no jobs have run.  Exiting."
+        print("[collect-hadoop-metrics] HistoryServer indicates no jobs have run.  Exiting.")
         sys.exit(0)
 
     job_instances = {}
@@ -256,7 +261,7 @@ def collect_metrics(hs_address, metric_templates):
 if __name__ == "__main__":
     # Load our configuration.
     if len(sys.argv) < 2:
-        print "[collect-hadoop-metrics] You must specify the configuration file to load!  Exiting."
+        print("[collect-hadoop-metrics] You must specify the configuration file to load!  Exiting.")
         sys.exit(0)
 
     conf_file = sys.argv[1]
@@ -266,7 +271,7 @@ if __name__ == "__main__":
         with open(conf_file, 'r') as f:
             config = yaml.load(f)
     except IOError:
-        print "[collect-hadoop-metrics] Error reading configuration file or configuration does not exist!  Exiting."
+        print("[collect-hadoop-metrics] Error reading configuration file or configuration does not exist!  Exiting.")
         sys.exit(0)
 
     input_config = config.get('input', {})
@@ -279,10 +284,10 @@ if __name__ == "__main__":
     if hs_address is None:
         hs_address = get_local_address_on_emr()
     if hs_address is None:
-        print "[collect-hadoop-metrics] No HistoryServer address specified and unable to query instance metadata!  Exiting."
+        print("[collect-hadoop-metrics] No HistoryServer address specified and unable to query instance metadata!  Exiting.")
         sys.exit(0)
 
-    print "[collect-hadoop-metrics] Targeting HistoryServer at '{}'.".format(hs_address)
+    print("[collect-hadoop-metrics] Targeting HistoryServer at '{}'.".format(hs_address))
 
     graphite_config = output_config.get('graphite', {})
     graphite_host = graphite_config.get('host', 'localhost')
@@ -295,6 +300,6 @@ if __name__ == "__main__":
         stats_client = graphitesend.init(graphite_server=graphite_host, graphite_port=graphite_port, prefix=graphite_prefix, system_name='')
         stats_client.send_list(metrics)
     except Exception as ex:
-        print "[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex))
+        print("[collect-hadoop-metrics] Caught exception while running collection: {}".format(str(ex)))
 
-    print "[collect-hadoop-metrics] Done.  Exiting."
+    print("[collect-hadoop-metrics] Done.  Exiting.")

@@ -1,11 +1,14 @@
 """Group events by institution and export them for research purposes"""
 
+from __future__ import absolute_import
+
 import gzip
 import logging
 from collections import defaultdict
 
 import gnupg
 import luigi.date_interval
+import six
 import yaml
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
@@ -66,14 +69,14 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
 
         # If org_ids are specified, restrict the processed files to that set of primary org ids.
         if self.org_id:
-            organizations = {k: v for k, v in organizations.iteritems() if k in self.org_id}
+            organizations = {k: v for k, v in six.iteritems(organizations) if k in self.org_id}
 
         self.recipients_for_org_id = {}
         self.courses_for_org_id = {}
         self.primary_org_ids_for_org_id = defaultdict(list)
         self.org_id_whitelist = set()
 
-        for org_id, org_config in organizations.iteritems():
+        for org_id, org_config in six.iteritems(organizations):
             aliases = [org_id] + org_config.get('other_names', [])
 
             self.recipients_for_org_id[org_id] = set(org_config.get('recipients', []))
@@ -226,7 +229,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
                 # TODO: Handle other event source values (e.g. task).
                 return None
         except Exception:  # pylint: disable=broad-except
-            log.exception('Unable to determine organization for event: %s', unicode(event).encode('utf8'))
+            log.exception('Unable to determine organization for event: %s', six.text_type(event).encode('utf8'))
 
         return None
 
@@ -240,7 +243,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         evt_type = event['event_type']
         if '/courses/' in evt_type:
             course_key = opaque_key_util.get_course_key_from_url(evt_type)
-            if course_key and '/' not in unicode(course_key):
+            if course_key and '/' not in six.text_type(course_key):
                 return course_key.org
             else:
                 # It doesn't matter if we found a good deprecated key.
@@ -273,7 +276,7 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             # merely looked for what followed "http[s]://<host>/courses/"
             # (and also hoped there were no extra slashes or different content).
             course_key = opaque_key_util.get_course_key_from_url(page)
-            if course_key and '/' not in unicode(course_key):
+            if course_key and '/' not in six.text_type(course_key):
                 return course_key.org
             else:
                 # It doesn't matter if we found a good deprecated key.

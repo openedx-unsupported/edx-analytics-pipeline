@@ -1,10 +1,11 @@
 """
 Tests for S3-related utility functionality.
 """
-from __future__ import print_function
+from __future__ import absolute_import, print_function
 
 from unittest import TestCase
 
+import six
 from ddt import data, ddt, unpack
 from mock import MagicMock
 
@@ -33,7 +34,7 @@ class GenerateS3SourcesTestCase(TestCase):
         s3_bucket = MagicMock()
         s3_conn.get_bucket = MagicMock(return_value=s3_bucket)
         target_list = [self._make_key("{root}/{path}".format(root=root, path=path), size)
-                       for path, size in path_info.iteritems()]
+                       for path, size in six.iteritems(path_info)]
         s3_bucket.list = MagicMock(return_value=target_list)
         print([(k.key, k.size) for k in target_list])
 

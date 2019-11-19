@@ -1,6 +1,8 @@
 """
 Tests and test object for geolocation tests.
 """
+from __future__ import absolute_import
+
 from unittest import TestCase
 
 from mock import Mock

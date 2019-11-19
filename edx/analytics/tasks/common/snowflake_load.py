@@ -1,10 +1,13 @@
 """
 Support for loading data into a Snowflake database.
 """
+from __future__ import absolute_import
+
 import json
 import logging
 
 import luigi
+import six
 import snowflake.connector
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -23,7 +26,7 @@ def _execute_query(connection, query):
     except ProgrammingError as e:
         # Display the query along with the stack trace.
         import sys
-        raise type(e), type(e)(str(e) + "\nQuery: %s\n" % query), sys.exc_info()[2]
+        six.reraise(type(e), type(e)(str(e) + "\nQuery: %s\n" % query), sys.exc_info()[2])
 
 
 def qualified_table_name(database, schema, table):

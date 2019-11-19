@@ -2,6 +2,8 @@
 Tests for data obfuscation tasks.
 """
 
+from __future__ import absolute_import
+
 import errno
 import json
 import logging
@@ -14,6 +16,7 @@ from unittest import TestCase
 
 from luigi import LocalTarget
 from mock import MagicMock, sentinel
+from six.moves import zip
 
 import edx.analytics.tasks.export.data_obfuscation as obfuscate
 from edx.analytics.tasks.util.obfuscate_util import reset_user_info_for_testing

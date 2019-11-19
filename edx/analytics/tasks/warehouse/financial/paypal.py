@@ -6,6 +6,8 @@ documentation for the API:
 https://developer.paypal.com/docs/classic/payflow/reporting/
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
@@ -17,8 +19,10 @@ from decimal import Decimal
 
 import luigi
 import requests
+import six
 from luigi import date_interval
 from luigi.configuration import get_config
+from six.moves import range
 
 from edx.analytics.tasks.common.pathutil import PathSelectionByDateIntervalTask, PathSetTask
 from edx.analytics.tasks.util.hive import WarehouseMixin
@@ -228,7 +232,7 @@ class PaypalApiRequest(object):
 
         for attribute in ('user', 'vendor', 'partner', 'password'):
             child_node = ET.SubElement(auth_node, attribute)
-            child_node.text = unicode(getattr(self, attribute))
+            child_node.text = six.text_type(getattr(self, attribute))
 
     def append_request_node(self, root_node):
         """Inject the request-specific elements into the request."""
@@ -339,17 +343,17 @@ class PaypalReportRequest(PaypalApiRequest):
         # WARNING: the paypal XML parser is position sensitive. Do NOT change the ordering of the fields in the request.
         request_node = ET.SubElement(root_node, 'runReportRequest')
         name_node = ET.SubElement(request_node, 'reportName')
-        name_node.text = unicode(self.report_name)
+        name_node.text = six.text_type(self.report_name)
 
-        for param_name, param_value in self.report_params.iteritems():
+        for param_name, param_value in six.iteritems(self.report_params):
             param_node = ET.SubElement(request_node, 'reportParam')
             param_name_node = ET.SubElement(param_node, 'paramName')
-            param_name_node.text = unicode(param_name)
+            param_name_node.text = six.text_type(param_name)
             param_value_node = ET.SubElement(param_node, 'paramValue')
-            param_value_node.text = unicode(param_value)
+            param_value_node.text = six.text_type(param_value)
 
         page_size_node = ET.SubElement(request_node, 'pageSize')
-        page_size_node.text = unicode(self.page_size)
+        page_size_node.text = six.text_type(self.page_size)
 
 
 ColumnMetadata = namedtuple('ColumnMetadata', ('name', 'data_type'))  # pylint: disable=invalid-name
@@ -411,7 +415,7 @@ class PaypalReportMetadataRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getMetaDataRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
 
 
 class PaypalReportDataResponse(PaypalApiResponse):
@@ -465,9 +469,9 @@ class PaypalReportDataRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getDataRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
         page_num_node = ET.SubElement(request_node, 'pageNum')
-        page_num_node.text = unicode(self.page_num)
+        page_num_node.text = six.text_type(self.page_num)
 
 
 class PaypalReportResultsRequest(PaypalApiRequest):
@@ -487,7 +491,7 @@ class PaypalReportResultsRequest(PaypalApiRequest):
     def append_request_node(self, root_node):
         request_node = ET.SubElement(root_node, 'getResultsRequest')
         report_id_node = ET.SubElement(request_node, 'reportId')
-        report_id_node.text = unicode(self.report_id)
+        report_id_node.text = six.text_type(self.report_id)
 
 
 BaseSettlementReportRecord = namedtuple('SettlementReportRecord', [  # pylint: disable=invalid-name

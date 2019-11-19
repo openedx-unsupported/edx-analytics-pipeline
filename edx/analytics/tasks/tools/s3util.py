@@ -1,5 +1,7 @@
 """Command-line utility for using (and testing) s3 utility methods."""
 
+from __future__ import absolute_import, print_function
+
 import argparse
 import os
 
@@ -14,7 +16,7 @@ def list_s3_files(source_url, patterns):
     for bucket, root, path in generate_s3_sources(s3_conn, source_url, patterns):
         source = join_as_s3_url(bucket, root, path)
         src_key = get_s3_key(s3_conn, source)
-        print "%10d %s" % (src_key.size if src_key is not None else -1, path)
+        print("%10d %s" % (src_key.size if src_key is not None else -1, path))
 
 
 def get_s3_files(source_url, dest_root, patterns):
@@ -28,7 +30,7 @@ def get_s3_files(source_url, dest_root, patterns):
         if src_key is not None:
             src_key.get_contents_to_filename(destination)
         else:
-            print "No key for source " + source
+            print("No key for source " + source)
 
 
 def main():

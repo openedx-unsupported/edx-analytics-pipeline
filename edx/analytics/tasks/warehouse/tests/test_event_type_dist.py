@@ -1,4 +1,6 @@
 """ test event type distribution task """
+from __future__ import absolute_import
+
 import textwrap
 from unittest import TestCase
 

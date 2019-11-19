@@ -2,6 +2,8 @@
 End to end test of problem response reporting workflow.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

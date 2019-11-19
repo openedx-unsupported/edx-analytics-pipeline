@@ -1,8 +1,11 @@
 """event_type and event_source values being encountered on each day in a given time interval"""
 
+from __future__ import absolute_import
+
 import logging
 
 import luigi.task
+import six
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
@@ -60,7 +63,7 @@ class EventTypeDistributionTask(EventLogSelectionMixin, MapReduceJobTask):
             event_category = 'unknown'
         # Make sure that event_type doesn't have embedded newlines and such, but do so
         # after checking that it's not None.
-        event_type = backslash_encode_value(unicode(event_type))
+        event_type = backslash_encode_value(six.text_type(event_type))
         yield (event_date, event_category, event_type, event_source, exported), 1
 
     def reducer(self, key, values):

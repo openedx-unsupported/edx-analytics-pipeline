@@ -1,11 +1,14 @@
 """Categorize activity of users."""
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 from collections import Counter
 
 import luigi
 import luigi.date_interval
+import six
 
 import edx.analytics.tasks.util.eventlog as eventlog
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
@@ -118,7 +121,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
     def multi_output_reducer(self, _date_string, values, output_file):
         counter = Counter(values)
 
-        for key, num_events in counter.iteritems():
+        for key, num_events in six.iteritems(counter):
             user_id, course_id, date_string, label = key
             value = (user_id, course_id, date_string, label, num_events)
             output_file.write('\t'.join([str(field) for field in value]))

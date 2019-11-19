@@ -1,10 +1,13 @@
 """
 Tests for internal reporting database tasks.
 """
+from __future__ import absolute_import
+
 from unittest import TestCase
 
 from ddt import data, ddt, unpack
 from mock import patch
+from six.moves import zip
 
 from edx.analytics.tasks.warehouse.load_internal_reporting_database import (
     ImportMysqlDatabaseToBigQueryDatasetTask, ImportMysqlToVerticaTask, LoadMysqlToBigQueryTableTask,

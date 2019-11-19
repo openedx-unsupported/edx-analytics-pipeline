@@ -1,10 +1,14 @@
+from __future__ import absolute_import
+
+import six
+
+from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
+
 try:
     import elasticsearch
     from elasticsearch.connection import Urllib3HttpConnection
 except ImportError:
     elasticsearch = None
-
-from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 
 
 class ElasticsearchService(object):
@@ -35,7 +39,7 @@ class ElasticsearchService(object):
             return
 
         response = self._elasticsearch_client.indices.get_aliases(name=self._alias)
-        for index, alias_info in response.iteritems():
+        for index, alias_info in six.iteritems(response):
             for alias in alias_info['aliases'].keys():
                 if alias == self._alias:
                     self._elasticsearch_client.indices.delete(index=index)

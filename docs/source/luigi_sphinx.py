@@ -1,11 +1,14 @@
 """
 Helper methods for generating Sphinx documentation for luigi.Task subclasses.
 """
-import re
-import inspect
-import luigi
+from __future__ import absolute_import
 
+import inspect
+import re
+
+import luigi
 from luigi.parameter import _no_value
+
 
 def append_parameters(_app, _what, _name, obj, _options, lines):
     """

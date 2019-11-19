@@ -1,4 +1,8 @@
+from __future__ import absolute_import
+
 import os
+
+from six.moves import map
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
 from edx.analytics.tasks.util.record import DateTimeField, FloatField, IntegerField, Record, StringField
@@ -53,7 +57,7 @@ class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
             return ['\\N' if x == 'NULL' else x for x in row]
 
         output_rows = [x.split('\t') for x in hive_output.splitlines() if '\t' in x]
-        output_rows = map(map_null_to_hive_null, output_rows)
+        output_rows = list(map(map_null_to_hive_null, output_rows))
 
         output_records = [GradesPersistentCourseGradeRecord.from_string_tuple(row) for row in output_rows]
 

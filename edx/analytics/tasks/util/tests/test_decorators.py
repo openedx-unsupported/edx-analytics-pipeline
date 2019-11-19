@@ -2,6 +2,8 @@
 Test the edx.analytics.tasks.util.decorators methods
 """
 
+from __future__ import absolute_import
+
 from unittest import TestCase
 
 from edx.analytics.tasks.util import decorators

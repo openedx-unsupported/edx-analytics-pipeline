@@ -91,7 +91,7 @@ test-acceptance-local-all-py3:
 	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
 
 quality-local:
-	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/'
+	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/ --diff'
 	pycodestyle edx
 
 quality-docker-local:
@@ -108,7 +108,7 @@ coverage-local: test-local
 	python -m coverage xml -o coverage.xml
 	diff-cover coverage.xml --html-report diff_cover.html
 
-	isort --check-only --recursive edx/
+	isort --check-only --recursive edx/ --diff
 
 	# Compute pep8 quality
 	diff-quality --violations=pycodestyle --html-report diff_quality_pep8.html

@@ -1,5 +1,7 @@
 """Test metrics for student engagement with modules"""
 
+from __future__ import absolute_import
+
 import datetime
 import json
 from unittest import TestCase
@@ -306,7 +308,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
     input_record = ModuleEngagementRecord(
         course_id='foo/bar/baz',
         username='test_user',
-        date=datetime.date(2014, 03, 26),
+        date=datetime.date(2014, 0o3, 26),
         entity_type='problem',
         entity_id='problem-id',
         event='attempted',
@@ -353,7 +355,7 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
         self._check_output_by_record_field(
             [
                 self.input_record.to_separated_values(),
-                self.input_record.replace(date=datetime.date(2014, 03, 27)).to_separated_values()
+                self.input_record.replace(date=datetime.date(2014, 0o3, 27)).to_separated_values()
             ],
             {
                 'problem_attempts': '2',
@@ -412,9 +414,9 @@ class ModuleEngagementSummaryDataTaskReducerTest(ReducerTestMixin, TestCase):
             [
                 self.input_record.replace(count=4).to_separated_values(),
                 self.input_record.replace(event='completed').to_separated_values(),
-                self.input_record.replace(date=datetime.date(2014, 03, 27), entity_id='p2').to_separated_values(),
+                self.input_record.replace(date=datetime.date(2014, 0o3, 27), entity_id='p2').to_separated_values(),
                 self.input_record.replace(
-                    date=datetime.date(2014, 03, 27),
+                    date=datetime.date(2014, 0o3, 27),
                     entity_id='p2',
                     event='completed',
                 ).to_separated_values(),

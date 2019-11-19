@@ -1,9 +1,13 @@
 
-import ConfigParser
+from __future__ import absolute_import
+
 import logging
 import os
 import sys
 import tempfile
+
+import six
+import six.moves.configparser
 
 from edx.analytics.tasks.tests.acceptance.services import shell
 
@@ -31,7 +35,7 @@ class TaskService(object):
     def launch(self, task_args, config_override=None):
         self.delete_existing_logs()
 
-        config_parser = ConfigParser.ConfigParser()
+        config_parser = six.moves.configparser.ConfigParser()
         config_parser.read(os.environ['LUIGI_CONFIG_PATH'])
         self.override_config(config_parser, self.default_config_override)
         if config_override:
@@ -103,18 +107,18 @@ class TaskService(object):
                 pass
 
     def override_config(self, config_parser, overrides):
-        for section_name, section in overrides.iteritems():
+        for section_name, section in six.iteritems(overrides):
             if not config_parser.has_section(section_name):
                 config_parser.add_section(section_name)
 
-            for key, value in section.iteritems():
+            for key, value in six.iteritems(section):
                 config_parser.set(section_name, key, value)
 
     def write_logs_to_standard_streams(self):
         if not self.log_path:
             return
 
-        for filename, output_file in self.logs.iteritems():
+        for filename, output_file in six.iteritems(self.logs):
             try:
                 with open(os.path.join(self.log_path, filename), 'r') as src_file:
                     while True:

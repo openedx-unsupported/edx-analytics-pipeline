@@ -2,10 +2,13 @@
 End to end test of the d_user_course_certificates table loading task.
 """
 
+from __future__ import absolute_import
+
 import logging
 import os
 
 import pandas
+from six.moves import map
 
 from edx.analytics.tasks.tests.acceptance import (
     AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available
@@ -47,7 +50,7 @@ class InternalReportingCertificateLoadAcceptanceTest(AcceptanceTestCase):
 
             cursor.execute("SELECT * FROM {schema}.d_user_course_certificate".format(schema=self.vertica.schema_name))
             response = cursor.fetchall()
-            d_user_course_certificate = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+            d_user_course_certificate = pandas.DataFrame(list(map(coerce_columns_to_string, response)), columns=columns)
 
             for frame in (d_user_course_certificate, expected):
                 frame.sort(['user_id'], inplace=True, ascending=[True])

@@ -2,6 +2,8 @@
 Tests for geolocation-per-course tasks.
 """
 
+from __future__ import absolute_import
+
 import json
 import textwrap
 from unittest import TestCase

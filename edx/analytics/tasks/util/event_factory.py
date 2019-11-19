@@ -1,6 +1,10 @@
 """Define factory class for creating synthetic events."""
+from __future__ import absolute_import
+
 import datetime
 import json
+
+import six
 
 
 class SyntheticEventFactory(object):
@@ -25,7 +29,7 @@ class SyntheticEventFactory(object):
     @staticmethod
     def _update_with_kwargs(data_dict, **kwargs):
         """Updates a dict from kwargs only if it modifies a top-level value."""
-        for key, value in kwargs.iteritems():
+        for key, value in six.iteritems(kwargs):
             if key in data_dict:
                 data_dict[key] = value
 

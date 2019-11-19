@@ -2,6 +2,8 @@
 Support for running multiple SQL scripts against an HP Vertica database in a deterministic fashion.
 """
 
+from __future__ import absolute_import
+
 import logging
 from os import path
 

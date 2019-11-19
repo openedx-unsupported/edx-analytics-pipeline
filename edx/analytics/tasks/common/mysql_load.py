@@ -1,12 +1,15 @@
 """
 Support for loading data into a Mysql database.
 """
+from __future__ import absolute_import
+
 import json
 import logging
 import traceback
 from itertools import chain
 
 import luigi.configuration
+import six
 from luigi.contrib.mysqldb import MySqlTarget
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -310,7 +313,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
 
     def insert_rows(self, cursor):
         """Inserts row values from source into database table."""
-        if isinstance(self.columns[0], basestring):
+        if isinstance(self.columns[0], six.string_types):
             column_names = ','.join([name for name in self.columns])
         elif len(self.columns[0]) == 2:
             column_names = ','.join([name for name, _type in self.columns])
@@ -431,7 +434,7 @@ def coerce_for_mysql_connect(input):
     The most important case is the conversion of string 'None' to actual None, and also the conversion
     of str to decoded utf-8 unicode
     """
-    if not isinstance(input, basestring):
+    if not isinstance(input, six.string_types):
         return input
     # Hive indicates a null value with the string "\N"
     # We represent an infinite value with the string "inf", MySQL has no such representation so we use NULL

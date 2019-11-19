@@ -1,4 +1,6 @@
 """Obfuscate course state files by removing and stubbing user information."""
+from __future__ import absolute_import
+
 import csv
 import json
 import logging
@@ -10,7 +12,9 @@ import xml.etree.ElementTree
 
 import cjson
 import luigi
+import six
 import yaml
+from six.moves import range
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.pathutil import PathSetTask
@@ -123,7 +127,7 @@ class ObfuscateAuthUserTask(ObfuscateSqlDumpTask):
         row[4] = ''  # email
         row[5] = ''  # passwords
 
-        for i in xrange(11, len(row)):
+        for i in range(11, len(row)):
             row[i] = ''
 
         return row
@@ -345,7 +349,7 @@ class XBlockConfigMixin(object):
 
         if not hasattr(self, '_field_lists'):
             self._field_lists = {}
-            for category, block_config in self.xblock_config['xblocks'].iteritems():
+            for category, block_config in six.iteritems(self.xblock_config['xblocks']):
                 self._field_lists[category] = {
                     'whitelist': frozenset(block_config.get('fields', []) + self.xblock_config.get('fields', [])),
                     'blacklist': frozenset(
@@ -361,7 +365,7 @@ class XBlockConfigMixin(object):
         This modifies the dictionary in place. It is intended to be used on structures pulled from JSON files, XML files
         etc that enumerate fields on XBlocks.
         """
-        to_remove = frozenset(dict_to_modify.keys()) - self._get_field_list(block_type, 'whitelist')
+        to_remove = frozenset(list(dict_to_modify.keys())) - self._get_field_list(block_type, 'whitelist')
         for attribute in to_remove:
             dict_to_modify.pop(attribute)
             if attribute in self._get_field_list(block_type, 'blacklist'):

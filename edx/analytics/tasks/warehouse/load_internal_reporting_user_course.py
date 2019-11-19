@@ -1,6 +1,8 @@
 """
 Loads the user_course table into the warehouse through the pipeline via Hive.
 """
+from __future__ import absolute_import
+
 import logging
 
 import luigi

@@ -1,6 +1,8 @@
 """
 Produces report of all events as provided by a total events task
 """
+from __future__ import absolute_import
+
 import logging
 
 import luigi

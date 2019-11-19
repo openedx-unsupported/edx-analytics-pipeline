@@ -2,6 +2,8 @@
 End to end test of the CourseBlocksPartitionTask task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 

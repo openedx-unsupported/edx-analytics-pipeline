@@ -4,10 +4,13 @@ Store course block details sourced from the Course Blocks API into a hive table.
 See the CourseBlocksApiDataTask and CourseBlocksPartitionTask for details.
 """
 
+from __future__ import absolute_import
+
 import json
 import logging
 
 import luigi
+import six
 from requests.exceptions import HTTPError
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin
@@ -232,13 +235,13 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
             if self.sort_orphan_blocks_up:
                 no_sort_idx = -1
             else:
-                no_sort_idx = len(blocks.keys())
+                no_sort_idx = len(list(blocks.keys()))
 
             def order_by_sort_idx(key, blocks=blocks, default_sort_idx=no_sort_idx):
                 """Function to sort the blocks on sort_idx"""
                 return blocks[key].get('sort_idx', default_sort_idx)
 
-            for block_id in sorted(blocks.keys(), key=order_by_sort_idx):
+            for block_id in sorted(list(blocks.keys()), key=order_by_sort_idx):
                 block = blocks[block_id]
                 is_root = (block_id == root_id)
                 parents = block.get('parents', [])
@@ -250,12 +253,12 @@ class CourseBlocksApiDataTask(CourseBlocksDownstreamMixin, MapReduceJobTask):
                 if not is_root:
                     if len(parents) == 0:
                         is_orphan = True
-                        course_path = unicode(self.deleted_blocks_path)
+                        course_path = six.text_type(self.deleted_blocks_path)
                     else:
                         for parent_id in parents:
                             parent = blocks[parent_id]
                             if len(course_path) > 0:
-                                course_path += unicode(self.path_delimiter)
+                                course_path += six.text_type(self.path_delimiter)
                             course_path += parent['display_name']
 
                 record = CourseBlockRecord(

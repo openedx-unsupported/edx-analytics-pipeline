@@ -31,6 +31,8 @@ The worksheet titles are used as table names in Vertica, they can be
 128 characters long, beginning with an upper/lower alphabet or underscore,
 subsequent characters can include upper/lower alphabets, underscores and digits.
 """
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging
@@ -39,6 +41,7 @@ import luigi
 from google.auth.transport.requests import AuthorizedSession
 from google.oauth2 import service_account
 from gspread import client
+from six.moves import zip
 
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadFromHiveTSVTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
@@ -220,7 +223,7 @@ class LoadWorksheetToVertica(PullWorksheetMixin, VerticaCopyTask):
         columns = self.insert_source_task.columns
         column_types = self.insert_source_task.column_types
         mapped_types = [DATA_TYPE_MAPPING.get(column_type) for column_type in column_types]
-        return zip(columns, mapped_types)
+        return list(zip(columns, mapped_types))
 
 
 class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):

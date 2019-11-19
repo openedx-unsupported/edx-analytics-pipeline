@@ -2,6 +2,8 @@
 End to end test of video timelines.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 

@@ -1,5 +1,7 @@
 """Tests for elasticsearch loading."""
 
+from __future__ import absolute_import
+
 import datetime
 import unittest
 
@@ -8,6 +10,7 @@ import luigi.contrib.hdfs.target
 from elasticsearch import TransportError
 from freezegun import freeze_time
 from mock import call, patch
+from six.moves import range
 
 from edx.analytics.tasks.common.elasticsearch_load import AwsHttpConnection, ElasticsearchIndexTask, IndexingError
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin

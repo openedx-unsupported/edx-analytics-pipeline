@@ -1,10 +1,14 @@
 """Analyze log files produced by launch-task"""
 
+from __future__ import absolute_import
+
 import argparse
 import datetime
 import re
 import sys
 from collections import namedtuple
+
+import six
 
 from edx.analytics.tasks.tools.analyze.measure import Measurement
 from edx.analytics.tasks.tools.analyze.parser import LogFileParser
@@ -217,7 +221,7 @@ class LuigiTaskDescription(object):
         self.params = params or {}
 
     def __str__(self):
-        param_string = ', '.join(['='.join((k, str(v)[:100])) for k, v in self.params.iteritems()])
+        param_string = ', '.join(['='.join((k, str(v)[:100])) for k, v in six.iteritems(self.params)])
         return '{name}{params}'.format(
             name=self.name,
             params='(' + param_string + ')' if len(self.params) > 0 else ''

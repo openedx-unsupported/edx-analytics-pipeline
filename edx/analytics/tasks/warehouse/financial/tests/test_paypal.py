@@ -1,4 +1,6 @@
 
+from __future__ import absolute_import
+
 import xml.etree.cElementTree as ET
 from collections import OrderedDict
 from cStringIO import StringIO
@@ -6,8 +8,10 @@ from unittest import TestCase
 
 import httpretty
 import luigi
+import six
 from ddt import data, ddt, unpack
 from mock import MagicMock, call, patch
+from six.moves import zip
 
 from edx.analytics.tasks.util.tests.config import with_luigi_config
 from edx.analytics.tasks.util.tests.target import FakeTarget
@@ -42,7 +46,7 @@ class XmlRequestMixin(object):
 
     def set_xml_node_text(self, path, value):
         element = self.response_xml_root.findall(path)[0]
-        element.text = unicode(value)
+        element.text = six.text_type(value)
 
     def parse_request_xml(self):
         http_request = httpretty.last_request()

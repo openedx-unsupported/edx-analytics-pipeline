@@ -1,5 +1,7 @@
 """Represents an index in an elasticsearch cluster."""
 
+from __future__ import absolute_import
+
 import datetime
 import hashlib
 import logging

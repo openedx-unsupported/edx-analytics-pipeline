@@ -9,6 +9,7 @@ import unittest
 import luigi
 import luigi.task
 from mock import MagicMock, PropertyMock, call, patch, sentinel
+from six.moves import range
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, coerce_for_mysql_connect
 from edx.analytics.tasks.util.tests.config import with_luigi_config
@@ -159,7 +160,7 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
     def _get_source_string(self, num_rows=1):
         """Returns test data to be input to database table."""
         template = 'course{num}\t2014-05-01\t2014-05-08\tACTIVE\t{count}\n'
-        row_strings = [template.format(num=str(num + 1), count=str(num + 50)) for num in xrange(num_rows)]
+        row_strings = [template.format(num=str(num + 1), count=str(num + 50)) for num in range(num_rows)]
         source = ''.join(row_strings)
         return source
 
@@ -177,7 +178,7 @@ class MysqlInsertTaskTestCase(unittest.TestCase):
     def _get_expected_query_args(self, num_rows=1):
         """Returns query args that should be generated for given number of rows of input."""
         expected_row_args = []
-        for num in xrange(num_rows):
+        for num in range(num_rows):
             expected_row_args.append('course{num}'.format(num=str(num + 1)))
             expected_row_args.append('2014-05-01')
             expected_row_args.append('2014-05-08')

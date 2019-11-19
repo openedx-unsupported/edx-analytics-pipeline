@@ -1,5 +1,7 @@
 """Import Orders: Shopping Cart Tables from the LMS, Orders from Otto."""
 
+from __future__ import absolute_import
+
 import luigi
 
 from edx.analytics.tasks.insights.database_imports import (

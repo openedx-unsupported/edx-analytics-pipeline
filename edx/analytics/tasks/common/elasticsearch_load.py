@@ -1,11 +1,14 @@
 """Load records into elasticsearch clusters."""
 
+from __future__ import absolute_import
+
 import logging
 import random
 import time
 from itertools import islice
 
 import luigi
+import six
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
@@ -130,7 +133,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         # load of the new index.
         aliases = elasticsearch_client.indices.get_aliases(name=self.alias)
         self.indexes_for_alias.update(
-            [index for index, alias_info in aliases.iteritems() if self.alias in alias_info['aliases'].keys()]
+            [index for index, alias_info in six.iteritems(aliases) if self.alias in list(alias_info['aliases'].keys())]
         )
 
         if self.index in self.indexes_for_alias:

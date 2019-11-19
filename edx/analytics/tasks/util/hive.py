@@ -1,5 +1,7 @@
 """Various helper utilities that are commonly used when working with Hive"""
 
+from __future__ import absolute_import
+
 import logging
 import textwrap
 

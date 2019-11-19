@@ -1,10 +1,13 @@
 """Test the typed record utilities"""
 
+from __future__ import absolute_import
+
 import datetime
 import pickle
 from unittest import TestCase
 
 import dateutil
+import six
 from ddt import data, ddt, unpack
 
 from edx.analytics.tasks.util.record import (
@@ -270,7 +273,7 @@ class RecordTestCase(TestCase):
         test_record = SampleStruct('foo', 0, datetime.date(2015, 11, 1))
         self.assertEqual(str(test_record), "SampleStruct(name='foo', index=0, date=datetime.date(2015, 11, 1))")
         self.assertEqual(str(test_record), repr(test_record))
-        self.assertEqual(str(test_record), unicode(test_record))
+        self.assertEqual(str(test_record), six.text_type(test_record))
 
     def test_equality(self):
         left_record = SingleFieldRecord('a')

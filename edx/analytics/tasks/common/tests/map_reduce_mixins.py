@@ -1,9 +1,13 @@
 """Utility mixins that simplify tests for map reduce jobs."""
+from __future__ import absolute_import
+
 import datetime
 import json
 
 import luigi
 import luigi.task
+import six
+from six.moves import zip
 
 
 class MapperTestMixin(object):
@@ -217,7 +221,7 @@ class ReducerTestMixin(object):
             column_values = [column_values]
         self.assertEquals(len(output), len(column_values), '{0} != {1}'.format(output, column_values))
         for output_tuple, expected_columns in zip(output, column_values):
-            for column_num, expected_value in expected_columns.iteritems():
+            for column_num, expected_value in six.iteritems(expected_columns):
                 self.assertEquals(output_tuple[column_num], expected_value)
 
     def _check_output_tuple_with_key(self, inputs, expected):
@@ -248,5 +252,5 @@ class ReducerTestMixin(object):
             field_values = [field_values]
         self.assertEquals(len(output), len(field_values), '{0} != {1}'.format(output, field_values))
         for output_tuple, expected_field_values in zip(output, field_values):
-            for field_name, expected_value in expected_field_values.iteritems():
+            for field_name, expected_value in six.iteritems(expected_field_values):
                 self.assertEquals(output_tuple[field_positions[field_name]], expected_value)

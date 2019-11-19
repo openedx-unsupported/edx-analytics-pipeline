@@ -2,6 +2,8 @@
 Tests for event export tasks
 """
 
+from __future__ import absolute_import
+
 import datetime
 import json
 from collections import defaultdict
@@ -9,6 +11,7 @@ from itertools import chain
 from unittest import TestCase
 
 import luigi.task
+import six
 import yaml
 from luigi.date_interval import Year
 from mock import MagicMock, patch
@@ -500,6 +503,6 @@ class CourseEventExportTestCase(EventExportTestCaseBase):
         self.assertItemsEqual(results['FooX'], expected_only_foo + expected_both)
         self.assertItemsEqual(results['BarX'], expected_only_bar + expected_both)
 
-        combined = list(chain.from_iterable(results.itervalues()))
+        combined = list(chain.from_iterable(six.itervalues(results)))
         for value in non_expected:
             self.assertNotIn(value, combined)

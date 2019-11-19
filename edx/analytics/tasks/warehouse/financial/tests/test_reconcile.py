@@ -1,8 +1,12 @@
 """Tests for Order-transaction reconciliation and reporting."""
+from __future__ import absolute_import
+
 import uuid
 from unittest import TestCase
 
+import six
 from ddt import data, ddt, unpack
+from six.moves import zip
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.util.tests.config import with_luigi_config
@@ -206,7 +210,7 @@ class ReconciliationTaskReducerTest(ReconciliationTaskMixin, ReducerTestMixin, T
             # so that column names can be used instead of numbers.
             output_dict = record._asdict()  # pylint: disable=no-member,protected-access
             expected_columns.update(**extra_values)
-            for column_num, expected_value in expected_columns.iteritems():
+            for column_num, expected_value in six.iteritems(expected_columns):
                 self.assertEquals(output_dict[column_num], expected_value)
 
     def test_no_transaction(self):

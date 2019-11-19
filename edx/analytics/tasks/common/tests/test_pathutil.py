@@ -1,5 +1,7 @@
 """Test selection of event log files."""
 
+from __future__ import absolute_import
+
 import datetime
 import unittest
 

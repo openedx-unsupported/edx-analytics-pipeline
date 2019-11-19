@@ -1,12 +1,14 @@
+from __future__ import absolute_import, print_function
+
 import argparse
-from collections import deque
 import gzip
 import os
 import re
 import shutil
-import boto.emr
+from collections import deque
+from subprocess import PIPE, Popen
 
-from subprocess import Popen, PIPE
+import boto.emr
 
 DEFAULT_REGION = 'us-east-1'
 
@@ -81,7 +83,7 @@ def download_emr_logs(s3_emr_logs_url, output_path):
         os.makedirs(output_path)
 
     cmd = ['aws', 's3', 'sync', s3_emr_logs_url, output_path, '--exclude', '*', '--include', '*stderr.gz']
-    print('Downloading logs using command: ' + ' '.join(cmd))
+    print(('Downloading logs using command: ' + ' '.join(cmd)))
     proc = Popen(cmd, stdout=PIPE)
     stdout = proc.communicate()[0]
     return proc.returncode
@@ -122,8 +124,8 @@ def display_errors(root_path, context=0):
                         else:
                             hex_string = match.group(1)
 
-                        print('---' + filename_with_path)
-                        print(''.join(context_buffer))
+                        print(('---' + filename_with_path))
+                        print((''.join(context_buffer)))
                         if hasattr(hex_string, 'decode'):
                             # Python 2.X
                             err = hex_string.decode('hex')

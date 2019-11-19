@@ -1,9 +1,12 @@
 """Utilities that are used for performing obfuscation, or what passes for such."""
 
+from __future__ import absolute_import
+
 import logging
 import re
 
 import luigi
+import six
 
 from edx.analytics.tasks.util.id_codec import UserIdRemapperMixin
 from edx.analytics.tasks.util.url import ExternalURL
@@ -226,7 +229,7 @@ def find_all_matches(pattern, string, label, log_context=DEFAULT_LOG_CONTEXT):
             left = backslash_encode_value(string[left_edge:start])
             right = backslash_encode_value(string[end:end + log_context])
             value1 = match.group(0)
-            value = unicode(value1)
+            value = six.text_type(value1)
             log.info(u"Found %s:  %s<<%s>>%s", label, left, value, right)
         output.append(string[output_end:start])
         output.append("<<{}>>".format(label))
@@ -602,7 +605,7 @@ class Obfuscator(object):
                 return new_list
             else:
                 return None
-        elif isinstance(obj, unicode):
+        elif isinstance(obj, six.text_type):
             # First perform backslash decoding on string, if needed.
             if needs_backslash_decoding(obj):
                 decoded_obj = backslash_decode_value(obj)

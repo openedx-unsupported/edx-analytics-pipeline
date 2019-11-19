@@ -1,5 +1,7 @@
 """Tests for some hive related utilities"""
 
+from __future__ import absolute_import
+
 from datetime import date
 from unittest import TestCase
 

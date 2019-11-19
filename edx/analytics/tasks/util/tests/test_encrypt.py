@@ -1,5 +1,7 @@
 """Tests of utilities to encrypt files."""
 
+from __future__ import absolute_import
+
 import tempfile
 from unittest import TestCase
 

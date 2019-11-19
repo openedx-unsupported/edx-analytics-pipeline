@@ -2,6 +2,8 @@
 Import data from external RDBMS databases specific to enterprise into Hive.
 """
 
+from __future__ import absolute_import
+
 import logging
 
 from edx.analytics.tasks.insights.database_imports import ImportMysqlToHiveTableTask

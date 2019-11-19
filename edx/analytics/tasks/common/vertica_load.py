@@ -2,12 +2,15 @@
 Support for loading data into an HP Vertica database.
 """
 
+from __future__ import absolute_import
+
 import logging
 import traceback
 from collections import namedtuple
 
 import luigi
 import luigi.configuration
+import six
 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL
@@ -437,7 +440,7 @@ class VerticaCopyTask(VerticaCopyTaskMixin, luigi.Task):
 
     def copy_data_table_from_target(self, cursor):
         """Performs the copy query from the insert source."""
-        if isinstance(self.columns[0], basestring):
+        if isinstance(self.columns[0], six.string_types):
             column_names = ','.join([name for name in self.columns])
         elif len(self.columns[0]) == 2:
             column_names = ','.join([name for name, _type in self.columns])

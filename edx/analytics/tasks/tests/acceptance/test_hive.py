@@ -3,6 +3,8 @@ Run end-to-end acceptance tests of importing hive data.
 
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

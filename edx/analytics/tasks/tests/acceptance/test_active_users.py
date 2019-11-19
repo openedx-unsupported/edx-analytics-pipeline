@@ -2,11 +2,14 @@
 End to end test of active_users_this_year loading task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
 
 import pandas
+from six.moves import map
 
 from edx.analytics.tasks.tests.acceptance import (
     AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available
@@ -49,7 +52,7 @@ class ActiveUsersAcceptanceTest(AcceptanceTestCase):
 
             cursor.execute("SELECT * FROM {schema}.f_active_users_per_week".format(schema=self.vertica.schema_name))
             response = cursor.fetchall()
-            f_active_users_this_year = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+            f_active_users_this_year = pandas.DataFrame(list(map(coerce_columns_to_string, response)), columns=columns)
 
             for frame in (f_active_users_this_year, expected):
                 frame.sort(['username'], inplace=True, ascending=[True])

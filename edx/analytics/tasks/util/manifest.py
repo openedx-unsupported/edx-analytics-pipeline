@@ -1,5 +1,7 @@
 """Support running map reduce jobs using a manifest file to store the input paths."""
 
+from __future__ import absolute_import
+
 import logging
 
 import luigi.task

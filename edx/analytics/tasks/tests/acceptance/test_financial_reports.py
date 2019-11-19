@@ -2,11 +2,14 @@
 End to end test of the financial reporting workflow.
 """
 
+from __future__ import absolute_import
+
 import logging
 import os
 
 import luigi
 import pandas
+from six.moves import map
 
 from edx.analytics.tasks.tests.acceptance import (
     AcceptanceTestCase, coerce_columns_to_string, read_csv_fixture_as_list, when_vertica_available
@@ -71,7 +74,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             ))
             response = cursor.fetchall()
 
-            f_orderitem_transactions = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+            f_orderitem_transactions = pandas.DataFrame(list(map(coerce_columns_to_string, response)), columns=columns)
 
             for frame in (f_orderitem_transactions, expected):
                 frame.sort(['payment_ref_id', 'transaction_type'], inplace=True, ascending=[True, False])

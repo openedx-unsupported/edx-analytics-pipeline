@@ -5,6 +5,8 @@ and the exporting of that data into the analytics database.
 The goal of these tests is to emulate (as closely as possible) user actions and validate user visible outputs.
 """
 
+from __future__ import absolute_import
+
 import logging
 import os
 

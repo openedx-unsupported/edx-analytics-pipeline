@@ -1,6 +1,8 @@
 """
 Import data from external RDBMS databases into Hive.
 """
+from __future__ import absolute_import
+
 import datetime
 import logging
 import textwrap
@@ -91,7 +93,7 @@ class ImportIntoHiveTableTask(OverwriteOutputMixin, HiveQueryTask):
     def partition_location(self):
         """Provides location of Hive database table's partition data."""
         # The actual folder name where the data is stored is expected to be in the format <key>=<value>
-        partition_name = '='.join(self.partition.items()[0])
+        partition_name = '='.join(list(self.partition.items())[0])
         # Make sure that input path ends with a slash, to indicate a directory.
         # (This is necessary for S3 paths that are output from Hadoop jobs.)
         return url_path_join(self.table_location, partition_name + '/')

@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 """Execute tasks on a remote EMR cluster."""
 
+from __future__ import absolute_import
+
 import argparse
 import json
 import os
@@ -8,7 +10,9 @@ import pipes
 import sys
 import uuid
 from subprocess import PIPE, Popen
-from urlparse import parse_qsl, urlparse
+
+import six
+from six.moves.urllib.parse import parse_qsl, urlparse
 
 STATIC_FILES_PATH = os.path.join(sys.prefix, 'share', 'edx.analytics.tasks')
 EC2_INVENTORY_PATH = os.path.join(STATIC_FILES_PATH, 'ec2.py')
@@ -120,7 +124,7 @@ def run_task_playbook(inventory, arguments, uid):
         env_vars['WORKFLOW_PROFILER'] = arguments.workflow_profiler
         env_vars['WORKFLOW_PROFILER_PATH'] = log_dir
 
-    env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in env_vars.iteritems())
+    env_var_string = ' '.join('{0}={1}'.format(k, v) for k, v in six.iteritems(env_vars))
 
     command = 'cd {code_dir} && . $HOME/.bashrc && . {data_dir}/venv/bin/activate && {env_vars}{bg}launch-task {task_arguments}{end_bg}'.format(
         env_vars=env_var_string + ' ' if env_var_string else '',

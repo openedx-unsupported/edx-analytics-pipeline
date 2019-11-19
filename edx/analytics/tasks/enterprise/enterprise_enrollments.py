@@ -1,5 +1,7 @@
 """Compute metrics related to user enrollments in courses"""
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

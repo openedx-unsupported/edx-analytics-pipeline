@@ -2,6 +2,8 @@
 Test total events daily report
 """
 
+from __future__ import absolute_import
+
 import os
 import shutil
 import tempfile

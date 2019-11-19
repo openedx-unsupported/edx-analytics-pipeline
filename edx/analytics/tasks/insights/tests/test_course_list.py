@@ -1,4 +1,6 @@
 """Test course list tasks."""
+from __future__ import absolute_import
+
 import json
 import logging
 import os
@@ -6,10 +8,10 @@ import shutil
 import tempfile
 from datetime import datetime
 from unittest import TestCase
-from urllib import urlencode
 
 import httpretty
 from ddt import data, ddt, unpack
+from six.moves.urllib.parse import urlencode
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.course_list import (

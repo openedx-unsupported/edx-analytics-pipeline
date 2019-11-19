@@ -4,6 +4,8 @@ either by producing a new dump with sqoop or using existing dumps, and export th
 mysql database.
 """
 
+from __future__ import absolute_import
+
 import csv
 import logging
 from collections import defaultdict

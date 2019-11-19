@@ -1,6 +1,8 @@
 """
 Tasks to support pulling Affiliate Window reports from their REST API to the data warehouse.
 """
+from __future__ import absolute_import, print_function
+
 import csv
 import datetime
 import json
@@ -93,13 +95,13 @@ class IntervalPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, WarehouseMix
             latest_date = sorted(dates)[-1]
             latest_completion_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
             self.interval_start = latest_completion_date + datetime.timedelta(days=1)
-            print("Found previous reports to {}".format(latest_date))
+            print(("Found previous reports to {}".format(latest_date)))
         else:
             # If this is the first run, start from the beginning
-            print("Couldn't find last completed date, defaulting to start date: {}".format(self.interval_start))
+            print(("Couldn't find last completed date, defaulting to start date: {}".format(self.interval_start)))
 
         self.run_interval = date_interval.Custom(self.interval_start, self.interval_end)
-        print("Running reports from interval {}".format(self.run_interval))
+        print(("Running reports from interval {}".format(self.run_interval)))
 
     def requires(self):
         """
@@ -164,10 +166,10 @@ class DailyPullFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         return response.json()
 
     def run(self):
-        print("Fetching report from Affiliate Window for {}.".format(self.query_date))
+        print(("Fetching report from Affiliate Window for {}.".format(self.query_date)))
         transactions = self.fetch_report()
 
-        print("{} transactions found from Affiliate Window.".format(len(transactions)))
+        print(("{} transactions found from Affiliate Window.".format(len(transactions))))
 
         # if there are no transactions in response something is wrong.
         if not transactions:
@@ -216,11 +218,11 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
         return DailyPullFromAffiliateWindowTask(**args)
 
     def run(self):
-        print("Processing Affiliate Window report for {}".format(self.run_date))
+        print(("Processing Affiliate Window report for {}".format(self.run_date)))
         with self.input().open('r') as input_file:
             reader = json.load(input_file)
 
-            print("{} transactions found in JSON loaded from disk.".format(len(reader)))
+            print(("{} transactions found in JSON loaded from disk.".format(len(reader))))
 
             with self.output().open('w') as output_file:
                 writer = csv.writer(output_file, delimiter="\t")
@@ -230,7 +232,7 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
                     if row['id'] in found_ids:
                         raise Exception("Found duplicate id: {}!".format(row['id']))
 
-                    print("Writing id {}".format(row['id']))
+                    print(("Writing id {}".format(row['id'])))
                     found_ids.add(row['id'])
 
                     # Break out commonly used fields, put entire row blob into last column

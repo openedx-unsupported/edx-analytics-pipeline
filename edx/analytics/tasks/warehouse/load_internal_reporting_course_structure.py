@@ -1,4 +1,6 @@
 """Collect info from the course blocks API for processing of course structure for subsequent query."""
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging
@@ -6,6 +8,7 @@ import os
 
 import luigi
 from requests.exceptions import HTTPError
+from six.moves import range
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask

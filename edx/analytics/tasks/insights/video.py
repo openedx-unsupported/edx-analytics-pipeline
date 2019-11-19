@@ -1,18 +1,23 @@
 """Tasks for aggregating statistics about video viewing."""
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging
 import math
 import re
 import textwrap
-import urllib
 from collections import namedtuple
 
 import ciso8601
 import luigi
+import six.moves.urllib.error
+import six.moves.urllib.parse
+import six.moves.urllib.request
 from luigi import configuration
 from luigi.contrib.hive import HiveQueryTask
 from luigi.parameter import DateIntervalParameter
+from six.moves import range
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -475,7 +480,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
             video_url = "https://www.googleapis.com/youtube/v3/videos?id={0}&part=contentDetails&key={1}".format(
                 youtube_id, self.api_key
             )
-            video_file = urllib.urlopen(video_url)
+            video_file = six.moves.urllib.request.urlopen(video_url)
             content = json.load(video_file)
             items = content.get('items', [])
             if len(items) > 0:
@@ -678,7 +683,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
 
             first_segment = self.snap_to_last_segment_boundary(float(start_offset))
             last_segment = self.snap_to_last_segment_boundary(float(end_offset))
-            for segment in xrange(first_segment, last_segment + 1):
+            for segment in range(first_segment, last_segment + 1):
                 stats = usage_map.setdefault(segment, {})
                 users = stats.setdefault('users', set())
                 users.add(user_id)
@@ -728,7 +733,7 @@ class VideoUsageTask(VideoTableDownstreamMixin, MapReduceJobTask):
         """
         final_segment = last_segment = max(usage_map.keys())
         last_segment_num_users = len(usage_map[last_segment]['users'])
-        for segment in sorted(usage_map.keys(), reverse=True)[1:]:
+        for segment in sorted(list(usage_map.keys()), reverse=True)[1:]:
             stats = usage_map[segment]
             current_segment_num_users = len(stats.get('users', []))
             if last_segment_num_users <= current_segment_num_users * self.dropoff_threshold:

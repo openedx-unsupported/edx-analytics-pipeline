@@ -1,12 +1,15 @@
 """
 Determine the number of users in each country are enrolled in each course.
 """
+from __future__ import absolute_import
+
 import datetime
 import logging
 import textwrap
 from collections import defaultdict
 
 import luigi
+import six
 from luigi.contrib.hive import HiveQueryTask
 from luigi.parameter import MissingParameterException
 
@@ -124,7 +127,7 @@ class LastDailyIpAddressOfUserTask(
                 last_timestamp[last_key] = timestamp
 
         # Now output the resulting "last" values for each key.
-        for last_key, ip_address in last_ip.iteritems():
+        for last_key, ip_address in six.iteritems(last_ip):
             timestamp = last_timestamp[last_key]
             user_id, course_id = last_key
             value = [timestamp, ip_address, user_id, course_id]

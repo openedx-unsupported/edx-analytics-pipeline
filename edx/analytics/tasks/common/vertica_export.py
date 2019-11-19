@@ -1,6 +1,8 @@
 """
 Supports exporting data from Vertica to S3, for loading into other databases.
 """
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging

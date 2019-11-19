@@ -1,4 +1,6 @@
 """luigi target for writing data into an HP Vertica database"""
+from __future__ import absolute_import
+
 import json
 import logging
 

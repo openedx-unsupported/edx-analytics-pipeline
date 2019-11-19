@@ -1,10 +1,13 @@
 """Test student engagement metrics"""
 
+from __future__ import absolute_import
+
 import json
 from unittest import TestCase
 
 from ddt import data, ddt, unpack
 from mock import MagicMock, patch, sentinel
+from six.moves import range, zip
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.video import (
@@ -397,7 +400,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         super(UserVideoViewingTaskReducerTest, self).setUp()
         self.user_id = 10
         self.reduce_key = (self.user_id, self.COURSE_ID, self.VIDEO_MODULE_ID)
-        patcher = patch('edx.analytics.tasks.insights.video.urllib')
+        patcher = patch('edx.analytics.tasks.insights.video.six.moves.urllib')
         self.mock_urllib = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -634,7 +637,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         mock_response = MagicMock(spec=file)
         mock_response.code = 200
         mock_response.read.side_effect = [response_string, '']
-        self.mock_urllib.urlopen.return_value = mock_response
+        self.mock_urllib.request.urlopen.return_value = mock_response
 
     def test_pause_after_end_of_video(self):
         self.prepare_youtube_api_mock('PT1M2S')
@@ -1132,7 +1135,7 @@ class GetFinalSegmentTest(TestCase):
 
     def test_with_gradual_dropoff(self):
         """Gradual dropoff of num_users, does not trigger the cutoff"""
-        for i, j in zip(range(20, 39), range(19, 0, -1)):
+        for i, j in zip(list(range(20, 39)), list(range(19, 0, -1))):
             self.usage_map[i] = self.generate_segment(j, j)
         self.assertEqual(self.task.get_final_segment(self.usage_map), 38)
 

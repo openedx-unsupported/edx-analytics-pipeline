@@ -1,6 +1,8 @@
 """
 Gather data using Sqoop table dumps run on RDBMS databases.
 """
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging

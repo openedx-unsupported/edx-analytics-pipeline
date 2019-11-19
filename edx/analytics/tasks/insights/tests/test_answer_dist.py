@@ -2,6 +2,8 @@
 Tests for tasks that calculate answer distributions.
 
 """
+from __future__ import absolute_import
+
 import hashlib
 import json
 import math
@@ -11,6 +13,7 @@ import StringIO
 import tempfile
 from unittest import TestCase
 
+import six
 from mock import Mock, call
 from opaque_keys.edx.locator import CourseLocator
 
@@ -73,7 +76,7 @@ class ProblemCheckEventBaseTest(MapperTestMixin, ReducerTestMixin, TestCase):
     @staticmethod
     def _update_with_kwargs(data_dict, **kwargs):
         """Updates a dict from kwargs only if it modifies a top-level value."""
-        for key, value in kwargs.iteritems():
+        for key, value in six.iteritems(kwargs):
             if key in data_dict:
                 data_dict[key] = value
 
@@ -317,7 +320,7 @@ class ProblemCheckEventReduceTest(InitializeOpaqueKeysMixin, ProblemCheckEventBa
                 submission: dictionary of all responses submitted at once for a user
                 attempt_category: a string that is 'first' for a user's first submission and 'last' otherwise
             """
-            for answer_id, submission_data in submission.iteritems():
+            for answer_id, submission_data in six.iteritems(submission):
                 answer_id_data = {
                     "answer": submission_data['answer'],
                     "problem_display_name": None,
@@ -528,8 +531,8 @@ class AnswerDistributionPerCourseReduceTest(InitializeOpaqueKeysMixin, TestCase,
             self.assertEquals(course_id, self.course_id)
         # We don't know what order the outputs will be dumped for a given
         # set of input dicts, so we have to compare sets of items.
-        reducer_outputs = set([frozenset(json.loads(output).items()) for _, output in reducer_output])
-        expected_outputs = set([frozenset(output.items()) for output in expected])
+        reducer_outputs = set([frozenset(list(json.loads(output).items())) for _, output in reducer_output])
+        expected_outputs = set([frozenset(list(output.items())) for output in expected])
         self.assertEquals(reducer_outputs, expected_outputs)
 
     def _get_answer_data(self, **kwargs):
@@ -944,7 +947,7 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
 
         # To test sorting, the first sample is made to sort after the
         # second sample.
-        column_values_2 = [(k, unicode(k) + u'\u2603') for k in field_names]
+        column_values_2 = [(k, six.text_type(k) + u'\u2603') for k in field_names]
         column_values_2[3] = (column_values_2[3][0], 10)
         column_values_1 = list(column_values_2)
         column_values_1[4] = (column_values_1[4][0], u'ZZZZZZZZZZZ')
@@ -958,9 +961,9 @@ class AnswerDistributionOneFilePerCourseTaskTest(MapperTestMixin, ReducerTestMix
         self.assertEquals(mock_output_file.write.mock_calls[0], call(expected_header_string))
 
         # Confirm that the second sample appears before the first.
-        expected_row_1 = ','.join(unicode(v[1]).encode('utf8') for v in column_values_2) + '\r\n'
+        expected_row_1 = ','.join(six.text_type(v[1]).encode('utf8') for v in column_values_2) + '\r\n'
         self.assertEquals(mock_output_file.write.mock_calls[1], call(expected_row_1))
-        expected_row_2 = ','.join(unicode(v[1]).encode('utf8') for v in column_values_1) + '\r\n'
+        expected_row_2 = ','.join(six.text_type(v[1]).encode('utf8') for v in column_values_1) + '\r\n'
         self.assertEquals(mock_output_file.write.mock_calls[2], call(expected_row_2))
 
     def test_output_path_for_legacy_key(self):

@@ -3,6 +3,8 @@ Loads the user table into the warehouse through the pipeline via Hive.
 
 On the roadmap is to write a task that runs validation queries on the aggregated Hive data pre-load.
 """
+from __future__ import absolute_import
+
 import luigi
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask

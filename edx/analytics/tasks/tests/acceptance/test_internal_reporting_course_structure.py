@@ -2,11 +2,14 @@
 End to end test of the internal reporting course_structure table loading task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
 
 import pandas
+from six.moves import map
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, coerce_columns_to_string, when_vertica_available
 from edx.analytics.tasks.util.url import url_path_join
@@ -58,7 +61,7 @@ class InternalReportingCourseStructureAcceptanceTest(AcceptanceTestCase):
             response = cursor.fetchall()
             # Convert everything to strings, except for two integer columns, so that the None values can be more
             # easily compared with 'None' values in the expected output.
-            actual = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+            actual = pandas.DataFrame(list(map(coerce_columns_to_string, response)), columns=columns)
             actual['depth'] = actual['depth'].astype('int64')
             actual['order_index'] = actual['order_index'].astype('int64')
 

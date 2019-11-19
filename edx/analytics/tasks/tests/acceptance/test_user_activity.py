@@ -1,5 +1,7 @@
 """Ensure we can compute activity for a set of events"""
 
+from __future__ import absolute_import
+
 import datetime
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, as_list_param

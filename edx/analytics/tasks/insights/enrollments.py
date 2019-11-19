@@ -1,11 +1,14 @@
 """Compute metrics related to user enrollments in courses"""
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 
 import luigi
 import luigi.task
 from luigi.parameter import DateIntervalParameter, MissingParameterException
+from six.moves import range
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
@@ -1763,7 +1766,7 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Over
     @property
     def insert_query(self):
         """The query builder that controls the structure and fields inserted into the new table."""
-        column_names = CourseProgramMetadataRecord.get_fields().keys()
+        column_names = list(CourseProgramMetadataRecord.get_fields().keys())
         query = """
         SELECT {columns}
         FROM   program_course;

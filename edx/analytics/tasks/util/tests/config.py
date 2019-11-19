@@ -1,7 +1,10 @@
 """Support modifying luigi configuration settings in tests."""
 
+from __future__ import absolute_import
+
 from functools import wraps
 
+import six
 from luigi.configuration import LuigiConfigParser
 
 
@@ -65,7 +68,7 @@ def with_luigi_config(*decorator_args):
                         new_instance.set(section, option, str(value))
 
                 # Support the single override case: @with_luigi_config('section', 'option', 'value')
-                if isinstance(decorator_args[0], basestring):
+                if isinstance(decorator_args[0], six.string_types):
                     section, option, value = decorator_args
                     modify_config(section, option, value)
                 else:

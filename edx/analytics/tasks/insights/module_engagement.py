@@ -4,6 +4,8 @@ Measure student engagement with individual modules in the course.
 See ModuleEngagementWorkflowTask for more extensive documentation.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import random
@@ -11,6 +13,7 @@ from collections import defaultdict
 
 import luigi.task
 from luigi import date_interval
+from six.moves import range
 
 from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin

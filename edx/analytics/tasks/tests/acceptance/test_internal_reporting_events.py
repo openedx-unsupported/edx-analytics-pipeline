@@ -2,9 +2,13 @@
 End to end test of the internal reporting events table loading task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
+
+from six.moves import range
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_vertica_available
 from edx.analytics.tasks.tests.acceptance.services import fs

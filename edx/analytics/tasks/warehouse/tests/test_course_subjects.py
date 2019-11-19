@@ -12,6 +12,8 @@ Testing strategy:
     Catalog with a malformed course (like a list) inside
 """
 
+from __future__ import absolute_import
+
 import datetime
 import json
 import os
@@ -55,7 +57,7 @@ class TestCourseSubjects(TestCase):
 
         task = CourseSubjectTask(
             warehouse_path=fake_warehouse_path,
-            date=datetime.date(2015, 06, 25),
+            date=datetime.date(2015, 0o6, 25),
             # catalog_path=''
         )
 

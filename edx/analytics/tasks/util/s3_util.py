@@ -1,15 +1,18 @@
 """
 Utility methods for interacting with S3 via boto.
 """
+from __future__ import absolute_import
+
 import logging
 import os
 import time
 from fnmatch import fnmatch
-from urlparse import urlparse, urlunparse
 
 from luigi.contrib.hdfs.format import Plain
 from luigi.contrib.hdfs.target import HdfsTarget
 from luigi.contrib.s3 import AtomicS3File, S3Client
+from six.moves import range
+from six.moves.urllib.parse import urlparse, urlunparse
 
 log = logging.getLogger(__name__)
 

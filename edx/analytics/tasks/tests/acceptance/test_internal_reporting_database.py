@@ -2,6 +2,8 @@
 End to end test for importing mysql database into Vertica task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

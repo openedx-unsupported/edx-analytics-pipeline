@@ -4,15 +4,17 @@ validate user visible outputs.
 
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
 import shutil
 import tempfile
 import textwrap
-import urlparse
 
 import gnupg
+import six.moves.urllib.parse
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_exporter_available
 from edx.analytics.tasks.tests.acceptance.services import shell
@@ -56,7 +58,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
         for dir_path in [self.external_files_dir, self.working_dir, self.validation_dir, self.gpg_dir]:
             os.makedirs(dir_path)
 
-        os.chmod(self.gpg_dir, 0700)
+        os.chmod(self.gpg_dir, 0o700)
 
         # The exporter expects this directory to already exist.
         os.makedirs(os.path.join(self.working_dir, 'course-data'))
@@ -128,7 +130,7 @@ class ExportAcceptanceTest(AcceptanceTestCase):
 
         self.write_exporter_config(org_id, course_id, env_config_file_path, org_config_file_path)
 
-        src_url_tuple = urlparse.urlparse(self.test_src)
+        src_url_tuple = six.moves.urllib.parse.urlparse(self.test_src)
 
         command = [
             os.getenv('EXPORTER'),

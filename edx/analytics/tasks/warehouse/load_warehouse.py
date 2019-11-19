@@ -1,6 +1,8 @@
 """
 Workflow to load the warehouse, this serves as a replacement for pentaho loading.
 """
+from __future__ import absolute_import
+
 import logging
 
 import luigi

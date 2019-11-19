@@ -3,6 +3,8 @@ End-to-end test of the workflow to load the warehouse's lms_courseware_link_clic
 
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

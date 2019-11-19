@@ -2,6 +2,8 @@
 Loads Google Analytics permissions info into the warehouse.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging
@@ -302,7 +304,7 @@ class PullGoogleAnalyticsAccountUserLinks(PullGoogleAnalyticsDataBaseTask):
         self.remove_output_on_overwrite()
         ga_account_data_target = yield PullGoogleAnalyticsAccountData(date=self.date, ga_credentials=self.ga_credentials)
         with ga_account_data_target.open('r') as account_data:
-            account_ids = map(lambda x: x.split('\t')[0], account_data.readlines())
+            account_ids = [x.split('\t')[0] for x in account_data.readlines()]
 
         service = self.create_management_api_service()
         with self.output().open('w') as output_file:
@@ -358,7 +360,7 @@ class PullGoogleAnalyticsPropertyUserLinks(PullGoogleAnalyticsDataBaseTask):
         self.remove_output_on_overwrite()
         ga_account_data_target = yield PullGoogleAnalyticsAccountData(date=self.date, ga_credentials=self.ga_credentials)
         with ga_account_data_target.open('r') as account_data:
-            account_ids = map(lambda x: x.split('\t')[0], account_data.readlines())
+            account_ids = [x.split('\t')[0] for x in account_data.readlines()]
 
         service = self.create_management_api_service()
         with self.output().open('w') as output_file:
@@ -423,7 +425,7 @@ class PullGoogleAnalyticsProfileUserLinks(PullGoogleAnalyticsDataBaseTask):
         self.remove_output_on_overwrite()
         ga_account_data_target = yield PullGoogleAnalyticsAccountData(date=self.date, ga_credentials=self.ga_credentials)
         with ga_account_data_target.open('r') as account_data:
-            account_ids = map(lambda x: x.split('\t')[0], account_data.readlines())
+            account_ids = [x.split('\t')[0] for x in account_data.readlines()]
 
         service = self.create_management_api_service()
         with self.output().open('w') as output_file:

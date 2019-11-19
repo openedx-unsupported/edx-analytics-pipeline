@@ -1,5 +1,7 @@
 """Tests overall count of events"""
 
+from __future__ import absolute_import
+
 import json
 import sys
 from StringIO import StringIO

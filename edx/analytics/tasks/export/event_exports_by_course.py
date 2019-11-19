@@ -1,5 +1,7 @@
 """Group events by course and export them for research purposes"""
 
+from __future__ import absolute_import
+
 import gzip
 import logging
 

@@ -1,13 +1,15 @@
 """Tasks to obfuscate course data for RDX."""
 
+from __future__ import absolute_import
+
 import errno
 import json
 import logging
 import os
 import tarfile
-import urlparse
 
 import luigi
+import six.moves.urllib.parse
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.pathutil import PathSetTask
@@ -126,7 +128,7 @@ class ObfuscatedPackageTask(ObfuscatedPackageTaskMixin, luigi.Task):
             for target in path_task.output():
                 with target.open('r') as input_file:
                     # Get path without urlscheme.
-                    course_files_path = urlparse.urlparse(self.course_files_url).path
+                    course_files_path = six.moves.urllib.parse.urlparse(self.course_files_url).path
                     # Calculates target's relative path to course_files_path by getting the substring that
                     # occurs after course_files_path substring in target's path.
                     # Needed as target.path returns path with urlscheme for s3target & without for hdfstarget.

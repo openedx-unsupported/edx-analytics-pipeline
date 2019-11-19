@@ -6,6 +6,8 @@ Supports outputs to HDFS, S3, and local FS.
 
 """
 
+from __future__ import absolute_import
+
 import datetime
 import fnmatch
 import logging

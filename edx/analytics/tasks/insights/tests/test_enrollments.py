@@ -1,5 +1,7 @@
 """Test enrollment computations"""
 
+from __future__ import absolute_import
+
 import json
 from datetime import datetime
 from unittest import TestCase

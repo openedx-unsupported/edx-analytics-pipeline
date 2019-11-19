@@ -3,6 +3,8 @@ Tasks to split database exports in different groups, per class,
 per organization, etc.
 """
 
+from __future__ import absolute_import
+
 import csv
 import logging
 from collections import namedtuple

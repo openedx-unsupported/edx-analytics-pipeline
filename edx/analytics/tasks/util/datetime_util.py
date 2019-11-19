@@ -1,4 +1,6 @@
 """Utility functions for manipulating datetime information."""
+from __future__ import absolute_import
+
 import datetime
 import re
 

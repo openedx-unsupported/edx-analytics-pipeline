@@ -1,5 +1,7 @@
 """Obfuscate course event files by removing/stubbing user information."""
 
+from __future__ import absolute_import
+
 import gzip
 import logging
 import os
@@ -8,6 +10,7 @@ from collections import defaultdict, namedtuple
 
 import cjson
 import luigi.date_interval
+import six
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
@@ -184,7 +187,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
         """Return remapped version of username, or None if not remapped."""
         info = self._get_user_info_for_username(username)
         if info is not None:
-            for key, value in info.iteritems():
+            for key, value in six.iteritems(info):
                 user_info[key].add(value)
             if 'user_id' in info:
                 return self.generate_obfuscated_username_from_user_id(info['user_id'])
@@ -234,7 +237,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
             user_info['user_id'].add(user_id)
             info = self._get_user_info_for_user_id(user_id)
             if info is not None:
-                for key, value in info.iteritems():
+                for key, value in six.iteritems(info):
                     user_info[key].add(value)
                 if username is not None and 'username' in info and username != info['username']:
                     log.error(
@@ -264,7 +267,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
                 user_info['user_id'].add(event_user_id)
                 info = self._get_user_info_for_user_id(event_user_id)
                 if info is not None:
-                    for key, value in info.iteritems():
+                    for key, value in six.iteritems(info):
                         user_info[key].add(value)
                 event_data['user_id'] = self.remap_id(event_user_id)
 
@@ -327,7 +330,7 @@ class ObfuscateCourseEventsTask(ObfuscatorMixin, GeolocationMixin, MultiOutputMa
 
             # Re-encode payload as a json string if it originally was one.
             # (This test works because we throw away string values that didn't parse as JSON.)
-            if isinstance(event.get('event'), basestring):
+            if isinstance(event.get('event'), six.string_types):
                 event['event'] = cjson.encode(event_data)
             else:
                 event['event'] = event_data

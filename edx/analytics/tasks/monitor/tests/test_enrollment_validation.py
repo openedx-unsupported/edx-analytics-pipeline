@@ -1,5 +1,7 @@
 """Test enrollment computations"""
 
+from __future__ import absolute_import
+
 import datetime
 import json
 import os

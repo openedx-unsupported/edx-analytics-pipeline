@@ -2,6 +2,8 @@
 Tasks to load a Vertica schema from S3 into Snowflake.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import json
 import logging

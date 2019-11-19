@@ -1,5 +1,7 @@
 """Calculates per-student engagement reports per course."""
 
+from __future__ import absolute_import
+
 import csv
 import datetime
 import hashlib
@@ -12,6 +14,7 @@ from operator import itemgetter
 
 import luigi
 from luigi.contrib.hive import HiveQueryTask
+from six.moves import zip
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask

@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+
 import csv
 import datetime
 import fnmatch
@@ -5,6 +7,7 @@ import logging
 
 import luigi
 from paramiko import SFTPClient, Transport
+from six.moves import filter
 
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
@@ -159,7 +162,7 @@ class PayPalProcessCaseReportTask(PayPalCaseReportMixin, WarehouseMixin, Overwri
         There are multiple row types in PayPal Case Report. Like File header(FH), Section body(SB), Section Footer(SF).
         We are only interested in SB columns in processed file
         """
-        return 'SB' in rows.values()
+        return 'SB' in list(rows.values())
 
     def amount_to_decimal(self, amount):
         """

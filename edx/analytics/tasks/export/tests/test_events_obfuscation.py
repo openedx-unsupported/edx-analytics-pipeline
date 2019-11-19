@@ -1,5 +1,7 @@
 """Tests for events obfuscation tasks."""
 
+from __future__ import absolute_import
+
 import textwrap
 from unittest import TestCase
 

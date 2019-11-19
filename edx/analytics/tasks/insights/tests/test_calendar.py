@@ -1,5 +1,7 @@
 """Verify that the calendar table is constructed correctly."""
 
+from __future__ import absolute_import
+
 from unittest import TestCase
 
 from luigi import date_interval

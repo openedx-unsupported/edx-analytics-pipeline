@@ -8,6 +8,8 @@ Main method for running tasks on a local machine.
 
 """
 
+from __future__ import absolute_import, print_function
+
 import argparse
 import logging
 import os
@@ -132,7 +134,7 @@ def get_cleaned_command_line_args():
         elif v == '--dependency-tree':
             modified_arg_list[i] = None
 
-    return list(filter(lambda x: x is not None, modified_arg_list))
+    return list([x for x in modified_arg_list if x is not None])
 
 
 @contextmanager
@@ -176,7 +178,7 @@ def output_dependency_tree(cmdline_args):
     """Print out a tree representation of the dependencies of the given task."""
     with luigi.cmdline_parser.CmdlineParser.global_instance(cmdline_args) as command_parser:
         task = command_parser.get_task_obj()
-        print print_dependency_tree(task)
+        print(print_dependency_tree(task))
 
 
 if __name__ == '__main__':

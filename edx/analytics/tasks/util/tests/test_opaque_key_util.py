@@ -1,21 +1,24 @@
 """
 Tests for utilities that parse event logs.
 """
+from __future__ import absolute_import
+
 from unittest import TestCase
 
+import six
 from ccx_keys.locator import CCXLocator
 from ddt import data, ddt, unpack
 from opaque_keys.edx.locator import CourseLocator
 
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
 
-VALID_COURSE_ID = unicode(CourseLocator(org='org', course='course_id', run='course_run'))
+VALID_COURSE_ID = six.text_type(CourseLocator(org='org', course='course_id', run='course_run'))
 VALID_LEGACY_COURSE_ID = "org/course_id/course_run"
 INVALID_LEGACY_COURSE_ID = "org:course_id:course_run"
 INVALID_NONASCII_LEGACY_COURSE_ID = u"org/course\ufffd_id/course_run"
 VALID_NONASCII_LEGACY_COURSE_ID = u"org/cours\u00e9_id/course_run"
-VALID_CCX_COURSE_ID = unicode(CCXLocator(org='org', course='course_id', run='course_run', ccx='13'))
-COURSE_ID_WITH_COLONS = unicode(CourseLocator(org='org', course='course:id', run='course:run'))
+VALID_CCX_COURSE_ID = six.text_type(CCXLocator(org='org', course='course_id', run='course_run', ccx='13'))
+COURSE_ID_WITH_COLONS = six.text_type(CourseLocator(org='org', course='course:id', run='course:run'))
 
 
 @ddt
@@ -97,7 +100,7 @@ class CourseIdTest(TestCase):
     def test_get_course_key_from_url(self, course_id):
         url = u"https://courses.edx.org/courses/{course_id}/stuff".format(course_id=course_id)
         course_key = opaque_key_util.get_course_key_from_url(url)
-        self.assertEquals(unicode(course_key), course_id)
+        self.assertEquals(six.text_type(course_key), course_id)
 
     @data(
         INVALID_LEGACY_COURSE_ID,

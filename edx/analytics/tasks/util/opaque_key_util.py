@@ -1,8 +1,11 @@
 """Utility functions that wrap opaque_keys in useful ways."""
 
+from __future__ import absolute_import
+
 import logging
 import re
 
+import six
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
 from opaque_keys.edx.locator import CourseLocator
@@ -84,7 +87,7 @@ def get_filename_safe_course_id(course_id, replacement_char='_'):
     # The safest characters are A-Z, a-z, 0-9, <underscore>, <period> and <hyphen>.
     # We represent the first four with \w.
     # TODO: Once we support courses with unicode characters, we will need to revisit this.
-    return re.sub(r'[^\w\.\-]', unicode(replacement_char), filename)
+    return re.sub(r'[^\w\.\-]', six.text_type(replacement_char), filename)
 
 
 def get_course_key_from_url(url):

@@ -2,6 +2,8 @@
 End to end test of demographic trends.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os
@@ -9,6 +11,7 @@ from cStringIO import StringIO
 
 import pandas
 from ddt import data, ddt
+from six.moves import range
 
 from edx.analytics.tasks.insights.enrollments import EnrollmentSummaryRecord
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase
@@ -83,7 +86,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         ]
         if not enable_course_catalog:
             # remove catalog data
-            catalog_indices = range(1, 7)
+            catalog_indices = list(range(1, 7))
             for row in expected:
                 for catalog_index in catalog_indices:
                     row[catalog_index] = None
@@ -230,7 +233,7 @@ class EnrollmentAcceptanceTest(AcceptanceTestCase):
         data_path = url_path_join(self.warehouse_path, 'course_enrollment_summary', 'dt=2014-08-07')
         raw_output = self.read_dfs_directory(data_path)
         output = StringIO(raw_output.replace('\t\\N', '\t'))
-        columns = EnrollmentSummaryRecord.get_fields().keys()
+        columns = list(EnrollmentSummaryRecord.get_fields().keys())
         data = pandas.read_table(output, header=None, names=columns, parse_dates=True)
 
         expected_output_csv = os.path.join(self.data_dir, 'output', 'acceptance_expected_d_user_course.csv')

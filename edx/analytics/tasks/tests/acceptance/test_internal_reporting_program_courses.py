@@ -2,6 +2,8 @@
 End to end test of the internal reporting CourseProgramMetadataInsertToMysqlTask.
 """
 
+from __future__ import absolute_import
+
 import logging
 import os
 

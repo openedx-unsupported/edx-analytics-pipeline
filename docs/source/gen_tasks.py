@@ -2,13 +2,15 @@
 Generates a list of task-related modules and classes to be used by sphinx.
 
 """
-import os
+from __future__ import absolute_import
+
 import argparse
+import os
 import sys
 import time
+
 import stevedore
 from luigi.task_register import Register
-
 
 SPHINX_DIR = os.path.dirname(__file__)
 

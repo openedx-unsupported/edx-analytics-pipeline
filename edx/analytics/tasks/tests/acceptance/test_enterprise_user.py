@@ -2,6 +2,8 @@
 End to end test of demographic trends.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

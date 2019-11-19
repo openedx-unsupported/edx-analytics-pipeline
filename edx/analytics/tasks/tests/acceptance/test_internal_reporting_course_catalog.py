@@ -2,6 +2,8 @@
 End to end test of the internal reporting d_program_course table loading task.
 """
 
+from __future__ import absolute_import
+
 import datetime
 import logging
 import os

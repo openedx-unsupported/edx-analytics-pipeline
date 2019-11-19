@@ -15,6 +15,8 @@ Makes use of external user information.
 
 """
 
+from __future__ import absolute_import, print_function
+
 import argparse
 import errno
 import glob
@@ -27,6 +29,7 @@ from collections import defaultdict, namedtuple
 from cStringIO import StringIO
 
 import cjson
+import six
 from pyinstrument import Profiler
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
@@ -132,7 +135,7 @@ def load_user_info(userinfo_path):
             # We'll also strip here, to remove the additional whitespace on usernames and fullnames.
             fields = [backslash_decode_value(field).strip() for field in fields]
             record = UserInfoRecord(*fields)
-            entry = {key: [value, ] for key, value in record.__dict__.iteritems()}
+            entry = {key: [value, ] for key, value in six.iteritems(record.__dict__)}
             # Store records twice, once with an int key, and once with a string key.
             # (They should therefore not collide.)
             result[int(record.user_id)] = entry
@@ -185,7 +188,7 @@ class BulkObfuscator(object):
 
         # Just put all the parameters with true boolean values into the entity set.
         # It doesn't matter if there are extras.
-        entity_list = [key for key, value in self.parameters.iteritems() if value is True]
+        entity_list = [key for key, value in six.iteritems(self.parameters) if value is True]
         self.obfuscator = Obfuscator(log_context=self.parameters['log_context'], entities=set(entity_list))
 
     def obfuscate_directory(self, input_dir, output_dir):
@@ -238,7 +241,7 @@ class BulkObfuscator(object):
                             clean_line = self.obfuscate_event_entry(line)
                             outfile.write(clean_line)
                             outfile.write('\n')
-        for key in sorted(self.missing_profile.iterkeys()):
+        for key in sorted(six.iterkeys(self.missing_profile)):
             log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
     def get_user_id_as_int(self, user_id):
@@ -345,7 +348,7 @@ class BulkObfuscator(object):
             # Note that this happens with some browser events.  Instead of
             # failing to parse it as a JSON string, just leave as-is.
             pass
-        elif isinstance(event_data, basestring):
+        elif isinstance(event_data, six.string_types):
             # Cjson produces str, while json produces unicode.  Hmm.
             if len(event_data) == 512 and 'POST' in event_data:
                 # It's a truncated JSON string.  But we're going to throw it out anyway, so no worries.
@@ -412,7 +415,7 @@ class BulkObfuscator(object):
                         clean_line = self.obfuscate_courseware_entry(line, user_profile)
                         outfile.write(clean_line)
                         outfile.write('\n')
-        for key in sorted(self.missing_profile.iterkeys()):
+        for key in sorted(six.iterkeys(self.missing_profile)):
             log.error(u"Missing profile entry for user_id '%s': %s", key, self.missing_profile[key])
 
     def obfuscate_courseware_entry(self, line, user_profile):
@@ -698,7 +701,7 @@ def main():
     finally:
         if profiler:
             profiler.stop()
-            print >>sys.stderr, profiler.output_text(unicode=True, color=True)
+            print(profiler.output_text(six.text_type=True, color=True), file=sys.stderr)
 
 
 if __name__ == '__main__':

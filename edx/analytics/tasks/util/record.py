@@ -1,13 +1,16 @@
 """Tools for working with typed records."""
 
+from __future__ import absolute_import
+
 import datetime
-import itertools
 import logging
 import re
 from collections import OrderedDict
 
 import ciso8601
 import pytz
+import six
+from six.moves import zip
 
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
@@ -103,9 +106,9 @@ class Record(object):
         extra_args = []
         # Fields that had no argument mapped to them
         remaining_fields = []
-        # Use izip_longest instead of zip since it allows us to detect the case when more values have been provided than
+        # Use zip_longest instead of zip since it allows us to detect the case when more values have been provided than
         # there are fields in the object. This case should raise a TypeError, so we need to detect it here.
-        for val, field_name in itertools.izip_longest(args, fields.keys(), fillvalue=sentinel):
+        for val, field_name in six.moves.zip_longest(args, list(fields.keys()), fillvalue=sentinel):
             if val is sentinel:
                 remaining_fields.append(field_name)
             elif field_name is sentinel:
@@ -142,7 +145,7 @@ class Record(object):
 
         # Raise an error if we found any keyword arguments that weren't mapped to a field.
         if len(kwargs) > 0:
-            raise TypeError('Unknown fields specified: {0}'.format(', '.join(kwargs.keys())))
+            raise TypeError('Unknown fields specified: {0}'.format(', '.join(list(kwargs.keys()))))
 
         self._initialized = True
 
@@ -528,7 +531,7 @@ class Field(object):
 
     def serialize_to_string(self, value):
         """Returns a unicode string representation of a value for this field."""
-        return unicode(value)
+        return six.text_type(value)
 
     def deserialize_from_string(self, string_value):
         """Returns a typed representation of the value from its string representation."""
@@ -582,7 +585,7 @@ class StringField(Field):  # pylint: disable=abstract-method
     def validate(self, value):
         validation_errors = super(StringField, self).validate(value)
         if value is not None:
-            if not isinstance(value, basestring):
+            if not isinstance(value, six.string_types):
                 validation_errors.append('The value is not a string')
             elif self.length and not self.truncate and len(value) > self.length:
                 validation_errors.append('The string length exceeds the maximum allowed')
@@ -594,7 +597,7 @@ class StringField(Field):  # pylint: disable=abstract-method
             value = value[:self.length]
 
         try:
-            return unicode(value, encoding=getattr(self, 'encoding', 'utf8'))
+            return six.text_type(value, encoding=getattr(self, 'encoding', 'utf8'))
         except TypeError:
             # It's already a unicode string
             return value
@@ -827,7 +830,7 @@ class RecordMapper(object):
                 # TODO: this should really check to see if the record_field is nullable.
                 value = None
             else:
-                value = backslash_encode_value(unicode(obj))
+                value = backslash_encode_value(six.text_type(obj))
                 if '\x00' in value:
                     value = value.replace('\x00', '\\0')
                 # Avoid validation errors later due to length by truncating here.
@@ -923,7 +926,7 @@ class RecordMapper(object):
         """
         record_mapping = {}
         fields = self.record_class.get_fields()
-        field_keys = fields.keys()
+        field_keys = list(fields.keys())
         for field_key in field_keys:
             field_tuple = (field_key, fields[field_key])
 
