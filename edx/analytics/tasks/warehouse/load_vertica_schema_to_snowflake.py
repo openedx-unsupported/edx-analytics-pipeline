@@ -3,6 +3,7 @@ Tasks to load a Vertica schema from S3 into Snowflake.
 """
 
 import logging
+import re
 
 import luigi
 
@@ -28,13 +29,23 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTabl
         """
         results = []
         for column_name, field_type, _ in self.vertica_table_schema:
-            if column_name == 'start':
+            if column_name == 'start' or " " in column_name:
                 column_name = '"{}"'.format(column_name)
+
             if field_type.startswith('long '):
                 field_type = field_type.lstrip('long ')
-            elif 'numeric(40' in field_type:
-                # Snowflake only handles numerics up to 38.
-                field_type = field_type.split('(')[0]
+            elif 'numeric(' in field_type:
+                # Snowflake only handles numeric precision up to 38. This regex should find either 1 or 2 numbers
+                # ex: numeric(52) or numeric(58, 4). First number is precision, second is scale.
+                precision_and_scale = re.findall(r'[0-9]+', field_type)
+                if int(precision_and_scale[0]) > 38:
+                    # If it has scale, try to preserve that
+                    if len(precision_and_scale) == 2:
+                        field_type = 'numeric(38,{})'.format(precision_and_scale[1])
+                    else:
+                        field_type = 'numeric(38)'
+            elif field_type == 'uuid':
+                field_type = 'varchar(36)'
 
             results.append((column_name, field_type))
 
