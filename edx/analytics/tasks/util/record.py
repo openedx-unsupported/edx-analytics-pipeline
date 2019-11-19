@@ -1,14 +1,14 @@
 """Tools for working with typed records."""
 
 import datetime
-import itertools
 import logging
 import re
 from collections import OrderedDict
 
-import ciso8601
 import pytz
+from six.moves import zip, zip_longest  # pylint: wrong-import-order
 
+import ciso8601
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
 try:
@@ -103,9 +103,9 @@ class Record(object):
         extra_args = []
         # Fields that had no argument mapped to them
         remaining_fields = []
-        # Use izip_longest instead of zip since it allows us to detect the case when more values have been provided than
+        # Use zip_longest instead of zip since it allows us to detect the case when more values have been provided than
         # there are fields in the object. This case should raise a TypeError, so we need to detect it here.
-        for val, field_name in itertools.izip_longest(args, fields.keys(), fillvalue=sentinel):
+        for val, field_name in zip_longest(args, fields.keys(), fillvalue=sentinel):
             if val is sentinel:
                 remaining_fields.append(field_name)
             elif field_name is sentinel:
