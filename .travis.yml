@@ -1,6 +1,6 @@
 language: python
 python:
-  - "2.7"
+  - "3.5"
 
 
 
@@ -41,7 +41,7 @@ before_install:
   - mkdir -p coverage
 
 script:
-  - make test-docker
+  - make test-docker-py3
   - make quality-docker
   - make coverage-docker
 
