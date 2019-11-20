@@ -11,8 +11,8 @@ from operator import itemgetter
 
 import html5lib
 import luigi
-from luigi.configuration import get_config
 import webencodings
+from luigi.configuration import get_config
 
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
