@@ -45,6 +45,7 @@ class LoadVerticaTableFromS3ToSnowflakeTask(VerticaTableExportMixin, VerticaTabl
                     else:
                         field_type = 'numeric(38)'
             elif field_type == 'uuid':
+                # Snowflake has no uuid type, but Vertica's is just a 36 character string
                 field_type = 'varchar(36)'
 
             results.append((column_name, field_type))
