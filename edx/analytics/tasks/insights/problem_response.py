@@ -141,7 +141,8 @@ class ProblemResponseDataMixin(object):
         """
         import html5lib
         import six
-        return [html5lib, six]
+        import webencodings
+        return [html5lib, six, webencodings]
 
 
 class LatestProblemResponseDataTask(EventLogSelectionMixin,

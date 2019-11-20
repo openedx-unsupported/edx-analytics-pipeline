@@ -12,6 +12,7 @@ from operator import itemgetter
 import html5lib
 import luigi
 from luigi.configuration import get_config
+import webencodings
 
 import edx.analytics.tasks.util.eventlog as eventlog
 import edx.analytics.tasks.util.opaque_key_util as opaque_key_util
@@ -624,7 +625,7 @@ class BaseAnswerDistributionTask(MapReduceJobTask):
 
     def extra_modules(self):
         import six
-        return [html5lib, six]
+        return [html5lib, six, webencodings]
 
 
 class ProblemCheckEvent(
@@ -772,7 +773,7 @@ class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, 
 
     def extra_modules(self):
         import six
-        return [html5lib, six]
+        return [html5lib, six, webencodings]
 
 
 class InsertToMysqlAnswerDistributionTableBase(MysqlInsertTask):
