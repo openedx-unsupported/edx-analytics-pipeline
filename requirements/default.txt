@@ -92,8 +92,10 @@ uritemplate==3.0.0        # via google-api-python-client
 urllib3==1.22
 user-agents==0.3.2
 vertica-python==0.6.11
+webencodings==0.5.1
 wheel==0.30.0
 yarn-api-client==0.2.3
+
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools==41.4.0        # via google-cloud-core, protobuf, python-daemon
