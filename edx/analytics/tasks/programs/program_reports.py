@@ -1,6 +1,7 @@
 import csv
 import datetime
 import logging
+from collections import namedtuple
 
 import luigi
 from luigi.util import inherits
@@ -21,13 +22,13 @@ class ProgramsReportTaskMixin(object):
     - overwrite: a boolean representing whether or not to overwrite the existing output for this task. Luigi tasks
         are idempotent, so given numerous same inputs, a task will generate the same output for each set of inputs.
         This may not be a desirable behavior when, say, the underlying data or the output of (an) upstream task(s) has
-        changed and we need a fresh run of the task
+        changed and we need a fresh run of the task.
     - overwrite_export: a boolean representing whether or not to overwrite the Sqoop database export. As above, Luigi
-        tasks are idempotent. This particular flag is used to indicate to the upstream
-        ExportVerticaTableToS3Task whetheror not to re-export the Vertica table to S3
+        tasks are idempotent. This particular flag is used to indicate to the upstream.
+        ExportVerticaTableToS3Task whether or not to re-export the Vertica table to S3
     - table_name: the table containing the underlying data, used by Sqoop in the upstream ExportVerticaTableToS3Task
     - sqoop_null_string: the string used to replace any null values encountered by Sqoop in the
-        ExportVerticaTableToS3Task; we use "null" here because we want to display "null" in the output CSV anyway
+        ExportVerticaTableToS3Task; we use "null" here because we want to display "null" in the output CSV anyway.
     - vertica_schema_name: the Vertica schema to run this task against
     """
     output_root = luigi.Parameter(
@@ -167,17 +168,13 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
 
     The task accepts the parameters inherited from the ProgramsReportTaskMixin.
     """
-    AUTHORING_ORG_INDEX = 0
-    PROGRAM_TITLE_INDEX = 1
-    PROGRAM_UUID_INDEX = 2
-    PROGRAM_TYPE_INDEX = 3
-    USER_ID_INDEX = 4
-    TRACK_INDEX = 11
-    ENTRY_YEAR_INDEX = 14
-    COURSE_RUN_COMPLETED_INDEX = 18
-    PROGRAM_COMPLETED_INDEX = 20
-    COURSE_KEY_INDEX = 21
-    TIMESTAMP_INDEX = 22
+    COMBINED_COURSE_ENROLL_FIELDS = [
+        'authoring_org', 'program_title', 'program_uuid', 'program_type',
+        'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'external_course_run_key',
+        'track', 'grade', 'letter_grade', 'date_first_enrolled', 'date_last_unenrolled', 'current_enrollment_is_active',
+        'first_verified_enrollment_time', 'course_run_completed', 'date_completed', 'program_completed', 'course_key', 'timestamp',
+    ]
+    CombinedCourseEnrollEntry = namedtuple('CombinedCourseEnrollEntry', COMBINED_COURSE_ENROLL_FIELDS)
 
     def requires(self):
         return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
@@ -185,16 +182,9 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
         fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+        entry = self.CombinedCourseEnrollEntry(*fields)
 
-        authoring_org = fields[self.AUTHORING_ORG_INDEX]
-        program_title = fields[self.PROGRAM_TITLE_INDEX]
-        program_uuid = fields[self.PROGRAM_UUID_INDEX]
-        program_type = fields[self.PROGRAM_TYPE_INDEX]
-        user_id = fields[self.USER_ID_INDEX]
-        course_key = fields[self.COURSE_KEY_INDEX]
-        timestamp = fields[self.TIMESTAMP_INDEX]
-
-        yield (authoring_org, program_type, program_uuid, program_title, user_id, course_key, timestamp), line
+        yield (entry.authoring_org, entry.program_type, entry.program_uuid, entry.program_title, entry.user_id, entry.course_key, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -226,17 +216,22 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
             num_course_run_enrollments += 1
 
             fields = value.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+            entry = self.CombinedCourseEnrollEntry(*fields)
 
-            program_completed = string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
+            program_completed = string_to_bool(entry.program_completed)
 
-            track = fields[self.TRACK_INDEX]
+            track = entry.track
+            if track == 'no-id-professional':
+                # for the purposes of this report, treat "no-id-professional"
+                # and "professional" as the same track
+                track = 'professional'
             tracks.add(track)
 
-            is_course_run_completed = string_to_bool(fields[self.COURSE_RUN_COMPLETED_INDEX])
+            is_course_run_completed = string_to_bool(entry.course_run_completed)
             completed = completed or is_course_run_completed
 
-            if fields[self.ENTRY_YEAR_INDEX] != self.sqoop_null_string:
-                year = datetime.datetime.strptime(fields[self.ENTRY_YEAR_INDEX], '%Y-%m-%d %H:%M:%S.%f').year
+            if entry.date_first_enrolled != self.sqoop_null_string:
+                year = datetime.datetime.strptime(entry.date_first_enrolled, '%Y-%m-%d %H:%M:%S.%f').year
                 entry_years.add(year)
 
         # the method that writes the output of the reducers to a file writes the
@@ -244,13 +239,13 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         # so to keep the list of tracks together, use a comma separated string
         tracks = ','.join(tracks)
 
-        # if all course run enrollments have null for their first enrollment time, use null
+        # if all course run enrollments have null for their first enrollment time, use sqoop_null_string
         # find the minimum value for the entry year excluding None; if None is the only value,
-        # then entry year is 'null'
+        # then entry year is the value of sqoop_null_string
         if len(entry_years) > 0:
             entry_year = min(entry_years)
         else:
-            entry_year = 'null'
+            entry_year = self.sqoop_null_string
 
         yield [authoring_org, program_type, program_title, program_uuid,
                user_id, tracks, num_course_run_enrollments, entry_year,
@@ -275,20 +270,15 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         - whether the learner has completed the program
         - the earliest year a learner has enrolled in any course within the program as that learner's entry year
 
-    The task accepts the same parameters as the CombineCourseEnrollmentsTask, from which it inherits parameters
+    The task accepts the same parameters as the CombineCourseEnrollmentsTask, from which it inherits parameters.
     """
 
-    AUTHORING_ORG_INDEX = 0
-    PROGRAM_TYPE_INDEX = 1
-    PROGRAM_TITLE_INDEX = 2
-    PROGRAM_UUID_INDEX = 3
-    USER_ID_INDEX = 4
-    TRACKS_INDEX = 5
-    NUM_COURSE_RUN_ENROLLMENTS_INDEX = 6
-    ENTRY_YEAR_INDEX = 7
-    COURSE_COMPLETED_INDEX = 8
-    PROGRAM_COMPLETED_INDEX = 9
-    TIMESTAMP_INDEX = 10
+    COUNT_COURSE_ENROLLMENT_FIELDS = [
+        'authoring_org', 'program_type', 'program_title', 'program_uuid',
+        'user_id', 'tracks', 'num_course_run_enrollments', 'entry_year',
+        'course_completed', 'program_completed', 'timestamp',
+    ]
+    CountCourseEnrollmentsEntry = namedtuple('CountCourseEnrollmentsEntry', COUNT_COURSE_ENROLLMENT_FIELDS)
 
     def requires(self):
         return self.clone(CombineCourseEnrollmentsTask)
@@ -297,17 +287,11 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         """Yield a (key, value) tuple for each learner enrolled in a program."""
 
         # although we originally split on the sqoop_fields_terminated_by parameter,
-        # the writer of the previous reduce task uses a tab delimeter
+        # the writer of the previous reduce task uses a tab delimiter
         fields = line.split('\t')
+        entry = self.CountCourseEnrollmentsEntry(*fields)
 
-        authoring_org = fields[self.AUTHORING_ORG_INDEX]
-        program_type = fields[self.PROGRAM_TYPE_INDEX]
-        program_title = fields[self.PROGRAM_TITLE_INDEX]
-        program_uuid = fields[self.PROGRAM_UUID_INDEX]
-        user_id = fields[self.USER_ID_INDEX]
-        timestamp = fields[self.TIMESTAMP_INDEX]
-
-        yield (authoring_org, program_type, program_title, program_uuid, user_id, timestamp), line
+        yield (entry.authoring_org, entry.program_type, entry.program_title, entry.program_uuid, entry.user_id, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -336,22 +320,24 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         num_audit_enrollments = 0
         num_verified_enrollments = 0
         num_professional_enrollments = 0
-        num_masters_enrollents = 0
+        num_masters_enrollments = 0
 
         for value in values:
             # although we originally split on the sqoop_fields_terminated_by parameter,
-            # the writer of the previous reduce task uses a tab delimeter
+            # the writer of the previous reduce task uses a tab delimiter
             fields = value.split('\t')
 
-            num_course_run_enrollments += int(fields[self.NUM_COURSE_RUN_ENROLLMENTS_INDEX])
+            entry = self.CountCourseEnrollmentsEntry(*fields)
 
-            is_course_completed = string_to_bool(fields[self.COURSE_COMPLETED_INDEX])
+            num_course_run_enrollments += int(entry.num_course_run_enrollments)
+
+            is_course_completed = string_to_bool(entry.course_completed)
             if is_course_completed:
                 num_completed_courses += 1
 
-            is_program_completed = is_program_completed or string_to_bool(fields[self.PROGRAM_COMPLETED_INDEX])
+            is_program_completed = is_program_completed or string_to_bool(entry.program_completed)
 
-            tracks = fields[self.TRACKS_INDEX].split(',')
+            tracks = entry.tracks.split(',')
             for track in tracks:
                 if track == 'audit':
                     num_audit_enrollments += 1
@@ -360,23 +346,23 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
                 elif track == 'professional' or track == 'no-id-professional':
                     num_professional_enrollments += 1
                 elif track == 'masters':
-                    num_masters_enrollents += 1
+                    num_masters_enrollments += 1
 
-            if fields[self.ENTRY_YEAR_INDEX] != 'null':
-                entry_years.add(fields[self.ENTRY_YEAR_INDEX])
+            if entry.entry_year != self.sqoop_null_string:
+                entry_years.add(entry.entry_year)
 
         # find the learner's entry year across all courses they have enrolled in as part of a program
-        # find the minimum value for the entry year excluding null; if null is the only value,
-        # then entry year is null
+        # find the minimum value for the entry year excluding sqoop_null_string; if sqoop_null_string is the only value,
+        # then entry year is sqoop_null_string
         if len(entry_years) > 0:
             entry_year = min(entry_years)
         else:
-            entry_year = 'null'
+            entry_year = self.sqoop_null_string
 
         yield [authoring_org, program_type, program_title, program_uuid, user_id,
                entry_year, num_course_run_enrollments, num_completed_courses,
                num_audit_enrollments, num_verified_enrollments,
-               num_professional_enrollments, num_masters_enrollents,
+               num_professional_enrollments, num_masters_enrollments,
                is_program_completed, timestamp]
 
     def output(self):
@@ -404,20 +390,14 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
 
     The task accepts the same parameters as the CountCourseEnrollments, from which it inherits parameters
     """
-    AUTHORING_ORG_INDEX = 0
-    PROGRAM_TYPE_INDEX = 1
-    PROGRAM_TITLE_INDEX = 2
-    PROGRAM_UUID_INDEX = 3
-    USER_ID_INDEX = 4
-    ENTRY_YEAR_INDEX = 5
-    NUM_COURSE_RUN_ENROLLMENTS_INDEX = 6
-    NUM_COMPLETED_COURSES_INDEX = 7
-    NUM_AUDIT_ENROLLMENTS_INDEX = 8
-    NUM_VERIFIED_ENROLLMENTS_INDEX = 9
-    NUM_PROFESSIONAL_ENROLLMENTS_INDEX = 10
-    NUM_MASTERS_ENROLLMENTS_INDEX = 11
-    PROGRAM_COMPLETED_INDEX = 12
-    TIMESTAMP_INDEX = 13
+
+    COUNT_PROGRAM_ENROLLMENTS_FIELDS = [
+        'authoring_org', 'program_type', 'program_title', 'program_uuid',
+        'user_id', 'entry_year', 'num_course_run_enrollments', 'num_completed_courses',
+        'num_audit_enrollments', 'num_verified_enrollments', 'num_professional_enrollments',
+        'num_masters_enrollments', 'is_program_completed', 'timestamp',
+    ]
+    CountProgramEnrollmentsEntry = namedtuple('CountProgramEnrollmentsEntry', COUNT_PROGRAM_ENROLLMENTS_FIELDS)
 
     def requires(self):
         return self.clone(CountCourseEnrollments)
@@ -425,14 +405,9 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     def mapper(self, line):
         """Yield a (key, value) tuple for each program."""
         fields = line.split('\t')
-        authoring_org = fields[self.AUTHORING_ORG_INDEX]
-        program_type = fields[self.PROGRAM_TYPE_INDEX]
-        program_title = fields[self.PROGRAM_TITLE_INDEX]
-        program_uuid = fields[self.PROGRAM_UUID_INDEX]
-        entry_year = fields[self.ENTRY_YEAR_INDEX]
-        timestamp = fields[self.TIMESTAMP_INDEX]
+        entry = self.CountProgramEnrollmentsEntry(*fields)
 
-        yield (authoring_org, program_type, program_title, program_uuid, entry_year, timestamp), line
+        yield (entry.authoring_org, entry.program_type, entry.program_title, entry.program_uuid, entry.entry_year, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -456,9 +431,9 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         total_num_run_enrollments = 0
         total_num_program_completions = 0
 
-        # TODO: make this dynamic based on the number of courses in a program; hard coded to 10
-        # for now as overwhelming majority of programs have 10 or fewer courses
-        num_courses = 10
+        # TODO: make this dynamic based on the number of courses in a program;
+        # hard coded to 18 for now
+        num_courses = 18
         num_learners_in_audit = [0 for _ in range(num_courses)]
         num_learners_in_verified = [0 for _ in range(num_courses)]
         num_learners_in_professional = [0 for _ in range(num_courses)]
@@ -467,18 +442,20 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
 
         for value in values:
             fields = value.split('\t')
+            entry = self.CountProgramEnrollmentsEntry(*fields)
 
             total_num_learners += 1
-            total_num_run_enrollments += int(fields[self.NUM_COURSE_RUN_ENROLLMENTS_INDEX])
+            total_num_run_enrollments += int(entry.num_course_run_enrollments)
 
-            is_program_completed = fields[self.PROGRAM_COMPLETED_INDEX]
+            is_program_completed = entry.is_program_completed
+
             if string_to_bool(is_program_completed):
                 total_num_program_completions += 1
 
-            num_audit_enrollments = int(fields[self.NUM_AUDIT_ENROLLMENTS_INDEX])
-            num_verified_enrollments = int(fields[self.NUM_VERIFIED_ENROLLMENTS_INDEX])
-            num_professional_enrollments = int(fields[self.NUM_PROFESSIONAL_ENROLLMENTS_INDEX])
-            num_masters_enrollments = int(fields[self.NUM_MASTERS_ENROLLMENTS_INDEX])
+            num_audit_enrollments = int(entry.num_audit_enrollments)
+            num_verified_enrollments = int(entry.num_verified_enrollments)
+            num_professional_enrollments = int(entry.num_professional_enrollments)
+            num_masters_enrollments = int(entry.num_masters_enrollments)
 
             for num in range(num_audit_enrollments):
                 num_learners_in_audit[num] += 1
@@ -492,7 +469,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             for num in range(num_masters_enrollments):
                 num_learners_in_masters[num] += 1
 
-            num_completed_courses = int(fields[7])
+            num_completed_courses = int(entry.num_completed_courses)
 
             for num in range(num_completed_courses):
                 num_learners_completed_courses[num] += 1
@@ -546,7 +523,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         """
         List names of columns as they should appear in the CSV.
         """
-        num_courses = 10
+        num_courses = 18
 
         columns = [
             'Authoring Institution',
@@ -618,8 +595,8 @@ def string_to_bool(value):
 # of class A, A appears twice. When super() in called in the run method, A is returned, leading to infinite recursion.
 # In future versions of Luigi, this is fixed. This is a temporary workaround.
 # Note that we do not use this decorator with any task that is directly downstream of ExportVerticaTableToS3Task
-# due issues with the "inheritance" of the sqoop_fields_terminated_by parameter, whose default value is
-# u'\x01'; Jenkins fails with the following error:
+# due to issues with the "inheritance" of the sqoop_fields_terminated_by parameter, whose default value is
+# u'\x01'; jobs running on EMR fail fails with the following error:
 # "[Fatal Error] job.xml:209:161: Character reference "&#1" is an invalid XML character."
 BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
 BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
