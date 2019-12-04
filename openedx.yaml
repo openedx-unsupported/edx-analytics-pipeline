@@ -10,4 +10,5 @@ tags:
 oeps:
     oep-2: True
     oep-10: True
+    oep-18: True
 openedx-release: {ref: release}
