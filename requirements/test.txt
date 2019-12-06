@@ -13,26 +13,27 @@ argparse==1.2.1
 asn1crypto==1.2.0
 astroid==1.4.9            # via pylint
 azure-common==1.1.23
+azure-core==1.1.1
 azure-nspkg==3.0.2
-azure-storage-blob==2.1.0
-azure-storage-common==2.1.0
+azure-storage-blob==12.0.0
 azure-storage-nspkg==3.1.0
 backports-abc==0.5
-backports.functools-lru-cache==1.5  # via pylint
+backports.functools-lru-cache==1.6.1  # via pylint
 bcrypt==3.1.7
 boto3==1.4.8
 boto==2.48.0
 botocore==1.8.50
 cachetools==3.1.1
-certifi==2019.9.11
-cffi==1.13.1
+certifi==2019.11.28
+cffi==1.13.2
 chardet==3.0.4
 ciso8601==1.0.3
-configparser==4.0.2       # via pylint
+configparser==4.0.2       # via importlib-metadata, pylint
+contextlib2==0.6.0.post1  # via importlib-metadata
 coverage==4.3.1
 cryptography==2.8
 ddt==1.1.1
-diff-cover==2.4.0
+diff-cover==2.4.1
 distlib==0.2.2
 docutils==0.15.2
 ecdsa==0.13
@@ -43,71 +44,80 @@ enum34==1.1.6
 filechunkio==1.8
 freezegun==0.3.9
 funcsigs==1.0.2           # via mock
-future==0.18.1
+future==0.18.2
 futures==3.3.0
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3
-google-auth==1.6.3
+google-auth==1.7.1
 google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1
-google-resumable-media==0.4.1
+google-resumable-media==0.5.0
 googleapis-common-protos==1.6.0
 graphitesend==0.10.0
 gspread==3.1.0
 html5lib==1.0.1
 httplib2==0.14.0
 httpretty==0.8.14
-idna==2.6
+idna==2.8
 ijson==2.5.1
-inflect==2.1.0            # via jinja2-pluralize
+importlib-metadata==1.1.0  # via inflect
+inflect==3.0.2            # via jinja2-pluralize
 ipaddress==1.0.23
+isodate==0.6.0
 isort==4.2.15
 isoweek==1.3.3
 jinja2-pluralize==0.3.0   # via diff-cover
 jinja2==2.10.3
 jmespath==0.9.4
-lazy-object-proxy==1.4.2  # via astroid
+lazy-object-proxy==1.4.3  # via astroid
 lockfile==0.12.2
 markupsafe==1.1.1
 mccabe==0.6.1             # via pylint
 mock==2.0.0
+more-itertools==5.0.0     # via zipp
+msrest==0.6.10
 nose-ignore-docstring==0.2
 nose==1.3.7
 numpy==1.11.3
+oauthlib==3.1.0
 oscrypto==1.1.0
 pandas==0.13.0
-paramiko==2.6.0
+paramiko==2.7.0
+pathlib2==2.3.5           # via importlib-metadata
 paypalrestsdk==1.9.0
-pbr==5.4.3
-protobuf==3.10.0
+pbr==5.4.4
+protobuf==3.11.1
 psycopg2==2.6.2
 pyasn1-modules==0.2.7
-pyasn1==0.4.7
+pyasn1==0.4.8
 pycodestyle==2.3.1
 pycparser==2.19
 pycrypto==2.6.1
-pycryptodomex==3.9.0
+pycryptodomex==3.9.4
 pygeoip==0.3.2
-pygments==2.4.2           # via diff-cover
+pygments==2.5.2           # via diff-cover
 pyjwt==1.7.1
 pylint==1.6.4
 pymongo==3.9.0
 pynacl==1.3.0
-pyopenssl==19.0.0
+pyopenssl==19.1.0
 python-cjson==1.1.0
 python-daemon==2.1.2
 python-dateutil==2.6.1
 python-gnupg==0.3.9
 pytz==2017.3
-pyyaml==5.1.2
-requests==2.18.4
+pyyaml==5.2
+requests-oauthlib==1.3.0
+requests==2.22.0
 rsa==4.0
 s3transfer==0.1.13
+scandir==1.10.0           # via pathlib2
 singledispatch==3.4.0.3
 six==1.10.0
 snowflake-connector-python==2.0.2
 stevedore==1.19.1
 tornado==4.5.3
+typing==3.7.4.1
 ua-parser==0.3.6
 uritemplate==3.0.0
 urllib3==1.22
@@ -117,6 +127,7 @@ webencodings==0.5.1
 wheel==0.30.0
 wrapt==1.11.2             # via astroid
 yarn-api-client==0.2.3
+zipp==0.6.0               # via importlib-metadata
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools==41.4.0        # via google-cloud-core, protobuf, python-daemon
+# setuptools
