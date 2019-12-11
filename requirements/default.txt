@@ -56,7 +56,7 @@ jinja2==2.10.3
 jmespath==0.9.4           # via boto3, botocore
 lockfile==0.12.2          # via python-daemon
 markupsafe==1.1.1
-numpy==1.11.3
+numpy==1.16.5
 oscrypto==1.1.0           # via snowflake-connector-python
 paramiko==2.6.0
 paypalrestsdk==1.9.0
