@@ -185,7 +185,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
         entry = self.CombinedCourseEnrollEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_title, entry.program_uuid, entry.program_type, entry.user_id, entry.course_key, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.course_key, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -211,7 +211,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         num_course_run_enrollments = 0
         tracks = set()
 
-        authoring_org, program_title, program_uuid, program_type, user_id, course_key, timestamp = key
+        authoring_org, program_uuid, user_id, course_key, timestamp = key
 
         for value in values:
             num_course_run_enrollments += 1
@@ -248,7 +248,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         else:
             entry_year = self.sqoop_null_string
 
-        yield [authoring_org, program_title, program_uuid, program_type,
+        yield [authoring_org, program_uuid,
                user_id, tracks, num_course_run_enrollments, entry_year,
                completed, program_completed, timestamp]
 
@@ -275,7 +275,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     """
 
     COUNT_COURSE_ENROLLMENT_FIELDS = [
-        'authoring_org', 'program_title', 'program_uuid', 'program_type', 
+        'authoring_org', 'program_uuid',
         'user_id', 'tracks', 'num_course_run_enrollments', 'entry_year',
         'course_completed', 'program_completed', 'timestamp',
     ]
@@ -292,7 +292,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         fields = line.split('\t')
         entry = self.CountCourseEnrollmentsEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_title, entry.program_uuid, entry.program_type, entry.user_id, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -312,7 +312,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
             - whether the learner has completed the program
             - the earliest year a learner has enrolled in any course within the program as that learner's entry year
         """
-        authoring_org, program_title, program_uuid, program_type, user_id, timestamp = key
+        authoring_org, program_uuid, user_id, timestamp = key
 
         entry_years = set()
         is_program_completed = False
@@ -360,7 +360,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         else:
             entry_year = self.sqoop_null_string
 
-        yield [authoring_org, program_title, program_uuid, program_type, user_id,
+        yield [authoring_org, program_uuid, user_id,
                entry_year, num_course_run_enrollments, num_completed_courses,
                num_audit_enrollments, num_verified_enrollments,
                num_professional_enrollments, num_masters_enrollments,
@@ -393,7 +393,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     """
 
     COUNT_PROGRAM_ENROLLMENTS_FIELDS = [
-        'authoring_org', 'program_title', 'program_uuid', 'program_type',
+        'authoring_org', 'program_uuid',
         'user_id', 'entry_year', 'num_course_run_enrollments', 'num_completed_courses',
         'num_audit_enrollments', 'num_verified_enrollments', 'num_professional_enrollments',
         'num_masters_enrollments', 'is_program_completed', 'timestamp',
@@ -420,7 +420,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         fields = line.split('\t')
         entry = self.CountProgramEnrollmentsEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_title, entry.program_uuid, entry.program_type, entry.entry_year, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.entry_year, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -438,7 +438,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             - the number of learners with 1+...10+ completed courses
             - the number of learners who have completed the program
         """
-        authoring_org, program_title, program_uuid, program_type, entry_year, timestamp = key
+        authoring_org, program_uuid, entry_year, timestamp = key
 
         total_num_learners = 0
         total_num_run_enrollments = 0
