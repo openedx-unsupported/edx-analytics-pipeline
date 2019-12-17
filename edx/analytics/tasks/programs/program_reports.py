@@ -463,9 +463,9 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
                 total_num_program_completions += 1
 
             self.aggregate_enrollment_totals(cnt_learners_in_audit, int(entry.num_audit_enrollments))
-            self.aggregate_enrollment_totals(cnt_learners_in_audit, int(entry.num_verified_enrollments))
-            self.aggregate_enrollment_totals(cnt_learners_in_audit, int(entry.num_professional_enrollments))
-            self.aggregate_enrollment_totals(cnt_learners_in_audit, int(entry.num_masters_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_verified, int(entry.num_verified_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_professional, int(entry.num_professional_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_masters, int(entry.num_masters_enrollments))
             self.aggregate_enrollment_totals(cnt_learners_in_completed_courses, int(entry.num_completed_courses))
 
             num_audit_enrollments = int(entry.num_audit_enrollments)
@@ -482,15 +482,15 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             'total_completions': total_num_program_completions,
             'enrollment_counts': {
                 'audit': cnt_learners_in_audit.values(),
-                'verified': cnt_learners_in_verified,
-                'professional': cnt_learners_in_professional,
-                'masters': cnt_learners_in_masters,
+                'verified': cnt_learners_in_verified.values(),
+                'professional': cnt_learners_in_professional.values(),
+                'masters': cnt_learners_in_masters.values(),
                 'course_completion': cnt_learners_in_completed_courses.values(),
             },
             'timestamp': timestamp,
         }
 
-        yield [json.dumps(result)]
+        yield (json.dumps(result),)
 
 
     def output(self):
