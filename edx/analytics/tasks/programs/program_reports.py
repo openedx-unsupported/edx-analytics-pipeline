@@ -2,7 +2,7 @@ import csv
 import datetime
 import json
 import logging
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 
 import luigi
 from luigi.util import inherits
@@ -473,22 +473,20 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             num_professional_enrollments = int(entry.num_professional_enrollments)
             num_masters_enrollments = int(entry.num_masters_enrollments)
 
-        result = {
-            'authoring_org': authoring_org,
-            'program_uuid': program_uuid,
-            'entry_year': entry_year,
-            'total_learners': total_num_learners,
-            'total_enrollments': total_num_run_enrollments,
-            'total_completions': total_num_program_completions,
-            'enrollment_counts': {
-                'audit': cnt_learners_in_audit.values(),
-                'verified': cnt_learners_in_verified.values(),
-                'professional': cnt_learners_in_professional.values(),
-                'masters': cnt_learners_in_masters.values(),
-                'course_completion': cnt_learners_in_completed_courses.values(),
-            },
-            'timestamp': timestamp,
-        }
+        result = OrderedDict([
+            ('authoring_org', authoring_org),
+            ('program_uuid', program_uuid),
+            ('entry_year', entry_year),
+            ('total_learners', total_num_learners),
+            ('total_enrollments', total_num_run_enrollments),
+            ('total_completions', total_num_program_completions),
+            ('audit_enrollment_counts', cnt_learners_in_audit.values()),
+            ('verified_enrollment_counts', cnt_learners_in_verified.values()),
+            ('professional_enrollment_counts', cnt_learners_in_professional.values()),
+            ('masters_enrollment_counts', cnt_learners_in_masters.values()),
+            ('course_completion_counts', cnt_learners_in_completed_courses.values()),
+            ('timestamp', timestamp),
+        ])
 
         yield (json.dumps(result),)
 
@@ -575,10 +573,10 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         program metadata table into a common data structure.
         """
         input_type = 'cohort_enrollments'
-        if VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii') in line:
-            line = line.replace(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'), '\t')
-            authoring_institution, _, program_uuid, _ = line.split('\t', 3)
-            input_type = 'program_metadata_export'
+        export_delimiter = VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii')
+        if export_delimiter in line:
+            authoring_institution, _, program_uuid, _ = line.split(export_delimiter, 3)
+            input_type = 'program_metadata'
         else:
             cohort = json.loads(line)
             authoring_institution = cohort['authoring_org'].encode('ascii')
@@ -596,8 +594,8 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         for value in values:
             input_type = value['input_type']
 
-            if input_type == 'program_metadata_export':
-                fields = value['data'].split('\t')
+            if input_type == 'program_metadata':
+                fields = value['data'].split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
                 program = self.ProgramMetadataEntry(*fields)
             else:
                 cohort = json.loads(value['data'])
@@ -618,6 +616,14 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         writer.writeheader()
 
         for entry_year, cohort in sorted(cohorts_by_year.items(), key=lambda x:x[1]):
+
+            def append_counts(row, values):
+                for n in range(program_course_count):
+                    if len(values):
+                        row.append(values.pop(0))
+                    else:
+                        row.append(0)
+
             row_items = [
                 program.authoring_org,
                 program.program_title,
@@ -628,15 +634,13 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
                 cohort.get('total_enrollments'),
                 cohort.get('total_completions'),
             ]
-
-            for key, values in cohort.get('enrollment_counts').items():
-                for n in range(program_course_count):
-                    if len(values):
-                        row_items.append(values.pop(0))
-                    else:
-                        row_items.append(0)
-
-            cohort.get('timestamp'),
+            append_counts(row_items, cohort.get('audit_enrollment_counts'))
+            append_counts(row_items, cohort.get('verified_enrollment_counts'))
+            append_counts(row_items, cohort.get('professional_enrollment_counts'))
+            append_counts(row_items, cohort.get('masters_enrollment_counts'))
+            append_counts(row_items, cohort.get('course_completion_counts'))
+            
+            row_items.append(cohort.get('timestamp'))
 
             writer.writerow({field_key: field_value for field_key, field_value in zip(columns, row_items)})
 
