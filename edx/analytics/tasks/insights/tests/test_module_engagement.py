@@ -579,11 +579,11 @@ class ModuleEngagementSummaryMetricRangesDataTaskReducerTest(ReducerTestMixin, T
 
     def test_zeroes_are_normal(self):
         values = [1, 0, 0, 0]
-        self.assert_ranges(values, [('normal', 0.0, 0.55), ('high', 0.55, 'inf')])
+        self.assert_ranges(values, [('normal', 0.0, '0.5499999999999998'), ('high', '0.5499999999999998', 'inf')])
 
     def test_zeroes_are_low(self):
         values = [0, 0, 0] + ([1] * 10) + ([2] * 4)
-        self.assert_ranges(values, [('low', 0, 0.4), ('normal', 0.4, 2.0), ('high', 2.0, 'inf')])
+        self.assert_ranges(values, [('low', 0, '0.3999999999999999'), ('normal', '0.3999999999999999', 2.0), ('high', 2.0, 'inf')])
 
 
 @ddt
