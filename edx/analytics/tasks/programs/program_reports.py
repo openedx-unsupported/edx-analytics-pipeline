@@ -2,7 +2,7 @@ import csv
 import datetime
 import json
 import logging
-from collections import namedtuple, OrderedDict
+from collections import OrderedDict, namedtuple
 
 import luigi
 from luigi.util import inherits
@@ -211,7 +211,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         num_course_run_enrollments = 0
         tracks = set()
 
-        authoring_org, program_uuid, user_id, course_key, timestamp = key
+        authoring_org, program_uuid, user_id, course_key, timestamp = key  # pylint: disable=unused-variable
 
         for value in values:
             num_course_run_enrollments += 1
@@ -407,10 +407,10 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         a specific number of courses
         """
         for n in range(number_of_enrollments):
-                if n in counts.keys():
-                    counts[n] += 1
-                else:
-                    counts[n] = 1
+            if n in counts.keys():
+                counts[n] += 1
+            else:
+                counts[n] = 1
 
     def requires(self):
         return self.clone(CountCourseEnrollments)
@@ -468,11 +468,6 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             self.aggregate_enrollment_totals(cnt_learners_in_masters, int(entry.num_masters_enrollments))
             self.aggregate_enrollment_totals(cnt_learners_in_completed_courses, int(entry.num_completed_courses))
 
-            num_audit_enrollments = int(entry.num_audit_enrollments)
-            num_verified_enrollments = int(entry.num_verified_enrollments)
-            num_professional_enrollments = int(entry.num_professional_enrollments)
-            num_masters_enrollments = int(entry.num_masters_enrollments)
-
         result = OrderedDict([
             ('authoring_org', authoring_org),
             ('program_uuid', program_uuid),
@@ -489,7 +484,6 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         ])
 
         yield (json.dumps(result),)
-
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
@@ -612,10 +606,10 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
 
         program_course_count = int(program.course_count)
         columns = self.get_column_names(program_course_count)
-        writer = csv.DictWriter(output_file, columns) 
+        writer = csv.DictWriter(output_file, columns)
         writer.writeheader()
 
-        for entry_year, cohort in sorted(cohorts_by_year.items(), key=lambda x:x[1]):
+        for entry_year, cohort in sorted(cohorts_by_year.items(), key=lambda x: x[1]):
 
             def append_counts(row, values):
                 for n in range(program_course_count):
@@ -639,7 +633,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
             append_counts(row_items, cohort.get('professional_enrollment_counts'))
             append_counts(row_items, cohort.get('masters_enrollment_counts'))
             append_counts(row_items, cohort.get('course_completion_counts'))
-            
+
             row_items.append(cohort.get('timestamp'))
 
             writer.writerow({field_key: field_value for field_key, field_value in zip(columns, row_items)})

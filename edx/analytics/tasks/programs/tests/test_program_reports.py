@@ -1,10 +1,10 @@
+""" Test Program Reporting Tasks """
 import json
 import os
 import shutil
 import tempfile
 from collections import OrderedDict
 from datetime import datetime
-from string import join
 from unittest import TestCase
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -122,8 +122,6 @@ class CohortEnrollmentCountTestMixin:
     def build_cohort_enrollment_output(
         authoring_org,
         program_uuid,
-        *args,
-        **kwargs
     ):
         out = OrderedDict([
             ('authoring_org', authoring_org),
@@ -132,15 +130,13 @@ class CohortEnrollmentCountTestMixin:
             ('total_learners', 6),
             ('total_enrollments', 27),
             ('total_completions', 2),
-            ('audit_enrollment_counts', [3,3]),
-            ('verified_enrollment_counts', [1,1,1,1,1]),
+            ('audit_enrollment_counts', [3, 3]),
+            ('verified_enrollment_counts', [1, 1, 1, 1, 1]),
             ('professional_enrollment_counts', []),
-            ('masters_enrollment_counts', [6,4,4,1,1]),
-            ('course_completion_counts', [6,4,3,2,2]),
+            ('masters_enrollment_counts', [6, 4, 4, 1, 1]),
+            ('course_completion_counts', [6, 4, 3, 2, 2]),
             ('timestamp', 'null'),
         ])
-        for key, value in kwargs.items():
-            out[key] = value
         return json.dumps(out)
 
 
@@ -434,7 +430,7 @@ class BuildAggregateProgramReportReducerTest(CohortEnrollmentCountTestMixin, Pro
     def test_multi_file_reduce(self):
         program_1 = 'e86dc8e3-47cd-4875-87bb-98356e1aa876'
         program_2 = '01015fd3-3b19-48b5-867c-1c78ef43a315'
- 
+
         reduce_keys = [
             (self.org_key, program_1),
             (self.org_key, program_2),
@@ -473,3 +469,17 @@ class BuildAggregateProgramReportReducerTest(CohortEnrollmentCountTestMixin, Pro
             ]
 
         self.validate_output_files(expected_output, 'aggregate_report__{}.csv'.format(self.DATE))
+
+    def test_missing_program_metadata(self):
+        self.reduce_key = (self.org_key, self.program_uuid)
+        inputs = self.get_inputs(*self.reduce_key)
+        inputs.pop()  # remove metadata input
+
+        with self.assertRaisesRegexp(
+            Exception,
+            'Cannot write report for {} program {}. No matching program_metadata entry found.'.format(
+                self.org_key,
+                self.program_uuid,
+            )
+        ):
+            self._get_reducer_output(inputs)
