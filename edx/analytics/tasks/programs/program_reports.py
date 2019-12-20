@@ -211,7 +211,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         num_course_run_enrollments = 0
         tracks = set()
 
-        authoring_org, program_uuid, user_id, course_key, timestamp = key  # pylint: disable=unused-variable
+        authoring_org, program_uuid, user_id, _, timestamp = key
 
         for value in values:
             num_course_run_enrollments += 1
@@ -468,6 +468,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             self.aggregate_enrollment_totals(cnt_learners_in_masters, int(entry.num_masters_enrollments))
             self.aggregate_enrollment_totals(cnt_learners_in_completed_courses, int(entry.num_completed_courses))
 
+        ordered_values = lambda x: [val for key, val in sorted(x.items())]  # return dict values sorted by key
         result = OrderedDict([
             ('authoring_org', authoring_org),
             ('program_uuid', program_uuid),
@@ -475,11 +476,11 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             ('total_learners', total_num_learners),
             ('total_enrollments', total_num_run_enrollments),
             ('total_completions', total_num_program_completions),
-            ('audit_enrollment_counts', cnt_learners_in_audit.values()),
-            ('verified_enrollment_counts', cnt_learners_in_verified.values()),
-            ('professional_enrollment_counts', cnt_learners_in_professional.values()),
-            ('masters_enrollment_counts', cnt_learners_in_masters.values()),
-            ('course_completion_counts', cnt_learners_in_completed_courses.values()),
+            ('audit_enrollment_counts', ordered_values(cnt_learners_in_audit)),
+            ('verified_enrollment_counts', ordered_values(cnt_learners_in_verified)),
+            ('professional_enrollment_counts', ordered_values(cnt_learners_in_professional)),
+            ('masters_enrollment_counts', ordered_values(cnt_learners_in_masters)),
+            ('course_completion_counts', ordered_values(cnt_learners_in_completed_courses)),
             ('timestamp', timestamp),
         ])
 
@@ -563,8 +564,10 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
 
     def mapper(self, line):
         """
-        Merges cohort enrollment output and a matching program entry from the
-        program metadata table into a common data structure.
+        Handles output of both the CountProgramCohortEnrollments task and the ExportVerticaTableToS3Task
+        against the program_metadata table. The mapper determines the input source
+        by looking for the vertica export delimiter and parses out the key values according
+        to the expected format.
         """
         input_type = 'cohort_enrollments'
         export_delimiter = VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii')
