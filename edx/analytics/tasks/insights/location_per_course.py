@@ -68,6 +68,12 @@ class LastDailyIpAddressOfUserTask(
         if not user_id:
             return
 
+        try:
+            user_id = int(user_id)
+        except ValueError:
+            self.incr_counter('User Location', 'Discard event with malformed user_id', 1)
+            return
+
         # Get timestamp instead of date string, so we get the latest ip
         # address for events on the same day.
         timestamp = eventlog.get_event_time_string(event)
