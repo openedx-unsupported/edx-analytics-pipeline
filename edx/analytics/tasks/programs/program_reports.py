@@ -27,7 +27,8 @@ class ProgramsReportTaskMixin(object):
     - overwrite_export: a boolean representing whether or not to overwrite the Sqoop database export. As above, Luigi
         tasks are idempotent. This particular flag is used to indicate to the upstream.
         ExportVerticaTableToS3Task whether or not to re-export the Vertica table to S3
-    - table_name: the table containing the underlying data, used by Sqoop in the upstream ExportVerticaTableToS3Task
+    - enrollments_table: the table containing the underlying enrollment data, used by Sqoop in the upstream ExportVerticaTableToS3Task
+    - programs_table: the table containing program meta information, used by Sqoop in the upstream ExportVerticaTableToS3Task
     - sqoop_null_string: the string used to replace any null values encountered by Sqoop in the
         ExportVerticaTableToS3Task; we use "null" here because we want to display "null" in the output CSV anyway.
     - vertica_schema_name: the Vertica schema to run this task against
@@ -43,9 +44,13 @@ class ProgramsReportTaskMixin(object):
         default=False,
         description='Whether or not to overwrite existing database export'
     )
-    table_name = luigi.Parameter(
+    enrollments_table = luigi.Parameter(
         default='learner_enrollments',
         description='Table containing enrollment rows to report on',
+    )
+    programs_table = luigi.Parameter(
+        default='program_metadata',
+        description='Table containing programs to report on',
     )
     sqoop_null_string = luigi.Parameter(
         default='null',
@@ -98,7 +103,11 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
         self.columns = self.get_column_names()
 
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return self.clone(
+            ExportVerticaTableToS3Task,
+            table_name=self.enrollments_table,
+            overwrite=(self.overwrite_export and self.overwrite)
+        )
 
     @staticmethod
     def get_column_names():
@@ -178,7 +187,11 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
     CombinedCourseEnrollEntry = namedtuple('CombinedCourseEnrollEntry', COMBINED_COURSE_ENROLL_FIELDS)
 
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return self.clone(
+            ExportVerticaTableToS3Task,
+            table_name=self.enrollments_table,
+            overwrite=(self.overwrite_export and self.overwrite),
+        )
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
@@ -513,9 +526,6 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
     report_name = luigi.Parameter(
         default='aggregate_report'
     )
-    programs_table = luigi.Parameter(
-        default='program_metadata'
-    )
 
     PROGRAM_METADATA_FIELDS = [
         'authoring_org', 'program_title', 'program_uuid', 'program_type', 'course_count'
@@ -661,6 +671,25 @@ def string_to_bool(value):
         return False
     else:
         raise ValueError('{} does not represent a boolean value.'.format(value))
+
+
+class BuildProgramReportsTask(ProgramsReportTaskMixin, luigi.Task):
+    """
+    Main task that serves as an entrypoint to run all program reports.
+
+    Parameters for this task are defined by the ProgramsReportTaskMixin and shared
+    with all downstream tasks.
+    """
+
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date. Used to tag report date'
+    )
+
+
+    def requires(self):
+        yield self.clone(BuildLearnerProgramReport)
+        yield self.clone(BuildAggregateProgramReportTask)
 
 
 # Luigi has a great decorator, inherits, which "copies parameters (and nothing else) from one task class to another,
