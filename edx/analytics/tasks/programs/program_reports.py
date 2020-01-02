@@ -686,7 +686,6 @@ class BuildProgramReportsTask(ProgramsReportTaskMixin, luigi.Task):
         description='Current run date. Used to tag report date'
     )
 
-
     def requires(self):
         yield self.clone(BuildLearnerProgramReport)
         yield self.clone(BuildAggregateProgramReportTask)
