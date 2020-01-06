@@ -416,8 +416,8 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     @staticmethod
     def aggregate_enrollment_totals(counts, number_of_enrollments):
         """
-        Helper function to build up a dictionary mapping a count of enrollments in
-        a specific number of courses
+        Helper function to build a dictionary mapping a number of courses, n,
+        to the number of user enrollments in n courses
         """
         for n in range(number_of_enrollments):
             if n in counts.keys():
