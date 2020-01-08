@@ -1,9 +1,10 @@
+""" Test Program Reporting Tasks """
+import json
 import os
 import shutil
 import tempfile
 from collections import OrderedDict
 from datetime import datetime
-from string import join
 from unittest import TestCase
 
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
@@ -20,6 +21,7 @@ class ProgramReportTestMixin(object):
     program_type = 'masters'
     program_title = 'Test Program'
     program_uuid = '77c98259-de10-4c55-9b89-6b45320a25ba'
+    course_count = 6
 
     def setup_dirs(self):
         """Create temp input and output dirs."""
@@ -64,10 +66,24 @@ class ProgramReportTestMixin(object):
         ])
         for key, value in kwargs.items():
             learner_enrollment_template[key] = value
+        return self.create_sqoop_export_row(learner_enrollment_template)
 
+    def create_program_input(self, org_key, program_uuid):
+        """Create input row matching sqoop output on the program_metadata table"""
+        program_metadata_template = OrderedDict([
+            ('authoring_institution', org_key),
+            ('program_title', self.program_title),
+            ('program_uuid', program_uuid),
+            ('program_type', self.program_type),
+            ('course_count', str(self.course_count)),
+        ])
+        return self.create_sqoop_export_row(program_metadata_template)
+
+    def create_sqoop_export_row(self, data):
+        """Convert a dictionary of fields into a sqoop export string"""
         export_row = ''
         sqoop_null_string = self.task.sqoop_null_string
-        for field, value in learner_enrollment_template.items():
+        for field, value in data.items():
             if value is None:
                 value = sqoop_null_string
             export_row += str(value) + VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
@@ -98,6 +114,30 @@ class ProgramMultiOutputMapReduceReducerTestMixin:
                     self.assertEquals(line.rstrip(), expected[program_key][num_lines])
                     num_lines += 1
                 self.assertEquals(num_lines, len(expected[program_key]))
+
+
+class CohortEnrollmentCountTestMixin:
+
+    @staticmethod
+    def build_cohort_enrollment_output(
+        authoring_org,
+        program_uuid,
+    ):
+        out = OrderedDict([
+            ('authoring_org', authoring_org),
+            ('program_uuid', program_uuid),
+            ('entry_year', '2019'),
+            ('total_learners', 6),
+            ('total_enrollments', 27),
+            ('total_completions', 2),
+            ('audit_enrollment_counts', [3, 3]),
+            ('verified_enrollment_counts', [1, 1, 1, 1, 1]),
+            ('professional_enrollment_counts', []),
+            ('masters_enrollment_counts', [6, 4, 4, 1, 1]),
+            ('course_completion_counts', [6, 4, 3, 2, 2]),
+            ('timestamp', 'null'),
+        ])
+        return json.dumps(out)
 
 
 class LearnerProgramReportMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
@@ -164,7 +204,7 @@ class CombineCourseEnrollmentsTaskMapperTest(ProgramReportTestMixin, MapperTestM
 
     def test_mapper(self):
         line = self.create_enrollment_input(self.org_key, self.program_uuid)
-        self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string), line)
+        self.assert_single_map_output(line, (self.org_key, self.program_uuid, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string), line)
 
 
 class CombineCourseEnrollmentsTaskReducerTest(ProgramReportTestMixin, ReducerTestMixin, TestCase):
@@ -182,41 +222,41 @@ class CombineCourseEnrollmentsTaskReducerTest(ProgramReportTestMixin, ReducerTes
         super(CombineCourseEnrollmentsTaskReducerTest, self).setUp()
 
     def test_reducer_multiple_tracks(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
+        self.reduce_key = (self.org_key, self.program_uuid, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
 
         input = [
             self.create_enrollment_input(self.org_key, self.program_uuid),
             self.create_enrollment_input(self.org_key, self.program_uuid, track='verified'),
             self.create_enrollment_input(self.org_key, self.program_uuid, track='audit')
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,masters,verified', 3, 'null', False, False, self.task.sqoop_null_string],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_uuid, '10', 'audit,masters,verified', 3, 'null', False, False, self.task.sqoop_null_string],))
 
     def test_reducer_entry_year(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
+        self.reduce_key = (self.org_key, self.program_uuid, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
 
         input = [
             self.create_enrollment_input(self.org_key, self.program_uuid, date_first_enrolled=str(datetime(2019, 12, 31, 10, 30, 15, 5))),
             self.create_enrollment_input(self.org_key, self.program_uuid, date_first_enrolled=str(datetime(2018, 12, 31, 10, 30, 15, 5)))
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 2, 2018, False, False, self.task.sqoop_null_string],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_uuid, '10', 'masters', 2, 2018, False, False, self.task.sqoop_null_string],))
 
     def test_reducer_entry_year_null_enrollment_time(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
+        self.reduce_key = (self.org_key, self.program_uuid, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
 
         input = [
             self.create_enrollment_input(self.org_key, self.program_uuid),
         ]
 
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 1, 'null', False, False, self.task.sqoop_null_string],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_uuid, '10', 'masters', 1, 'null', False, False, self.task.sqoop_null_string],))
 
     def test_reducer_course_completed(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_uuid, self.program_title, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
+        self.reduce_key = (self.org_key, self.program_uuid, '10', 'course-v1:edX+UoX+Test_Course', self.task.sqoop_null_string)
 
         input = [
             self.create_enrollment_input(self.org_key, self.program_uuid),
             self.create_enrollment_input(self.org_key, self.program_uuid, completed=True)
         ]
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', 2, 'null', True, False, self.task.sqoop_null_string],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_uuid, '10', 'masters', 2, 'null', True, False, self.task.sqoop_null_string],))
 
 
 class CountCourseEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
@@ -234,8 +274,8 @@ class CountCourseEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, 
         super(CountCourseEnrollmentsMapperTest, self).setUp()
 
     def test_mapper(self):
-        line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2', '2018', 'True', 'True', 'null'])
-        self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null'), line)
+        line = '\t'.join([self.org_key, self.program_uuid, '10', 'audit,verified', '2', '2018', 'True', 'True', 'null'])
+        self.assert_single_map_output(line, (self.org_key, self.program_uuid, '10', 'null'), line)
 
 
 class CountCourseEnrollmentReducerTest(ProgramReportTestMixin, ReducerTestMixin, TestCase):
@@ -254,19 +294,19 @@ class CountCourseEnrollmentReducerTest(ProgramReportTestMixin, ReducerTestMixin,
         super(CountCourseEnrollmentReducerTest, self).setUp()
 
     def test_reducer(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'null')
+        self.reduce_key = (self.org_key, self.program_uuid, '10', 'null')
 
         input = [
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit,verified', '2', '2017', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '1', '2018', 'True', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'audit', '2', '2018', 'False', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'no-id-professional', '1', 'null', 'False', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', 'professional', '1', '2019', 'True', 'False', 'null'])
+            '\t'.join([self.org_key, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'audit,verified', '2', '2017', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'masters', '1', '2019', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'audit', '1', '2018', 'True', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'audit', '2', '2018', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'no-id-professional', '1', 'null', 'False', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', 'professional', '1', '2019', 'True', 'False', 'null'])
         ]
 
-        self._check_output_complete_tuple(input, ([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2017', 9, 5, 3, 1, 2, 2, False, 'null'],))
+        self._check_output_complete_tuple(input, ([self.org_key, self.program_uuid, '10', '2017', 9, 5, 3, 1, 2, 2, False, 'null'],))
 
 
 class CountProgramCohortEnrollmentsMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
@@ -283,16 +323,17 @@ class CountProgramCohortEnrollmentsMapperTest(ProgramReportTestMixin, MapperTest
         super(CountProgramCohortEnrollmentsMapperTest, self).setUp()
 
     def test_mapper(self):
-        line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2019', '10', '5', '2', '5', '0', '3', 'False', 'null'])
-        self.assert_single_map_output(line, (self.org_key, self.program_type, self.program_title, self.program_uuid, '2019', 'null'), line)
+        line = '\t'.join([self.org_key, self.program_uuid, '10', '2019', '10', '5', '2', '5', '0', '3', 'False', 'null'])
+        self.assert_single_map_output(line, (self.org_key, self.program_uuid, '2019', 'null'), line)
 
 
-class CountProgramCohortEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTestMixin, TestCase):
+class CountProgramCohortEnrollmentsReducerTest(CohortEnrollmentCountTestMixin, ProgramReportTestMixin, ReducerTestMixin, TestCase):
 
     task_class = CountProgramCohortEnrollments
     DATE = datetime(2019, 3, 2).date()
 
     def setUp(self):
+        self.maxDiff = None
         self.setup_dirs()
         self.DEFAULT_ARGS = dict(
             output_root=self.output_dir,
@@ -303,29 +344,23 @@ class CountProgramCohortEnrollmentsReducerTest(ProgramReportTestMixin, ReducerTe
         super(CountProgramCohortEnrollmentsReducerTest, self).setUp()
 
     def test_reducer(self):
-        self.reduce_key = (self.org_key, self.program_type, self.program_title, self.program_uuid, '2019', 'null')
+        self.reduce_key = (self.org_key, self.program_uuid, '2019', 'null')
 
         input = [
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '10', '2019', '10', '5', '2', '5', '0', '3', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '11', '2019', '1', '1', '0', '0', '0', '1', 'True', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '12', '2019', '5', '3', '2', '0', '0', '3', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '13', '2019', '3', '2', '0', '0', '0', '3', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '14', '2019', '7', '5', '2', '0', '0', '5', 'False', 'null']),
-            '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '15', '2019', '1', '1', '0', '0', '0', '1', 'True', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '10', '2019', '10', '5', '2', '5', '0', '3', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '11', '2019', '1', '1', '0', '0', '0', '1', 'True', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '12', '2019', '5', '3', '2', '0', '0', '3', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '13', '2019', '3', '2', '0', '0', '0', '3', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '14', '2019', '7', '5', '2', '0', '0', '5', 'False', 'null']),
+            '\t'.join([self.org_key, self.program_uuid, '15', '2019', '1', '1', '0', '0', '0', '1', 'True', 'null']),
         ]
 
-        self._check_output_complete_tuple(input, ([
-            self.org_key, self.program_type, self.program_title, self.program_uuid, '2019', len(input), 27,
-            3, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            6, 4, 4, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            6, 4, 3, 2, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            2, 'null'
-        ],))
+        self._check_output_complete_tuple(input, (
+            (self.build_cohort_enrollment_output(self.org_key, self.program_uuid),),
+        ))
 
 
-class BuildAggregateProgramReportMapperTest(ProgramReportTestMixin, MapperTestMixin, TestCase):
+class BuildAggregateProgramReportMapperTest(CohortEnrollmentCountTestMixin, ProgramReportTestMixin, MapperTestMixin, TestCase):
 
     task_class = BuildAggregateProgramReport
     DATE = datetime(2019, 3, 2).date()
@@ -338,18 +373,35 @@ class BuildAggregateProgramReportMapperTest(ProgramReportTestMixin, MapperTestMi
         )
         super(BuildAggregateProgramReportMapperTest, self).setUp()
 
-    def test_mapper(self):
-        line = '\t'.join([self.org_key, self.program_type, self.program_title, self.program_uuid, '2019', '6', '27',
-                          '3', '3', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                          '1', '1', '1', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                          '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                          '6', '4', '4', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                          '6', '4', '3', '2', '2', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                          '2', 'null'])
-        self.assert_single_map_output(line, (self.org_key, self.program_uuid), line)
+    def test_map_cohort_enrollment(self):
+
+        input_line = self.build_cohort_enrollment_output(self.org_key, self.program_uuid)
+
+        expected_output = {
+            'input_type': 'cohort_enrollments',
+            'data': input_line
+        }
+
+        self.assert_single_map_output(input_line, (self.org_key, self.program_uuid), expected_output)
+
+    def test_map_program_metadata(self):
+
+        input_line = self.create_program_input(self.org_key, self.program_uuid)
+        expected_output = {
+            'input_type': 'program_metadata',
+            'data': VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.join([
+                self.org_key,
+                self.program_title,
+                self.program_uuid,
+                self.program_type,
+                str(self.course_count),
+            ])
+        }
+
+        self.assert_single_map_output(input_line, (self.org_key, self.program_uuid), expected_output)
 
 
-class BuildAggregateProgramReportReducerTest(ProgramReportTestMixin, ReducerTestMixin, ProgramMultiOutputMapReduceReducerTestMixin, TestCase):
+class BuildAggregateProgramReportReducerTest(CohortEnrollmentCountTestMixin, ProgramReportTestMixin, ReducerTestMixin, ProgramMultiOutputMapReduceReducerTestMixin, TestCase):
 
     task_class = BuildAggregateProgramReport
     DATE = datetime(2019, 3, 2).date()
@@ -363,31 +415,71 @@ class BuildAggregateProgramReportReducerTest(ProgramReportTestMixin, ReducerTest
         )
         super(BuildAggregateProgramReportReducerTest, self).setUp()
 
-    @classmethod
-    def get_input(self, org_key, program_uuid):
-        return ['\t'.join([org_key, self.program_type, self.program_title, program_uuid, '2019', '6', '27',
-                           '3', '3', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                           '1', '1', '1', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                           '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                           '6', '4', '4', '1', '1', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                           '6', '4', '3', '2', '2', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0', '0',
-                           '2', 'null'])]
+    def get_inputs(self, org_key, program_uuid):
+
+        course_cohort = {
+            'input_type': 'cohort_enrollments',
+            'data': self.build_cohort_enrollment_output(org_key, program_uuid),
+        }
+        program_metadata = {
+            'input_type': 'program_metadata',
+            'data': self.create_program_input(org_key, program_uuid)
+        }
+        return [course_cohort, program_metadata]
 
     def test_multi_file_reduce(self):
-        programs = [
-            (self.org_key, 'e86dc8e3-47cd-4875-87bb-98356e1aa876'),
-            (self.org_key, '01015fd3-3b19-48b5-867c-1c78ef43a315')
+        program_1 = 'e86dc8e3-47cd-4875-87bb-98356e1aa876'
+        program_2 = '01015fd3-3b19-48b5-867c-1c78ef43a315'
+
+        reduce_keys = [
+            (self.org_key, program_1),
+            (self.org_key, program_2),
         ]
-        columns = self.task_class.get_column_names()
+        columns = self.task_class.get_column_names(self.course_count)
         expected_output = {}
-        for program_key in programs:
+        for program_key in reduce_keys:
             self.reduce_key = program_key
-            input = self.get_input(*program_key)
+            inputs = self.get_inputs(*program_key)
 
             # MultiOutputMapReduceJobTasks.reduce() returns an empty tuple
-            reducer_output = self._get_reducer_output(input)
+            reducer_output = self._get_reducer_output(inputs)
             self.assertEquals(reducer_output, tuple())
 
-            expected_output[program_key] = self.create_expected_output(input, delimiter='\t')
+            header = ','.join(columns)
+            program_meta = ','.join([program_key[0], self.program_title, program_key[1], self.program_type])
+            entry_year = '2019'
+            aggregate_values = '6,27,2'  # total learners, total enrollments, total completions
+            enrollment_counts = [
+                '3,3,0,0,0,0',  # audit
+                '1,1,1,1,1,0',  # verified
+                '0,0,0,0,0,0',  # professional
+                '6,4,4,1,1,0',  # masters
+                '6,4,3,2,2,0',  # course completion
+            ]
+
+            expected_output[program_key] = [
+                header,
+                ','.join([
+                    program_meta,
+                    entry_year,
+                    aggregate_values,
+                    ','.join(enrollment_counts),
+                    'null',
+                ])
+            ]
 
         self.validate_output_files(expected_output, 'aggregate_report__{}.csv'.format(self.DATE))
+
+    def test_missing_program_metadata(self):
+        self.reduce_key = (self.org_key, self.program_uuid)
+        inputs = self.get_inputs(*self.reduce_key)
+        inputs.pop()  # remove metadata input
+
+        with self.assertRaisesRegexp(
+            Exception,
+            'Cannot write report for {} program {}. No matching program_metadata entry found.'.format(
+                self.org_key,
+                self.program_uuid,
+            )
+        ):
+            self._get_reducer_output(inputs)

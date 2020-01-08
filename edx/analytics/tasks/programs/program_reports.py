@@ -1,7 +1,8 @@
 import csv
 import datetime
+import json
 import logging
-from collections import namedtuple
+from collections import OrderedDict, namedtuple
 
 import luigi
 from luigi.util import inherits
@@ -26,7 +27,8 @@ class ProgramsReportTaskMixin(object):
     - overwrite_export: a boolean representing whether or not to overwrite the Sqoop database export. As above, Luigi
         tasks are idempotent. This particular flag is used to indicate to the upstream.
         ExportVerticaTableToS3Task whether or not to re-export the Vertica table to S3
-    - table_name: the table containing the underlying data, used by Sqoop in the upstream ExportVerticaTableToS3Task
+    - enrollments_table: the table containing the underlying enrollment data, used by Sqoop in the upstream ExportVerticaTableToS3Task
+    - programs_table: the table containing program meta information, used by Sqoop in the upstream ExportVerticaTableToS3Task
     - sqoop_null_string: the string used to replace any null values encountered by Sqoop in the
         ExportVerticaTableToS3Task; we use "null" here because we want to display "null" in the output CSV anyway.
     - vertica_schema_name: the Vertica schema to run this task against
@@ -42,9 +44,13 @@ class ProgramsReportTaskMixin(object):
         default=False,
         description='Whether or not to overwrite existing database export'
     )
-    table_name = luigi.Parameter(
+    enrollments_table = luigi.Parameter(
         default='learner_enrollments',
         description='Table containing enrollment rows to report on',
+    )
+    programs_table = luigi.Parameter(
+        default='program_metadata',
+        description='Table containing programs to report on',
     )
     sqoop_null_string = luigi.Parameter(
         default='null',
@@ -97,7 +103,11 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
         self.columns = self.get_column_names()
 
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return self.clone(
+            ExportVerticaTableToS3Task,
+            table_name=self.enrollments_table,
+            overwrite=(self.overwrite_export and self.overwrite)
+        )
 
     @staticmethod
     def get_column_names():
@@ -177,14 +187,18 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
     CombinedCourseEnrollEntry = namedtuple('CombinedCourseEnrollEntry', COMBINED_COURSE_ENROLL_FIELDS)
 
     def requires(self):
-        return self.clone(ExportVerticaTableToS3Task, overwrite=(self.overwrite_export and self.overwrite))
+        return self.clone(
+            ExportVerticaTableToS3Task,
+            table_name=self.enrollments_table,
+            overwrite=(self.overwrite_export and self.overwrite),
+        )
 
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
         fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
         entry = self.CombinedCourseEnrollEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_type, entry.program_uuid, entry.program_title, entry.user_id, entry.course_key, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.course_key, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -210,7 +224,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         num_course_run_enrollments = 0
         tracks = set()
 
-        authoring_org, program_type, program_uuid, program_title, user_id, course_key, timestamp = key
+        authoring_org, program_uuid, user_id, _, timestamp = key
 
         for value in values:
             num_course_run_enrollments += 1
@@ -247,7 +261,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         else:
             entry_year = self.sqoop_null_string
 
-        yield [authoring_org, program_type, program_title, program_uuid,
+        yield [authoring_org, program_uuid,
                user_id, tracks, num_course_run_enrollments, entry_year,
                completed, program_completed, timestamp]
 
@@ -274,7 +288,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
     """
 
     COUNT_COURSE_ENROLLMENT_FIELDS = [
-        'authoring_org', 'program_type', 'program_title', 'program_uuid',
+        'authoring_org', 'program_uuid',
         'user_id', 'tracks', 'num_course_run_enrollments', 'entry_year',
         'course_completed', 'program_completed', 'timestamp',
     ]
@@ -291,7 +305,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         fields = line.split('\t')
         entry = self.CountCourseEnrollmentsEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_type, entry.program_title, entry.program_uuid, entry.user_id, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -311,7 +325,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
             - whether the learner has completed the program
             - the earliest year a learner has enrolled in any course within the program as that learner's entry year
         """
-        authoring_org, program_type, program_title, program_uuid, user_id, timestamp = key
+        authoring_org, program_uuid, user_id, timestamp = key
 
         entry_years = set()
         is_program_completed = False
@@ -359,7 +373,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         else:
             entry_year = self.sqoop_null_string
 
-        yield [authoring_org, program_type, program_title, program_uuid, user_id,
+        yield [authoring_org, program_uuid, user_id,
                entry_year, num_course_run_enrollments, num_completed_courses,
                num_audit_enrollments, num_verified_enrollments,
                num_professional_enrollments, num_masters_enrollments,
@@ -392,12 +406,24 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     """
 
     COUNT_PROGRAM_ENROLLMENTS_FIELDS = [
-        'authoring_org', 'program_type', 'program_title', 'program_uuid',
+        'authoring_org', 'program_uuid',
         'user_id', 'entry_year', 'num_course_run_enrollments', 'num_completed_courses',
         'num_audit_enrollments', 'num_verified_enrollments', 'num_professional_enrollments',
         'num_masters_enrollments', 'is_program_completed', 'timestamp',
     ]
     CountProgramEnrollmentsEntry = namedtuple('CountProgramEnrollmentsEntry', COUNT_PROGRAM_ENROLLMENTS_FIELDS)
+
+    @staticmethod
+    def aggregate_enrollment_totals(counts, number_of_enrollments):
+        """
+        Helper function to build a dictionary mapping a number of courses, n,
+        to the number of user enrollments in n courses
+        """
+        for n in range(number_of_enrollments):
+            if n in counts.keys():
+                counts[n] += 1
+            else:
+                counts[n] = 1
 
     def requires(self):
         return self.clone(CountCourseEnrollments)
@@ -407,7 +433,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         fields = line.split('\t')
         entry = self.CountProgramEnrollmentsEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_type, entry.program_title, entry.program_uuid, entry.entry_year, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.entry_year, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -425,20 +451,17 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             - the number of learners with 1+...10+ completed courses
             - the number of learners who have completed the program
         """
-        authoring_org, program_type, program_title, program_uuid, entry_year, timestamp = key
+        authoring_org, program_uuid, entry_year, timestamp = key
 
         total_num_learners = 0
         total_num_run_enrollments = 0
         total_num_program_completions = 0
 
-        # TODO: make this dynamic based on the number of courses in a program;
-        # hard coded to 18 for now
-        num_courses = 18
-        num_learners_in_audit = [0 for _ in range(num_courses)]
-        num_learners_in_verified = [0 for _ in range(num_courses)]
-        num_learners_in_professional = [0 for _ in range(num_courses)]
-        num_learners_in_masters = [0 for _ in range(num_courses)]
-        num_learners_completed_courses = [0 for _ in range(num_courses)]
+        cnt_learners_in_audit = {}
+        cnt_learners_in_verified = {}
+        cnt_learners_in_professional = {}
+        cnt_learners_in_masters = {}
+        cnt_learners_in_completed_courses = {}
 
         for value in values:
             fields = value.split('\t')
@@ -452,36 +475,29 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             if string_to_bool(is_program_completed):
                 total_num_program_completions += 1
 
-            num_audit_enrollments = int(entry.num_audit_enrollments)
-            num_verified_enrollments = int(entry.num_verified_enrollments)
-            num_professional_enrollments = int(entry.num_professional_enrollments)
-            num_masters_enrollments = int(entry.num_masters_enrollments)
+            self.aggregate_enrollment_totals(cnt_learners_in_audit, int(entry.num_audit_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_verified, int(entry.num_verified_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_professional, int(entry.num_professional_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_masters, int(entry.num_masters_enrollments))
+            self.aggregate_enrollment_totals(cnt_learners_in_completed_courses, int(entry.num_completed_courses))
 
-            for num in range(num_audit_enrollments):
-                num_learners_in_audit[num] += 1
+        ordered_values = lambda x: [val for key, val in sorted(x.items())]  # return dict values sorted by key
+        result = OrderedDict([
+            ('authoring_org', authoring_org),
+            ('program_uuid', program_uuid),
+            ('entry_year', entry_year),
+            ('total_learners', total_num_learners),
+            ('total_enrollments', total_num_run_enrollments),
+            ('total_completions', total_num_program_completions),
+            ('audit_enrollment_counts', ordered_values(cnt_learners_in_audit)),
+            ('verified_enrollment_counts', ordered_values(cnt_learners_in_verified)),
+            ('professional_enrollment_counts', ordered_values(cnt_learners_in_professional)),
+            ('masters_enrollment_counts', ordered_values(cnt_learners_in_masters)),
+            ('course_completion_counts', ordered_values(cnt_learners_in_completed_courses)),
+            ('timestamp', timestamp),
+        ])
 
-            for num in range(num_verified_enrollments):
-                num_learners_in_verified[num] += 1
-
-            for num in range(num_professional_enrollments):
-                num_learners_in_professional[num] += 1
-
-            for num in range(num_masters_enrollments):
-                num_learners_in_masters[num] += 1
-
-            num_completed_courses = int(entry.num_completed_courses)
-
-            for num in range(num_completed_courses):
-                num_learners_completed_courses[num] += 1
-
-        row = [authoring_org, program_type, program_title, program_uuid, entry_year, total_num_learners, total_num_run_enrollments]
-        for num in num_learners_in_audit + num_learners_in_verified + num_learners_in_professional + num_learners_in_masters + num_learners_completed_courses:
-            row.append(num)
-
-        row.append(total_num_program_completions)
-        row.append(timestamp)
-
-        yield row
+        yield (json.dumps(result),)
 
     def output(self):
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
@@ -511,35 +527,43 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         default='aggregate_report'
     )
 
+    PROGRAM_METADATA_FIELDS = [
+        'authoring_org', 'program_title', 'program_uuid', 'program_type', 'course_count'
+    ]
+    ProgramMetadataEntry = namedtuple('ProgramMetadataEntry', PROGRAM_METADATA_FIELDS)
+
     def __init__(self, *args, **kwargs):
         super(BuildAggregateProgramReportTask, self).__init__(*args, **kwargs)
-        self.columns = self.get_column_names()
 
     def requires(self):
-        return self.clone(CountProgramCohortEnrollments)
+        yield self.clone(
+            ExportVerticaTableToS3Task,
+            table_name=self.programs_table,
+            overwrite=(self.overwrite_export and self.overwrite)
+        )
+        yield self.clone(CountProgramCohortEnrollments)
 
     @staticmethod
-    def get_column_names():
+    def get_column_names(num_courses):
         """
         List names of columns as they should appear in the CSV.
         """
-        num_courses = 18
 
         columns = [
             'Authoring Institution',
-            'Program Type',
             'Program Title',
             'Program UUID',
+            'Program Type',
             'Entry Year',
             'Total Learners',
             'Total Number Enrollments',
         ]
+        columns.append('Total Number of Program Completions')
         columns.extend(['Number of Learners in {}+ Audit'.format(num) for num in range(1, num_courses + 1)])
         columns.extend(['Number of Learners in {}+ Verified'.format(num) for num in range(1, num_courses + 1)])
         columns.extend(['Number of Learners in {}+ Professional'.format(num) for num in range(1, num_courses + 1)])
         columns.extend(['Number of Learners in {}+ Master\'s'.format(num) for num in range(1, num_courses + 1)])
         columns.extend(['Number of Learners Completed {}+ Courses'.format(num) for num in range(1, num_courses + 1)])
-        columns.append('Total Number of Program Completions')
         columns.append('Timestamp')
         return columns
 
@@ -549,18 +573,83 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         return url_path_join(self.output_root, authoring_institution, program_uuid, filename)
 
     def mapper(self, line):
-        authoring_institution, _, _, program_uuid, _ = line.split('\t', 4)
-        yield (authoring_institution, program_uuid), line
+        """
+        Handles output of both the CountProgramCohortEnrollments task and the ExportVerticaTableToS3Task
+        against the program_metadata table. The mapper determines the input source
+        by looking for the vertica export delimiter and parses out the key values according
+        to the expected format.
+        """
+        input_type = 'cohort_enrollments'
+        export_delimiter = VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii')
+        if export_delimiter in line:
+            authoring_institution, _, program_uuid, _ = line.split(export_delimiter, 3)
+            input_type = 'program_metadata'
+        else:
+            cohort = json.loads(line)
+            authoring_institution = cohort['authoring_org'].encode('ascii')
+            program_uuid = cohort['program_uuid'].encode('ascii')
+
+        value = {
+            'input_type': input_type,
+            'data': line,
+        }
+        yield (authoring_institution, program_uuid), value
 
     def multi_output_reducer(self, key, values, output_file):
-        writer = csv.DictWriter(output_file, self.columns)
+        cohorts_by_year = {}
+        program = None
+        for value in values:
+            input_type = value['input_type']
+
+            if input_type == 'program_metadata':
+                fields = value['data'].split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
+                program = self.ProgramMetadataEntry(*fields)
+            else:
+                cohort = json.loads(value['data'])
+                entry_year = cohort['entry_year']
+                cohorts_by_year[entry_year] = cohort
+
+        if not program:
+            raise Exception(
+                'Cannot write report for {} program {}. No matching program_metadata entry found.'.format(
+                    key[0],
+                    key[1],
+                )
+            )
+
+        program_course_count = int(program.course_count)
+        columns = self.get_column_names(program_course_count)
+        writer = csv.DictWriter(output_file, columns)
         writer.writeheader()
 
-        for value in values:
-            fields = value.split('\t')
+        for entry_year, cohort in sorted(cohorts_by_year.items(), key=lambda x: x[1]):
 
-            row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
-            writer.writerow(row)
+            def append_counts(row, values):
+                for n in range(program_course_count):
+                    if len(values):
+                        row.append(values.pop(0))
+                    else:
+                        row.append(0)
+
+            row_items = [
+                program.authoring_org,
+                program.program_title,
+                program.program_uuid,
+                program.program_type,
+                cohort.get('entry_year'),
+                cohort.get('total_learners'),
+                cohort.get('total_enrollments'),
+                cohort.get('total_completions'),
+            ]
+            append_counts(row_items, cohort.get('audit_enrollment_counts'))
+            append_counts(row_items, cohort.get('verified_enrollment_counts'))
+            append_counts(row_items, cohort.get('professional_enrollment_counts'))
+            append_counts(row_items, cohort.get('masters_enrollment_counts'))
+            append_counts(row_items, cohort.get('course_completion_counts'))
+
+            row_items.append(cohort.get('timestamp'))
+
+            writer.writerow({field_key: field_value for field_key, field_value in zip(columns, row_items)})
 
 
 def string_to_bool(value):
@@ -582,6 +671,24 @@ def string_to_bool(value):
         return False
     else:
         raise ValueError('{} does not represent a boolean value.'.format(value))
+
+
+class BuildProgramReportsTask(ProgramsReportTaskMixin, luigi.Task):
+    """
+    Main task that serves as an entrypoint to run all program reports.
+
+    Parameters for this task are defined by the ProgramsReportTaskMixin and shared
+    with all downstream tasks.
+    """
+
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date. Used to tag report date'
+    )
+
+    def requires(self):
+        yield self.clone(BuildLearnerProgramReport)
+        yield self.clone(BuildAggregateProgramReportTask)
 
 
 # Luigi has a great decorator, inherits, which "copies parameters (and nothing else) from one task class to another,
