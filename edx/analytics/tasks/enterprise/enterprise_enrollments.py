@@ -12,7 +12,7 @@ from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
     ImportBenefitTask, ImportConditionalOfferTask, ImportDataSharingConsentTask,
     ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask, ImportEnterpriseCustomerUserTask,
-    ImportStockRecordTask, ImportUserSocialAuthTask, ImportVoucherTask
+    ImportUserSocialAuthTask, ImportVoucherTask
 )
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserProfileTask, ImportAuthUserTask, ImportCurrentOrderDiscountState, ImportCurrentOrderLineState,
@@ -253,7 +253,7 @@ class EnterpriseEnrollmentDataTask(
                     SELECT
                         ecommerce_user.username AS username,
                         ecommerce_catalogue_product.course_id AS course_id,
-                        ecommerce_stockrecord.price_excl_tax AS course_price,
+                        ecommerce_order_line.line_price_before_discounts_incl_tax AS course_price,
                         ecommerce_order.total_incl_tax AS discount_price,
                         CASE
                             WHEN ecommerce_offer.id IS NULL THEN NULL
@@ -277,25 +277,6 @@ class EnterpriseEnrollmentDataTask(
                         ON ecommerce_order_line.order_id = ecommerce_order.id
                     JOIN catalogue_product ecommerce_catalogue_product
                         ON ecommerce_catalogue_product.id = ecommerce_order_line.product_id
-                    JOIN partner_stockrecord ecommerce_stockrecord
-                        ON ecommerce_order_line.stockrecord_id = ecommerce_stockrecord.id
-                    INNER JOIN (
-                            SELECT
-                                ecomm_order.user_id AS user_id,
-                                ecomm_product.course_id AS course_id,
-                                MAX(ecomm_stockrecord.price_excl_tax) AS course_price
-                            FROM order_order ecomm_order
-                            JOIN order_line ecomm_order_line
-                                ON ecomm_order.id = ecomm_order_line.order_id
-                            JOIN catalogue_product ecomm_product
-                                ON ecomm_order_line.product_id = ecomm_product.id
-                            JOIN partner_stockrecord ecomm_stockrecord
-                                ON ecomm_order_line.stockrecord_id = ecomm_stockrecord.id
-                            GROUP BY ecomm_order.user_id, ecomm_product.course_id
-                    ) ecomm_order_product
-                        ON ecommerce_user.id = ecomm_order_product.user_id
-                        AND ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
-                        AND ecommerce_stockrecord.price_excl_tax = ecomm_order_product.course_price
                     LEFT JOIN order_orderdiscount ecommerce_order_discount
                         ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
                     LEFT JOIN voucher_voucher ecommerce_voucher
@@ -358,7 +339,6 @@ class EnterpriseEnrollmentDataTask(
             ImportCurrentOrderLineState(**kwargs),
             ImportCurrentOrderDiscountState(**kwargs),
             ImportVoucherTask(**kwargs),
-            ImportStockRecordTask(**kwargs),
             ImportCurrentOrderState(**kwargs),
             ImportEcommerceUser(**kwargs),
             ImportConditionalOfferTask(**kwargs),
