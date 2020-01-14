@@ -40,6 +40,7 @@ from google.auth.transport.requests import AuthorizedSession
 from google.oauth2 import service_account
 from gspread import client
 
+from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadFromHiveTSVTask
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
@@ -49,7 +50,7 @@ log = logging.getLogger(__name__)
 
 
 # Provides a mapping between the simple types provided by the spreadsheet author in a second header row, and the types
-# as they should be loaded into Vertica.
+# as they should be loaded into BOTH Vertica and Snowflake.
 DATA_TYPE_MAPPING = {
     'integer': 'INT',
     'int': 'INT',
@@ -129,7 +130,39 @@ class PullWorksheetDataTask(PullWorksheetMixin, WarehouseMixin, luigi.Task):
         return get_target_from_url(output_url)
 
 
-class LoadWorksheetToWarehouse(PullWorksheetMixin, VerticaCopyTask):
+class LoadWorksheetToSnowflake(PullWorksheetMixin, SnowflakeLoadFromHiveTSVTask):
+    """
+    Task to load data from a google sheet into the Snowflake data warehouse.
+    """
+
+    @property
+    def insert_source_task(self):
+        return PullWorksheetDataTask(
+            date=self.date,
+            google_credentials=self.google_credentials,
+            spreadsheet_key=self.spreadsheet_key,
+            worksheet_name=self.worksheet_name,
+            column_types_row=self.column_types_row,
+            overwrite=self.overwrite,
+        )
+
+    @property
+    def table(self):
+        return self.worksheet_name
+
+    @property
+    def columns(self):
+        columns = self.insert_source_task.columns
+        column_types = self.insert_source_task.column_types
+        mapped_types = [DATA_TYPE_MAPPING.get(column_type) for column_type in column_types]
+        return zip(columns, mapped_types)
+
+    @property
+    def file_format_name(self):
+        return 'google_sheets_tsv_format'
+
+
+class LoadWorksheetToVertica(PullWorksheetMixin, VerticaCopyTask):
     """
     Task to load data from a google sheet into the Vertica data warehouse.
     """
@@ -183,7 +216,57 @@ class LoadWorksheetToWarehouse(PullWorksheetMixin, VerticaCopyTask):
         return zip(columns, mapped_types)
 
 
-class LoadGoogleSpreadsheetsToWarehouseWorkflow(luigi.WrapperTask):
+class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):
+    """
+    Provides entry point for loading a google spreadsheet into Snowflake.
+    All worksheets within the spreadsheet are loaded as separate tables.
+    """
+
+    spreadsheets_config = luigi.DictParameter(
+        config_path={'section': 'google-spreadsheets', 'name': 'config'},
+        description='A dictionary containing spreadsheets config where a key is the spreadsheet key/id extracted from '
+                    'spreadsheet url, value is a dictionary containing at least the destination snowflake database and '
+                    'schema for the new tables. Can also specify column_types_row key where the value is either true '
+                    'or false specifying whether the worksheets in the spreadsheet contain a column types row as a '
+                    'second header row.'
+    )
+    google_credentials = luigi.Parameter(
+        description='Path to the external access credentials file.'
+    )
+    overwrite = luigi.BoolParameter(
+        default=False,
+        description='Whether or not to overwrite S3 outputs.',
+        significant=False
+    )
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date()
+    )
+
+    def requires(self):
+        credentials_target = ExternalURL(url=self.google_credentials).output()
+        gs = create_google_spreadsheet_client(credentials_target)
+        for spreadsheet_key, config in self.spreadsheets_config.items():
+            schema = config['schema']
+            database = config['database']
+            column_types_row = config.get('column_types_row', False)
+
+            spreadsheet = gs.open_by_key(spreadsheet_key)
+            worksheets = spreadsheet.worksheets()
+
+            for worksheet in worksheets:
+                yield LoadWorksheetToSnowflake(
+                    date=self.date,
+                    sf_database=database,
+                    schema=schema,
+                    google_credentials=self.google_credentials,
+                    spreadsheet_key=spreadsheet_key,
+                    worksheet_name=worksheet.title,
+                    column_types_row=column_types_row,
+                    overwrite=self.overwrite,
+                )
+
+
+class LoadGoogleSpreadsheetsToVerticaWorkflow(luigi.WrapperTask):
     """
     Provides entry point for loading a google spreadsheet into the warehouse.
     All worksheets within the spreadsheet are loaded as separate tables.
@@ -220,7 +303,7 @@ class LoadGoogleSpreadsheetsToWarehouseWorkflow(luigi.WrapperTask):
             worksheets = spreadsheet.worksheets()
 
             for worksheet in worksheets:
-                yield LoadWorksheetToWarehouse(
+                yield LoadWorksheetToVertica(
                     date=self.date,
                     schema=schema,
                     google_credentials=self.google_credentials,
