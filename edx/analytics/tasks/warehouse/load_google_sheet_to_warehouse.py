@@ -179,7 +179,7 @@ class LoadWorksheetToVertica(PullWorksheetMixin, VerticaCopyTask):
         if self.overwrite:
             connection.cursor().execute("DROP TABLE IF EXISTS {schema}.{table}".format(
                                         schema=self.schema, table=self.table))
-        super(LoadWorksheetToWarehouse, self).create_table(connection)
+        super(LoadWorksheetToVertica, self).create_table(connection)
 
     def init_copy(self, connection):
         # We have already dropped the table, so we do away with the delete here.
