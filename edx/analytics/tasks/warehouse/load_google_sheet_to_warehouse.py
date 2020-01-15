@@ -223,7 +223,7 @@ class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):
     """
 
     spreadsheets_config = luigi.DictParameter(
-        config_path={'section': 'google-spreadsheets', 'name': 'config'},
+        config_path={'section': 'google-spreadsheets', 'name': 'snowflake_config'},
         description='A dictionary containing spreadsheets config where a key is the spreadsheet key/id extracted from '
                     'spreadsheet url, value is a dictionary containing at least the destination snowflake database and '
                     'schema for the new tables. Can also specify column_types_row key where the value is either true '
