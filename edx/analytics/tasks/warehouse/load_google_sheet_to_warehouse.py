@@ -147,6 +147,13 @@ class LoadWorksheetToSnowflake(PullWorksheetMixin, SnowflakeLoadFromHiveTSVTask)
         )
 
     @property
+    def null_marker(self):
+        """
+        Treat the empty string as the NULL marker, so empty strings will become NULL in Snowflake.
+        """
+        return r''
+
+    @property
     def table(self):
         return self.worksheet_name
 
