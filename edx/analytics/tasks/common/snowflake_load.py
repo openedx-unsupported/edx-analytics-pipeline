@@ -92,6 +92,9 @@ class SnowflakeTarget(luigi.Target):
 
     def create_warehouse(self, connection):
         """
+        DEPRECATED METHOD: Do not create warehouses in pipeline code anymore.  Use Terraform to pre-provision the
+        warehouse instead.
+
         Creates a virtual warehouse in Snowflake. The warehouse is never manually suspended, we rely on AUTO_SUSPEND.
         """
 
@@ -102,7 +105,17 @@ class SnowflakeTarget(luigi.Target):
         MIN_CLUSTER_COUNT = 1 MAX_CLUSTER_COUNT = 2 SCALING_POLICY = 'STANDARD'
         INITIALLY_SUSPENDED = TRUE
         """.format(warehouse=self.warehouse)
-        _execute_query(connection, query)
+        try:
+            _execute_query(connection, query)
+        except ProgrammingError as err:
+            if 'Insufficient privileges to operate on account' in err.msg:
+                # At this point, it is very likely that we are executing with
+                # an underprivileged user which we should NOT expect to need to
+                # create warehouses on the fly since they should be using
+                # pre-provisioned warehouses only.
+                pass
+            else:
+                raise
 
     def touch(self, connection):
         """
@@ -127,6 +140,9 @@ class SnowflakeTarget(luigi.Target):
             # and also create the warehouse so that we can execute the SELECT query below.
             close_connection = True
             connection = self.connect()
+
+            # TODO: remove this call to a deprecated method once we have completely switched to terraform-provisioned
+            # warehouses.
             self.create_warehouse(connection)
 
         try:
@@ -412,6 +428,8 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
             self.create_format(connection)
             self.create_stage(connection)
 
+            # TODO: remove this call to a deprecated method once we have completely switched to terraform-provisioned
+            # warehouses.
             self.output().create_warehouse(connection)
 
             cursor.execute("BEGIN")
