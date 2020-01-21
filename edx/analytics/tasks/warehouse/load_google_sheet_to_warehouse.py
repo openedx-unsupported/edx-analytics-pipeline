@@ -147,6 +147,13 @@ class LoadWorksheetToSnowflake(PullWorksheetMixin, SnowflakeLoadFromHiveTSVTask)
         )
 
     @property
+    def null_marker(self):
+        """
+        Treat the empty string as the NULL marker, so empty strings will become NULL in Snowflake.
+        """
+        return r''
+
+    @property
     def table(self):
         return self.worksheet_name
 
@@ -230,6 +237,18 @@ class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):
                     'or false specifying whether the worksheets in the spreadsheet contain a column types row as a '
                     'second header row.'
     )
+    sf_credentials = luigi.Parameter(
+        description='Path to the Snowflake credentials file.'
+    )
+    sf_run_id = luigi.Parameter(
+        description='Id number to uniquely identify this run of table-copying.'
+    )
+    sf_warehouse = luigi.Parameter(
+        description='Name of Snowflake virtual warehouse to use.'
+    )
+    sf_role = luigi.Parameter(
+        description='Snowflake user role used to execute DDL/DML statements'
+    )
     google_credentials = luigi.Parameter(
         description='Path to the external access credentials file.'
     )
@@ -247,6 +266,7 @@ class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):
         gs = create_google_spreadsheet_client(credentials_target)
         for spreadsheet_key, config in self.spreadsheets_config.items():
             schema = config['schema']
+            scratch_schema = config['scratch_schema']
             database = config['database']
             column_types_row = config.get('column_types_row', False)
 
@@ -256,13 +276,22 @@ class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):
             for worksheet in worksheets:
                 yield LoadWorksheetToSnowflake(
                     date=self.date,
+
+                    # Snowflake-related params.
+                    credentials=self.sf_credentials,
+                    run_id=self.sf_run_id,
                     sf_database=database,
                     schema=schema,
+                    scratch_schema=scratch_schema,
+                    warehouse=self.sf_warehouse,
+                    role=self.sf_role,
+                    overwrite=self.overwrite,
+
+                    # Google-related params.
                     google_credentials=self.google_credentials,
                     spreadsheet_key=spreadsheet_key,
                     worksheet_name=worksheet.title,
                     column_types_row=column_types_row,
-                    overwrite=self.overwrite,
                 )
 
 
