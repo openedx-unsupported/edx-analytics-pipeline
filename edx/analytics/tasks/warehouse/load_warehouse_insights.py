@@ -46,13 +46,20 @@ class LoadHiveTableToVertica(WarehouseMixin, VerticaCopyTask):
         super(LoadHiveTableToVertica, self).__init__(*args, **kwargs)
         # Find the most recent data for the source if load from latest partition is enabled.
         if self.load_from_latest_partition:
-            path = url_path_join(self.warehouse_path, self.table_name)
-            path_targets = PathSetTask([path]).output()
-            paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-            dates = [path.rsplit('/', 2)[-1] for path in paths]
-            latest_date = sorted(dates)[-1]
-            self.latest_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-            log.debug('Loading data for table %s from partition %s', self.table_name, self.latest_date)
+            try:
+                path = url_path_join(self.warehouse_path, self.table_name)
+                path_targets = PathSetTask([path]).output()
+                paths = list(set([os.path.dirname(target.path) for target in path_targets]))
+                dates = [path.rsplit('/', 2)[-1] for path in paths]
+                latest_date = sorted(dates)[-1]
+                self.latest_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
+                log.debug('Loading data for table %s from partition %s', self.table_name, self.latest_date)
+            except Exception as exc:
+                log.error(
+                    "FAIL: Error initializing latest load of table %s from path %s",
+                    self.table_name, self.warehouse_path
+                )
+                raise
 
     @property
     def insert_source_task(self):
