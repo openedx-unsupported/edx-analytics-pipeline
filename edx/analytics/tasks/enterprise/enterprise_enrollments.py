@@ -303,6 +303,7 @@ class EnterpriseEnrollmentDataTask(
                 ) ecommerce_data
                     ON auth_user.username = ecommerce_data.username
                     AND enterprise_course_enrollment.course_id = ecommerce_data.course_id
+            WHERE enterprise_user.linked = 1
         """
 
     @property
