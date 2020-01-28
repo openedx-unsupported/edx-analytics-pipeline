@@ -275,6 +275,15 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
                 raise RuntimeError('Error Sqoop copy of {schema}.{table} found no viable columns!'.
                                    format(schema=self.schema_name, table=self.table))
 
+            additional_metadata = {
+                'table_schema': self.vertica_table_schema,
+                'timezone_adjusted_column_list': timestamptz_column_list,
+                'database': self.vertica_warehouse_name,
+                'schema_name': self.vertica_schema_name,
+                'table_name': self.table_name,
+                'date': self.date.isoformat(),
+            }
+
             self._sqoop_dump_vertica_table_task = SqoopImportFromVertica(
                 schema_name=self.vertica_schema_name,
                 table_name=self.table_name,
@@ -287,6 +296,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
                 delimiter_replacement=self.sqoop_delimiter_replacement,
                 columns=column_list,
                 timezone_adjusted_column_list=timestamptz_column_list,
+                additional_metadata=additional_metadata,
             )
         return self._sqoop_dump_vertica_table_task
 

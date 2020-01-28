@@ -111,6 +111,10 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hado
         default=None,
         description='Defines the character to use on output to enclose field values when they may contain a delimiter.',
     )
+    additional_metadata = luigi.DictParameter(
+        default=None,
+        description='Override this to provide the metadata file with additional information about the Sqoop output.',
+    )
 
     def requires(self):
         return {
@@ -183,6 +187,10 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hado
             arglist.extend(['--optionally-enclosed-by', self.optionally_enclosed_by])
         return arglist
 
+    def source_database_type(self):
+        """Metadata about the type of source database that is being dumped."""
+        return 'unknown'
+
     def connection_url(self, _cred):
         """Construct connection URL from provided credentials."""
         raise NotImplementedError  # pragma: no cover
@@ -248,6 +256,9 @@ class SqoopImportFromMysql(SqoopImportTask):
             arglist.append('--mysql-delimiters')
         return arglist
 
+    def source_database_type(self):
+        return 'mysql'
+
 
 class SqoopPasswordTarget(luigi.contrib.hdfs.HdfsTarget):
     """Defines a temp file in HDFS to hold password."""
@@ -281,8 +292,23 @@ class SqoopImportRunner(luigi.contrib.hadoop.JobRunner):
             job.output().remove()
 
         metadata = {
-            'start_time': datetime.datetime.utcnow().isoformat()
+            'start_time': datetime.datetime.utcnow().isoformat(),
+            'format': {
+                'table_name': job.table_name,
+                'columns': job.columns,
+                'null_string': job.null_string,
+                'fields_terminated_by': job.fields_terminated_by,
+                'delimiter_replacement': job.delimiter_replacement,
+                'escaped_by': job.escaped_by,
+                'optionally_enclosed_by': job.optionally_enclosed_by,
+            },
+            'source_database_type': job.source_database_type(),
         }
+
+        additional_metadata = job.additional_metadata
+        if additional_metadata:
+            metadata['additional_metadata'] = dict(additional_metadata)
+
         try:
             # Create a temp file in HDFS to store the password,
             # so it isn't echoed by the hadoop job code.
@@ -375,3 +401,6 @@ class SqoopImportFromVertica(SqoopImportTask):
         arglist.extend(['--lines-terminated-by', '\n'])
 
         return arglist
+
+    def source_database_type(self):
+        return 'vertica'
