@@ -113,6 +113,7 @@ class SqoopImportTask(OverwriteOutputMixin, SqoopImportMixin, luigi.contrib.hado
     )
     additional_metadata = luigi.DictParameter(
         default=None,
+        significant=False,
         description='Override this to provide the metadata file with additional information about the Sqoop output.',
     )
 
