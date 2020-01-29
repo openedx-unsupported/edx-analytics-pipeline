@@ -125,8 +125,6 @@ class LoadVerticaSchemaFromS3ToSnowflakeTask(VerticaSchemaExportMixin, VerticaTa
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
 
 
-# class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadFromHiveTSVTask):
-# We don't need VerticaTableFromS3Mixin, because we will get the information from the metadata file.
 class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin, SnowflakeLoadFromHiveTSVTask):
     """
     Task to load a Vertica table from S3 into Snowflake, but using a metadata file instead of Vertica.
@@ -206,7 +204,6 @@ class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin,
 
     @property
     def null_marker(self):
-        # return self.sqoop_null_string
         return self.metadata['format']['null_string']
 
     @property
@@ -215,52 +212,9 @@ class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin,
 
     @property
     def field_delimiter(self):
-        # return self.sqoop_fields_terminated_by
         return self.metadata['format']['fields_terminated_by']
 
 
-class HalfwayLoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
-    """
-    A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
-
-    Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
-    LoadVerticaTableFromS3ToSnowflake task for each table.
-    """
-
-    def requires(self):
-        # Should no longer need this....
-        yield ExternalURL(url=self.vertica_credentials)
-
-        # TODO: instead of getting the table list from Vertica, get it instead from S3 (somehow).
-        # unfortunately it's output is not organized by date and then table, but rather by table and then date.
-        # So it would take some digging.  Or another metadata file representing the schema-level dump.
-        # In which case, the complete method of the to-S3 schema dump would be the table list.
-        for table_name in self.get_table_list_for_schema():
-            yield LoadVerticaTableFromS3WithMetadataToSnowflakeTask(
-                date=self.date,
-                overwrite=self.overwrite,
-                intermediate_warehouse_path=self.intermediate_warehouse_path,
-                credentials=self.credentials,
-                warehouse=self.warehouse,
-                role=self.role,
-                sf_database=self.sf_database,
-                schema=self.schema,
-                scratch_schema=self.scratch_schema,
-                run_id=self.run_id,
-                table_name=table_name,
-                vertica_schema_name=self.vertica_schema_name,
-                vertica_warehouse_name=self.vertica_warehouse_name,
-                # vertica_credentials=self.vertica_credentials,
-                # sqoop_null_string=self.sqoop_null_string,
-                # sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
-            )
-
-    def complete(self):
-        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
-        return all(r.complete() for r in luigi.task.flatten(self.requires()))
-
-
-# class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
 class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaExportMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
     """
     A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
@@ -271,47 +225,16 @@ class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaExportMixin, Sno
     # remove parameter we don't need here from VerticaExportMixin anymore.
     vertica_credentials = None
 
-    # And define this here rather than getting it from VerticaSchemaExportMixin.
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
-
     def __init__(self, *args, **kwargs):
         super(LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask, self).__init__(*args, **kwargs)
-        metadata_target = self._get_metadata_target()
+        metadata_target = self.get_schema_metadata_target()
         with metadata_target.open('r') as metadata_file:
             self.metadata = json.load(metadata_file)
-
-    def _get_metadata_target(self):
-        """Returns target for metadata file from the given dump."""
-        # find the _metadata file in the source directory.
-        metadata_path = url_path_join(self.s3_location_for_schema, '_metadata')
-        return get_target_from_url(metadata_path)
-
-    @property
-    def s3_location_for_schema(self):
-        """
-        Returns the URL for the location of S3 data for the given schema.
-
-        Find a common place for this, so it can be shared with code that writes to S3.
-        """
-        partition_path_spec = HivePartition('dt', self.date).path_spec
-        url = url_path_join(self.intermediate_warehouse_path,
-                            self.vertica_warehouse_name,
-                            self.vertica_schema_name,
-                            'dump_schema_metadata_output',
-                            partition_path_spec) + '/'
-        return url
 
     def get_table_list_for_schema(self):
         return self.metadata['table_list']
 
     def requires(self):
-        # TODO: instead of getting the table list from Vertica, get it instead from S3 (somehow).
-        # unfortunately it's output is not organized by date and then table, but rather by table and then date.
-        # So it would take some digging.  Or another metadata file representing the schema-level dump.
-        # In which case, the complete method of the to-S3 schema dump would be the table list.
         for table_name in self.get_table_list_for_schema():
             yield LoadVerticaTableFromS3WithMetadataToSnowflakeTask(
                 date=self.date,
