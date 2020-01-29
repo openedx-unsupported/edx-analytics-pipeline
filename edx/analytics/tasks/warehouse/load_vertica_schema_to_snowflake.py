@@ -2,16 +2,18 @@
 Tasks to load a Vertica schema from S3 into Snowflake.
 """
 
+import datetime
 import json
 import logging
 import re
 
 import luigi
 
+from edx.analytics.tasks.util.hive import HivePartition
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
 from edx.analytics.tasks.common.sqoop import METADATA_FILENAME
 from edx.analytics.tasks.common.vertica_export import (
-    VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin
+    VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin, VerticaExportMixin
 )
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
@@ -217,7 +219,7 @@ class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin,
         return self.metadata['format']['fields_terminated_by']
 
 
-class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+class HalfwayLoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
     """
     A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
 
@@ -251,6 +253,80 @@ class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixi
                 # vertica_credentials=self.vertica_credentials,
                 # sqoop_null_string=self.sqoop_null_string,
                 # sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+            )
+
+    def complete(self):
+        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
+        return all(r.complete() for r in luigi.task.flatten(self.requires()))
+
+
+# class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaSchemaExportMixin, VerticaTableFromS3Mixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaExportMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+    """
+    A task that loads into Snowflake all the tables in S3 dumped from a Vertica schema.
+
+    Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
+    LoadVerticaTableFromS3ToSnowflake task for each table.
+    """
+    # remove parameter we don't need here from VerticaExportMixin anymore.
+    vertica_credentials = None
+
+    # And define this here rather than getting it from VerticaSchemaExportMixin.
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date.  This parameter is used to isolate intermediate datasets.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask, self).__init__(*args, **kwargs)
+        metadata_target = self._get_metadata_target()
+        with metadata_target.open('r') as metadata_file:
+            self.metadata = json.load(metadata_file)
+
+    def _get_metadata_target(self):
+        """Returns target for metadata file from the given dump."""
+        # find the _metadata file in the source directory.
+        metadata_path = url_path_join(self.s3_location_for_schema, '_metadata')
+        return get_target_from_url(metadata_path)
+
+    @property
+    def s3_location_for_schema(self):
+        """
+        Returns the URL for the location of S3 data for the given schema.
+
+        Find a common place for this, so it can be shared with code that writes to S3.
+        """
+        partition_path_spec = HivePartition('dt', self.date).path_spec
+        url = url_path_join(self.intermediate_warehouse_path,
+                            self.vertica_warehouse_name,
+                            self.vertica_schema_name,
+                            'dump_schema_metadata_output',
+                            partition_path_spec) + '/'
+        return url
+
+    def get_table_list_for_schema(self):
+        return self.metadata['table_list']
+
+    def requires(self):
+        # TODO: instead of getting the table list from Vertica, get it instead from S3 (somehow).
+        # unfortunately it's output is not organized by date and then table, but rather by table and then date.
+        # So it would take some digging.  Or another metadata file representing the schema-level dump.
+        # In which case, the complete method of the to-S3 schema dump would be the table list.
+        for table_name in self.get_table_list_for_schema():
+            yield LoadVerticaTableFromS3WithMetadataToSnowflakeTask(
+                date=self.date,
+                overwrite=self.overwrite,
+                intermediate_warehouse_path=self.intermediate_warehouse_path,
+                credentials=self.credentials,
+                warehouse=self.warehouse,
+                role=self.role,
+                sf_database=self.sf_database,
+                schema=self.schema,
+                scratch_schema=self.scratch_schema,
+                run_id=self.run_id,
+                table_name=table_name,
+                vertica_schema_name=self.vertica_schema_name,
+                vertica_warehouse_name=self.vertica_warehouse_name,
             )
 
     def complete(self):

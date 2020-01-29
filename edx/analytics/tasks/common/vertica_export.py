@@ -373,9 +373,7 @@ class ExportVerticaSchemaToS3WithMetadataTask(VerticaSchemaExportMixin, VerticaT
     @property
     def s3_location_for_schema(self):
         """
-        Returns the URL for the location of S3 data for the given table and schema.
-
-        This logic is shared by classes that dump data to S3 and those that load data from S3, so they agree.
+        Returns the URL for the location of S3 data for the given schema.
         """
         partition_path_spec = HivePartition('dt', self.date).path_spec
         url = url_path_join(self.intermediate_warehouse_path,
