@@ -7,7 +7,7 @@ from collections import OrderedDict, namedtuple
 import luigi
 from luigi.util import inherits
 
-from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MultiOutputMapReduceJobTask
+from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.vertica_export import VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, ExportVerticaTableToS3Task
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
@@ -673,7 +673,7 @@ def string_to_bool(value):
         raise ValueError('{} does not represent a boolean value.'.format(value))
 
 
-class BuildProgramReportsTask(ProgramsReportTaskMixin, luigi.Task):
+class BuildProgramReportsTask(ProgramsReportTaskMixin, MapReduceJobTaskMixin, luigi.Task):
     """
     Main task that serves as an entrypoint to run all program reports.
 
