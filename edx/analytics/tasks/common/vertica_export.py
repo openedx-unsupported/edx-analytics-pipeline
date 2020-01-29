@@ -331,3 +331,78 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
                 sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
                 sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
             )
+
+
+@workflow_entry_point
+class ExportVerticaSchemaToS3WithMetadataTask(VerticaSchemaExportMixin, VerticaTableToS3Mixin, luigi.Task):
+    """
+    A task that copies all the tables in a Vertica schema to S3, so other jobs can load from there.
+
+    Reads all tables in a schema and, if they are not listed in the `exclude` parameter, schedules a
+    ExportVerticaTableToS3Task task for each table.
+    """
+    overwrite = luigi.BoolParameter(
+        default=False,
+        significant=False,
+        description='Indicates if the target data sources should be removed prior to generating.'
+    )
+
+    # Collect metadata on when the schema export was started (as set by first call to requires()).
+    creation_time = None
+
+    def requires(self):
+        if self.creation_time is None:
+            self.creation_time = datetime.datetime.utcnow().isoformat()
+
+        yield ExternalURL(url=self.vertica_credentials)
+
+        for table_name in self.get_table_list_for_schema():
+            yield ExportVerticaTableToS3Task(
+                date=self.date,
+                overwrite=self.overwrite,
+                table_name=table_name,
+                intermediate_warehouse_path=self.intermediate_warehouse_path,
+                vertica_schema_name=self.vertica_schema_name,
+                vertica_warehouse_name=self.vertica_warehouse_name,
+                vertica_credentials=self.vertica_credentials,
+                sqoop_null_string=self.sqoop_null_string,
+                sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
+                sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
+            )
+
+    @property
+    def s3_location_for_schema(self):
+        """
+        Returns the URL for the location of S3 data for the given table and schema.
+
+        This logic is shared by classes that dump data to S3 and those that load data from S3, so they agree.
+        """
+        partition_path_spec = HivePartition('dt', self.date).path_spec
+        url = url_path_join(self.intermediate_warehouse_path,
+                            self.vertica_warehouse_name,
+                            self.vertica_schema_name,
+                            'dump_schema_metadata_output',
+                            partition_path_spec) + '/'
+        return url
+
+    def output(self):
+        """Return target to which metadata about the schema-level task execution can be written."""
+        return get_target_from_url(url_path_join(self.s3_location_for_schema, '_metadata'))
+
+    def run(self):
+        # If the job gets this far, then output metadata about the job.
+        # Use the metadata file as a marker for completeness.
+
+        metadata = {
+            'table_list': self.get_table_list_for_schema(),
+            'database': self.vertica_warehouse_name,
+            'schema_name': self.vertica_schema_name,
+            'date': self.date.isoformat(),
+            'exclude': self.exclude,
+            'intermediate_warehouse_path': self.intermediate_warehouse_path,
+            'creation_time': self.creation_time,
+            'completion_time': datetime.datetime.utcnow().isoformat(),
+        }
+
+        with self.output().open('w') as metadata_file:
+            json.dump(metadata, metadata_file)
