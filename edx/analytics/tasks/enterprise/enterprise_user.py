@@ -128,6 +128,7 @@ class EnterpriseUserDataTask(
                             ON sauth_a.id = sauth_b.id
             ) social_auth
                 ON enterprise_user.user_id = social_auth.user_id
+            WHERE enterprise_user.linked = 1
         """
 
     @property

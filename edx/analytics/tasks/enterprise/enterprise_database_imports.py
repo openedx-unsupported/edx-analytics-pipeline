@@ -47,6 +47,7 @@ class ImportEnterpriseCustomerUserTask(ImportMysqlToHiveTableTask):
             ('modified', 'TIMESTAMP'),
             ('user_id', 'INT'),
             ('enterprise_customer_id', 'STRING'),
+            ('linked', 'BOOLEAN'),
         ]
 
 

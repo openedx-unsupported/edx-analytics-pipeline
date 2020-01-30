@@ -49,7 +49,7 @@ class ImportEnterpriseCustomerUserTaskTestCase(TestCase):
             USE default;
             DROP TABLE IF EXISTS `enterprise_enterprisecustomeruser`;
             CREATE EXTERNAL TABLE `enterprise_enterprisecustomeruser` (
-                `id` INT,`created` TIMESTAMP,`modified` TIMESTAMP,`user_id` INT,`enterprise_customer_id` STRING
+                `id` INT,`created` TIMESTAMP,`modified` TIMESTAMP,`user_id` INT,`enterprise_customer_id` STRING,`linked` BOOLEAN
             )
             PARTITIONED BY (dt STRING)
 
