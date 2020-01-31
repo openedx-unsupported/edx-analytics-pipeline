@@ -9,12 +9,12 @@ import re
 
 import luigi
 
-from edx.analytics.tasks.util.hive import HivePartition
 from edx.analytics.tasks.common.snowflake_load import SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask
 from edx.analytics.tasks.common.sqoop import METADATA_FILENAME
 from edx.analytics.tasks.common.vertica_export import (
-    VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin, VerticaExportMixin
+    VerticaExportMixin, VerticaSchemaExportMixin, VerticaTableExportMixin, VerticaTableFromS3Mixin
 )
+from edx.analytics.tasks.util.hive import HivePartition
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 log = logging.getLogger(__name__)
@@ -213,6 +213,13 @@ class LoadVerticaTableFromS3WithMetadataToSnowflakeTask(VerticaTableExportMixin,
     @property
     def field_delimiter(self):
         return self.metadata['format']['fields_terminated_by']
+
+    @property
+    def table_description(self):
+        optional = ''
+        return "Copy of '{}' table from '{}' schema of Vertica database on {}.{}".format(
+            self.table_name, self.vertica_schema_name, self.date.isoformat(), optional
+        )
 
 
 class LoadVerticaSchemaFromS3WithMetadataToSnowflakeTask(VerticaExportMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
