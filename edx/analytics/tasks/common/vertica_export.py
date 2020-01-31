@@ -156,21 +156,18 @@ class VerticaExportMixin(WarehouseMixin):
         """Define root URL under which data should be written to or read from in S3."""
         return url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
 
-    @property
-    def s3_location_for_schema(self):
-        """
-        Returns the URL for the location of S3 data for the given schema.
-        """
-        partition_path_spec = HivePartition('dt', self.date).path_spec
-        url = url_path_join(self.intermediate_warehouse_path,
-                            self.vertica_warehouse_name,
-                            self.vertica_schema_name,
-                            'dump_schema_metadata_output',
-                            partition_path_spec) + '/'
-        return url
-
     def get_schema_metadata_target(self):
-        return get_target_from_url(url_path_join(self.s3_location_for_schema, '_metadata'))
+        """Return target for reading or writing out schema-level metadata file."""
+        partition_path_spec = HivePartition('dt', self.date).path_spec
+        url = url_path_join(
+            self.intermediate_warehouse_path,
+            self.vertica_warehouse_name,
+            self.vertica_schema_name,
+            'dump_schema_metadata_output',
+            partition_path_spec,
+            '_metadata'
+        )
+        return get_target_from_url(url)
 
 
 class VerticaTableExportMixin(VerticaExportMixin):
