@@ -163,7 +163,7 @@ class VerticaExportMixin(WarehouseMixin):
             self.intermediate_warehouse_path,
             self.vertica_warehouse_name,
             self.vertica_schema_name,
-            'dump_schema_metadata_output',
+            '_metadata_export_schema',
             partition_path_spec,
             '_metadata'
         )

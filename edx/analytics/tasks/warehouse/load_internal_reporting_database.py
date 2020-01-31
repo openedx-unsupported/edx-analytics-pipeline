@@ -28,7 +28,7 @@ except ImportError:
 log = logging.getLogger(__name__)
 
 # define pseudo-table-name to use for storing database-level metadata output.
-DUMP_METADATA_OUTPUT = 'dump_metadata_output'
+DUMP_METADATA_OUTPUT = '_metadata_export_database'
 
 
 class MysqlToWarehouseTaskMixin(WarehouseMixin):
