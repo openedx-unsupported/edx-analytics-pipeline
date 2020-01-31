@@ -27,7 +27,8 @@ class SqoopImportTestCase(unittest.TestCase):
 
     def create_mysql_task(self, num_mappers=None, where=None, verbose=False,
                           columns=None, null_string=None, fields_terminated_by=None, delimiter_replacement=None,
-                          overwrite=False, direct=True, mysql_delimiters=True):
+                          overwrite=False, direct=True, mysql_delimiters=True, additional_metadata=None,
+                          escaped_by=None, optionally_enclosed_by=None):
         """Create a SqoopImportFromMysql with specified options."""
         task = SqoopImportFromMysql(
             credentials=sentinel.ignored,
@@ -44,12 +45,15 @@ class SqoopImportTestCase(unittest.TestCase):
             overwrite=overwrite,
             direct=direct,
             mysql_delimiters=mysql_delimiters,
+            additional_metadata=additional_metadata,
+            escaped_by=escaped_by,
+            optionally_enclosed_by=optionally_enclosed_by,
         )
         return task
 
     def create_vertica_task(self, num_mappers=None, where=None, table_name=None, schema_name=None, columns=None,
                             null_string=None, fields_terminated_by=None, delimiter_replacement=None, overwrite=False,
-                            timezone_adjusted_column_list=[]):
+                            timezone_adjusted_column_list=[], additional_metadata=None):
         """A generic task generator for Sqoop on Vertica"""
         if columns is None:
             column_list = []
@@ -72,6 +76,7 @@ class SqoopImportTestCase(unittest.TestCase):
             "delimiter_replacement": delimiter_replacement,
             "overwrite": overwrite,
             "timezone_adjusted_column_list": timezone_adjusted_column_list,
+            "additional_metadata": additional_metadata,
         }
         # remove options marked as None
         trimmed_kws = {k: v for k, v in kw_args.iteritems() if v is not None}
@@ -100,7 +105,7 @@ class SqoopImportTestCase(unittest.TestCase):
 
     def create_and_run_mysql_task(self, credentials=None, num_mappers=None, where=None, verbose=False,
                                   columns=None, null_string=None, fields_terminated_by=None, delimiter_replacement=None,
-                                  overwrite=False, direct=True, mysql_delimiters=True):
+                                  overwrite=False, direct=True, mysql_delimiters=True, escaped_by=None, optionally_enclosed_by=None):
         """Create a SqoopImportFromMysql task with specified options, and then run it."""
         task = self.create_mysql_task(
             num_mappers=num_mappers,
@@ -113,6 +118,8 @@ class SqoopImportTestCase(unittest.TestCase):
             overwrite=overwrite,
             direct=direct,
             mysql_delimiters=mysql_delimiters,
+            escaped_by=escaped_by,
+            optionally_enclosed_by=optionally_enclosed_by,
         )
         self.run_task(task, credentials)
 
@@ -235,6 +242,54 @@ class SqoopImportTestCase(unittest.TestCase):
         metadata_dict = json.loads(metadata_output)
         self.assertIn('start_time', metadata_dict)
         self.assertIn('end_time', metadata_dict)
+        self.assertEquals(metadata_dict.get('source_database_type'), 'mysql')
+        self.assertIn('format', metadata_dict)
+        metadata_format = metadata_dict.get('format')
+        self.assertEquals(metadata_format.get('table_name'), 'example_table')
+        self.assertEquals(len(metadata_format.get('columns')), 0)
+        self.assertEquals(metadata_format['null_string'], None)
+        self.assertEquals(metadata_format['fields_terminated_by'], None)
+        self.assertEquals(metadata_format['delimiter_replacement'], None)
+        self.assertEquals(metadata_format['escaped_by'], None)
+        self.assertEquals(metadata_format['optionally_enclosed_by'], None)
+        self.assertNotIn('additional_metadata', metadata_dict)
+
+    def test_format_metadata(self):
+        task = self.create_mysql_task(
+            columns=['column1', 'column2'],
+            null_string='\\\\N',
+            fields_terminated_by='\x01',
+            delimiter_replacement='D',
+            escaped_by='E',
+            optionally_enclosed_by='O',
+        )
+        self.run_task(task)
+        self.assertFalse(task.complete())
+        metadata_target = task.metadata_output()
+        metadata_output = metadata_target.buffer.read()
+        metadata_dict = json.loads(metadata_output)
+        self.assertIn('format', metadata_dict)
+        metadata_format = metadata_dict.get('format')
+        self.assertEquals(metadata_format.get('table_name'), 'example_table')
+        self.assertEquals(len(metadata_format.get('columns')), 2)
+        self.assertEquals(metadata_format['null_string'], '\\\\N')
+        self.assertEquals(metadata_format['fields_terminated_by'], '\x01')
+        self.assertEquals(metadata_format['delimiter_replacement'], 'D')
+        self.assertEquals(metadata_format['escaped_by'], 'E')
+        self.assertEquals(metadata_format['optionally_enclosed_by'], 'O')
+
+    def test_additional_metadata(self):
+        task = self.create_mysql_task(additional_metadata={"test": "value"})
+        self.run_task(task)
+        self.assertFalse(task.complete())
+        metadata_target = task.metadata_output()
+        metadata_output = metadata_target.buffer.read()
+        metadata_dict = json.loads(metadata_output)
+        self.assertIn('start_time', metadata_dict)
+        self.assertIn('end_time', metadata_dict)
+        self.assertIn('additional_metadata', metadata_dict)
+        additional_metadata = metadata_dict['additional_metadata']
+        self.assertEquals(additional_metadata['test'], 'value')
 
     def test_overwrite(self):
         kwargs = {'overwrite': True}

@@ -125,6 +125,10 @@ class VerticaTableToS3Mixin(VerticaTableFromS3Mixin):
 class VerticaExportMixin(WarehouseMixin):
     """Information about Vertica that is needed by all classes involved in exporting data and also in loading it elsewhere."""
 
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+        description='Current run date.  This parameter is used to isolate intermediate datasets.'
+    )
     vertica_warehouse_name = luigi.Parameter(
         default='warehouse',
         description='The Vertica warehouse that houses the schema being copied.'
@@ -152,14 +156,23 @@ class VerticaExportMixin(WarehouseMixin):
         """Define root URL under which data should be written to or read from in S3."""
         return url_path_join(self.warehouse_path, 'import/vertica/sqoop/')
 
+    def get_schema_metadata_target(self):
+        """Return target for reading or writing out schema-level metadata file."""
+        partition_path_spec = HivePartition('dt', self.date).path_spec
+        url = url_path_join(
+            self.intermediate_warehouse_path,
+            self.vertica_warehouse_name,
+            self.vertica_schema_name,
+            '_metadata_export_schema',
+            partition_path_spec,
+            '_metadata'
+        )
+        return get_target_from_url(url)
+
 
 class VerticaTableExportMixin(VerticaExportMixin):
     """A set of parameters and methods used by classes that dump or load a Vertica table."""
 
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
     table_name = luigi.Parameter(
         description='The Vertica table being dumped to S3.'
     )
@@ -196,10 +209,6 @@ class VerticaTableExportMixin(VerticaExportMixin):
 class VerticaSchemaExportMixin(VerticaExportMixin):
     """A set of parameters and methods used by classes that dump or load a Vertica schema."""
 
-    date = luigi.DateParameter(
-        default=datetime.datetime.utcnow().date(),
-        description='Current run date.  This parameter is used to isolate intermediate datasets.'
-    )
     exclude = luigi.ListParameter(
         default=[],
         description='The Vertica tables that are to be excluded from exporting.'
@@ -275,6 +284,15 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
                 raise RuntimeError('Error Sqoop copy of {schema}.{table} found no viable columns!'.
                                    format(schema=self.schema_name, table=self.table))
 
+            additional_metadata = {
+                'table_schema': self.vertica_table_schema,
+                'timezone_adjusted_column_list': timestamptz_column_list,
+                'database': self.vertica_warehouse_name,
+                'schema_name': self.vertica_schema_name,
+                'table_name': self.table_name,
+                'date': self.date.isoformat(),
+            }
+
             self._sqoop_dump_vertica_table_task = SqoopImportFromVertica(
                 schema_name=self.vertica_schema_name,
                 table_name=self.table_name,
@@ -287,12 +305,13 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
                 delimiter_replacement=self.sqoop_delimiter_replacement,
                 columns=column_list,
                 timezone_adjusted_column_list=timestamptz_column_list,
+                additional_metadata=additional_metadata,
             )
         return self._sqoop_dump_vertica_table_task
 
 
 @workflow_entry_point
-class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixin, luigi.WrapperTask):
+class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixin, luigi.Task):
     """
     A task that copies all the tables in a Vertica schema to S3, so other jobs can load from there.
 
@@ -305,7 +324,13 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
         description='Indicates if the target data sources should be removed prior to generating.'
     )
 
+    # Collect metadata on when the schema export was started (as set by first call to requires()).
+    creation_time = None
+
     def requires(self):
+        if self.creation_time is None:
+            self.creation_time = datetime.datetime.utcnow().isoformat()
+
         yield ExternalURL(url=self.vertica_credentials)
 
         for table_name in self.get_table_list_for_schema():
@@ -321,3 +346,25 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
                 sqoop_fields_terminated_by=self.sqoop_fields_terminated_by,
                 sqoop_delimiter_replacement=self.sqoop_delimiter_replacement,
             )
+
+    def output(self):
+        """Return target to which metadata about the schema-level task execution can be written."""
+        return self.get_schema_metadata_target()
+
+    def run(self):
+        # If the job gets this far, then output metadata about the job.
+        # Use the metadata file as a marker for completeness.
+
+        metadata = {
+            'table_list': self.get_table_list_for_schema(),
+            'database': self.vertica_warehouse_name,
+            'schema_name': self.vertica_schema_name,
+            'date': self.date.isoformat(),
+            'exclude': self.exclude,
+            'intermediate_warehouse_path': self.intermediate_warehouse_path,
+            'creation_time': self.creation_time,
+            'completion_time': datetime.datetime.utcnow().isoformat(),
+        }
+
+        with self.output().open('w') as metadata_file:
+            json.dump(metadata, metadata_file)
