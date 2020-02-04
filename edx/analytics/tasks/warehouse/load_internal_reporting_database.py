@@ -17,6 +17,8 @@ from edx.analytics.tasks.common.sqoop import METADATA_FILENAME, SqoopImportFromM
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.util.s3_util import ScalableS3Client
+
 
 try:
     from google.cloud.bigquery import SchemaField
@@ -1060,3 +1062,104 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         """
         # OverwriteOutputMixin changes the complete() method behavior, so we override it.
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
+
+
+class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.WrapperTask):
+    """
+    Provides entry point for copying a MySQL database destined for Snowflake from one location in S3 to another.
+    """
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+    )
+    database = luigi.Parameter(
+        description='Name of database as stored in S3.'
+    )
+    warehouse_subdirectory = luigi.Parameter(
+        default='import_mysql_to_vertica',
+        description='Subdirectory under warehouse_path to store intermediate data.'
+    )
+    new_warehouse_path = luigi.Parameter(
+        description='The warehouse_path URL to which to copy database data.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        """
+        Inits this Luigi task.
+        """
+        super(CopyMysqlDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
+        self.metadata = None
+        self.s3_client = ScalableS3Client()
+
+    @property
+    def database_metadata(self):
+        if self.metadata is None:
+            metadata_target = self.get_schema_metadata_target()
+            with metadata_target.open('r') as metadata_file:
+                self.metadata = json.load(metadata_file)
+        return self.metadata
+
+    def get_schema_metadata_target(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_location = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            DUMP_METADATA_OUTPUT,
+            partition_path_spec,
+            METADATA_FILENAME,
+        )
+        return get_target_from_url(metadata_location)
+
+    def get_table_list_for_database(self):
+        return self.database_metadata['table_list']
+
+    def output(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_location = url_path_join(
+            self.new_warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            DUMP_METADATA_OUTPUT,
+            partition_path_spec,
+            METADATA_FILENAME,
+        )
+        return get_target_from_url(metadata_location)
+
+    def copy_table(self, table_name):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        source_path = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            table_name,
+            partition_path_spec,
+        )
+        destination_path = url_path_join(
+            self.new_warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            table_name,
+            partition_path_spec,
+        )
+        kwargs = {}
+        # From boto doc: "If True, the ACL from the source key will be
+        # copied to the destination key. If False, the destination key
+        # will have the default ACL. Note that preserving the ACL in
+        # the new key object will require two additional API calls to
+        # S3, one to retrieve the current ACL and one to set that ACL
+        # on the new object. If you don't care about the ACL, a value
+        # of False will be significantly more efficient."
+        # kwargs['preserve_acl'] = True;
+        self.s3_client.copy(source_path, destination_path, **kwargs)
+
+    def copy_metadata_file(self):
+        self.copy_table(DUMP_METADATA_OUTPUT)
+
+    def run(self):
+        if self.new_warehouse_path == self.warehouse_path:
+            raise Exception("Must set new_warehouse_path {} to be different than warehouse_path {}".format(new_warehouse_path, self.warehouse_path))
+
+        for table_name in self.get_table_list_for_database():
+            self.copy_table(table_name)
+
+        self.copy_metadata_file()
