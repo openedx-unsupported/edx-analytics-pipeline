@@ -1064,7 +1064,7 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
 
 
-class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.WrapperTask):
+class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
     """
     Provides entry point for copying a MySQL database destined for Snowflake from one location in S3 to another.
     """
@@ -1112,6 +1112,9 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.WrapperTask):
 
     def get_table_list_for_database(self):
         return self.database_metadata['table_list']
+
+    def requires(self):
+        return ExternalURL(self.get_schema_metadata_target().path)
 
     def output(self):
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
