@@ -1088,7 +1088,9 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         """
         super(CopyMysqlDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
         self.metadata = None
-        self.s3_client = ScalableS3Client()
+        self.s3_client = ScalableS3Client(
+            signatureVersion='v4',
+        )
 
     @property
     def database_metadata(self):
@@ -1153,6 +1155,7 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         # on the new object. If you don't care about the ACL, a value
         # of False will be significantly more efficient."
         # kwargs['preserve_acl'] = True;
+        
         self.s3_client.copy(source_path, destination_path, **kwargs)
 
     def copy_metadata_file(self):
