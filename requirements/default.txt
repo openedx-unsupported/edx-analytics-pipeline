@@ -99,3 +99,7 @@ yarn-api-client==0.2.3
 
 # The following packages are considered to be unsafe in a requirements file:
 # setuptools==41.4.0        # via google-cloud-core, protobuf, python-daemon
+
+# Add this here for the copy S3 task as a standalone hack.
+# But pick a version that matches the boto requirements above...
+awscli==1.14.46
