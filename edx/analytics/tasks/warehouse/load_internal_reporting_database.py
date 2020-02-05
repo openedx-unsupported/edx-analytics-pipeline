@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import re
+import subprocess
 
 import luigi
 
@@ -1088,7 +1089,7 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         """
         super(CopyMysqlDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
         self.metadata = None
-        self.s3_client = ScalableS3Client()
+        # self.s3_client = ScalableS3Client()
 
     @property
     def database_metadata(self):
@@ -1154,7 +1155,16 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         # of False will be significantly more efficient."
         # kwargs['preserve_acl'] = True;
         
-        self.s3_client.copy(source_path, destination_path, part_size=3000000000, **kwargs)
+        # self.s3_client.copy(source_path, destination_path, part_size=3000000000, **kwargs)
+        command = 'aws s3 cp {source_path} {destination_path} --recursive'.format(
+            source_path=source_path, destination_path=destination_path
+        )
+        try:
+            log.info("Calling '{}'".format(command))
+            return_val = subprocess.check_call(command, shell=True)
+            log.info("Call returned '{}'".format(return_val))
+        except subprocess.CalledProcessError as exception:
+            raise
 
     def copy_metadata_file(self):
         self.copy_table(DUMP_METADATA_OUTPUT)
