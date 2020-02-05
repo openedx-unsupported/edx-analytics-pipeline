@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import re
+import subprocess
 
 import luigi
 
@@ -368,3 +369,97 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
 
         with self.output().open('w') as metadata_file:
             json.dump(metadata, metadata_file)
+
+
+class CopyVerticaDatabaseFromS3ToS3Task(VerticaExportMixin, luigi.Task):
+    """
+    Provides entry point for copying a MySQL database destined for Snowflake from one location in S3 to another.
+    """
+    new_warehouse_path = luigi.Parameter(
+        description='The warehouse_path URL to which to copy database data.'
+    )
+    # remove parameters that are not needed (or shouldn't be used).
+    vertica_credentials = None
+    intermediate_warehouse_path = None
+
+    def __init__(self, *args, **kwargs):
+        """
+        Inits this Luigi task.
+        """
+        super(CopyVerticaDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
+        self.metadata = None
+
+    @property
+    def schema_metadata(self):
+        if self.metadata is None:
+            metadata_target = self.get_schema_metadata_target()
+            with metadata_target.open('r') as metadata_file:
+                self.metadata = json.load(metadata_file)
+        return self.metadata
+
+    def get_table_list_for_database(self):
+        return self.schema_metadata['table_list']
+
+    def requires(self):
+        return ExternalURL(self.get_schema_metadata_target().path)
+
+    def output(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_location = url_path_join(
+            self.new_warehouse_path,
+            'import/vertica/sqoop/',
+            self.vertica_warehouse_name,
+            self.vertica_schema_name,
+            '_metadata_export_schema',
+            partition_path_spec,
+            '_metadata'
+        )
+        return get_target_from_url(metadata_location)
+
+    def copy_table(self, table_name):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        source_path = url_path_join(
+            self.warehouse_path,
+            'import/vertica/sqoop/',
+            self.vertica_warehouse_name,
+            self.vertica_schema_name,
+            table_name,
+            partition_path_spec,
+        )
+        destination_path = url_path_join(
+            self.new_warehouse_path,
+            'import/vertica/sqoop/',
+            self.vertica_warehouse_name,
+            self.vertica_schema_name,
+            table_name,
+            partition_path_spec,
+        )
+        kwargs = {}
+        # First attempt was to create a ScalableS3Client() wrapper in __init__, then calling:
+        # self.s3_client.copy(source_path, destination_path, part_size=3000000000, **kwargs)
+        # This succeeded when files were small enough to be below the part_size, but there were
+        # files for LMS and ecommerce that exceeded this limit (i.e. by a lot), and multi-part
+        # uploads were failing due to "SignatureDoesNotMatch" errors from S3.  Since we're using
+        # older boto code instead of boto3 (which requires a Luigi upgrade), it seemed easier to
+        # just install awscli and use that in a subprocess to copy each table's data.
+        command = 'aws s3 cp {source_path} {destination_path} --recursive'.format(
+            source_path=source_path, destination_path=destination_path
+        )
+        try:
+            log.info("Calling '{}'".format(command))
+            return_val = subprocess.check_call(command, shell=True)
+            log.info("Call returned '{}'".format(return_val))
+        except subprocess.CalledProcessError as exception:
+            raise
+
+    def copy_metadata_file(self):
+        self.copy_table('_metadata_export_schema')
+
+    def run(self):
+        if self.new_warehouse_path == self.warehouse_path:
+            raise Exception("Must set new_warehouse_path {} to be different than warehouse_path {}".format(new_warehouse_path, self.warehouse_path))
+
+        for table_name in self.get_table_list_for_database():
+            self.copy_table(table_name)
+
+        self.copy_metadata_file()

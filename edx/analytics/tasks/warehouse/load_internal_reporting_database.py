@@ -1010,7 +1010,7 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         Inits this Luigi task.
         """
         super(ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask, self).__init__(*args, **kwargs)
-        metadata_target = self.get_schema_metadata_target()
+        metadata_target = self.get_database_metadata_target()
         with metadata_target.open('r') as metadata_file:
             self.metadata = json.load(metadata_file)
 
@@ -1019,7 +1019,7 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
     def get_table_list_for_database(self):
         return self.metadata['table_list']
 
-    def get_schema_metadata_target(self):
+    def get_database_metadata_target(self):
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
         metadata_location = url_path_join(
             self.warehouse_path,
@@ -1089,17 +1089,16 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         """
         super(CopyMysqlDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
         self.metadata = None
-        # self.s3_client = ScalableS3Client()
 
     @property
     def database_metadata(self):
         if self.metadata is None:
-            metadata_target = self.get_schema_metadata_target()
+            metadata_target = self.get_database_metadata_target()
             with metadata_target.open('r') as metadata_file:
                 self.metadata = json.load(metadata_file)
         return self.metadata
 
-    def get_schema_metadata_target(self):
+    def get_database_metadata_target(self):
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
         metadata_location = url_path_join(
             self.warehouse_path,
@@ -1115,7 +1114,7 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
         return self.database_metadata['table_list']
 
     def requires(self):
-        return ExternalURL(self.get_schema_metadata_target().path)
+        return ExternalURL(self.get_database_metadata_target().path)
 
     def output(self):
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
@@ -1146,16 +1145,13 @@ class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
             partition_path_spec,
         )
         kwargs = {}
-        # From boto doc: "If True, the ACL from the source key will be
-        # copied to the destination key. If False, the destination key
-        # will have the default ACL. Note that preserving the ACL in
-        # the new key object will require two additional API calls to
-        # S3, one to retrieve the current ACL and one to set that ACL
-        # on the new object. If you don't care about the ACL, a value
-        # of False will be significantly more efficient."
-        # kwargs['preserve_acl'] = True;
-        
+        # First attempt was to create a ScalableS3Client() wrapper in __init__, then calling: 
         # self.s3_client.copy(source_path, destination_path, part_size=3000000000, **kwargs)
+        # This succeeded when files were small enough to be below the part_size, but there were
+        # files for LMS and ecommerce that exceeded this limit (i.e. by a lot), and multi-part
+        # uploads were failing due to "SignatureDoesNotMatch" errors from S3.  Since we're using
+        # older boto code instead of boto3 (which requires a Luigi upgrade), it seemed easier to
+        # just install awscli and use that in a subprocess to copy each table's data.
         command = 'aws s3 cp {source_path} {destination_path} --recursive'.format(
             source_path=source_path, destination_path=destination_path
         )
