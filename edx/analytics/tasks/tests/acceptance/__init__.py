@@ -373,11 +373,19 @@ class AcceptanceTestCase(unittest.TestCase):
         try:
             assert_frame_equal(data, expected)
         except AssertionError:
-            pandas.set_option('display.max_columns', None)
+            # For some reason the version of pands we have pinned throws an error if you try to print it
+            # or to_string() it. Thus these shenanigans.
             print '----- The report generated this data: -----'
-            print data
+            for index, row in data.iterrows():
+                print("  {}".format(index))
+                for col in row:
+                    print("     {}".format(col))
             print '----- vs expected: -----'
-            print expected
+            for index, row in expected.iterrows():
+                print("  {}".format(index))
+                for col in row:
+                    print("     {}".format(col))
+
             if data.shape != expected.shape:
                 print "Data shapes differ."
             else:
