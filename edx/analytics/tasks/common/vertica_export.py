@@ -371,7 +371,7 @@ class ExportVerticaSchemaToS3Task(VerticaSchemaExportMixin, VerticaTableToS3Mixi
             json.dump(metadata, metadata_file)
 
 
-class CopyVerticaDatabaseFromS3ToS3Task(VerticaExportMixin, luigi.Task):
+class CopyVerticaSchemaFromS3ToS3Task(VerticaExportMixin, luigi.Task):
     """
     Provides entry point for copying a MySQL database destined for Snowflake from one location in S3 to another.
     """
@@ -386,7 +386,7 @@ class CopyVerticaDatabaseFromS3ToS3Task(VerticaExportMixin, luigi.Task):
         """
         Inits this Luigi task.
         """
-        super(CopyVerticaDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
+        super(CopyVerticaSchemaFromS3ToS3Task, self).__init__(*args, **kwargs)
         self.metadata = None
 
     @property
@@ -397,7 +397,7 @@ class CopyVerticaDatabaseFromS3ToS3Task(VerticaExportMixin, luigi.Task):
                 self.metadata = json.load(metadata_file)
         return self.metadata
 
-    def get_table_list_for_database(self):
+    def get_table_list_for_schema(self):
         return self.schema_metadata['table_list']
 
     def requires(self):
@@ -459,7 +459,7 @@ class CopyVerticaDatabaseFromS3ToS3Task(VerticaExportMixin, luigi.Task):
         if self.new_warehouse_path == self.warehouse_path:
             raise Exception("Must set new_warehouse_path {} to be different than warehouse_path {}".format(new_warehouse_path, self.warehouse_path))
 
-        for table_name in self.get_table_list_for_database():
+        for table_name in self.get_table_list_for_schema():
             self.copy_table(table_name)
 
         self.copy_metadata_file()
