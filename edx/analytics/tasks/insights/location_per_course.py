@@ -308,6 +308,7 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
                 "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)),
                 "DEBUG path_selection_task: {}".format(str(path_selection_task)),
                 "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())),
+                "DEBUG path_selection_task.output() paths: {}".format(str([x.path for x in path_selection_task.output()])),
             ]
             raise Exception(msgs)
 
@@ -709,6 +710,7 @@ class LastCityOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapRedu
                 "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)),
                 "DEBUG path_selection_task: {}".format(str(path_selection_task)),
                 "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())),
+                "DEBUG path_selection_task.output() paths: {}".format(str([x.path for x in path_selection_task.output()])),
             ]
             raise Exception(msgs)
 
