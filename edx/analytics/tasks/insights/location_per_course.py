@@ -293,25 +293,6 @@ class LastCountryOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapR
                 date_pattern='%Y-%m-%d',
             )
 
-            log.info("DEBUG path_selection_interval: {}".format(str(path_selection_interval)))
-            log.info("DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)))
-            log.info("DEBUG path_selection_task: {}".format(str(path_selection_task)))
-            log.info("DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())))
-
-            print "DEBUG path_selection_interval: {}".format(str(path_selection_interval))
-            print "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root))
-            print "DEBUG path_selection_task: {}".format(str(path_selection_task))
-            print "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output()))
-
-            msgs = [
-                "DEBUG path_selection_interval: {}".format(str(path_selection_interval)),
-                "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)),
-                "DEBUG path_selection_task: {}".format(str(path_selection_task)),
-                "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())),
-                "DEBUG path_selection_task.output() paths: {}".format(str([x.path for x in path_selection_task.output()])),
-            ]
-            raise Exception(msgs)
-
             requirements = {
                 'path_selection_task': path_selection_task,
             }
@@ -694,25 +675,6 @@ class LastCityOfUser(LastCountryOfUserDownstreamMixin, GeolocationMixin, MapRedu
                 expand_interval=datetime.timedelta(0),
                 date_pattern='%Y-%m-%d',
             )
-
-            log.info("DEBUG path_selection_interval: {}".format(str(path_selection_interval)))
-            log.info("DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)))
-            log.info("DEBUG path_selection_task: {}".format(str(path_selection_task)))
-            log.info("DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())))
-
-            print "DEBUG path_selection_interval: {}".format(str(path_selection_interval))
-            print "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root))
-            print "DEBUG path_selection_task: {}".format(str(path_selection_task))
-            print "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output()))
-
-            msgs = [
-                "DEBUG path_selection_interval: {}".format(str(path_selection_interval)),
-                "DEBUG last_ip_of_user_root: {}".format(str(last_ip_of_user_root)),
-                "DEBUG path_selection_task: {}".format(str(path_selection_task)),
-                "DEBUG path_selection_task.output(): {}".format(str(path_selection_task.output())),
-                "DEBUG path_selection_task.output() paths: {}".format(str([x.path for x in path_selection_task.output()])),
-            ]
-            raise Exception(msgs)
 
             requirements = {
                 'path_selection_task': path_selection_task,
