@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 class ProgramsReportTaskMixin(object):
     """
-    Provides Luigi parameters common to the BuildLearnerProgramReport task and the BuildAggregateProgramReport task.
+    Provides Luigi parameters common to the BuildLearnerProgramReport task and the BuildCohortProgramReport task.
     Namely,
     - output_root: URL pointing to the location reports should be stored
     - overwrite: a boolean representing whether or not to overwrite the existing output for this task. Luigi tasks
@@ -384,7 +384,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CountCourseEnrollments/'))
 
 
-# See comment at the end of this file regarding BuildAggregateProgramReport.
+# See comment at the end of this file regarding BuildCohortProgramReport.
 CountCourseEnrollments = inherits(CombineCourseEnrollmentsTask)(CountCourseEnrollmentsTask)
 CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
 CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
@@ -504,15 +504,15 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
 
 
-# See comment at the end of this file regarding BuildAggregateProgramReport.
+# See comment at the end of this file regarding BuildCohortProgramReport.
 CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
 CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
 CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
 
-class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
+class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """
-    A Map Reduce task that writes a program's aggregate enrollment data to organization-program specific file.
+    A Map Reduce task that writes a aggregate enrollment data by entry cohort to organization-program specific file.
 
     The task accepts the same parameters as the CountProgramCohortEnrollments, from which it inherits parameters,
     as well as the following parameters:
@@ -534,7 +534,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
     ProgramMetadataEntry = namedtuple('ProgramMetadataEntry', PROGRAM_METADATA_FIELDS)
 
     def __init__(self, *args, **kwargs):
-        super(BuildAggregateProgramReportTask, self).__init__(*args, **kwargs)
+        super(BuildCohortProgramReportTask, self).__init__(*args, **kwargs)
 
     def requires(self):
         yield self.clone(
@@ -689,7 +689,7 @@ class BuildProgramReportsTask(ProgramsReportTaskMixin, MapReduceJobTaskMixin, lu
 
     def requires(self):
         yield self.clone(BuildLearnerProgramReport)
-        yield self.clone(BuildAggregateProgramReportTask)
+        yield self.clone(BuildCohortProgramReportTask)
 
 
 # Luigi has a great decorator, inherits, which "copies parameters (and nothing else) from one task class to another,
@@ -706,6 +706,6 @@ class BuildProgramReportsTask(ProgramsReportTaskMixin, MapReduceJobTaskMixin, lu
 # due to issues with the "inheritance" of the sqoop_fields_terminated_by parameter, whose default value is
 # u'\x01'; jobs running on EMR fail fails with the following error:
 # "[Fatal Error] job.xml:209:161: Character reference "&#1" is an invalid XML character."
-BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
-BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
-BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
+BuildCohortProgramReport = inherits(CountCourseEnrollments)(BuildCohortProgramReportTask)
+BuildCohortProgramReport.__name__ = 'BuildCohortProgramReport'
+BuildCohortProgramReport.__class__._reg.append(BuildCohortProgramReport)
