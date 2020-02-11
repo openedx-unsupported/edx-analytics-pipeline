@@ -246,7 +246,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
             completed = completed or is_course_run_completed
 
             if entry.course_run_start != self.sqoop_null_string:
-                start_month = datetime.datetime.strptime(entry.date_first_enrolled, '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m')
+                start_month = datetime.datetime.strptime(entry.course_run_start, '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m')
                 run_start_months.add(start_month)
 
         # the method that writes the output of the reducers to a file writes the
