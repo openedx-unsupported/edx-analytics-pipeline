@@ -233,7 +233,7 @@ class VerticaSchemaExportMixin(VerticaExportMixin):
         if not self._table_names_list:
             query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
                     "".format(schema_name=self.vertica_schema_name)
-            table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
+            table_list = [row[0] for row in get_vertica_results(self.vertica_warehouse_name, self.vertica_credentials, query)]
 
             self._table_names_list = [table_name for table_name in table_list if not self.should_exclude_table(table_name)]
         return self._table_names_list
