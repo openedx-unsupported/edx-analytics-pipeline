@@ -36,7 +36,7 @@ VERTICA_EXPORT_DEFAULT_NULL_MARKER = 'NNULLL'
 VERTICA_EXPORT_DEFAULT_DELIMITER_REPLACEMENT = ' '
 
 
-def get_vertica_results(credentials, query):
+def get_vertica_results(warehouse_name, credentials, query):
     """Run a single query in Vertica and return the results."""
     credentials_target = ExternalURL(url=credentials).output()
     cred = None
@@ -45,7 +45,7 @@ def get_vertica_results(credentials, query):
 
     # Externalize autocommit and read timeout
     connection = vertica_python.connect(user=cred.get('username'), password=cred.get('password'), host=cred.get('host'),
-                                        port=cred.get('port'), database='warehouse', autocommit=False,
+                                        port=cred.get('port'), database=warehouse_name, autocommit=False,
                                         read_timeout=None)
 
     if not vertica_client_available:
@@ -61,7 +61,7 @@ def get_vertica_results(credentials, query):
     return results
 
 
-def get_vertica_table_schema(credentials, schema_name, table_name):
+def get_vertica_table_schema(warehouse_name, credentials, schema_name, table_name):
     """
     Returns the Vertica schema in the format (column name, column type, is_nullable) for the indicated table.
 
@@ -71,7 +71,7 @@ def get_vertica_table_schema(credentials, schema_name, table_name):
     query = "SELECT column_name, data_type, is_nullable FROM columns WHERE table_schema='{schema}' AND " \
             "table_name='{table}' ORDER BY ordinal_position;".format(schema=schema_name, table=table_name)
     results = []
-    rows = get_vertica_results(credentials, query)
+    rows = get_vertica_results(warehouse_name, credentials, query)
 
     for row in rows:
         column_name = row[0]
@@ -186,7 +186,10 @@ class VerticaTableExportMixin(VerticaExportMixin):
         """The schema of the Vertica table."""
         if self.vertica_source_table_schema is None:
             self.vertica_source_table_schema = get_vertica_table_schema(
-                self.vertica_credentials, self.vertica_schema_name, self.table_name
+                self.vertica_warehouse_name,
+                self.vertica_credentials,
+                self.vertica_schema_name,
+                self.table_name,
             )
         return self.vertica_source_table_schema
 
@@ -230,7 +233,7 @@ class VerticaSchemaExportMixin(VerticaExportMixin):
         if not self._table_names_list:
             query = "SELECT table_name FROM all_tables WHERE schema_name='{schema_name}' AND table_type='TABLE' " \
                     "".format(schema_name=self.vertica_schema_name)
-            table_list = [row[0] for row in get_vertica_results(self.vertica_credentials, query)]
+            table_list = [row[0] for row in get_vertica_results(self.vertica_warehouse_name, self.vertica_credentials, query)]
 
             self._table_names_list = [table_name for table_name in table_list if not self.should_exclude_table(table_name)]
         return self._table_names_list
