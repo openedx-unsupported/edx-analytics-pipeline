@@ -127,7 +127,7 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
             'User Key',
             'Course Title',
             'Course Run Key',
-            'Course Run Start Date'
+            'Course Run Start Date',
             'External Course Key',
             'Track',
             'Grade',
