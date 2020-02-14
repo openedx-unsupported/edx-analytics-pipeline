@@ -17,7 +17,7 @@ log = logging.getLogger(__name__)
 
 class ProgramsReportTaskMixin(object):
     """
-    Provides Luigi parameters common to the BuildLearnerProgramReport task and the BuildAggregateProgramReport task.
+    Provides Luigi parameters common to the BuildLearnerProgramReport task and the BuildCohortProgramReport task.
     Namely,
     - output_root: URL pointing to the location reports should be stored
     - overwrite: a boolean representing whether or not to overwrite the existing output for this task. Luigi tasks
@@ -127,6 +127,7 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
             'User Key',
             'Course Title',
             'Course Run Key',
+            'Course Run Start Date',
             'External Course Key',
             'Track',
             'Grade',
@@ -180,7 +181,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
     """
     COMBINED_COURSE_ENROLL_FIELDS = [
         'authoring_org', 'program_title', 'program_uuid', 'program_type',
-        'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'external_course_run_key',
+        'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'course_run_start', 'external_course_run_key',
         'track', 'grade', 'letter_grade', 'date_first_enrolled', 'date_last_unenrolled', 'current_enrollment_is_active',
         'first_verified_enrollment_time', 'course_run_completed', 'date_completed', 'program_completed', 'course_key', 'timestamp',
     ]
@@ -209,16 +210,16 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         In particular,
             - combine the different distinct enrollment tracks the learner has been enrolled in into a comma
               separated string
-            - find the earliest enrollment time across all course run enrollments for that course and use the
-              year as the learner's entry year
-                - if all values are null, indicating missing data, use null as the entry year
+            - find the earliest enrollment across all course run enrollments for that course to determine a
+              learner's entry cohort for this course
+                - if all values are null, indicating missing data, use null as the entry cohort
             - determine whether the learner completed the course by checking whether the learner has completed at least
               one run of the course
 
         Yield a (key, value) pair where the key is empty, and the value represents information
         about a learner's enrollment in a course.
         """
-        entry_years = set()
+        run_start_months = set()
         completed = False
         program_completed = False
         num_course_run_enrollments = 0
@@ -244,25 +245,25 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
             is_course_run_completed = string_to_bool(entry.course_run_completed)
             completed = completed or is_course_run_completed
 
-            if entry.date_first_enrolled != self.sqoop_null_string:
-                year = datetime.datetime.strptime(entry.date_first_enrolled, '%Y-%m-%d %H:%M:%S.%f').year
-                entry_years.add(year)
+            if entry.course_run_start != self.sqoop_null_string:
+                start_month = datetime.datetime.strptime(entry.course_run_start, '%Y-%m-%d %H:%M:%S.%f').strftime('%Y-%m')
+                run_start_months.add(start_month)
 
         # the method that writes the output of the reducers to a file writes the
         # elements of the output as a tab separated string,
         # so to keep the list of tracks together, use a comma separated string
         tracks = ','.join(tracks)
 
-        # if all course run enrollments have null for their first enrollment time, use sqoop_null_string
+        # if all course run enrollments have null for their start date, use sqoop_null_string
         # find the minimum value for the entry year excluding None; if None is the only value,
-        # then entry year is the value of sqoop_null_string
-        if len(entry_years) > 0:
-            entry_year = min(entry_years)
+        # then entry cohort is the value of sqoop_null_string
+        if len(run_start_months) > 0:
+            course_start_month = min(run_start_months)
         else:
-            entry_year = self.sqoop_null_string
+            course_start_month = self.sqoop_null_string
 
         yield [authoring_org, program_uuid,
-               user_id, tracks, num_course_run_enrollments, entry_year,
+               user_id, tracks, num_course_run_enrollments, course_start_month,
                completed, program_completed, timestamp]
 
     def output(self):
@@ -282,14 +283,14 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
 
     It also includes
         - whether the learner has completed the program
-        - the earliest year a learner has enrolled in any course within the program as that learner's entry year
+        - the learners entry cohort for the program. Defined as the earliest start month of any course in the program
 
     The task accepts the same parameters as the CombineCourseEnrollmentsTask, from which it inherits parameters.
     """
 
     COUNT_COURSE_ENROLLMENT_FIELDS = [
         'authoring_org', 'program_uuid',
-        'user_id', 'tracks', 'num_course_run_enrollments', 'entry_year',
+        'user_id', 'tracks', 'num_course_run_enrollments', 'course_start_month',
         'course_completed', 'program_completed', 'timestamp',
     ]
     CountCourseEnrollmentsEntry = namedtuple('CountCourseEnrollmentsEntry', COUNT_COURSE_ENROLLMENT_FIELDS)
@@ -323,11 +324,11 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
 
         Also include
             - whether the learner has completed the program
-            - the earliest year a learner has enrolled in any course within the program as that learner's entry year
+            - the learners entry cohort for the program. Defined as the earliest start month of any course in the program
         """
         authoring_org, program_uuid, user_id, timestamp = key
 
-        entry_years = set()
+        course_start_months = set()
         is_program_completed = False
         num_course_run_enrollments = 0
         num_completed_courses = 0
@@ -362,19 +363,19 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
                 elif track == 'masters':
                     num_masters_enrollments += 1
 
-            if entry.entry_year != self.sqoop_null_string:
-                entry_years.add(entry.entry_year)
+            if entry.course_start_month != self.sqoop_null_string:
+                course_start_months.add(entry.course_start_month)
 
-        # find the learner's entry year across all courses they have enrolled in as part of a program
-        # find the minimum value for the entry year excluding sqoop_null_string; if sqoop_null_string is the only value,
-        # then entry year is sqoop_null_string
-        if len(entry_years) > 0:
-            entry_year = min(entry_years)
+        # find the learner's entry month across all courses they have enrolled in as part of a program
+        # find the minimum value for the entry month excluding sqoop_null_string; if sqoop_null_string is the only value,
+        # then entry month is sqoop_null_string
+        if len(course_start_months) > 0:
+            entry_cohort = min(course_start_months)
         else:
-            entry_year = self.sqoop_null_string
+            entry_cohort = self.sqoop_null_string
 
         yield [authoring_org, program_uuid, user_id,
-               entry_year, num_course_run_enrollments, num_completed_courses,
+               entry_cohort, num_course_run_enrollments, num_completed_courses,
                num_audit_enrollments, num_verified_enrollments,
                num_professional_enrollments, num_masters_enrollments,
                is_program_completed, timestamp]
@@ -383,7 +384,7 @@ class CountCourseEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin, MapRed
         return get_target_from_url(url_path_join(self.output_root, 'temp', 'CountCourseEnrollments/'))
 
 
-# See comment at the end of this file regarding BuildAggregateProgramReport.
+# See comment at the end of this file regarding BuildCohortProgramReport.
 CountCourseEnrollments = inherits(CombineCourseEnrollmentsTask)(CountCourseEnrollmentsTask)
 CountCourseEnrollments.__name__ = 'CountCourseEnrollments'
 CountCourseEnrollments.__class__._reg.append(CountCourseEnrollments)
@@ -407,7 +408,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
 
     COUNT_PROGRAM_ENROLLMENTS_FIELDS = [
         'authoring_org', 'program_uuid',
-        'user_id', 'entry_year', 'num_course_run_enrollments', 'num_completed_courses',
+        'user_id', 'entry_cohort', 'num_course_run_enrollments', 'num_completed_courses',
         'num_audit_enrollments', 'num_verified_enrollments', 'num_professional_enrollments',
         'num_masters_enrollments', 'is_program_completed', 'timestamp',
     ]
@@ -433,7 +434,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         fields = line.split('\t')
         entry = self.CountProgramEnrollmentsEntry(*fields)
 
-        yield (entry.authoring_org, entry.program_uuid, entry.entry_year, entry.timestamp), line
+        yield (entry.authoring_org, entry.program_uuid, entry.entry_cohort, entry.timestamp), line
 
     def reducer(self, key, values):
         """
@@ -451,7 +452,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             - the number of learners with 1+...10+ completed courses
             - the number of learners who have completed the program
         """
-        authoring_org, program_uuid, entry_year, timestamp = key
+        authoring_org, program_uuid, entry_cohort, timestamp = key
 
         total_num_learners = 0
         total_num_run_enrollments = 0
@@ -485,7 +486,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         result = OrderedDict([
             ('authoring_org', authoring_org),
             ('program_uuid', program_uuid),
-            ('entry_year', entry_year),
+            ('entry_cohort', entry_cohort),
             ('total_learners', total_num_learners),
             ('total_enrollments', total_num_run_enrollments),
             ('total_completions', total_num_program_completions),
@@ -503,15 +504,15 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         return get_target_from_url(url_path_join(self.output_root, 'temp/CountProgramCohortEnrollments/'))
 
 
-# See comment at the end of this file regarding BuildAggregateProgramReport.
+# See comment at the end of this file regarding BuildCohortProgramReport.
 CountProgramCohortEnrollments = inherits(CountCourseEnrollments)(CountProgramCohortEnrollmentsTask)
 CountProgramCohortEnrollments.__name__ = 'CountProgramCohortEnrollments'
 CountProgramCohortEnrollments.__class__._reg.append(CountProgramCohortEnrollments)
 
 
-class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
+class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """
-    A Map Reduce task that writes a program's aggregate enrollment data to organization-program specific file.
+    A Map Reduce task that writes a aggregate enrollment data by entry cohort to organization-program specific file.
 
     The task accepts the same parameters as the CountProgramCohortEnrollments, from which it inherits parameters,
     as well as the following parameters:
@@ -524,7 +525,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         description='Current run date. Used to tag report date'
     )
     report_name = luigi.Parameter(
-        default='aggregate_report'
+        default='program_cohort_report'
     )
 
     PROGRAM_METADATA_FIELDS = [
@@ -533,7 +534,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
     ProgramMetadataEntry = namedtuple('ProgramMetadataEntry', PROGRAM_METADATA_FIELDS)
 
     def __init__(self, *args, **kwargs):
-        super(BuildAggregateProgramReportTask, self).__init__(*args, **kwargs)
+        super(BuildCohortProgramReportTask, self).__init__(*args, **kwargs)
 
     def requires(self):
         yield self.clone(
@@ -554,7 +555,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
             'Program Title',
             'Program UUID',
             'Program Type',
-            'Entry Year',
+            'Entry Cohort',
             'Total Learners',
             'Total Number Enrollments',
         ]
@@ -596,7 +597,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         yield (authoring_institution, program_uuid), value
 
     def multi_output_reducer(self, key, values, output_file):
-        cohorts_by_year = {}
+        cohorts_by_month = {}
         program = None
         for value in values:
             input_type = value['input_type']
@@ -606,8 +607,8 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
                 program = self.ProgramMetadataEntry(*fields)
             else:
                 cohort = json.loads(value['data'])
-                entry_year = cohort['entry_year']
-                cohorts_by_year[entry_year] = cohort
+                entry_cohort = cohort['entry_cohort']
+                cohorts_by_month[entry_cohort] = cohort
 
         if not program:
             raise Exception(
@@ -622,7 +623,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
         writer = csv.DictWriter(output_file, columns)
         writer.writeheader()
 
-        for entry_year, cohort in sorted(cohorts_by_year.items(), key=lambda x: x[1]):
+        for entry_cohort, cohort in sorted(cohorts_by_month.items(), key=lambda x: x[1]):
 
             def append_counts(row, values):
                 for n in range(program_course_count):
@@ -636,7 +637,7 @@ class BuildAggregateProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, M
                 program.program_title,
                 program.program_uuid,
                 program.program_type,
-                cohort.get('entry_year'),
+                cohort.get('entry_cohort'),
                 cohort.get('total_learners'),
                 cohort.get('total_enrollments'),
                 cohort.get('total_completions'),
@@ -688,7 +689,7 @@ class BuildProgramReportsTask(ProgramsReportTaskMixin, MapReduceJobTaskMixin, lu
 
     def requires(self):
         yield self.clone(BuildLearnerProgramReport)
-        yield self.clone(BuildAggregateProgramReportTask)
+        yield self.clone(BuildCohortProgramReportTask)
 
 
 # Luigi has a great decorator, inherits, which "copies parameters (and nothing else) from one task class to another,
@@ -705,6 +706,6 @@ class BuildProgramReportsTask(ProgramsReportTaskMixin, MapReduceJobTaskMixin, lu
 # due to issues with the "inheritance" of the sqoop_fields_terminated_by parameter, whose default value is
 # u'\x01'; jobs running on EMR fail fails with the following error:
 # "[Fatal Error] job.xml:209:161: Character reference "&#1" is an invalid XML character."
-BuildAggregateProgramReport = inherits(CountCourseEnrollments)(BuildAggregateProgramReportTask)
-BuildAggregateProgramReport.__name__ = 'BuildAggregateProgramReport'
-BuildAggregateProgramReport.__class__._reg.append(BuildAggregateProgramReport)
+BuildCohortProgramReport = inherits(CountCourseEnrollments)(BuildCohortProgramReportTask)
+BuildCohortProgramReport.__name__ = 'BuildCohortProgramReport'
+BuildCohortProgramReport.__class__._reg.append(BuildCohortProgramReport)
