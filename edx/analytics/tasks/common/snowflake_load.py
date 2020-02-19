@@ -90,33 +90,6 @@ class SnowflakeTarget(luigi.Target):
 
         return connection
 
-    def create_warehouse(self, connection):
-        """
-        DEPRECATED METHOD: Do not create warehouses in pipeline code anymore.  Use Terraform to pre-provision the
-        warehouse instead.
-
-        Creates a virtual warehouse in Snowflake. The warehouse is never manually suspended, we rely on AUTO_SUSPEND.
-        """
-
-        cursor = connection.cursor()
-        query = """
-        CREATE WAREHOUSE IF NOT EXISTS {warehouse} WITH WAREHOUSE_SIZE = 'XSMALL'
-        WAREHOUSE_TYPE = 'STANDARD' AUTO_SUSPEND = 300 AUTO_RESUME = TRUE
-        MIN_CLUSTER_COUNT = 1 MAX_CLUSTER_COUNT = 2 SCALING_POLICY = 'STANDARD'
-        INITIALLY_SUSPENDED = TRUE
-        """.format(warehouse=self.warehouse)
-        try:
-            _execute_query(connection, query)
-        except ProgrammingError as err:
-            if 'Insufficient privileges to operate on account' in err.msg:
-                # At this point, it is very likely that we are executing with
-                # an underprivileged user which we should NOT expect to need to
-                # create warehouses on the fly since they should be using
-                # pre-provisioned warehouses only.
-                pass
-            else:
-                raise
-
     def touch(self, connection):
         """
         Mark this update as complete.
@@ -137,13 +110,9 @@ class SnowflakeTarget(luigi.Target):
         close_connection = False
         if connection is None:
             # Luigi first checks for task completion by calling the exists() method. We create a new connection here
-            # and also create the warehouse so that we can execute the SELECT query below.
+            # so that we can execute the SELECT query below.
             close_connection = True
             connection = self.connect()
-
-            # TODO: remove this call to a deprecated method once we have completely switched to terraform-provisioned
-            # warehouses.
-            self.create_warehouse(connection)
 
         try:
             if not self.marker_table_exists(connection):
@@ -427,11 +396,6 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
             self.create_scratch_table(connection)
             self.create_format(connection)
             self.create_stage(connection)
-
-            # TODO: remove this call to a deprecated method once we have completely switched to terraform-provisioned
-            # warehouses.
-            self.output().create_warehouse(connection)
-
             cursor.execute("BEGIN")
             self.init_copy(connection)
             self.copy(connection)
