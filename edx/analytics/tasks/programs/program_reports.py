@@ -132,6 +132,7 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
             'Track',
             'Grade',
             'Letter Grade',
+            'Last Activity Date'
             'Date First Enrolled',
             'Date Last Unenrolled',
             'Currently Enrolled',
