@@ -231,9 +231,6 @@ class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVT
 
 class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
 
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingUserActivityToSnowflake, self).__init__(*args, **kwargs)
-
     @property
     def insert_source_task(self):
         hive_table = "user_activity_by_user"

@@ -197,13 +197,10 @@ class LoadUserCourseSummaryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
 class LoadInternalReportingUserActivityToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingUserActivityToBigQuery, self).__init__(*args, **kwargs)
-
     @property
     def insert_source_task(self):
         hive_table = "user_activity_by_user"
-        url = url_path_join(self.warehouse_path, hive_table) + '/dt=*/'
+        url = url_path_join(self.warehouse_path, hive_table)
         return ExternalURL(url=url)
 
     @property
