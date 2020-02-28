@@ -231,28 +231,15 @@ class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVT
 
 class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
 
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingUserActivityToSnowflake, self).__init__(*args, **kwargs)
-
-        # Find the most recent data for the source.
-        path = url_path_join(self.warehouse_path, 'internal_reporting_user_activity')
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-
-    @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.load_date.isoformat())  # pylint: disable=no-member
-
     @property
     def insert_source_task(self):
-        hive_table = "internal_reporting_user_activity"
-        partition_location = url_path_join(self.warehouse_path, hive_table, self.partition.path_spec) + '/'
-        return ExternalURL(url=partition_location)
+        hive_table = "user_activity_by_user"
+        url = url_path_join(self.warehouse_path, hive_table)
+        return ExternalURL(url=url)
+
+    @property
+    def pattern(self):
+        return '.*dt=.*/.*'
 
     @property
     def table(self):

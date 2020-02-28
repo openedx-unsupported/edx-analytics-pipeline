@@ -279,8 +279,8 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
             # Exclude any files which should not be uploaded to
             # BigQuery.  It is easier to remove them here than in the
             # load steps.  The pattern is a Python regular expression.
-            exclusion_pattern = ".*_SUCCESS$|.*_metadata$"
-            command = ['gsutil', '-m', 'rsync', '-x', exclusion_pattern, source_path, destination_path]
+            exclusion_pattern = ".*_SUCCESS$|.*_metadata$|.*\$folder\$"
+            command = ['gsutil', '-m', 'rsync', '-r', '-x', exclusion_pattern, source_path, destination_path]
 
         log.debug(" ".join(command))
         return_code = subprocess.call(command)
