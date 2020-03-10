@@ -324,6 +324,7 @@ class ModuleEngagementMysqlTask(ModuleEngagementDownstreamMixin, IncrementalMysq
     def indexes(self):
         return [
             ('course_id', 'username', 'date'),
+            ('username', 'entity_type'),
             ('date',),
         ]
 
