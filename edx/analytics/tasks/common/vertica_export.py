@@ -43,7 +43,6 @@ def get_vertica_results(warehouse_name, credentials, query):
     with credentials_target.open('r') as credentials_file:
         cred = json.load(credentials_file)
 
-    # Externalize autocommit and read timeout
     connection = vertica_python.connect(user=cred.get('username'), password=cred.get('password'), host=cred.get('host'),
                                         port=cred.get('port'), database=warehouse_name, autocommit=False,
                                         read_timeout=None)
@@ -285,7 +284,7 @@ class ExportVerticaTableToS3Task(VerticaTableExportMixin, VerticaTableToS3Mixin,
 
             if len(column_list) <= 0:
                 raise RuntimeError('Error Sqoop copy of {schema}.{table} found no viable columns!'.
-                                   format(schema=self.schema_name, table=self.table))
+                                   format(schema=self.vertica_schema_name, table=self.table_name))
 
             additional_metadata = {
                 'table_schema': self.vertica_table_schema,

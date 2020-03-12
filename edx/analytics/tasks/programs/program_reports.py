@@ -137,7 +137,7 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
             'Currently Enrolled',
             'Date First Upgraded to Verified',
             'Completed',
-            'Date Completed'
+            'Date Completed',
         ]
 
     def mapper(self, line):
@@ -194,10 +194,34 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
             overwrite=(self.overwrite_export and self.overwrite),
         )
 
+    def _trim_fields(self, fields):
+        """
+        Return a list of fields that has the same length as the fields used to create the CombinedCourseEnrollEntry namedtuple.
+        If fields has the same number of items as the namedtuple's fields, return fields.
+        If fields contains extra fields, return a new list with the extra fields trimmed off.
+            This situation may arise, for example, if self.enrollments_table has been changed to add additional fields,
+            but the pipeline has not been updated yet. We should not fail the entire pipeline task if this happens.
+
+        Parameters:
+            fields: a list of strings representing the values of a row of the self.enrollments_table Vertica table
+
+        Returns: a list of strings with the same length as the list of fields used to create the CombinedCourseEnrollEntry
+            named tuple
+        """
+        fields_len = len(fields)
+        tuple_len = len(self.CombinedCourseEnrollEntry._fields)
+
+        # return the original list if there is no need to trim it
+        if (fields_len == tuple_len):
+            return fields
+
+        return fields[:tuple_len]
+
     def mapper(self, line):
         """Yield a (key, value) tuple for each course run enrollment record."""
         fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
-        entry = self.CombinedCourseEnrollEntry(*fields)
+        fields_trimmed = self._trim_fields(fields)
+        entry = self.CombinedCourseEnrollEntry(*fields_trimmed)
 
         yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.course_key, entry.timestamp), line
 
@@ -231,7 +255,8 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
             num_course_run_enrollments += 1
 
             fields = value.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
-            entry = self.CombinedCourseEnrollEntry(*fields)
+            fields_trimmed = self._trim_fields(fields)
+            entry = self.CombinedCourseEnrollEntry(*fields_trimmed)
 
             program_completed = string_to_bool(entry.program_completed)
 
