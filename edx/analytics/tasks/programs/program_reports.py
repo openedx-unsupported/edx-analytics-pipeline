@@ -137,7 +137,7 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
             'Currently Enrolled',
             'Date First Upgraded to Verified',
             'Completed',
-            'Date Completed',
+            'Date Completed'
         ]
 
     def mapper(self, line):
@@ -184,6 +184,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'course_run_start', 'external_course_run_key',
         'track', 'grade', 'letter_grade', 'date_first_enrolled', 'date_last_unenrolled', 'current_enrollment_is_active',
         'first_verified_enrollment_time', 'course_run_completed', 'date_completed', 'program_completed', 'course_key', 'timestamp',
+        'last_activity_date',
     ]
     CombinedCourseEnrollEntry = namedtuple('CombinedCourseEnrollEntry', COMBINED_COURSE_ENROLL_FIELDS)
 

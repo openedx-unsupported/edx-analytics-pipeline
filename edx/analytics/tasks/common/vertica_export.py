@@ -42,7 +42,7 @@ def get_vertica_results(warehouse_name, credentials, query):
     cred = None
     with credentials_target.open('r') as credentials_file:
         cred = json.load(credentials_file)
-
+    # Externalize autocommit and read timeout
     connection = vertica_python.connect(user=cred.get('username'), password=cred.get('password'), host=cred.get('host'),
                                         port=cred.get('port'), database=warehouse_name, autocommit=False,
                                         read_timeout=None)

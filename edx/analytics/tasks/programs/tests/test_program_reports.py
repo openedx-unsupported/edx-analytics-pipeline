@@ -63,7 +63,8 @@ class ProgramReportTestMixin(object):
             ('date_completed', None),
             ('completed_program', 'False'),
             ('course_key', 'course-v1:edX+UoX+Test_Course'),
-            ('timestamp', None)
+            ('timestamp', None),
+            ('last_activity_date', None),
         ])
         for key, value in kwargs.items():
             learner_enrollment_template[key] = value
