@@ -5,6 +5,7 @@ import logging
 from collections import OrderedDict, namedtuple
 
 import luigi
+import six
 from luigi.util import inherits
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
@@ -80,6 +81,19 @@ class RemoveOutputMixin(object):
         super(RemoveOutputMixin, self).run()
 
 
+# A list of fields used to describe the columns in the Learner Enrollments Vertica Table.
+# It's used to create a namedtuple LearnerEnrollmentEntr, which makes the handling of rows of data more easy.
+# Any new columns in the aforementioned table should be added here.
+LEARNER_ENROLLMENT_TABLE_FIELDS = [
+    'authoring_org', 'program_title', 'program_uuid', 'program_type',
+    'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'course_run_start', 'external_course_run_key',
+    'track', 'grade', 'letter_grade', 'date_first_enrolled', 'date_last_unenrolled', 'current_enrollment_is_active',
+    'first_verified_enrollment_time', 'course_run_completed', 'date_completed', 'program_completed', 'course_key', 'timestamp',
+    'last_activity_date',
+]
+LearnerEnrollmentEntry = namedtuple('LearnerEnrollmentEntry', LEARNER_ENROLLMENT_TABLE_FIELDS)
+
+
 class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, RemoveOutputMixin, MultiOutputMapReduceJobTask):
     """
     Generates CSV reports on individual program enrollment.
@@ -98,6 +112,36 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
         description='Current run date. Used to tag report date'
     )
 
+    # This is a mapping from column names as they should appear in the final
+    # CSV to the corresponding field in LearnerEnrollmentEntry.
+    # Note that values should be a subset of LEARNER_ENROLLMENT_TABLE_FIELDS -
+    # those that are displayed in the CSV.
+    # They should be in the order they should appear in the CSV.
+    field_names_to_columns = OrderedDict([
+        ('authoring_org', 'Authoring Institution'),
+        ('program_title', 'Program Title'),
+        ('program_uuid', 'Program UUID'),
+        ('program_type', 'Program Type'),
+        ('user_id', 'User ID'),
+        ('name', 'Name'),
+        ('username', 'Username'),
+        ('user_key', 'User Key'),
+        ('course_title', 'Course Title'),
+        ('course_run_key', 'Course Run Key'),
+        ('course_run_start', 'Course Run Start Date'),
+        ('external_course_run_key', 'External Course Key'),
+        ('track', 'Track'),
+        ('grade', 'Grade'),
+        ('letter_grade', 'Letter Grade'),
+        ('date_first_enrolled', 'Date First Enrolled'),
+        ('date_last_unenrolled', 'Date Last Unenrolled'),
+        ('current_enrollment_is_active', 'Currently Enrolled'),
+        ('first_verified_enrollment_time', 'Date First Upgraded to Verified'),
+        ('course_run_completed', 'Completed'),
+        ('date_completed', 'Date Completed'),
+        ('last_activity_date', 'Last Activity Date'),
+    ])
+
     def __init__(self, *args, **kwargs):
         super(BuildLearnerProgramReport, self).__init__(*args, **kwargs)
         self.columns = self.get_column_names()
@@ -113,32 +157,8 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
     def get_column_names():
         """
         List names of columns as they should appear in the CSV.
-
-        This must match the order they are stored in the exported warehouse table
         """
-        return [
-            'Authoring Institution',
-            'Program Title',
-            'Program UUID',
-            'Program Type',
-            'User ID',
-            'Name',
-            'Username',
-            'User Key',
-            'Course Title',
-            'Course Run Key',
-            'Course Run Start Date',
-            'External Course Key',
-            'Track',
-            'Grade',
-            'Letter Grade',
-            'Date First Enrolled',
-            'Date Last Unenrolled',
-            'Currently Enrolled',
-            'Date First Upgraded to Verified',
-            'Completed',
-            'Date Completed'
-        ]
+        return six.viewvalues(BuildLearnerProgramReport.field_names_to_columns)
 
     def mapper(self, line):
         """
@@ -154,7 +174,8 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
 
     def multi_output_reducer(self, key, values, output_file):
         """
-        Map export values to report output fields and write to csv.  Drops any extra columns
+        Map export values to report output fields and write to csv. Include values from the output
+        only defined in field_names_to_columns.
         """
         writer = csv.DictWriter(output_file, self.columns)
         writer.writerow(dict(
@@ -163,7 +184,11 @@ class BuildLearnerProgramReport(OverwriteOutputMixin, ProgramsReportTaskMixin, R
 
         for content in values:
             fields = content.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
-            row = {field_key: field_value for field_key, field_value in zip(self.columns, fields)}
+            entry = LearnerEnrollmentEntry(*fields)
+
+            # for each column in the report, grab the field from the LearnerEnrollmentEntry namedtuple
+            # that corresponds to that column by using field_names_to_columns
+            row = {column: getattr(entry, field_name) for (field_name, column) in six.iteritems(self.field_names_to_columns)}
             writer.writerow(row)
 
 
@@ -179,15 +204,6 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
 
     The task accepts the parameters inherited from the ProgramsReportTaskMixin.
     """
-    COMBINED_COURSE_ENROLL_FIELDS = [
-        'authoring_org', 'program_title', 'program_uuid', 'program_type',
-        'user_id', 'name', 'username', 'user_key', 'course_title', 'course_run_key', 'course_run_start', 'external_course_run_key',
-        'track', 'grade', 'letter_grade', 'date_first_enrolled', 'date_last_unenrolled', 'current_enrollment_is_active',
-        'first_verified_enrollment_time', 'course_run_completed', 'date_completed', 'program_completed', 'course_key', 'timestamp',
-        'last_activity_date',
-    ]
-    CombinedCourseEnrollEntry = namedtuple('CombinedCourseEnrollEntry', COMBINED_COURSE_ENROLL_FIELDS)
-
     def requires(self):
         return self.clone(
             ExportVerticaTableToS3Task,
@@ -197,7 +213,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
 
     def _trim_fields(self, fields):
         """
-        Return a list of fields that has the same length as the fields used to create the CombinedCourseEnrollEntry namedtuple.
+        Return a list of fields that has the same length as the fields used to create the LearnerEnrollmentEntry namedtuple.
         If fields has the same number of items as the namedtuple's fields, return fields.
         If fields contains extra fields, return a new list with the extra fields trimmed off.
             This situation may arise, for example, if self.enrollments_table has been changed to add additional fields,
@@ -206,11 +222,11 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         Parameters:
             fields: a list of strings representing the values of a row of the self.enrollments_table Vertica table
 
-        Returns: a list of strings with the same length as the list of fields used to create the CombinedCourseEnrollEntry
+        Returns: a list of strings with the same length as the list of fields used to create the LearnerEnrollmentEntry
             named tuple
         """
         fields_len = len(fields)
-        tuple_len = len(self.CombinedCourseEnrollEntry._fields)
+        tuple_len = len(LearnerEnrollmentEntry._fields)
 
         # return the original list if there is no need to trim it
         if (fields_len == tuple_len):
@@ -222,7 +238,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
         """Yield a (key, value) tuple for each course run enrollment record."""
         fields = line.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
         fields_trimmed = self._trim_fields(fields)
-        entry = self.CombinedCourseEnrollEntry(*fields_trimmed)
+        entry = LearnerEnrollmentEntry(*fields_trimmed)
 
         yield (entry.authoring_org, entry.program_uuid, entry.user_id, entry.course_key, entry.timestamp), line
 
@@ -257,8 +273,7 @@ class CombineCourseEnrollmentsTask(OverwriteOutputMixin, ProgramsReportTaskMixin
 
             fields = value.split(VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER.encode('ascii'))
             fields_trimmed = self._trim_fields(fields)
-            entry = self.CombinedCourseEnrollEntry(*fields_trimmed)
-
+            entry = LearnerEnrollmentEntry(*fields_trimmed)
             program_completed = string_to_bool(entry.program_completed)
 
             track = entry.track

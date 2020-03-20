@@ -7,11 +7,13 @@ from collections import OrderedDict
 from datetime import datetime
 from unittest import TestCase
 
+import six
+
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.common.vertica_export import VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER
 from edx.analytics.tasks.programs.program_reports import (
     BuildCohortProgramReport, BuildLearnerProgramReport, CombineCourseEnrollmentsTask, CountCourseEnrollments,
-    CountProgramCohortEnrollments
+    CountProgramCohortEnrollments, LearnerEnrollmentEntry
 )
 
 
@@ -93,19 +95,6 @@ class ProgramReportTestMixin(object):
 
 
 class ProgramMultiOutputMapReduceReducerTestMixin:
-
-    def create_expected_output(self, inputs, delimiter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER):
-        """Returns list of lines expected in an output file"""
-        columns = self.task_class.get_column_names()
-
-        # first line is header
-        header = ','.join(columns)
-        expected = [header]
-        for input_row in inputs:
-            fields = input_row.split(delimiter)[:len(columns)]
-            expected.append(','.join(fields))
-        return expected
-
     def validate_output_files(self, expected, filename_suffix):
         """Ensure each output file contains the correct data"""
         for program_key in expected.keys():
@@ -166,6 +155,29 @@ class LearnerProgramReportReducerTest(ProgramReportTestMixin, ReducerTestMixin, 
             date=self.DATE,
         )
         super(LearnerProgramReportReducerTest, self).setUp()
+
+    def create_expected_output(self, inputs, delimiter=VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER):
+        """Returns list of lines expected in an output file written by the BuildLearnerProgramReport task."""
+        columns = self.task_class.get_column_names()
+
+        # first line is header
+        header = ','.join(columns)
+        expected = [header]
+        for input_row in inputs:
+            fields = input_row.split(delimiter)
+            entry = LearnerEnrollmentEntry(*fields)
+
+            # a list repesenting a subset of the values in input_row that represents
+            # the values we want in the report
+            expected_values = []
+            for field_name in six.iterkeys(BuildLearnerProgramReport.field_names_to_columns):
+                # get the input value associated with the field_name we want
+                # we can do this because field_names_to_columns is an OrderedDict
+                expected_values.append(getattr(entry, field_name))
+
+            expected.append(','.join(expected_values))
+
+        return expected
 
     def test_multi_file_reduce(self):
         programs = [
