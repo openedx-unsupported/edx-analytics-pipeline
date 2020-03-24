@@ -524,6 +524,17 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             self.aggregate_enrollment_totals(cnt_learners_in_completed_courses, int(entry.num_completed_courses))
 
         ordered_values = lambda x: [val for key, val in sorted(x.items())]  # return dict values sorted by key
+
+        enrollments_by_mode = OrderedDict()
+        if len(cnt_learners_in_audit) > 0:
+            enrollments_by_mode['audit'] = ordered_values(cnt_learners_in_audit)
+        if len(cnt_learners_in_verified) > 0:
+            enrollments_by_mode['verified'] = ordered_values(cnt_learners_in_verified)
+        if len(cnt_learners_in_professional) > 0:
+            enrollments_by_mode['professional'] = ordered_values(cnt_learners_in_professional)
+        if len(cnt_learners_in_masters) > 0:
+            enrollments_by_mode['masters'] = ordered_values(cnt_learners_in_masters)
+
         result = OrderedDict([
             ('authoring_org', authoring_org),
             ('program_uuid', program_uuid),
@@ -531,10 +542,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
             ('total_learners', total_num_learners),
             ('total_enrollments', total_num_run_enrollments),
             ('total_completions', total_num_program_completions),
-            ('audit_enrollment_counts', ordered_values(cnt_learners_in_audit)),
-            ('verified_enrollment_counts', ordered_values(cnt_learners_in_verified)),
-            ('professional_enrollment_counts', ordered_values(cnt_learners_in_professional)),
-            ('masters_enrollment_counts', ordered_values(cnt_learners_in_masters)),
+            ('enrollments_by_mode', enrollments_by_mode),
             ('course_completion_counts', ordered_values(cnt_learners_in_completed_courses)),
             ('timestamp', timestamp),
         ])
@@ -574,6 +582,8 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
     ]
     ProgramMetadataEntry = namedtuple('ProgramMetadataEntry', PROGRAM_METADATA_FIELDS)
 
+    ENROLLMENT_MODE_COLUMNS = ['audit', 'verified', 'professional', 'masters']
+
     def __init__(self, *args, **kwargs):
         super(BuildCohortProgramReportTask, self).__init__(*args, **kwargs)
 
@@ -586,7 +596,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
         yield self.clone(CountProgramCohortEnrollments)
 
     @staticmethod
-    def get_column_names(num_courses):
+    def get_column_names(num_courses, enrollment_modes):
         """
         List names of columns as they should appear in the CSV.
         """
@@ -601,10 +611,16 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
             'Total Number Enrollments',
         ]
         columns.append('Total Number of Program Completions')
-        columns.extend(['Number of Learners in {}+ Audit'.format(num) for num in range(1, num_courses + 1)])
-        columns.extend(['Number of Learners in {}+ Verified'.format(num) for num in range(1, num_courses + 1)])
-        columns.extend(['Number of Learners in {}+ Professional'.format(num) for num in range(1, num_courses + 1)])
-        columns.extend(['Number of Learners in {}+ Master\'s'.format(num) for num in range(1, num_courses + 1)])
+
+        if 'audit' in enrollment_modes:
+            columns.extend(['Number of Learners in {}+ Audit'.format(num) for num in range(1, num_courses + 1)])
+        if 'verified' in enrollment_modes:
+            columns.extend(['Number of Learners in {}+ Verified'.format(num) for num in range(1, num_courses + 1)])
+        if 'professional' in enrollment_modes:
+            columns.extend(['Number of Learners in {}+ Professional'.format(num) for num in range(1, num_courses + 1)])
+        if 'masters' in enrollment_modes:
+            columns.extend(['Number of Learners in {}+ Master\'s'.format(num) for num in range(1, num_courses + 1)])
+
         columns.extend(['Number of Learners Completed {}+ Courses'.format(num) for num in range(1, num_courses + 1)])
         columns.append('Timestamp')
         return columns
@@ -639,6 +655,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
 
     def multi_output_reducer(self, key, values, output_file):
         cohorts_by_month = {}
+        included_enrollment_modes = set()
         program = None
         for value in values:
             input_type = value['input_type']
@@ -650,6 +667,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
                 cohort = json.loads(value['data'])
                 entry_cohort = cohort['entry_cohort']
                 cohorts_by_month[entry_cohort] = cohort
+                included_enrollment_modes.update(cohort.get('enrollments_by_mode').keys())
 
         if not program:
             raise Exception(
@@ -658,9 +676,8 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
                     key[1],
                 )
             )
-
         program_course_count = int(program.course_count)
-        columns = self.get_column_names(program_course_count)
+        columns = self.get_column_names(program_course_count, included_enrollment_modes)
         writer = csv.DictWriter(output_file, columns)
         writer.writeheader()
 
@@ -683,10 +700,16 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
                 cohort.get('total_enrollments'),
                 cohort.get('total_completions'),
             ]
-            append_counts(row_items, cohort.get('audit_enrollment_counts'))
-            append_counts(row_items, cohort.get('verified_enrollment_counts'))
-            append_counts(row_items, cohort.get('professional_enrollment_counts'))
-            append_counts(row_items, cohort.get('masters_enrollment_counts'))
+
+            enrollment_mode_counts = cohort.get('enrollments_by_mode')
+            for mode in self.ENROLLMENT_MODE_COLUMNS:
+                if mode in enrollment_mode_counts:
+                    counts = enrollment_mode_counts[mode]
+                else:
+                    counts = []
+                if mode in included_enrollment_modes:
+                    append_counts(row_items, counts)
+
             append_counts(row_items, cohort.get('course_completion_counts'))
 
             row_items.append(cohort.get('timestamp'))

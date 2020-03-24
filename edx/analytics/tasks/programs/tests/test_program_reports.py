@@ -121,10 +121,11 @@ class CohortEnrollmentCountTestMixin:
             ('total_learners', 6),
             ('total_enrollments', 27),
             ('total_completions', 2),
-            ('audit_enrollment_counts', [3, 3]),
-            ('verified_enrollment_counts', [1, 1, 1, 1, 1]),
-            ('professional_enrollment_counts', []),
-            ('masters_enrollment_counts', [6, 4, 4, 1, 1]),
+            ('enrollments_by_mode', OrderedDict([
+                ('audit', [3, 3]),
+                ('verified', [1, 1, 1, 1, 1]),
+                ('masters', [6, 4, 4, 1, 1]),
+            ])),
             ('course_completion_counts', [6, 4, 3, 2, 2]),
             ('timestamp', 'null'),
         ])
@@ -444,12 +445,13 @@ class BuildCohortProgramReportReducerTest(CohortEnrollmentCountTestMixin, Progra
     def test_multi_file_reduce(self):
         program_1 = 'e86dc8e3-47cd-4875-87bb-98356e1aa876'
         program_2 = '01015fd3-3b19-48b5-867c-1c78ef43a315'
+        enrolled_modes = ['audit', 'verified', 'masters']
 
         reduce_keys = [
             (self.org_key, program_1),
             (self.org_key, program_2),
         ]
-        columns = self.task_class.get_column_names(self.course_count)
+        columns = self.task_class.get_column_names(self.course_count, enrolled_modes)
         expected_output = {}
         for program_key in reduce_keys:
             self.reduce_key = program_key
@@ -466,7 +468,6 @@ class BuildCohortProgramReportReducerTest(CohortEnrollmentCountTestMixin, Progra
             enrollment_counts = [
                 '3,3,0,0,0,0',  # audit
                 '1,1,1,1,1,0',  # verified
-                '0,0,0,0,0,0',  # professional
                 '6,4,4,1,1,0',  # masters
                 '6,4,3,2,2,0',  # course completion
             ]
