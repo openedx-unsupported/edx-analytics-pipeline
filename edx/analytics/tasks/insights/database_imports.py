@@ -879,6 +879,28 @@ class ImportPersistentCourseGradeTask(ImportMysqlToHiveTableTask):
         ]
 
 
+class ImportPersistentSubsectionGradeTask(ImportMysqlToHiveTableTask):
+    """Imports the `grades_persistentcoursegrade` table to S3/Hive."""
+
+    @property
+    def table_name(self):
+        return 'grades_persistentsubsectiongrade'
+
+    @property
+    def columns(self):
+        return [
+            ('id', 'INT'),
+            ('created', 'TIMESTAMP'),
+            ('user_id', 'INT'),
+            ('course_id', 'STRING'),
+            ('usage_key', 'STRING'),
+            ('earned_all', 'DECIMAL(10,2)'),
+            ('possible_all', 'DECIMAL(10,2)'),
+            ('earned_graded', 'DECIMAL(10,2)'),
+            ('possible_graded', 'DECIMAL(10,2)'),
+            ('first_attempted', 'TIMESTAMP'),
+        ]
+
 class ImportAllDatabaseTablesTask(DatabaseImportMixin, OverwriteOutputMixin, luigi.WrapperTask):
     """Imports a set of database tables from an external LMS RDBMS."""
 

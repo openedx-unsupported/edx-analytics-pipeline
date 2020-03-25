@@ -7,11 +7,10 @@ import luigi.task
 
 from edx.analytics.tasks.common.mysql_load import MysqlInsertTask
 from edx.analytics.tasks.enterprise.enterprise_database_imports import (
-    ImportDataSharingConsentTask,
     ImportEnterpriseCourseEnrollmentUserTask, ImportEnterpriseCustomerTask, ImportEnterpriseCustomerUserTask
 )
 from edx.analytics.tasks.insights.database_imports import (
-    ImportAuthUserProfileTask, ImportAuthUserTask, ImportPersistentCourseGradeTask
+    ImportAuthUserTask, ImportPersistentSubsectionGradeTask
 )
 from edx.analytics.tasks.insights.enrollments import (
     OverwriteHiveAndMysqlDownstreamMixin
@@ -19,11 +18,12 @@ from edx.analytics.tasks.insights.enrollments import (
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, OverwriteAwareHiveQueryDataTask
 from edx.analytics.tasks.util.record import (
-    DateTimeField, FloatField, Record, StringField
+    DateTimeField, FloatField, Record, StringField, IntegerField
 )
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     LoadInternalReportingCourseCatalogMixin
 )
+from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import AllCourseBlockRecordsTask
 
 log = logging.getLogger(__name__)
 
@@ -38,9 +38,16 @@ class EnterpriseSubsectionGrade(Record):
     username = StringField(length=255, description='')
 
     course_id = StringField(length=255, nullable=False)
-    subsection_block_id = StringField(length=255, nullable=False)
-    first_attempted = DateTimeField(nullable=True, description='')
+
+    section_block_id = StringField(length=564, nullable=False)
+    section_display_name = StringField(length=255, nullable=False)
+    section_index = IntegerField(length=255, nullable=False)
+
+    subsection_block_id = StringField(length=564, nullable=False)
+    subsection_display_name = StringField(length=255, nullable=False)
+    subsection_index = IntegerField(nullable=False)
     subsection_grade_created = DateTimeField(nullable=True, description='')
+    first_attempted = DateTimeField(nullable=True, description='')
     earned_all = FloatField(description='')
     possible_all = FloatField(description='')
     earned_graded = FloatField(description='')
@@ -97,121 +104,102 @@ class EnterpriseSubsectionGradeDataTask(
         """The query builder that controls the structure and fields inserted into the new table."""
         return """      
             SELECT
-                grade.course_id,
-                grade.usage_key as subsection_block_id,
-                subsection_.subsection_index,
-                grade.first_attempted,
-                pdu.user_username,
-                grade.earned_all,
-                grade.possible_all,
-                grade.earned_graded,
-                grade.possible_graded,
-            FROM
-                grades_persistentsubsectiongrade AS grade
-            JOIN (
-                SELECT
-                 enterprise_customer.name AS enterprise_name,
-                 enterprise_uuid,
-                 enterprise_customer_id,
-                FROM enterprise_enterprisecourseenrollment enterprise_course_enrollment
-                JOIN enterprise_enterprisecustomeruser enterprise_user
-                    ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_user.id
-                JOIN enterprise_enterprisecustomer enterprise_customer
-                    ON enterprise_user.enterprise_customer_id = enterprise_customer.uuid
-            ) as enterprise_data
+                enterprise_customer.uuid AS enterprise_id,
+                enterprise_customer.name AS enterprise_name,
+                enterprise_customer_user.id AS enterprise_user_id,
+                auth_user.id AS lms_user_id,
+                auth_user.username AS username,
+                auth_user.email AS user_email,
             
-            JOIN enterprise_enterprisecourseenrollment enrollment
-                ON grade.user_id = enrollment.user_id 
-                AND grade.course_id = 
-                    /*Pull in metadata on the subsection.*/
-            LEFT JOIN
-                    production.course_structure as struct
-            ON
-                    grade.usage_key = struct.block_id
-                    /*Pull in metadata on the section.*/
-            LEFT JOIN
-                    production.course_structure as sect
-            ON
-                    struct.section_block_id = sect.block_id
+                subsection_grade.course_id AS course_id,
+            
+                course_section.block_id AS section_block_id,
+                course_section.display_name AS section_display_name,
+                section_data.section_index AS section_index,
+            
+                course_subsection.block_id AS subsection_block_id,
+                course_subsection.display_name AS subsection_display_name,
+                subsection_data.subsection_index AS subsection_index,
+                subsection_grade.created AS subsection_grade_created,
+                subsection_grade.first_attempted AS first_attempted,
+                subsection_grade.earned_all AS earned_all,
+                subsection_grade.possible_all AS possible_all,
+                subsection_grade.earned_graded AS earned_graded,
+                subsection_grade.possible_graded AS possible_graded
+            FROM
+                grades_persistentsubsectiongrade AS subsection_grade
+            JOIN auth_user AS auth_user
+                ON auth_user.id = subsection_grade.user_id
+            JOIN enterprise_enterprisecustomeruser AS enterprise_customer_user
+                ON enterprise_customer_user.user_id = auth_user.id
+            JOIN enterprise_enterprisecourseenrollment AS enterprise_course_enrollment
+                ON enterprise_course_enrollment.enterprise_customer_user_id = enterprise_customer_user.id
+                AND enterprise_course_enrollment.course_id = subsection_grade.course_id
+            JOIN enterprise_enterprisecustomer AS enterprise_customer
+                ON enterprise_customer.uuid = enterprise_customer_user.enterprise_customer_id
+            LEFT JOIN course_block_records AS course_subsection
+                ON course_subsection.block_id = subsection_grade.usage_key
+            LEFT JOIN course_block_records AS course_section
+                ON course_section.block_id = course_subsection.section_block_id
             LEFT JOIN (
-                    /*Create rank "section_index" that says "this is the 1st
-                      section in the course, the second section in the course,
-                      etc.*/
-                   with sub as (
-                    select
-                            course_block_id,
-                            section_block_id,
-                            MAX(order_index) as order_index
-                    from 
-                            production.course_structure
-                    where
-                            /*Filter out higher level blocks 
-                            so indexing is not thrown off.*/
-                            block_type not in (
-                            'vertical',
-                            'sequential',
-                            'chapter',
-                            'course')
-                    group by
-                            1,2)
-                    select
-                            *,
-                            ROW_NUMBER() OVER 
-                            (PARTITION BY course_block_id 
-                            ORDER BY order_index) as section_index
-                    from
-                            sub) as section_
-            ON
-                    struct.section_block_id = section_.section_block_id
-            LEFT JOIN (
-                    /*Create rank "subsection_index" that says "this is the 1st
-                      subsection in the section, the second subsection in the section,
-                      etc.*/
-                    WITH sub as (
+                /*Create rank "section_index" that says "this is the 1st
+                section in the course, the second section in the course,
+                etc.*/
+                WITH sub_table AS (
                     SELECT
-                            course_block_id,
-                            section_block_id,
-                            subsection_block_id,
-                            MAX(order_index) as order_index
-                    FROM 
-                            production.course_structure
-                    WHERE
-                            /*Filter out higher level blocks 
-                            so indexing is not thrown off.*/
-                            block_type not in (
-                            'vertical',
-                            'sequential',
-                            'chapter',
-                            'course')
-                    GROUP BY
-                            1,2,3)
-                    SELECT
-                            *,
-                            ROW_NUMBER() OVER 
-                            (PARTITION BY course_block_id, section_block_id 
-                            ORDER BY order_index) as subsection_index
+                        course_block_id,
+                        section_block_id,
+                        MAX(order_index) AS order_index
                     FROM
-                            sub) as subsection_
+                        course_block_records
+                    WHERE
+                        /*Filter out higher level blocks so indexing is not thrown off.*/
+                        block_type NOT IN ('vertical', 'sequential', 'chapter', 'course')
+                    GROUP BY 1,2
+                )
+                    SELECT
+                        section_block_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY course_block_id
+                            ORDER BY order_index
+                        ) AS section_index
+                    from
+                        sub_table
+            ) AS section_data
             ON
-                    struct.block_id = subsection_.subsection_block_id
-            JOIN
-                    enterprise.base_enterprise_user as eu
+                course_section.block_id = section_data.section_block_id
+            LEFT JOIN (
+                /*Create rank "subsection_index" that says "this is the 1st
+                  subsection in the section, the second subsection in the section,
+                  etc.*/
+                WITH sub_table AS (
+                    SELECT
+                        course_block_id,
+                        section_block_id,
+                        subsection_block_id,
+                        MAX(order_index) AS order_index
+                    FROM
+                        course_block_records
+                    WHERE
+                        /*Filter out higher level blocks so indexing is not thrown off.*/
+                        block_type NOT IN ('vertical', 'sequential', 'chapter', 'course')
+                    GROUP BY 1,2,3
+                )
+                    SELECT
+                        subsection_block_id,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY course_block_id, section_block_id
+                            ORDER BY order_index
+                        ) AS subsection_index
+                    FROM
+                        sub_table
+            ) AS subsection_data
             ON
-                    pdu.user_id = eu.lms_user_id
-            JOIN
-                    enterprise.base_enterprise_customer as ec
-            ON
-                    eu.enterprise_customer_uuid = ec.enterprise_customer_uuid
-            WHERE
-                    /* Naive filter to have only Pearson records. Because there is future
-                    potential of other customers have access this, good to build in such a
-                    way that this can be generalized to any enterprise customer name.*/
-                    ec.enterprise_customer_name = 'Pearson'
+                course_subsection.block_id = subsection_data.subsection_block_id
             ORDER BY
-                    grade.course_id,
-                    pdu.user_username,
-                        
-                
+                subsection_grade.course_id,
+                auth_user.username,
+                course_subsection.order_index
         """
 
     @property
@@ -230,12 +218,15 @@ class EnterpriseSubsectionGradeDataTask(
         # the process that generates the source table used by this query
         yield (
             ImportAuthUserTask(),
-            ImportAuthUserProfileTask(),
             ImportEnterpriseCustomerTask(),
             ImportEnterpriseCustomerUserTask(),
             ImportEnterpriseCourseEnrollmentUserTask(),
-            ImportDataSharingConsentTask(),
-            ImportPersistentCourseGradeTask(),
+            ImportPersistentSubsectionGradeTask(),
+            AllCourseBlockRecordsTask(
+                date=self.date,
+                warehouse_path=self.warehouse_path,
+                overwrite=self.overwrite,
+            )
         )
 
 
