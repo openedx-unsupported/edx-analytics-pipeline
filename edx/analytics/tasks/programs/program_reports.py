@@ -436,7 +436,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     A Map Reduce task that counts a program's course enrollments. In particular, it counts
         - the total number of distinct learners
         - the total number of course enrollments
-        - the numer of learners in 1+...10+ courses in the following tracks if enrollments in those tracks exist
+        - the number of learners in 1+...10+ courses in the following tracks if enrollments in those tracks exist
             - audit
             - verified
             - professional or no-id-professional
@@ -705,7 +705,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
 
             # Loop through all enrollment mode columns so we parse each mode's enrollment counts in the correct order.
             # If counts do exist for that mode, in any cohort (included_enrollment_modes), append those counts or zeros.
-            # If no counts exist for the entire program that mode is ommitted.
+            # If no counts exist for the entire program that mode is omitted.
             enrollment_mode_counts = cohort.get('enrollments_by_mode')
             for mode in self.ENROLLMENT_MODE_COLUMNS:
                 if mode in enrollment_mode_counts:
