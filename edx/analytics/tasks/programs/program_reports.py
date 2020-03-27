@@ -436,7 +436,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
     A Map Reduce task that counts a program's course enrollments. In particular, it counts
         - the total number of distinct learners
         - the total number of course enrollments
-        - the numer of learners in 1+...10+ courses in the following tracks
+        - the number of learners in 1+...10+ courses in the following tracks if enrollments in those tracks exist
             - audit
             - verified
             - professional or no-id-professional
@@ -485,7 +485,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         In particular, count
             - the total number of distinct learners
             - the total number of course enrollments
-            - the numer of learners in 1+...10+ courses in the following tracks
+            - the numer of learners in 1+...10+ courses in the following tracks if enrollments in those tracks exist
                 - audit
                 - verified
                 - professional or no-id-professional
@@ -525,6 +525,8 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
 
         ordered_values = lambda x: [val for key, val in sorted(x.items())]  # return dict values sorted by key
 
+        # Complete list of enrollment counts by course mode.
+        # We only include the counts for a mode with at least one enrollment in it
         enrollments_by_mode = OrderedDict()
         if len(cnt_learners_in_audit) > 0:
             enrollments_by_mode['audit'] = ordered_values(cnt_learners_in_audit)
@@ -701,6 +703,9 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
                 cohort.get('total_completions'),
             ]
 
+            # Loop through all enrollment mode columns so we parse each mode's enrollment counts in the correct order.
+            # If counts do exist for that mode, in any cohort (included_enrollment_modes), append those counts or zeros.
+            # If no counts exist for the entire program that mode is omitted.
             enrollment_mode_counts = cohort.get('enrollments_by_mode')
             for mode in self.ENROLLMENT_MODE_COLUMNS:
                 if mode in enrollment_mode_counts:
