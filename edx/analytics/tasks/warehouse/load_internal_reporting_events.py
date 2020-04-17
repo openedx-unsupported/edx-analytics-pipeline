@@ -43,7 +43,7 @@ VERSION = '0.2.4'
 
 EVENT_TABLE_NAME = 'event_records'
 
-NUM_SUBSETS = 20
+NUM_SUBSETS = 10
 
 # Define pattern to extract a course_id from a string by looking
 # explicitly for a version string and two plus-delimiters.
@@ -1298,7 +1298,9 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                     self.add_calculated_event_entry(event_dict, 'org_id', org_id)
 
         record = self.get_event_record_class()(**event_dict)
-        key = (date_received, project_name)
+        # spread data across multiple keys arbitrarily.
+        subset = "{subset:02d}".format(subset=random.randint(0, NUM_SUBSETS))
+        key = (date_received, project_name, subset)
 
         self.incr_counter(self.counter_category_name, 'Output From Mapper', 1)
 
