@@ -10,6 +10,7 @@ from event values to column values.
 import datetime
 import json
 import logging
+import random
 import re
 from importlib import import_module
 
@@ -41,6 +42,8 @@ log = logging.getLogger(__name__)
 VERSION = '0.2.4'
 
 EVENT_TABLE_NAME = 'event_records'
+
+NUM_SUBSETS = 20
 
 # Define pattern to extract a course_id from a string by looking
 # explicitly for a version string and two plus-delimiters.
@@ -454,6 +457,7 @@ class EventRecordClassMixin(object):
         self.record_class = getattr(local_module, self.event_record_type)
         if not self.record_class:
             raise ValueError("No event record class found:  {}".format(self.event_record_type))
+        random.seed(self.event_record_type)
 
     def get_event_record_class(self):
         return self.record_class
@@ -515,6 +519,8 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
         """
         Write values to the appropriate file as determined by the key.
         """
+        bytes_written = 0
+        num_values_written = 0
         for value in values:
             # Assume that the value is a dict containing the relevant sparse data,
             # either raw or encoded in a json string.
@@ -527,7 +533,14 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
             output_file.write('\n')
             # WARNING: This line ensures that Hadoop knows that our process is not sitting in an infinite loop.
             # Do not remove it.
-            self.incr_counter(self.counter_category_name, 'Raw Bytes Written', len(value) + 1)
+            bytes_written = bytes_written + len(value) + 1
+            num_values_written = num_values_written + 1
+            if num_values_written % 100 == 0:
+                self.incr_counter(self.counter_category_name, 'Raw Bytes Written', bytes_written)
+                bytes_written = 0
+                num_values_written = 0
+        if bytes_written > 0:
+            self.incr_counter(self.counter_category_name, 'Raw Bytes Written', bytes_written)
 
     def output_path_for_key(self, key):
         """
@@ -537,13 +550,13 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
         Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv
         """
-        date_received, project = key
+        date_received, project, subset = key
 
         return url_path_join(
             self.output_root,
             EVENT_TABLE_NAME,
             'dt={date}'.format(date=date_received),
-            '{project}.tsv'.format(project=project),
+            '{project}_{subset}.tsv'.format(project=project, subset=subset),
         )
 
     def extra_modules(self):
@@ -920,7 +933,10 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         self.add_event_info(event_dict, event_mapping, event)
 
         record = self.get_event_record_class()(**event_dict)
-        key = (date_received, project_name)
+
+        # spread data across multiple keys arbitrarily.
+        subset = "{subset:02d}".format(subset=random.randint(0, NUM_SUBSETS))
+        key = (date_received, project_name, subset)
 
         self.incr_counter(self.counter_category_name, 'Output From Mapper', 1)
 
