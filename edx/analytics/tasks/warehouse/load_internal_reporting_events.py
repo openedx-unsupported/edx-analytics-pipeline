@@ -548,7 +548,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
 
         Mix them together by date, but identify with different files for each project/environment.
 
-        Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv
+        Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}_{subset}.tsv
         """
         date_received, project, subset = key
 
@@ -1369,14 +1369,14 @@ class PerDateEventRecordDataMixin(PerDateEventRecordDataDownstreamMixin):
         """
         Output based on project.
 
-        Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}.tsv,
+        Output is in the form {warehouse_path}/event_records/dt={CCYY-MM-DD}/{project}_{subset}.tsv,
         but output_root is assumed to be set externally to {warehouse_path}/event_records/dt={CCYY-MM-DD}.
         """
-        _date_received, project = key
+        _date_received, project, subset = key
 
         return url_path_join(
             self.output_root,
-            '{project}.tsv'.format(project=project),
+            '{project}_{subset}.tsv'.format(project=project, subset=subset),
         )
 
 
