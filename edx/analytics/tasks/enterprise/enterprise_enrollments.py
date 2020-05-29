@@ -16,9 +16,9 @@ from edx.analytics.tasks.enterprise.enterprise_database_imports import (
 )
 from edx.analytics.tasks.insights.database_imports import (
     ImportAuthUserProfileTask, ImportAuthUserTask, ImportCourseEntitlementTask, ImportCurrentOrderDiscountState,
-    ImportCurrentOrderLineState, ImportCurrentOrderState, ImportEcommerceUser, ImportPersistentCourseGradeTask,
-    ImportProductCatalog, ImportProductCatalogAttributes, ImportProductCatalogAttributeValues,
-    ImportStudentCourseEnrollmentTask
+    ImportCurrentOrderLineState, ImportCurrentOrderState, ImportCurrentRefundRefundLineState, ImportEcommerceUser,
+    ImportPersistentCourseGradeTask, ImportProductCatalog, ImportProductCatalogAttributes,
+    ImportProductCatalogAttributeValues, ImportStudentCourseEnrollmentTask
 )
 from edx.analytics.tasks.insights.enrollments import (
     CourseEnrollmentSummaryPartitionTask, OverwriteHiveAndMysqlDownstreamMixin
@@ -248,8 +248,9 @@ class EnterpriseEnrollmentDataTask(
 
             -- The subquery below joins across the tables in ecommerce to get the orders that were created.
             -- It also pulls in any coupons or offers that were used to provide a discount to the user.
-            -- Finally, it filters out audit orders in the case that a user enrolls and later upgrades to a paid track,
-            -- by choosing the order with the order_line that has the maximum price for the same course_id.
+            -- Finally, it filters out refunded orders and audit orders in the case that a user enrolls and later
+            -- upgrades to a paid track, by choosing the order with the order_line that has the maximum price for the
+            -- same course_id.
             LEFT JOIN (
                     SELECT
                         ecommerce_user.username AS username,
@@ -302,6 +303,9 @@ class EnterpriseEnrollmentDataTask(
                             LEFT JOIN catalogue_productattributevalue productattributevalue
                                 ON productattributevalue.attribute_id = productattribute.id
                                 AND productattributevalue.product_id = ecomm_product.id
+                            LEFT JOIN refund_refundline AS refund_line
+                                ON ecomm_order_line.id = refund_line.order_line_id
+                            WHERE refund_line.id IS NULL OR refund_line.status != 'Complete'
                             GROUP BY ecomm_order.user_id, ecomm_product.course_id, productattributevalue.value_text
                     ) ecomm_order_product
                         ON ecommerce_user.id = ecomm_order_product.user_id
@@ -378,6 +382,7 @@ class EnterpriseEnrollmentDataTask(
             ImportProductCatalogAttributes(**kwargs),
             ImportProductCatalogAttributeValues(**kwargs),
             ImportCurrentOrderLineState(**kwargs),
+            ImportCurrentRefundRefundLineState(**kwargs),
             ImportCurrentOrderDiscountState(**kwargs),
             ImportVoucherTask(**kwargs),
             ImportCurrentOrderState(**kwargs),

@@ -45,4 +45,5 @@ INSERT INTO `order_line` VALUES
   (9,'edX','CF9A708','','','Seat in edX Demo Verified Course 2 with verified certificate (and ID verification)','',1,200.00,200.00,200.00,200.00,200.00,200.00,200.00,200.00,'Complete',NULL,9,1,5,3),
   (10,'edX','CF9A708','','','edX Test Course (ID verified)','',1,100.00,100.00,100.00,100.00,100.00,100.00,100.00,100.00,'Complete',NULL,10,1,17,5),
   (11,'edX','CF9A708','','','A demonstration course (ID verified)','',1,0.00,0.00,0.00,0.00,0.00,0.00,0.00,0.00,'Complete',NULL,11,1,18,6),
-  (12,'edX','CF9A708','','','A demonstration course (ID verified)','',1,225.00,225.00,225.00,225.00,225.00,225.00,225.00,225.00,'Complete',NULL,12,1,19,1);
+  (12,'edX','CF9A708','','','A demonstration course (ID verified)','',1,225.00,225.00,225.00,225.00,225.00,225.00,225.00,225.00,'Complete',NULL,12,1,19,1),
+  (13,'edX','CF9A708','','','A demonstration course (ID verified)','',1,230.00,230.00,230.00,230.00,230.00,230.00,230.00,230.00,'Complete',NULL,13,1,2,1);
