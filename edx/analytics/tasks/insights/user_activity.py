@@ -1,5 +1,6 @@
 """Categorize activity of users."""
 
+from __future__ import absolute_import
 import datetime
 import logging
 from collections import Counter
@@ -18,6 +19,7 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import DateTimeField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 from edx.analytics.tasks.util.weekly_interval import WeeklyIntervalMixin
+import six
 
 log = logging.getLogger(__name__)
 
@@ -118,7 +120,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
     def multi_output_reducer(self, _date_string, values, output_file):
         counter = Counter(values)
 
-        for key, num_events in counter.iteritems():
+        for key, num_events in six.iteritems(counter):
             user_id, course_id, date_string, label = key
             value = (user_id, course_id, date_string, label, num_events)
             output_file.write('\t'.join([str(field) for field in value]))

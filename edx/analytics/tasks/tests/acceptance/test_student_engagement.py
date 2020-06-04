@@ -2,6 +2,7 @@
 End to end test of student engagement.
 """
 
+from __future__ import absolute_import
 import datetime
 import hashlib
 import logging

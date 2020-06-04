@@ -1,4 +1,5 @@
 """Service for connecting acceptance tests to Vertica."""
+from __future__ import absolute_import
 import json
 from contextlib import closing, contextmanager
 

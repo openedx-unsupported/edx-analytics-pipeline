@@ -1,5 +1,6 @@
 """Compute metrics related to user enrollments in courses"""
 
+from __future__ import absolute_import
 import datetime
 import logging
 
@@ -24,6 +25,7 @@ from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CoursePartitionTask, LoadInternalReportingCourseCatalogMixin, ProgramCoursePartitionTask
 )
+from six.moves import range
 
 log = logging.getLogger(__name__)
 DEACTIVATED = 'edx.course.enrollment.deactivated'
@@ -1763,7 +1765,7 @@ class CourseProgramMetadataDataTask(CourseSummaryEnrollmentDownstreamMixin, Over
     @property
     def insert_query(self):
         """The query builder that controls the structure and fields inserted into the new table."""
-        column_names = CourseProgramMetadataRecord.get_fields().keys()
+        column_names = list(CourseProgramMetadataRecord.get_fields().keys())
         query = """
         SELECT {columns}
         FROM   program_course;

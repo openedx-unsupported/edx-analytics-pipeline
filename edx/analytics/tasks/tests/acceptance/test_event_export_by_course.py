@@ -2,6 +2,7 @@
 End to end test of event exports by course.
 """
 
+from __future__ import absolute_import
 import datetime
 import logging
 import os

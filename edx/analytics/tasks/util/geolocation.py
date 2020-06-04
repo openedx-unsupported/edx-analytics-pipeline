@@ -1,5 +1,6 @@
 """Utility classes for providing geolocation functionality."""
 
+from __future__ import absolute_import
 import logging
 import tempfile
 

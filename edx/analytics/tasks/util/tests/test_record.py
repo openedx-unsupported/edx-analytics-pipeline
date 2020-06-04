@@ -1,5 +1,6 @@
 """Test the typed record utilities"""
 
+from __future__ import absolute_import
 import datetime
 import pickle
 from unittest import TestCase
@@ -11,6 +12,7 @@ from edx.analytics.tasks.util.record import (
     BooleanField, DateField, DateTimeField, DelimitedStringField, FloatField, HiveTsvEncoder, IntegerField, Record,
     SparseRecord, StringField
 )
+import six
 
 UNICODE_STRING = u'\u0669(\u0361\u0e4f\u032f\u0361\u0e4f)\u06f6'
 UTF8_BYTE_STRING = UNICODE_STRING.encode('utf8')
@@ -270,7 +272,7 @@ class RecordTestCase(TestCase):
         test_record = SampleStruct('foo', 0, datetime.date(2015, 11, 1))
         self.assertEqual(str(test_record), "SampleStruct(name='foo', index=0, date=datetime.date(2015, 11, 1))")
         self.assertEqual(str(test_record), repr(test_record))
-        self.assertEqual(str(test_record), unicode(test_record))
+        self.assertEqual(str(test_record), six.text_type(test_record))
 
     def test_equality(self):
         left_record = SingleFieldRecord('a')

@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import ast
 import importlib
 import json
@@ -93,7 +94,7 @@ def create_packages_archive(packages, archive_dir_path):
             p = package.__path__[0]
 
             if p.endswith('.egg') and os.path.isfile(p):
-                raise 'Not going to archive egg files!!!'
+                raise Exception('Not going to archive egg files!!!')
                 # Add the entire egg file
                 # p = p[:p.find('.egg') + 4]
                 # add(dereference(p), os.path.basename(p))

@@ -1,5 +1,6 @@
 """Test enrollment validation."""
 
+from __future__ import absolute_import
 import datetime
 import gzip
 import json

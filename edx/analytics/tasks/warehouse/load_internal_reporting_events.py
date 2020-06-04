@@ -7,6 +7,7 @@ definition of a Record enumerating these columns, and also a mapping
 from event values to column values.
 
 """
+from __future__ import absolute_import
 import datetime
 import json
 import logging
@@ -35,6 +36,7 @@ from edx.analytics.tasks.util.record import (
     BooleanField, DateField, DateTimeField, FloatField, IntegerField, SparseRecord, StringField
 )
 from edx.analytics.tasks.util.url import ExternalURL, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -648,7 +650,7 @@ class BaseEventRecordDataTask(EventRecordDataDownstreamMixin, MultiOutputMapRedu
                 # TODO: this should really check to see if the record_field is nullable.
                 value = None
             else:
-                value = backslash_encode_value(unicode(obj))
+                value = backslash_encode_value(six.text_type(obj))
                 if '\x00' in value:
                     value = value.replace('\x00', '\\0')
                 # Avoid validation errors later due to length by truncating here.
@@ -775,7 +777,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         if self.event_mapping is None:
             self.event_mapping = {}
             fields = self.get_event_record_class().get_fields()
-            field_keys = fields.keys()
+            field_keys = list(fields.keys())
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
 
@@ -1080,7 +1082,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         if self.event_mapping is None:
             self.event_mapping = {}
             fields = self.get_event_record_class().get_fields()
-            field_keys = fields.keys()
+            field_keys = list(fields.keys())
             for field_key in field_keys:
                 field_tuple = (field_key, fields[field_key])
 
@@ -1264,7 +1266,7 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
                 url = event_dict.get('url')
                 course_key = get_course_key_from_url(url)
                 if course_key:
-                    course_id = unicode(course_key)
+                    course_id = six.text_type(course_key)
                     self.add_calculated_event_entry(event_dict, 'course_id', course_id)
                 elif url:
                     # course_id may be extractable from 'url' by looking for the

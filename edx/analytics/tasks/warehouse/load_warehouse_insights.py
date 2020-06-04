@@ -1,6 +1,7 @@
 """
 Loads multiple insights tables into the warehouse through the pipeline via Hive.
 """
+from __future__ import absolute_import
 import datetime
 import logging
 import os

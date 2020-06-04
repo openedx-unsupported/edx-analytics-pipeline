@@ -1,5 +1,6 @@
 """Test processing of events for loading into Hive, etc."""
 
+from __future__ import absolute_import
 import datetime
 import json
 import unittest

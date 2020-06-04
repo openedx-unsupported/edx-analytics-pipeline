@@ -1,5 +1,6 @@
 """A simple client for authenticated access to Open edX REST APIs."""
 
+from __future__ import absolute_import
 import logging
 from datetime import datetime, timedelta
 
@@ -8,6 +9,7 @@ from luigi import configuration
 from requests.auth import AuthBase
 
 from edx.analytics.tasks.util.retry import retry
+import six
 
 log = logging.getLogger(__name__)
 
@@ -178,7 +180,7 @@ class EdxApiClient(object):
         def get_next_url_from_response(response):
             """Returns the next page's URL from the response, as located by pagination_key."""
             response_obj = response.json()
-            if isinstance(pagination_key, basestring):
+            if isinstance(pagination_key, six.string_types):
                 return response_obj.get(pagination_key)
             elif callable(pagination_key):
                 return pagination_key(response_obj)

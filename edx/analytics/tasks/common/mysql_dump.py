@@ -12,6 +12,7 @@ import luigi
 import mysql.connector
 
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+import six
 
 
 class MysqlSelectTask(luigi.Task):
@@ -172,7 +173,7 @@ class MysqlSelectTask(luigi.Task):
 
             converted_value = converter(value)
 
-        return unicode(converted_value).encode('utf-8')
+        return six.text_type(converted_value).encode('utf-8')
 
 
 def mysql_datetime(datetime_object):

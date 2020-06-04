@@ -1,5 +1,6 @@
 """Calculates per-student engagement reports per course."""
 
+from __future__ import absolute_import
 import csv
 import datetime
 import hashlib
@@ -29,6 +30,7 @@ from edx.analytics.tasks.util.hive import (
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import DateField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from six.moves import zip
 
 log = logging.getLogger(__name__)
 

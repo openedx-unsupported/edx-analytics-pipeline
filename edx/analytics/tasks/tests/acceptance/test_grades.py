@@ -2,6 +2,7 @@
 Tests that grade by enrollment mode Hive table is created.
 """
 
+from __future__ import absolute_import
 import datetime
 import logging
 import os

@@ -1,6 +1,7 @@
 """
 Tasks associated with pulling and storing financial fees related data.
 """
+from __future__ import absolute_import
 import logging
 
 import luigi

@@ -2,6 +2,7 @@
   Contains common methods for helping unit tests
 """
 
+from __future__ import absolute_import
 import logging
 import os
 import platform

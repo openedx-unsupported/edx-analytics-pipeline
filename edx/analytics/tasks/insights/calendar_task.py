@@ -1,6 +1,7 @@
 """A canonical calendar that can be joined with other tables to provide information about dates."""
 
 
+from __future__ import absolute_import
 import logging
 from datetime import timedelta
 
@@ -10,6 +11,7 @@ from edx.analytics.tasks.util import Week
 from edx.analytics.tasks.util.hive import HivePartition, HiveTableTask
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -63,7 +65,7 @@ class CalendarTask(CalendarDownstreamMixin, luigi.Task):
                     (week.sunday() + timedelta(1)).isoformat(),
                     iso_weekday
                 )
-                output_file.write('\t'.join([unicode(v).encode('utf8') for v in column_values]) + '\n')
+                output_file.write('\t'.join([six.text_type(v).encode('utf8') for v in column_values]) + '\n')
 
 
 class CalendarTableTask(CalendarDownstreamMixin, HiveTableTask):

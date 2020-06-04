@@ -1,4 +1,5 @@
 """Test tags distribution"""
+from __future__ import absolute_import
 from unittest import TestCase
 
 import luigi
@@ -6,6 +7,7 @@ import luigi
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 from edx.analytics.tasks.insights.tags_dist import TagsDistributionPerCourse
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
+from six.moves import range
 
 
 class TagsDistributionPerCourseMapTest(MapperTestMixin, InitializeOpaqueKeysMixin, TestCase):
@@ -165,13 +167,13 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, TestCase):
 
     def test_many_events(self):
         inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), self.saved_tags,
-                   1 if k != 1 else 0) for k in xrange(4)]
+                   1 if k != 1 else 0) for k in range(4)]
         expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Hard', '4', '3'),
                     (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '3'),)
         self._check_output_complete_tuple(inputs, expected)
 
     def test_many_events_but_all_incorrect(self):
-        inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), self.saved_tags, 0) for k in xrange(4)]
+        inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), self.saved_tags, 0) for k in range(4)]
         expected = ((self.course_id, self.org_id, self.problem_id, 'difficulty', 'Hard', '4', '0'),
                     (self.course_id, self.org_id, self.problem_id, 'learning_outcome', 'Learned everything', '4', '0'),)
         self._check_output_complete_tuple(inputs, expected)
@@ -218,7 +220,7 @@ class TagsDistributionPerCourseReducerTest(ReducerTestMixin, TestCase):
             'learning_outcome_2': ['Research as Inquiry', 'Scholarship as Conversation'],
         }
         inputs = [('2013-01-01T00:00:0{sec}'.format(sec=k), multiple_tag_values,
-                   1 if k != 1 else 0) for k in xrange(4)]
+                   1 if k != 1 else 0) for k in range(4)]
         expected = ((self.course_id, self.org_id, self.problem_id, 'learning_outcome_1',
                      'Research as Inquiry', '4', '3'),
                     (self.course_id, self.org_id, self.problem_id, 'learning_outcome_1',

@@ -1,3 +1,5 @@
+from __future__ import absolute_import
+from __future__ import print_function
 import csv
 import hashlib
 import json
@@ -14,6 +16,7 @@ from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
 from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -123,7 +126,7 @@ def as_list_param(value, escape_quotes=True):
 def coerce_columns_to_string(row):
     # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
     # them into string before comparison with expected output.   Also a challenge with 'None' values.
-    return [unicode(x) for x in row]
+    return [six.text_type(x) for x in row]
 
 
 def read_csv_fixture_as_list(fixture_file_path):
@@ -375,26 +378,26 @@ class AcceptanceTestCase(unittest.TestCase):
         except AssertionError:
             # For some reason the version of pands we have pinned throws an error if you try to print it
             # or to_string() it. Thus these shenanigans.
-            print '----- The report generated this data: -----'
+            print('----- The report generated this data: -----')
             for index, row in data.iterrows():
-                print("  {}".format(index))
+                print(("  {}".format(index)))
                 for col in row:
-                    print("     {}".format(col))
-            print '----- vs expected: -----'
+                    print(("     {}".format(col)))
+            print('----- vs expected: -----')
             for index, row in expected.iterrows():
-                print("  {}".format(index))
+                print(("  {}".format(index)))
                 for col in row:
-                    print("     {}".format(col))
+                    print(("     {}".format(col)))
 
             if data.shape != expected.shape:
-                print "Data shapes differ."
+                print("Data shapes differ.")
             else:
                 for index, _series in data.iterrows():
                     # Try to print a more helpful/localized difference message:
                     try:
                         assert_series_equal(data.iloc[index, :], expected.iloc[index, :])
                     except AssertionError:
-                        print "First differing row: {index}".format(index=index)
+                        print("First differing row: {index}".format(index=index))
             raise
 
     @staticmethod

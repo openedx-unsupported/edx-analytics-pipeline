@@ -1,6 +1,7 @@
 """
 Support for loading data into a Snowflake database.
 """
+from __future__ import absolute_import
 import json
 import logging
 
@@ -13,6 +14,7 @@ from snowflake.connector import ProgrammingError
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.s3_util import canonicalize_s3_url
 from edx.analytics.tasks.util.url import ExternalURL
+import six
 
 log = logging.getLogger(__name__)
 
@@ -23,7 +25,7 @@ def _execute_query(connection, query):
     except ProgrammingError as e:
         # Display the query along with the stack trace.
         import sys
-        raise type(e), type(e)(str(e) + "\nQuery: %s\n" % query), sys.exc_info()[2]
+        six.reraise(type(e), type(e)(str(e) + "\nQuery: %s\n" % query), sys.exc_info()[2])
 
 
 def qualified_table_name(database, schema, table):

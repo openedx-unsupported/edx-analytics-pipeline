@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Tests for obfuscation utilities."""
 
+from __future__ import absolute_import
 import textwrap
 from unittest import TestCase
 

@@ -1,5 +1,6 @@
 """Test the retry decorator"""
 
+from __future__ import absolute_import
 from datetime import datetime, timedelta
 from unittest import TestCase
 

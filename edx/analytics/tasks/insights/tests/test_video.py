@@ -1,5 +1,6 @@
 """Test student engagement metrics"""
 
+from __future__ import absolute_import
 import json
 from unittest import TestCase
 
@@ -12,6 +13,8 @@ from edx.analytics.tasks.insights.video import (
     VideoSegmentDetailRecord, VideoUsageTask
 )
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
+from six.moves import range
+from six.moves import zip
 
 
 @ddt
@@ -397,7 +400,7 @@ class UserVideoViewingTaskReducerTest(ReducerTestMixin, TestCase):
         super(UserVideoViewingTaskReducerTest, self).setUp()
         self.user_id = 10
         self.reduce_key = (self.user_id, self.COURSE_ID, self.VIDEO_MODULE_ID)
-        patcher = patch('edx.analytics.tasks.insights.video.urllib')
+        patcher = patch('six.moves.urllib')
         self.mock_urllib = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -1132,7 +1135,7 @@ class GetFinalSegmentTest(TestCase):
 
     def test_with_gradual_dropoff(self):
         """Gradual dropoff of num_users, does not trigger the cutoff"""
-        for i, j in zip(range(20, 39), range(19, 0, -1)):
+        for i, j in zip(list(range(20, 39)), list(range(19, 0, -1))):
             self.usage_map[i] = self.generate_segment(j, j)
         self.assertEqual(self.task.get_final_segment(self.usage_map), 38)
 

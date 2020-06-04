@@ -1,8 +1,9 @@
 """
 Tasks for collecting link click data per course, per day, and uploading that data to Vertica.
 """
+from __future__ import absolute_import
 import logging
-from urlparse import urlparse
+from six.moves.urllib.parse import urlparse
 
 import luigi.task
 

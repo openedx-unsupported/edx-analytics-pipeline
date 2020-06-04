@@ -2,6 +2,7 @@
 Ensure we can write from MySQL to Hive data sources.
 """
 
+from __future__ import absolute_import
 import datetime
 import textwrap
 from unittest import TestCase

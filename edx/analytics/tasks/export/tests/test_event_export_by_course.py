@@ -1,6 +1,7 @@
 """
 Tests for event export by course tasks
 """
+from __future__ import absolute_import
 from unittest import TestCase
 
 from opaque_keys.edx.locator import CourseLocator

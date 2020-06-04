@@ -1,4 +1,5 @@
 
+from __future__ import absolute_import
 import xml.etree.cElementTree as ET
 from collections import OrderedDict
 from cStringIO import StringIO
@@ -16,6 +17,8 @@ from edx.analytics.tasks.warehouse.financial.paypal import (
     PaypalReportMetadataRequest, PaypalReportRequest, PaypalReportResultsRequest, PaypalTimeoutError,
     PaypalTransactionsByDayTask, SettlementReportRecord
 )
+import six
+from six.moves import zip
 
 TEST_URL = 'http://test.api/endpoint'
 
@@ -42,7 +45,7 @@ class XmlRequestMixin(object):
 
     def set_xml_node_text(self, path, value):
         element = self.response_xml_root.findall(path)[0]
-        element.text = unicode(value)
+        element.text = six.text_type(value)
 
     def parse_request_xml(self):
         http_request = httpretty.last_request()

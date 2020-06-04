@@ -1,6 +1,7 @@
 """
 Loads a mysql database into the warehouse through the pipeline via Sqoop.
 """
+from __future__ import absolute_import
 import datetime
 import json
 import logging

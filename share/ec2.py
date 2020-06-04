@@ -108,6 +108,8 @@ Security groups are comma-separated in 'ec2_security_group_ids' and
 
 ######################################################################
 
+from __future__ import absolute_import
+from __future__ import print_function
 import sys
 import os
 import argparse
@@ -117,7 +119,8 @@ import boto
 from boto import ec2
 from boto import rds
 from boto import route53
-import ConfigParser
+import six.moves.configparser
+import six
 
 try:
     import json
@@ -157,7 +160,7 @@ class Ec2Inventory(object):
             else:
                 data_to_print = self.json_format_dict(self.inventory, True)
 
-        print data_to_print
+        print(data_to_print)
 
 
     def is_cache_valid(self):
@@ -176,7 +179,7 @@ class Ec2Inventory(object):
     def read_settings(self):
         ''' Reads the settings from the ec2.ini file '''
 
-        config = ConfigParser.SafeConfigParser()
+        config = six.moves.configparser.SafeConfigParser()
         config.read(self.args.inifile)
 
         # is eucalyptus?
@@ -266,7 +269,7 @@ class Ec2Inventory(object):
 
             # connect_to_region will fail "silently" by returning None if the region name is wrong or not supported
             if conn is None:
-                print("region name: %s likely not supported, or AWS is down.  connection to region failed." % region)
+                print(("region name: %s likely not supported, or AWS is down.  connection to region failed." % region))
                 sys.exit(1)
 
             reservations = conn.get_all_instances()
@@ -277,8 +280,8 @@ class Ec2Inventory(object):
 
         except boto.exception.BotoServerError as e:
             if  not self.eucalyptus:
-                print "Looks like AWS is down again:"
-            print e
+                print("Looks like AWS is down again:")
+            print(e)
             sys.exit(1)
 
     def get_rds_instances_by_region(self, region):
@@ -292,8 +295,8 @@ class Ec2Inventory(object):
                 for instance in instances:
                     self.add_rds_instance(instance, region)
         except boto.exception.BotoServerError as e:
-            print "Looks like AWS RDS is down: "
-            print e
+            print("Looks like AWS RDS is down: ")
+            print(e)
             sys.exit(1)
 
     def get_instance(self, region, instance_id):
@@ -306,7 +309,7 @@ class Ec2Inventory(object):
 
         # connect_to_region will fail "silently" by returning None if the region name is wrong or not supported
         if conn is None:
-            print("region name: %s likely not supported, or AWS is down.  connection to region failed." % region)
+            print(("region name: %s likely not supported, or AWS is down.  connection to region failed." % region))
             sys.exit(1)
 
         reservations = conn.get_all_instances([instance_id])
@@ -364,12 +367,12 @@ class Ec2Inventory(object):
                 key = self.to_safe("security_group_" + group.name)
                 self.push(self.inventory, key, dest)
         except AttributeError:
-            print 'Package boto seems a bit older.'
-            print 'Please upgrade boto >= 2.3.0.'
+            print('Package boto seems a bit older.')
+            print('Please upgrade boto >= 2.3.0.')
             sys.exit(1)
 
         # Inventory: Group by tag keys
-        for k, v in instance.tags.iteritems():
+        for k, v in six.iteritems(instance.tags):
             key = self.to_safe("tag_" + k + "=" + v)
             self.push(self.inventory, key, dest)
             self.keep_first(self.inventory, 'first_in_' + key, dest)
@@ -423,8 +426,8 @@ class Ec2Inventory(object):
                 key = self.to_safe("security_group_" + instance.security_group.name)
                 self.push(self.inventory, key, dest)
         except AttributeError:
-            print 'Package boto seems a bit older.'
-            print 'Please upgrade boto >= 2.3.0.'
+            print('Package boto seems a bit older.')
+            print('Please upgrade boto >= 2.3.0.')
             sys.exit(1)
 
         # Inventory: Group by engine
@@ -508,14 +511,14 @@ class Ec2Inventory(object):
             # Handle complex types
             if type(value) in [int, bool]:
                 instance_vars[key] = value
-            elif type(value) in [str, unicode]:
+            elif type(value) in [str, six.text_type]:
                 instance_vars[key] = value.strip()
             elif type(value) == type(None):
                 instance_vars[key] = ''
             elif key == 'ec2_region':
                 instance_vars[key] = value.name
             elif key == 'ec2_tags':
-                for k, v in value.iteritems():
+                for k, v in six.iteritems(value):
                     key = self.to_safe('ec2_tag_' + k)
                     instance_vars[key] = v
 

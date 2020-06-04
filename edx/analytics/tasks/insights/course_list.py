@@ -4,6 +4,7 @@ Store course details sourced from the Courses API into a hive table.
 See the CourseListApiDataTask and CourseListPartitionTask for details.
 """
 
+from __future__ import absolute_import
 import datetime
 import json
 import logging
@@ -16,6 +17,7 @@ from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import DateTimeField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class TimestampPartitionMixin(object):
     @property
     def partition_value(self):
         """Partition based on the task's datetime and partition format strings."""
-        return unicode(self.datetime.strftime(self.partition_format))
+        return six.text_type(self.datetime.strftime(self.partition_format))
 
 
 class CourseListDownstreamMixin(TimestampPartitionMixin, WarehouseMixin, OverwriteOutputMixin):
@@ -182,7 +184,7 @@ class CourseListApiDataTask(CourseListDownstreamMixin, MapReduceJobTask):
         for course_data in values:
             fields = CourseRecord.get_fields()
             record_data = dict()
-            for field_name, field_obj in fields.iteritems():
+            for field_name, field_obj in six.iteritems(fields):
 
                 # Had to rename these fields, since they're named with hive keywords.
                 if field_name in ('end_date', 'start_date'):

@@ -1,6 +1,7 @@
 """
 Support for running a SQL script against an HP Vertica database.
 """
+from __future__ import absolute_import
 import datetime
 import logging
 

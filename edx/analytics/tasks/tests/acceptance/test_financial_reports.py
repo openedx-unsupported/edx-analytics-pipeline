@@ -2,6 +2,7 @@
 End to end test of the financial reporting workflow.
 """
 
+from __future__ import absolute_import
 import logging
 import os
 
@@ -13,6 +14,7 @@ from edx.analytics.tasks.tests.acceptance import (
 )
 from edx.analytics.tasks.util.url import url_path_join
 from edx.analytics.tasks.warehouse.financial.reconcile import LoadInternalReportingOrderTransactionsToWarehouse
+from six.moves import map
 
 log = logging.getLogger(__name__)
 
@@ -71,7 +73,7 @@ class FinancialReportsAcceptanceTest(AcceptanceTestCase):
             ))
             response = cursor.fetchall()
 
-            f_orderitem_transactions = pandas.DataFrame(map(coerce_columns_to_string, response), columns=columns)
+            f_orderitem_transactions = pandas.DataFrame(list(map(coerce_columns_to_string, response)), columns=columns)
 
             for frame in (f_orderitem_transactions, expected):
                 frame.sort(['payment_ref_id', 'transaction_type'], inplace=True, ascending=[True, False])

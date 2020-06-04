@@ -1,5 +1,6 @@
 """Tests for elasticsearch loading."""
 
+from __future__ import absolute_import
 import datetime
 import unittest
 
@@ -11,6 +12,7 @@ from mock import call, patch
 
 from edx.analytics.tasks.common.elasticsearch_load import AwsHttpConnection, ElasticsearchIndexTask, IndexingError
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
+from six.moves import range
 
 
 class BaseIndexTest(object):

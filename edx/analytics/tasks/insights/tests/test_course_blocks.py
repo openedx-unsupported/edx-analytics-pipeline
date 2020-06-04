@@ -1,12 +1,13 @@
 """Test course blocks tasks."""
 
+from __future__ import absolute_import
 import json
 import logging
 import os
 import shutil
 import tempfile
 from unittest import TestCase
-from urllib import urlencode
+from six.moves.urllib.parse import urlencode
 
 import httpretty
 from ddt import data, ddt, unpack

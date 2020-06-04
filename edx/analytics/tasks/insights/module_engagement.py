@@ -4,6 +4,7 @@ Measure student engagement with individual modules in the course.
 See ModuleEngagementWorkflowTask for more extensive documentation.
 """
 
+from __future__ import absolute_import
 import datetime
 import logging
 import random
@@ -26,6 +27,7 @@ from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import DateField, FloatField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from six.moves import range
 
 try:
     import numpy

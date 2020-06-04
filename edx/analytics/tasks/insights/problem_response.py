@@ -1,6 +1,7 @@
 """
 Luigi tasks for extracting the latest problem response data from tracking log files.
 """
+from __future__ import absolute_import
 import ast
 import csv
 import datetime
@@ -24,6 +25,7 @@ from edx.analytics.tasks.util.record import (
     BooleanField, DateTimeField, DelimitedStringField, FloatField, IntegerField, Record, StringField
 )
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -582,10 +584,10 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
 
     def __init__(self, *args, **kwargs):
         super(ProblemResponseReportTask, self).__init__(*args, **kwargs)
-        self.record_fields = ProblemResponseRecord.get_fields().keys()
+        self.record_fields = list(ProblemResponseRecord.get_fields().keys())
         if self.report_fields is None:
             self.report_fields = self.record_fields
-        elif isinstance(self.report_fields, basestring):
+        elif isinstance(self.report_fields, six.string_types):
             self.report_fields = json.loads(self.report_fields)
 
         # Support raw strings in report_field_list_delimiter
@@ -691,7 +693,7 @@ class ProblemResponseReportTask(ProblemResponseDataMixin,
                 if self.report_field_list_delimiter is not None:
                     value = self.report_field_list_delimiter.join(value)
 
-            encoded_value = unicode(value).encode('utf8')
+            encoded_value = six.text_type(value).encode('utf8')
             row[field_name] = encoded_value
 
         return row

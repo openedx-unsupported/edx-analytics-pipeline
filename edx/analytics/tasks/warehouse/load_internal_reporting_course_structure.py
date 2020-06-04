@@ -1,4 +1,5 @@
 """Collect info from the course blocks API for processing of course structure for subsequent query."""
+from __future__ import absolute_import
 import datetime
 import json
 import logging
@@ -17,6 +18,7 @@ from edx.analytics.tasks.util.record import (
     BooleanField, DateTimeField, FloatField, IntegerField, RecordMapper, SparseRecord, StringField
 )
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from six.moves import range
 
 VERSION = '0.1.3'
 

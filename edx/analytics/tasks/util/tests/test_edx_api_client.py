@@ -1,5 +1,6 @@
 """Test the API client"""
 
+from __future__ import absolute_import
 import json
 from datetime import datetime, timedelta
 from unittest import TestCase

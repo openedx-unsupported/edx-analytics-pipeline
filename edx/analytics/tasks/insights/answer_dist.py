@@ -2,6 +2,7 @@
 Luigi tasks for extracting problem answer distribution statistics from
 tracking log files.
 """
+from __future__ import absolute_import
 import csv
 import hashlib
 import json
@@ -21,6 +22,7 @@ from edx.analytics.tasks.common.mysql_load import MysqlInsertTask, MysqlInsertTa
 from edx.analytics.tasks.common.pathutil import PathSetTask
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -439,12 +441,12 @@ class AnswerDistributionPerCourseMixin(object):
         # The 'answer_metadata_dict' should only exist if load_answer_metadata() is called.
         answer_metadata = getattr(self, 'answer_metadata_dict', {}).get(answer_id)
         if answer_metadata is not None:
-            for key, value in answer_metadata.iteritems():
+            for key, value in six.iteritems(answer_metadata):
                 # Should only add values that are not already present
                 # (and non-null).  Also skips over values that are not
                 # strings (such as the answer_value_id_map), as this is
                 # handled separately below.
-                if not answer.get(key) and isinstance(value, basestring):
+                if not answer.get(key) and isinstance(value, six.string_types):
                     answer[key] = value
 
             if 'answer' not in answer:
@@ -460,7 +462,7 @@ class AnswerDistributionPerCourseMixin(object):
 
                         def get_answer_value(code):
                             return answer_value_id_map.get(code, UNMAPPED_ANSWER_VALUE)
-                        if isinstance(answer_value_id, basestring):
+                        if isinstance(answer_value_id, six.string_types):
                             answer['answer'] = get_answer_value(answer_value_id)
                         elif isinstance(answer_value_id, list):
                             answer['answer'] = [get_answer_value(code) for code in answer_value_id]
@@ -540,7 +542,7 @@ class AnswerDistributionPerCourseMixin(object):
             """Pull out HTML tags if requested."""
             return get_text_from_html(value) if contains_html else value.strip()
 
-        if isinstance(answer_value, basestring):
+        if isinstance(answer_value, six.string_types):
             return normalize(answer_value)
         elif isinstance(answer_value, list):
             list_val = u'|'.join(normalize(value) for value in answer_value)
@@ -548,7 +550,7 @@ class AnswerDistributionPerCourseMixin(object):
         else:
             # unexpected type:
             log.error("Unexpected type for an answer_value: %s", answer_value)
-            return unicode(answer_value)
+            return six.text_type(answer_value)
 
 
 def get_text_from_html(markup):
@@ -576,7 +578,7 @@ def get_text_from_html(markup):
 def get_text_from_element(node):
     """Traverse ElementTree node recursively to return text values."""
     tag = node.tag
-    if not isinstance(tag, basestring) and tag is not None:
+    if not isinstance(tag, six.string_types) and tag is not None:
         return
     if node.text:
         yield node.text
@@ -767,8 +769,8 @@ class AnswerDistributionOneFilePerCourseTask(AnswerDistributionDownstreamMixin, 
 
         for row_dict in row_data:
             encoded_dict = dict()
-            for key, value in row_dict.iteritems():
-                encoded_dict[key] = unicode(value).encode('utf8')
+            for key, value in six.iteritems(row_dict):
+                encoded_dict[key] = six.text_type(value).encode('utf8')
             writer.writerow(encoded_dict)
 
     def extra_modules(self):

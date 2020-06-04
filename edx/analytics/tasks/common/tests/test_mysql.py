@@ -148,9 +148,9 @@ class MysqlSelectTaskTestCase(unittest.TestCase):
 
     def test_execute_query(self):
         self.mock_cursor.fetchone.side_effect = [
-            (2L,),
-            (3L,),
-            (10L,),
+            (2,),
+            (3,),
+            (10,),
             None
         ]
 

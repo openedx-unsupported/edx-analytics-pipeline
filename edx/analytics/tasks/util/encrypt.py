@@ -1,6 +1,7 @@
 """
 Tasks for performing encryption on export files.
 """
+from __future__ import absolute_import
 import datetime
 import logging
 import tempfile

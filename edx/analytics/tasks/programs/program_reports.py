@@ -1,3 +1,4 @@
+from __future__ import absolute_import
 import csv
 import datetime
 import json
@@ -12,6 +13,8 @@ from edx.analytics.tasks.common.mapreduce import MapReduceJobTask, MapReduceJobT
 from edx.analytics.tasks.common.vertica_export import VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER, ExportVerticaTableToS3Task
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
+from six.moves import range
+from six.moves import zip
 
 log = logging.getLogger(__name__)
 
@@ -462,7 +465,7 @@ class CountProgramCohortEnrollmentsTask(OverwriteOutputMixin, RemoveOutputMixin,
         to the number of user enrollments in n courses
         """
         for n in range(number_of_enrollments):
-            if n in counts.keys():
+            if n in list(counts.keys()):
                 counts[n] += 1
             else:
                 counts[n] = 1
@@ -669,7 +672,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
                 cohort = json.loads(value['data'])
                 entry_cohort = cohort['entry_cohort']
                 cohorts_by_month[entry_cohort] = cohort
-                included_enrollment_modes.update(cohort.get('enrollments_by_mode').keys())
+                included_enrollment_modes.update(list(cohort.get('enrollments_by_mode').keys()))
 
         if not program:
             raise Exception(
@@ -683,7 +686,7 @@ class BuildCohortProgramReportTask(OverwriteOutputMixin, RemoveOutputMixin, Mult
         writer = csv.DictWriter(output_file, columns)
         writer.writeheader()
 
-        for entry_cohort, cohort in sorted(cohorts_by_month.items(), key=lambda x: x[1]):
+        for entry_cohort, cohort in sorted(list(cohorts_by_month.items()), key=lambda x: x[1]):
 
             def append_counts(row, values):
                 for n in range(program_course_count):

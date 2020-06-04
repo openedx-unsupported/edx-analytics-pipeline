@@ -1,5 +1,6 @@
 """Compute metrics related to user enrollments in courses"""
 
+from __future__ import absolute_import
 import datetime
 import gzip
 import json
@@ -18,6 +19,8 @@ from edx.analytics.tasks.util.datetime_util import add_microseconds, ensure_micr
 from edx.analytics.tasks.util.event_factory import SyntheticEventFactory
 from edx.analytics.tasks.util.hive import WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+import six
+from six.moves import range
 
 log = logging.getLogger(__name__)
 
@@ -146,7 +149,7 @@ class CourseEnrollmentValidationTask(
 
         # Make sure key values that are strings are properly encoded.
         # Note, however, that user_id is an int.
-        key = (unicode(course_id).encode('utf-8'), user_id)
+        key = (six.text_type(course_id).encode('utf-8'), user_id)
         yield key, (timestamp, event_type, mode, validation_info)
 
     def reducer(self, key, values):

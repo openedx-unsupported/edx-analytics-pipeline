@@ -2,6 +2,7 @@
 Tests for event export tasks
 """
 
+from __future__ import absolute_import
 import datetime
 import json
 from collections import defaultdict
@@ -16,6 +17,7 @@ from mock import MagicMock, patch
 from edx.analytics.tasks.export.event_exports import EventExportTask
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.util.tests.target import FakeTarget
+import six
 
 
 class EventExportTestCaseBase(InitializeOpaqueKeysMixin, TestCase):
@@ -500,6 +502,6 @@ class CourseEventExportTestCase(EventExportTestCaseBase):
         self.assertItemsEqual(results['FooX'], expected_only_foo + expected_both)
         self.assertItemsEqual(results['BarX'], expected_only_bar + expected_both)
 
-        combined = list(chain.from_iterable(results.itervalues()))
+        combined = list(chain.from_iterable(six.itervalues(results)))
         for value in non_expected:
             self.assertNotIn(value, combined)

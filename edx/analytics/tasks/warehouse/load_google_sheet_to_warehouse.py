@@ -31,6 +31,7 @@ The worksheet titles are used as table names in Vertica, they can be
 128 characters long, beginning with an upper/lower alphabet or underscore,
 subsequent characters can include upper/lower alphabets, underscores and digits.
 """
+from __future__ import absolute_import
 import datetime
 import json
 import logging
@@ -45,6 +46,7 @@ from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopy
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from six.moves import zip
 
 log = logging.getLogger(__name__)
 
@@ -162,7 +164,7 @@ class LoadWorksheetToSnowflake(PullWorksheetMixin, SnowflakeLoadFromHiveTSVTask)
         columns = self.insert_source_task.columns
         column_types = self.insert_source_task.column_types
         mapped_types = [DATA_TYPE_MAPPING.get(column_type) for column_type in column_types]
-        return zip(columns, mapped_types)
+        return list(zip(columns, mapped_types))
 
     @property
     def file_format_name(self):
@@ -220,7 +222,7 @@ class LoadWorksheetToVertica(PullWorksheetMixin, VerticaCopyTask):
         columns = self.insert_source_task.columns
         column_types = self.insert_source_task.column_types
         mapped_types = [DATA_TYPE_MAPPING.get(column_type) for column_type in column_types]
-        return zip(columns, mapped_types)
+        return list(zip(columns, mapped_types))
 
 
 class LoadGoogleSpreadsheetsToSnowflakeWorkflow(luigi.WrapperTask):

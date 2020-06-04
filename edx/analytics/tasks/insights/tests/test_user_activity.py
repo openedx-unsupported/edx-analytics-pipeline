@@ -2,6 +2,7 @@
 Tests for tasks that collect enrollment events.
 
 """
+from __future__ import absolute_import
 import datetime
 import json
 from unittest import TestCase

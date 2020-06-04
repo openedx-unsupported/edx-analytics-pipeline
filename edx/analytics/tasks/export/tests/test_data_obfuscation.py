@@ -2,6 +2,7 @@
 Tests for data obfuscation tasks.
 """
 
+from __future__ import absolute_import
 import errno
 import json
 import logging
@@ -21,6 +22,7 @@ from edx.analytics.tasks.util.opaque_key_util import get_filename_safe_course_id
 from edx.analytics.tasks.util.tests.target import FakeTarget
 from edx.analytics.tasks.util.tests.test_obfuscate_util import get_mock_user_info_requirements
 from edx.analytics.tasks.util.url import url_path_join
+from six.moves import zip
 
 LOG = logging.getLogger(__name__)
 

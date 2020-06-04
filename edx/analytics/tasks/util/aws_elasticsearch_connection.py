@@ -1,11 +1,13 @@
 """A connection for the elasticsearch-py library that can be used with AWS elasticsearch-as-a-service clusters."""
 
+from __future__ import absolute_import
 import json
 import time
 
 from boto.connection import AWSAuthConnection
 from boto.exception import BotoServerError
 from elasticsearch import Connection
+import six
 
 
 class AwsHttpConnection(Connection):
@@ -39,7 +41,7 @@ class AwsHttpConnection(Connection):
         and the default is 70 seconds.
         See: https://github.com/boto/boto/blob/develop/boto/connection.py#L533
         """
-        if not isinstance(body, basestring):
+        if not isinstance(body, six.string_types):
             body = json.dumps(body)
 
         response = None

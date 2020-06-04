@@ -3,12 +3,14 @@
 End to end test of the per-module engagement workflow.
 """
 
+from __future__ import absolute_import
 import datetime
 import logging
 
 import ddt
 
 from edx.analytics.tasks.tests.acceptance import AcceptanceTestCase, when_elasticsearch_available
+from six.moves import range
 
 log = logging.getLogger(__name__)
 

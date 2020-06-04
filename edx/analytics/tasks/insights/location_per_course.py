@@ -1,6 +1,7 @@
 """
 Determine the number of users in each country are enrolled in each course.
 """
+from __future__ import absolute_import
 import datetime
 import logging
 import textwrap
@@ -23,6 +24,7 @@ from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, 
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.record import DateField, IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import ExternalURL, UncheckedExternalURL, get_target_from_url, url_path_join
+import six
 
 log = logging.getLogger(__name__)
 
@@ -124,7 +126,7 @@ class LastDailyIpAddressOfUserTask(
                 last_timestamp[last_key] = timestamp
 
         # Now output the resulting "last" values for each key.
-        for last_key, ip_address in last_ip.iteritems():
+        for last_key, ip_address in six.iteritems(last_ip):
             timestamp = last_timestamp[last_key]
             user_id, course_id = last_key
             value = [timestamp, ip_address, user_id, course_id]

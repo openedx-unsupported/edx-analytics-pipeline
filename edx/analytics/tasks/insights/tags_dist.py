@@ -1,6 +1,7 @@
 """
 Luigi tasks for extracting tags distribution statistics from tracking log files.
 """
+from __future__ import absolute_import
 import logging
 
 import luigi
@@ -13,6 +14,7 @@ from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin
 from edx.analytics.tasks.util.decorators import workflow_entry_point
 from edx.analytics.tasks.util.record import IntegerField, Record, StringField
 from edx.analytics.tasks.util.url import get_target_from_url
+import six
 
 log = logging.getLogger(__name__)
 
@@ -106,8 +108,8 @@ class TagsDistributionPerCourse(
         if not latest_tags:
             return
         else:
-            for tag_key, tag_val in latest_tags.iteritems():
-                tag_val_lst = [tag_val] if isinstance(tag_val, basestring) else tag_val
+            for tag_key, tag_val in six.iteritems(latest_tags):
+                tag_val_lst = [tag_val] if isinstance(tag_val, six.string_types) else tag_val
                 for val in tag_val_lst:
                     yield TagsDistributionRecord(
                         course_id=course_id,

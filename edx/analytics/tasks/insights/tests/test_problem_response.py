@@ -1,5 +1,6 @@
 """Test problem response data tasks."""
 
+from __future__ import absolute_import
 import json
 import os
 import random
@@ -19,6 +20,8 @@ from edx.analytics.tasks.insights.problem_response import (
 )
 from edx.analytics.tasks.util.record import DateTimeField
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeLegacyKeysMixin, InitializeOpaqueKeysMixin
+import six
+from six.moves import range
 
 
 class ProblemResponseTestMixin(InitializeOpaqueKeysMixin):
@@ -366,7 +369,7 @@ class LatestProblemResponseDataTaskTest(ProblemResponseTestMixin, ReducerTestMix
     )
     @unpack
     def test_clean_text_regex(self, clean_text_regex, input_str, expected_str):
-        if isinstance(clean_text_regex, basestring):
+        if isinstance(clean_text_regex, six.string_types):
             regex = re.compile(clean_text_regex)
         else:
             regex = clean_text_regex
@@ -455,7 +458,7 @@ class ProblemResponseReportTestMixin(ProblemResponseTestMixin, TestCase):
         """
         inputs = {}
         expected = {}
-        report_fields = ProblemResponseRecord.get_fields().keys()
+        report_fields = list(ProblemResponseRecord.get_fields().keys())
 
         idx = 0
         for course_idx in range(num_courses):
@@ -496,7 +499,7 @@ class ProblemResponseReportTestMixin(ProblemResponseTestMixin, TestCase):
         """Ensure the number of output files created is correct."""
         output_files = [fn for fn in os.listdir(self.output_dir)
                         if os.path.isfile(os.path.join(self.output_dir, fn))]
-        self.assertEquals(len(output_files), len(expected.keys()))
+        self.assertEquals(len(output_files), len(list(expected.keys())))
 
         # Ensure each output file contains the correct data
         for course_id in expected.keys():

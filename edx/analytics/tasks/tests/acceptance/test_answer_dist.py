@@ -2,6 +2,7 @@
 End to end test of answer distribution.
 """
 
+from __future__ import absolute_import
 import logging
 import os
 

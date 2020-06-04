@@ -3,6 +3,7 @@ Mixin class that defines shared parameters
 Calculates interval from number of weeks and an end date.
 """
 
+from __future__ import absolute_import
 import datetime
 
 import luigi

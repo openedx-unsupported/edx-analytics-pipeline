@@ -2,6 +2,7 @@
 Generates a list of task-related modules and classes to be used by sphinx.
 
 """
+from __future__ import absolute_import
 import os
 import argparse
 import sys

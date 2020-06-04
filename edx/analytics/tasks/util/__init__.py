@@ -1,4 +1,5 @@
 
+from __future__ import absolute_import
 try:
     from isoweek import Week
 except ImportError:

@@ -1,12 +1,14 @@
 """
 Tests for database export tasks
 """
+from __future__ import absolute_import
 from unittest import TestCase
 
 from mock import Mock
 from opaque_keys.edx.locator import CourseLocator
 
 from edx.analytics.tasks.export.database_exports import STUDENT_MODULE_FIELDS, StudentModulePerCourseTask
+from six.moves import range
 
 STATE_MYSQLDUMP = '\'{\\"answer\\": {\\"code\\": \\"print(\\\'hello world\\\')\\\\r\\\\n\\\\t\\", \\"score\\": 1.0}} ' \
     '\\"msg\\": \\"\\\\n<div class=\\\\\\"test\\\\\\">\\\\nTest\\\\n</div>\\\\n\\", \\"num\\": 100}\''
@@ -44,7 +46,7 @@ class StudentModulePerCourseTestCase(TestCase):
         data = STUDENT_MODULE_MYSQLDUMP
         line = ','.join(str(data[k]) for k in STUDENT_MODULE_FIELDS)
 
-        key, value = self.task.mapper(line).next()
+        key, value = next(self.task.mapper(line))
 
         course_id = data['course_id']
         self.assertEqual(key, course_id)
@@ -55,7 +57,7 @@ class StudentModulePerCourseTestCase(TestCase):
 
     def test_multi_output_reducer(self):
         mock_output_file = Mock()
-        rows = [str(i) for i in xrange(5)]
+        rows = [str(i) for i in range(5)]
         self.task.multi_output_reducer('key', rows, mock_output_file)
 
         # Verify addition of new lines at the end of each row

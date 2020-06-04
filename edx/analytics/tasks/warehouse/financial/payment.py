@@ -1,4 +1,5 @@
 
+from __future__ import absolute_import
 import luigi
 
 from edx.analytics.tasks.warehouse.financial.cybersource import (

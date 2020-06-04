@@ -1,6 +1,7 @@
 """
 Helper methods for generating Sphinx documentation for luigi.Task subclasses.
 """
+from __future__ import absolute_import
 import re
 import inspect
 import luigi

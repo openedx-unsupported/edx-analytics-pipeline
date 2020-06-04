@@ -1,10 +1,11 @@
+from __future__ import absolute_import
 import json
 import logging
 import os
 import subprocess
 import tempfile
 import time
-import urlparse
+import six.moves.urllib.parse
 
 import luigi
 
@@ -262,7 +263,7 @@ class BigQueryLoadTask(BigQueryLoadDownstreamMixin, luigi.Task):
                     self.output().clear_marker_table()
 
     def _get_destination_from_source(self, source_path):
-        parsed_url = urlparse.urlparse(source_path)
+        parsed_url = six.moves.urllib.parse.urlparse(source_path)
         destination_path = url_path_join('gs://{}'.format(parsed_url.netloc), parsed_url.path)
         return destination_path
 
