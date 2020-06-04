@@ -23,9 +23,11 @@ env:
 matrix:
   include:
     - python: 2.7
-      ENV=test-docker
+      script:
+        - make test-docker
     - python: 3.5
-      ENV=test-docker-py3
+      script:
+        - make test-docker-py3
 
 
 # Do NOT install Python requirements.
@@ -48,7 +50,7 @@ before_install:
   - mkdir -p coverage
 
 script:
-  - make $ENV
+  - make test-docker
   - make quality-docker
   - make coverage-docker
 
