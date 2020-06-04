@@ -1,9 +1,5 @@
 language: python
 dist: xenial
-python:
-  - 2.7
-  - 3.5
-  - 3.8
 
 branches:
   only:
@@ -48,11 +44,6 @@ before_install:
 
   # Ensure we have a place to store coverage output
   - mkdir -p coverage
-
-script:
-  - make test-docker
-  - make quality-docker
-  - make coverage-docker
 
 after_success:
   - pip install --upgrade codecov
