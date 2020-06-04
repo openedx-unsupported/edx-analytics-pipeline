@@ -20,6 +20,13 @@ env:
   global:
     - secure: NLqmm18NpV3JRwD4CaugXm5cMWgxjdOA88xRFocmmVrduv0QT9JxBZFGebLYmFQOoKNJ23hz6g3EHe1aWfhLYnr1iUYerrwIriSI1wzuqbXJBRN6gO2n3YW+IfG83OLMZkOIMswT8MEdT3JPWVJL3bsocjHp8bYhRCt1KTCMJjY=
     - secure: aG8l39jaLFWXB5CEOOAR9mJTT3GnqxCl/oFM/7NvTZCBoSWIPIztpFhSAkRE9xSIiKUKXakZcL5H349NLC28jdlHPVsNAaKKt2YNhB6MjmePihp3RPwZGn8c/SjslwY7DPVUKMdWsI7AVNJBH8ab30OPxKwXFAMOiJJza206CYQ=
+matrix:
+  include:
+    - python: 2.7
+      ENV=test-docker
+    - python: 3.5
+      ENV=test-docker-py3
+
 
 # Do NOT install Python requirements.
 # Doing so is a waste of time since they won't be used.
@@ -41,7 +48,7 @@ before_install:
   - mkdir -p coverage
 
 script:
-  - make test-docker
+  - make $ENV
   - make quality-docker
   - make coverage-docker
 
