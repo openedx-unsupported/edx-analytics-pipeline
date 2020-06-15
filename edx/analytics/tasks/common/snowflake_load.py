@@ -81,7 +81,9 @@ class SnowflakeTarget(luigi.Target):
             user=self.user,
             account=self.account,
             private_key=pkb,
-            autocommit=autocommit)
+            autocommit=autocommit,
+            warehouse=self.warehouse
+        )
 
         # Switch to specified role.
         connection.cursor().execute("USE ROLE {}".format(self.role))
