@@ -264,7 +264,7 @@ class DailyProcessFromAffiliateWindowTask(AffiliateWindowTaskMixin, luigi.Task):
                         json.dumps(row)
                     ]
 
-                    result = [col if col is not None else '\N' for col in result]
+                    result = [unicode(col).encode('utf8') if col is not None else '\N' for col in result]
                     writer.writerow(result)
 
     def output(self):
