@@ -27,7 +27,7 @@ except ImportError:
 
 
 # Define default values to be used by Sqoop when exporting tables from Vertica, whether for loading in
-# BigQuery or Snowflake (or some other database).
+# Snowflake (or some other database).
 
 VERTICA_EXPORT_DEFAULT_FIELD_DELIMITER = u'\x01'
 

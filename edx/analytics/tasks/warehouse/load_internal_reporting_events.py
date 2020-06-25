@@ -8,7 +8,6 @@ from event values to column values.
 
 """
 import datetime
-import json
 import logging
 import re
 from importlib import import_module
@@ -23,7 +22,6 @@ import user_agents
 from luigi.configuration import get_config
 from luigi.date_interval import DateInterval
 
-from edx.analytics.tasks.common.bigquery_load import BigQueryLoadDownstreamMixin, BigQueryLoadTask
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin, MultiOutputMapReduceJobTask
 from edx.analytics.tasks.common.pathutil import EventLogSelectionDownstreamMixin, EventLogSelectionMixin
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask, VerticaCopyTaskMixin
@@ -375,71 +373,6 @@ class EventRecord(SparseRecord):
     campaign_name = StringField(length=255, nullable=True, description='')
 
 
-class JsonEventRecord(SparseRecord):
-    """Represents an event, either a tracking log event or segment event."""
-
-    timestamp = DateTimeField(nullable=True, description='Timestamp when event was emitted.')
-
-    received_at = DateTimeField(nullable=True, description='Timestamp when event was received/recorded.')
-
-    # was context_user_id:
-    user_id = StringField(length=255, nullable=True, description='The identifier of the user who was logged in when the event was emitted. '
-                          'This is often but not always numeric.')
-
-    username = StringField(length=50, nullable=True, description='The username of the user who was logged in when the event was emitted.')
-
-    anonymous_id = StringField(length=255, nullable=True, description='The anonymous_id of the user.')
-
-    event_type = StringField(
-        length=255,
-        nullable=False,
-        description='The name of the event (event name in the segment logs). For implicit events, this should be "edx.server.request".'
-    )
-
-    # was context_course_id
-    course_id = StringField(length=255, nullable=True, description='The course_id associated with this event (if any).')
-    org_id = StringField(length=255, nullable=True, description='Id of organization, as used in course_id.')
-
-    label = StringField(length=511, nullable=True, description='The GA label associated with this event.')
-
-    # This is not the same as "event_category".
-    category = StringField(length=255, nullable=True, description='The GA category for this event.')
-
-    # This was event_source:
-    emitter_type = StringField(length=255, nullable=False, description='Where the event was collected from (browser, mobile, server, etc).')
-
-    # This is populated for most segment events, but also forum, googlecomponent tracking log events.
-    url = StringField(
-        length=2047,
-        nullable=True,
-        description='For page events, the full URL (including hostname) that was accessed by the user. '
-        'For implicit events, this should be the full URL that the request was for.'
-    )
-
-    # use the length (and name) from segment version (referrer), and write tracking log 'referer' here as well.
-    referrer = StringField(length=8191, nullable=True, description='The HTTP referrer - also as a full URL.')
-
-    # was project:
-    source = StringField(length=255, nullable=False, description='The segment.com project the event was sent to.')
-
-    input_file = StringField(length=255, nullable=False, description='The full URL of the file that contains this event in S3.')
-
-    agent_type = StringField(length=20, nullable=True, description='The type of device used.')
-    agent_device_name = StringField(length=100, nullable=True, description='The name of the device used.', truncate=True)
-    agent_os = StringField(length=100, nullable=True, description='The name of the OS on the device used. ')
-    agent_browser = StringField(length=100, nullable=True, description='The name of the browser used.')
-
-    # So having a StringField (as with EventRecord) has this write out to disk as "True".
-    # Using a BooleanField here has this end up being written out as 0 or 1.
-    # However, when loading to BigQuery as BOOLEAN, the boolean is translated back to True/False, or null.
-    agent_touch_capable = BooleanField(nullable=True, description='A boolean value indicating that the device was touch-capable.')
-
-    raw_event = StringField(length=60000, nullable=True, description='The full text of the event as a JSON string. This can be parsed at query time using UDFs.')
-
-    # This was originally a StringField, but a DateField outputs the same format and is more useful.
-    date = DateField(nullable=False, description='The date when the event was received.')
-
-
 class EventRecordClassMixin(object):
 
     event_record_type = luigi.Parameter(
@@ -457,9 +390,6 @@ class EventRecordClassMixin(object):
 
     def get_event_record_class(self):
         return self.record_class
-
-    def uses_JSON_event_record(self):
-        return self.event_record_type == 'JsonEventRecord'
 
 
 class EventRecordDownstreamMixin(EventRecordClassMixin, WarehouseMixin, MapReduceJobTaskMixin):
@@ -791,12 +721,6 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
                 # Skip values that are explicitly calculated rather than copied:
                 elif field_key.startswith('agent_') or field_key in ['event_category', 'timestamp', 'received_at', 'date']:
                     pass
-                elif self.uses_JSON_event_record() and field_key == 'course_id':
-                    pass
-                elif self.uses_JSON_event_record() and field_key == 'referrer':
-                    add_event_mapping_entry('root.referer')
-                elif self.uses_JSON_event_record() and field_key == 'user_id':
-                    add_event_mapping_entry('root.context.user_id')
                 # Handle special-cases:
                 elif field_key == "currenttime":
                     # Collapse values from either form into a single column.  No event should have both,
@@ -837,17 +761,11 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
             return
 
         # Handle events that begin with a slash (i.e. implicit events).
-        # * For JSON events, give them a marker event_type so we can more easily search (or filter) them,
-        #   and treat the type as the URL that was called.
         # * For regular events, ignore those that begin with a slash (i.e. implicit events).
         event_url = None
         if event_type.startswith('/'):
-            if self.uses_JSON_event_record():
-                event_url = event_type
-                event_type = 'edx.server.request'
-            else:
-                self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
-                return
+            self.incr_counter(self.counter_category_name, 'Discard Implicit Events', 1)
+            return
 
         username = event.get('username', '').strip()
         # if not username:
@@ -880,41 +798,16 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         self.add_calculated_event_entry(event_dict, 'username', username)
         self.add_agent_info(event_dict, event.get('agent'))
 
-        if self.uses_JSON_event_record():
-            # Add a check in the payload for a course_id -- it is sometimes there
-            # instead of in context.
-            if not course_id and event_data.get('course_id'):
-                course_id = event_data.get('course_id')
-
-            # was project
-            self.add_calculated_event_entry(event_dict, 'source', project_name)
-            # was event_source
-            self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)
-            # was context_course_id
-            self.add_calculated_event_entry(event_dict, 'course_id', course_id)
-            self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
-
-            # Additional fields:
-            # The event_url is the original event_type of implicit events.
-            if event_url is not None:
-                self.add_calculated_event_entry(event_dict, 'url', event_url)
-            # Try to extract information from course_id.
-            if course_id is not None:
-                org_id = get_org_id_for_course(course_id)
-                if org_id:
-                    self.add_calculated_event_entry(event_dict, 'org_id', org_id)
-
+        if (event_source, event_type) in self.known_events:
+            event_category = self.known_events[(event_source, event_type)]
         else:
-            if (event_source, event_type) in self.known_events:
-                event_category = self.known_events[(event_source, event_type)]
-            else:
-                event_category = 'unknown'
+            event_category = 'unknown'
 
-            self.add_calculated_event_entry(event_dict, 'version', VERSION)
-            self.add_calculated_event_entry(event_dict, 'project', project_name)
-            self.add_calculated_event_entry(event_dict, 'event_source', event_source)
-            self.add_calculated_event_entry(event_dict, 'event_category', event_category)
-            self.add_calculated_event_entry(event_dict, 'context_course_id', course_id)
+        self.add_calculated_event_entry(event_dict, 'version', VERSION)
+        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
+        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        self.add_calculated_event_entry(event_dict, 'context_course_id', course_id)
 
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
@@ -1226,60 +1119,14 @@ class SegmentEventRecordDataTask(SegmentEventLogSelectionMixin, BaseEventRecordD
         if properties and properties.get('context'):
             self.add_agent_info(event_dict, properties.get('context').get('agent'))
 
-        if self.uses_JSON_event_record():
-            self.add_calculated_event_entry(event_dict, 'source', project_name)  # was 'project'
-            self.add_calculated_event_entry(event_dict, 'emitter_type', event_source)  # was 'event_source'
 
-            # TODO: figure out why we check for this here, and not much earlier.  Why would
-            # it be in event_type, but not in event_dict??  And why so bad if it's not found?
-            # Is it required and cannot be 'None'? A spot check in March 2019 found it wasn't happening.
-            if event_dict.get("event_type") is None:
-                self.incr_counter(self.counter_category_name, 'Missing event_type field', 1)
-                return
-
-            self.add_calculated_event_entry(event_dict, 'raw_event', json.dumps(event, sort_keys=True))
-
-        else:
-            self.add_calculated_event_entry(event_dict, 'version', VERSION)
-            self.add_calculated_event_entry(event_dict, 'project', project_name)
-            self.add_calculated_event_entry(event_dict, 'event_source', event_source)
-            self.add_calculated_event_entry(event_dict, 'event_category', event_category)
+        self.add_calculated_event_entry(event_dict, 'version', VERSION)
+        self.add_calculated_event_entry(event_dict, 'project', project_name)
+        self.add_calculated_event_entry(event_dict, 'event_source', event_source)
+        self.add_calculated_event_entry(event_dict, 'event_category', event_category)
 
         event_mapping = self.get_event_mapping()
         self.add_event_info(event_dict, event_mapping, event)
-
-        if self.uses_JSON_event_record():
-            # Try harder to extract course_id and related information.
-            course_id = event_dict.get('course_id')
-            if course_id is None:
-                # course_id may be stored in 'label', so try to parse what is there.
-                label = event_dict.get('label')
-                if label and is_valid_course_id(label):
-                    self.add_calculated_event_entry(event_dict, 'course_id', label)
-                    course_id = event_dict.get('course_id')
-
-            if course_id is None:
-                # course_id may be extractable from 'url' in the usual
-                # way, so try to parse what is there.
-                url = event_dict.get('url')
-                course_key = get_course_key_from_url(url)
-                if course_key:
-                    course_id = unicode(course_key)
-                    self.add_calculated_event_entry(event_dict, 'course_id', course_id)
-                elif url:
-                    # course_id may be extractable from 'url' by looking for the
-                    # version string and plus-delimiters explicitly anywhere in the URL.
-                    match = NEW_COURSE_REGEX.match(url)
-                    if match:
-                        course_id_string = match.group('course_id')
-                        if is_valid_course_id(course_id_string):
-                            self.add_calculated_event_entry(event_dict, 'course_id', course_id_string)
-                            course_id = event_dict.get('course_id')
-
-            if course_id is not None:
-                org_id = get_org_id_for_course(course_id)
-                if org_id:
-                    self.add_calculated_event_entry(event_dict, 'org_id', org_id)
 
         record = self.get_event_record_class()(**event_dict)
         key = (date_received, project_name)
@@ -1657,64 +1504,3 @@ class LoadEventsIntoWarehouseWorkflow(EventRecordLoadDownstreamMixin, VerticaCop
             schema=self.schema,
             credentials=self.credentials,
         )
-
-
-##########################
-# Loading into BigQuery
-##########################
-
-
-class LoadDailyEventRecordToBigQuery(EventRecordDownstreamMixin, BigQueryLoadTask):
-
-    @property
-    def table(self):
-        if self.uses_JSON_event_record():
-            return 'json_event_records'
-        else:
-            return 'event_records'
-
-    @property
-    def partitioning_type(self):
-        """Set to 'DAY' in order to partition by day."""
-        return 'DAY'
-
-    @property
-    def schema(self):
-        return self.get_event_record_class().get_bigquery_schema()
-
-    @property
-    def insert_source_task(self):
-        return ExternalURL(url=self.hive_partition_path(EVENT_TABLE_NAME, self.date))
-
-
-class LoadEventRecordIntervalToBigQuery(EventRecordDownstreamMixin, BigQueryLoadDownstreamMixin, luigi.WrapperTask):
-    """
-    Loads the event records table from Hive into the BigQuery data warehouse.
-
-    """
-
-    interval = luigi.DateIntervalParameter(
-        description='The range of dates for which to create event records.',
-    )
-
-    def requires(self):
-        for date in reversed([d for d in self.interval]):  # pylint: disable=not-an-iterable
-            # should_overwrite = date >= self.overwrite_from_date
-            yield LoadDailyEventRecordToBigQuery(
-                event_record_type=self.event_record_type,
-                date=date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                warehouse_path=self.warehouse_path,
-                events_list_file_path=self.events_list_file_path,
-                overwrite=self.overwrite,
-                dataset_id=self.dataset_id,
-                credentials=self.credentials,
-                max_bad_records=self.max_bad_records,
-            )
-
-    def output(self):
-        return [task.output() for task in self.requires()]
-
-    def complete(self):
-        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
-        return all(r.complete() for r in luigi.task.flatten(self.requires()))
