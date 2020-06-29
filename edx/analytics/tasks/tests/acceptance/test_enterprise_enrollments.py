@@ -158,6 +158,13 @@ class EnterpriseEnrollmentAcceptanceTest(AcceptanceTestCase):
              datetime.datetime(2015, 2, 12, 23, 14, 35), 'test5@example.com', 'test_user5', 'edX+Open_DemoX',
              'US', None, None, None, None, 0.5,
              225.00, 225.00, None],
+
+            [u'0381d3cb033846d48a5cb1475b589d7f', u'Enterprise 1', 15, 4, u'course-v1:edX+Testing102x+1T2017',
+             datetime.datetime(2016, 3, 22, 21, 8, 8), u'credit', 1, u'', 0, None, u'ginny', 1,
+             u'All about acceptance testing Part 3!', datetime.datetime(2016, 12, 1, 0, 0),
+             datetime.datetime(2017, 2, 1, 0, 0), u'instructor_paced', u'9', 2, 5,
+             datetime.datetime(2015, 2, 12, 23, 14, 35), u'test5@example.com', u'test_user5', u'edX+Testing102', u'US',
+             None, None, None, u'Percentage, 100 (#6)', 0.74, 100.0, None, None]
         ]
 
         return [tuple(row) for row in expected]

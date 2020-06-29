@@ -259,7 +259,10 @@ class EnterpriseEnrollmentDataTask(
                             ELSE student_course_enrollment.course_id
                         END AS course_id,
                         ecommerce_order_line.line_price_before_discounts_excl_tax AS course_price,
-                        ecommerce_order.total_incl_tax AS discount_price,
+                        CASE
+                            WHEN ecomm_order_lines_count.count_order_lines > 1 THEN NULL
+                            ELSE ecommerce_order.total_incl_tax
+                        END AS discount_price,
                         CASE
                             WHEN ecommerce_offer.id IS NULL THEN NULL
                             WHEN ecommerce_offer.offer_type = 'Voucher' THEN NULL
@@ -310,6 +313,16 @@ class EnterpriseEnrollmentDataTask(
                     ) ecomm_order_product
                         ON ecommerce_user.id = ecomm_order_product.user_id
                         AND ecommerce_order_line.line_price_before_discounts_excl_tax = ecomm_order_product.course_price
+                    LEFT JOIN (
+                            SELECT
+                                ecomm_order.id AS order_id,
+                                COUNT(ecomm_order_line.id) AS count_order_lines
+                            FROM order_order ecomm_order
+                            JOIN order_line ecomm_order_line
+                                ON ecomm_order.id = ecomm_order_line.order_id
+                            GROUP BY ecomm_order.id
+                    ) ecomm_order_lines_count
+                        ON ecommerce_order.id = ecomm_order_lines_count.order_id
                     LEFT JOIN order_orderdiscount ecommerce_order_discount
                         ON ecommerce_order_line.order_id = ecommerce_order_discount.order_id
                     LEFT JOIN voucher_voucher ecommerce_voucher
