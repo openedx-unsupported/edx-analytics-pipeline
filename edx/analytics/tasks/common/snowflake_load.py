@@ -89,6 +89,10 @@ class SnowflakeTarget(luigi.Target):
         connection.cursor().execute("USE ROLE {}".format(self.role))
         # Set timezone to UTC
         connection.cursor().execute("ALTER SESSION SET TIMEZONE = 'UTC'")
+        # Set timestamp default type to TIMESTAMP_TZ (instead of the Snowflake default of TIMESTAMP_NTZ).
+        # Our Snowflake instance-wide standard for timestamps is TIMESTAMP_TZ, as it stores the timezone
+        # along with the timestamp.
+        connection.cursor().execute("ALTER SESSION SET TIMESTAMP_TYPE_MAPPING = 'TIMESTAMP_TZ'")
 
         return connection
 
