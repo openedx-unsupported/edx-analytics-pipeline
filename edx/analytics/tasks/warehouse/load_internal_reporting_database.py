@@ -832,9 +832,11 @@ class LoadMysqlTableFromS3ToSnowflakeTask(MysqlTableExportMixin, SnowflakeLoadFr
             if field_name.upper() in SNOWFLAKE_RESERVED_KEYWORDS:
                 field_name = '"{}"'.format(field_name.upper())
 
-            mysql_types_with_parentheses = ['smallint', 'int', 'bigint', 'datetime', 'varchar']
+            mysql_types_with_parentheses = ['smallint', 'int', 'bigint', 'varchar']
             if field_type == 'tinyint(1)':
                 field_type = 'BOOLEAN'
+            elif 'datetime' in field_type:
+                field_type = 'TIMESTAMP_TZ'
             elif any(_type in field_type for _type in mysql_types_with_parentheses):
                 field_type = field_type.rsplit('(')[0]
             elif field_type == 'longtext':

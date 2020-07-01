@@ -14,6 +14,14 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
 
 
+def convert_datetime_to_timestamp_tz(coldefs):
+    """Substitute TIMESTAMP_TZ for DATETIME in a column definition for tables on Snowflake."""
+    # coldefs should be a list of tuples, each with a column name and column "type".
+    # Note that "type" information may include " NOT NULL" at the end, so we need to perform
+    # a replace within the string.
+    return [(name, type.replace('DATETIME', 'TIMESTAMP_TZ')) for name, type in coldefs]
+
+
 class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
 
     @property
@@ -33,8 +41,8 @@ class LoadInternalReportingCertificatesToSnowflake(WarehouseMixin, SnowflakeLoad
             ('certificate_mode', 'VARCHAR(200)'),
             ('final_grade', 'VARCHAR(5)'),
             ('has_passed', 'INTEGER'),
-            ('created_date', 'TIMESTAMP'),
-            ('modified_date', 'TIMESTAMP'),
+            ('created_date', 'TIMESTAMP_TZ'),
+            ('modified_date', 'TIMESTAMP_TZ'),
         ]
 
     @property
@@ -89,7 +97,7 @@ class LoadInternalReportingCourseToSnowflake(WarehouseMixin, SnowflakeLoadFromHi
 
     @property
     def columns(self):
-        return CourseRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(CourseRecord.get_sql_schema())
 
 
 class LoadInternalReportingCourseSeatToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
@@ -109,7 +117,7 @@ class LoadInternalReportingCourseSeatToSnowflake(WarehouseMixin, SnowflakeLoadFr
 
     @property
     def columns(self):
-        return CourseSeatRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(CourseSeatRecord.get_sql_schema())
 
 
 class LoadInternalReportingCourseSubjectToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
@@ -129,7 +137,7 @@ class LoadInternalReportingCourseSubjectToSnowflake(WarehouseMixin, SnowflakeLoa
 
     @property
     def columns(self):
-        return CourseSubjectRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(CourseSubjectRecord.get_sql_schema())
 
 
 class LoadInternalReportingProgramCourseToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
@@ -149,7 +157,7 @@ class LoadInternalReportingProgramCourseToSnowflake(WarehouseMixin, SnowflakeLoa
 
     @property
     def columns(self):
-        return ProgramCourseRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(ProgramCourseRecord.get_sql_schema())
 
 
 class LoadInternalReportingCourseCatalogToSnowflake(WarehouseMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
@@ -207,7 +215,7 @@ class LoadInternalReportingCourseStructureToSnowflake(WarehouseMixin, SnowflakeL
 
     @property
     def columns(self):
-        return CourseBlockRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(CourseBlockRecord.get_sql_schema())
 
 
 class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
@@ -226,7 +234,7 @@ class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVT
 
     @property
     def columns(self):
-        return EnrollmentSummaryRecord.get_sql_schema()
+        return convert_datetime_to_timestamp_tz(EnrollmentSummaryRecord.get_sql_schema())
 
 
 class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
@@ -291,7 +299,7 @@ class LoadInternalReportingUserToSnowflake(WarehouseMixin, SnowflakeLoadFromHive
             # We use VARCHAR(45) for vertica, but vertica truncates to 45 characters, whereas snowflake throws an error.
             # 54 is the maximum length in our data right now, all of which are retired_user_<sha-1>@retired.invalid
             ('user_username', 'VARCHAR(54)'),
-            ('user_account_creation_time', 'TIMESTAMP'),
+            ('user_account_creation_time', 'TIMESTAMP_TZ'),
             ('user_last_location_country_code', 'VARCHAR(45)')
         ]
 
