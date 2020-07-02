@@ -6,96 +6,100 @@
 #
 --no-binary ansible
 
--e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
--e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
-ansible==1.4.5
-argparse==1.2.1
-asn1crypto==1.2.0         # via oscrypto, snowflake-connector-python
-azure-common==1.1.23      # via azure-storage-blob, azure-storage-common, snowflake-connector-python
-azure-nspkg==3.0.2        # via azure-common, azure-storage-nspkg
-azure-storage-blob==2.1.0  # via snowflake-connector-python
-azure-storage-common==2.1.0  # via azure-storage-blob
-azure-storage-nspkg==3.1.0  # via azure-storage-common
+-e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi  # via -r requirements/default.in
+-e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument  # via -r requirements/default.in
+ansible==1.4.5            # via -r requirements/base.txt
+argparse==1.2.1           # via -r requirements/default.in
+asn1crypto==1.3.0         # via oscrypto, snowflake-connector-python
+azure-common==1.1.25      # via snowflake-connector-python
+azure-core==1.7.0         # via azure-storage-blob
+azure-nspkg==3.0.2        # via azure-common, azure-core, azure-storage-nspkg
+azure-storage-blob==12.3.2  # via snowflake-connector-python
+azure-storage-nspkg==3.1.0  # via azure-storage-blob
 backports-abc==0.5        # via tornado
-bcrypt==3.1.7
-boto3==1.4.8
-boto==2.48.0
+bcrypt==3.1.7             # via -r requirements/base.txt, paramiko
+boto3==1.4.8              # via -r requirements/default.in, snowflake-connector-python
+boto==2.48.0              # via -r requirements/base.txt
 botocore==1.8.50          # via boto3, s3transfer, snowflake-connector-python
 cachetools==3.1.1         # via google-auth
-certifi==2019.9.11        # via requests, snowflake-connector-python, tornado
-cffi==1.13.1
+certifi==2020.6.20        # via msrest, requests, snowflake-connector-python, tornado
+cffi==1.14.0              # via -r requirements/base.txt, bcrypt, cryptography, pynacl, snowflake-connector-python
 chardet==3.0.4            # via requests
-ciso8601==1.0.3
-cryptography==2.8
-distlib==0.2.2
-docutils==0.15.2          # via botocore, python-daemon
-ecdsa==0.13
-edx-ccx-keys==0.2.1
-edx-opaque-keys==0.4
-elasticsearch==1.7.0
-enum34==1.1.6
-filechunkio==1.8
-future==0.18.1            # via snowflake-connector-python, vertica-python
+ciso8601==1.0.3           # via -r requirements/default.in
+cryptography==2.9.2       # via -r requirements/base.txt, azure-storage-blob, paramiko, pyopenssl, snowflake-connector-python
+distlib==0.2.2            # via luigi
+docutils==0.16            # via botocore, python-daemon
+ecdsa==0.13               # via -r requirements/base.txt
+edx-ccx-keys==0.2.1       # via -r requirements/default.in
+edx-opaque-keys==0.4      # via -r requirements/default.in, edx-ccx-keys
+elasticsearch==1.7.0      # via -r requirements/default.in
+enum34==1.1.10            # via -r requirements/base.txt, azure-core, azure-storage-blob, cryptography, msrest, snowflake-connector-python
+filechunkio==1.8          # via -r requirements/default.in
+future==0.18.2            # via snowflake-connector-python, vertica-python
 futures==3.3.0            # via azure-storage-blob, google-cloud-core, s3transfer
-google-api-python-client==1.7.7
-google-auth-httplib2==0.0.3  # via google-api-python-client
-google-auth==1.6.3        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
-google-cloud-bigquery==0.27.0
+google-api-python-client==1.7.7  # via -r requirements/default.in
+google-auth-httplib2==0.0.4  # via google-api-python-client
+google-auth==1.18.0       # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
+google-cloud-bigquery==0.27.0  # via -r requirements/default.in
 google-cloud-core==0.27.1  # via google-cloud-bigquery
-google-resumable-media==0.4.1  # via google-cloud-bigquery
-googleapis-common-protos==1.6.0  # via google-cloud-core
-graphitesend==0.10.0
-gspread==3.1.0
-html5lib==1.0.1
-httplib2==0.14.0
-idna==2.6                 # via requests, snowflake-connector-python
-ijson==2.5.1              # via snowflake-connector-python
-ipaddress==1.0.23
-isoweek==1.3.3
-jinja2==2.10.3
-jmespath==0.9.4           # via boto3, botocore
+google-resumable-media==0.5.1  # via google-cloud-bigquery
+googleapis-common-protos==1.52.0  # via google-cloud-core
+graphitesend==0.10.0      # via -r requirements/default.in
+gspread==3.1.0            # via -r requirements/default.in
+html5lib==1.0.1           # via -r requirements/default.in
+httplib2==0.18.1          # via -r requirements/base.txt, ansible, google-api-python-client, google-auth-httplib2
+idna==2.8                 # via requests, snowflake-connector-python
+ijson==3.1.post0          # via snowflake-connector-python
+ipaddress==1.0.23         # via -r requirements/base.txt, cryptography
+isodate==0.6.0            # via msrest
+isoweek==1.3.3            # via -r requirements/default.in
+jinja2==2.11.2            # via -r requirements/base.txt, ansible
+jmespath==0.10.0          # via boto3, botocore
 lockfile==0.12.2          # via python-daemon
-markupsafe==1.1.1
-numpy==1.16.5
-oscrypto==1.1.0           # via snowflake-connector-python
-paramiko==2.6.0
-paypalrestsdk==1.9.0
-pbr==5.4.3                # via stevedore
-protobuf==3.10.0          # via google-cloud-core, googleapis-common-protos
-psycopg2==2.6.2
-pyasn1-modules==0.2.7     # via google-auth, snowflake-connector-python
-pyasn1==0.4.7             # via pyasn1-modules, rsa, snowflake-connector-python
-pycparser==2.19
-pycrypto==2.6.1
-pycryptodomex==3.9.0      # via snowflake-connector-python
-pygeoip==0.3.2
+markupsafe==1.1.1         # via -r requirements/base.txt, jinja2
+msrest==0.6.17            # via azure-storage-blob
+numpy==1.16.5             # via -r requirements/default.in
+oauthlib==3.1.0           # via requests-oauthlib
+oscrypto==1.2.0           # via snowflake-connector-python
+paramiko==2.7.1           # via -r requirements/base.txt, ansible
+paypalrestsdk==1.9.0      # via -r requirements/default.in
+pbr==5.4.5                # via stevedore
+protobuf==3.12.2          # via google-cloud-core, googleapis-common-protos
+psycopg2==2.7             # via -r requirements/default.in
+pyasn1-modules==0.2.8     # via google-auth, snowflake-connector-python
+pyasn1==0.4.8             # via pyasn1-modules, rsa, snowflake-connector-python
+pycparser==2.20           # via -r requirements/base.txt, cffi
+pycrypto==2.6.1           # via -r requirements/base.txt
+pycryptodomex==3.9.8      # via snowflake-connector-python
+pygeoip==0.3.2            # via -r requirements/default.in
 pyjwt==1.7.1              # via snowflake-connector-python
-pymongo==3.9.0            # via edx-opaque-keys
-pynacl==1.3.0
-pyopenssl==19.0.0         # via paypalrestsdk, snowflake-connector-python
-python-cjson==1.1.0
-python-daemon==2.1.2
-python-dateutil==2.6.1
-python-gnupg==0.3.9
-pytz==2017.3
-pyyaml==5.1.2
-requests==2.22.0
+pymongo==3.10.1           # via edx-opaque-keys
+pynacl==1.4.0             # via -r requirements/base.txt, paramiko
+pyopenssl==19.1.0         # via paypalrestsdk, snowflake-connector-python
+python-cjson==1.1.0       # via -r requirements/default.in
+python-daemon==2.1.2      # via -r requirements/default.in, luigi
+python-dateutil==2.6.1    # via -r requirements/default.in, botocore, vertica-python
+python-gnupg==0.3.9       # via -r requirements/default.in
+pytz==2017.3              # via -r requirements/default.in, snowflake-connector-python, vertica-python
+pyyaml==5.3.1             # via -r requirements/base.txt, ansible
+requests-oauthlib==1.3.0  # via msrest
+requests==2.22.0          # via -r requirements/default.in, azure-core, google-cloud-bigquery, google-cloud-core, gspread, msrest, paypalrestsdk, requests-oauthlib
 rsa==4.0                  # via google-auth
 s3transfer==0.1.13        # via boto3
 singledispatch==3.4.0.3   # via tornado
-six==1.10.0
-snowflake-connector-python==2.0.2
-stevedore==1.19.1
-tornado==4.5.3
-ua-parser==0.3.6
-uritemplate==3.0.0        # via google-api-python-client
-urllib3==1.22
-user-agents==0.3.2
-vertica-python==0.6.11
-webencodings==0.5.1
-wheel==0.30.0
-yarn-api-client==0.2.3
-
+six==1.10.0               # via -r requirements/base.txt, -r requirements/default.in, azure-core, bcrypt, cryptography, edx-ccx-keys, edx-opaque-keys, google-api-python-client, google-auth, google-auth-httplib2, google-cloud-core, google-resumable-media, html5lib, isodate, paypalrestsdk, protobuf, pynacl, pyopenssl, python-dateutil, singledispatch, snowflake-connector-python, stevedore, vertica-python
+snowflake-connector-python==2.0.2  # via -r requirements/default.in
+stevedore==1.19.1         # via -r requirements/default.in, edx-opaque-keys
+tornado==4.5.3            # via luigi
+typing==3.7.4.1           # via azure-core, azure-storage-blob, msrest
+ua-parser==0.3.6          # via -r requirements/default.in, user-agents
+uritemplate==3.0.1        # via google-api-python-client
+urllib3==1.22             # via -r requirements/default.in, elasticsearch, requests
+user-agents==0.3.2        # via -r requirements/default.in
+vertica-python==0.6.11    # via -r requirements/default.in
+webencodings==0.5.1       # via html5lib
+wheel==0.30.0             # via -r requirements/base.txt
+yarn-api-client==0.2.3    # via -r requirements/default.in
 
 # The following packages are considered to be unsafe in a requirements file:
-# setuptools==41.4.0        # via google-cloud-core, protobuf, python-daemon
+# setuptools

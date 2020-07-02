@@ -18,7 +18,7 @@ html5lib==1.0.1 	# MIT
 isoweek==1.3.3		# BSD
 numpy==1.16.5 		# BSD
 paypalrestsdk==1.9.0    # Paypal SDK License
-psycopg2==2.6.2     # LGPL
+psycopg2==2.7     # LGPL
 pygeoip==0.3.2 		# LGPL
 python-cjson==1.1.0	# LGPL
 python-dateutil==2.6.1 	# BSD
