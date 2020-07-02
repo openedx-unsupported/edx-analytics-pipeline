@@ -8,7 +8,7 @@ from mock import patch
 
 from edx.analytics.tasks.warehouse.load_internal_reporting_database import (
     ImportMysqlDatabaseToBigQueryDatasetTask, ImportMysqlToVerticaTask, LoadMysqlToBigQueryTableTask,
-    LoadMysqlToVerticaTableTask
+    LoadMysqlToVerticaTableTask, ImportMysqlDatabaseToSnowflakeSchemaTask
 )
 
 
@@ -153,3 +153,37 @@ class LoadMysqlToBigQueryTableTaskTest(TestCase):
         actual_schemas = [field.to_api_repr() for field in task.schema]
         for actual_schema, expected_schema in zip(actual_schemas, expected_schemas):
             self.assertDictEqual(actual_schema, expected_schema)
+
+@ddt
+class ImportMysqlToSnowflakeTaskTest(TestCase):
+    """Test for ImportMysqlDatabaseToSnowflakeSchemaTask."""
+
+    def setUp(self):
+        self.task = ImportMysqlDatabaseToSnowflakeSchemaTask(
+            include=('auth_userprofile$', 'auth_user', 'assessment_assessmentpart', 'edxval_video'),
+            exclude=('auth_user$', 'assessment_assessment'),
+            credentials='dummy',
+            sf_database='dummy',
+            schema='dummy',
+            scratch_schema='dummy',
+            run_id='dummy',
+            warehouse='dummy',
+            role='dummy',
+        )
+
+    @data(
+        ('auth_userprofile', False),
+        ('auth_user', True),
+        ('auth_user_groups', False),
+        ('assessment_assessment', True),
+        ('assessment_assessmentpart', True),
+        ('courseware_studentmodule', True),
+        ('courseware_studentmodulehistory', True),
+        ('edxval_video', False),
+        ('edxval_videoimage', False),
+        ('edxval_videotranscript', False),
+    )
+    @unpack
+    def test_should_exclude_table(self, table, expected):
+        actual = self.task.should_exclude_table(table)
+        self.assertEqual(actual, expected)

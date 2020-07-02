@@ -823,6 +823,10 @@ class ImportMysqlDatabaseToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, Snowfl
 
     Assumes that only one database is written to each schema.
     """
+    include = luigi.ListParameter(
+        default=(),
+        description='List of regular expressions matching database table names that should be imported from MySQL to Snowflake.'
+    )
     exclude = luigi.ListParameter(
         default=(),
         description='List of regular expressions matching database table names that should not be imported from MySQL to Snowflake.'
@@ -840,9 +844,12 @@ class ImportMysqlDatabaseToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, Snowfl
         """
         Determines whether to exclude a table during the import.
         """
-        if any(re.match(pattern, table_name) for pattern in self.exclude):
-            return True
-        return False
+        if any(re.match(pattern, table_name) for pattern in self.include):
+            if any(re.match(pattern, table_name) for pattern in self.exclude):
+                return True
+            else:
+                return False
+        return True
 
     def requires(self):
         """
