@@ -7,19 +7,18 @@ from ddt import data, ddt, unpack
 from mock import patch
 
 from edx.analytics.tasks.warehouse.load_internal_reporting_database import (
-    ImportMysqlDatabaseToBigQueryDatasetTask, ImportMysqlToVerticaTask, LoadMysqlToBigQueryTableTask,
-    LoadMysqlToVerticaTableTask
+    ExportMysqlDatabaseToS3Task, ImportMysqlDatabaseToBigQueryDatasetTask, LoadMysqlTableFromS3ToVerticaTask,
+    LoadMysqlToBigQueryTableTask
 )
 
 
 @ddt
-class ImportMysqlToVerticaTaskTest(TestCase):
-    """Test for ImportMysqlToVerticaTask."""
+class ExportMysqlDatabaseToS3TaskTest(TestCase):
+    """Test for ExportMysqlDatabaseToS3Task."""
 
     def setUp(self):
-        self.task = ImportMysqlToVerticaTask(
+        self.task = ExportMysqlDatabaseToS3Task(
             exclude=('auth_user$', 'courseware_studentmodule*', 'oauth*'),
-            marker_schema=None
         )
 
     @data(
@@ -36,29 +35,31 @@ class ImportMysqlToVerticaTaskTest(TestCase):
         self.assertEqual(actual, expected)
 
 
-class LoadMysqlToVerticaTableTaskTest(TestCase):
-    """Test for LoadMysqlToVerticaTableTask."""
+class LoadMysqlTableFromS3ToVerticaTaskTest(TestCase):
+    """Test for LoadMysqlTableFromS3ToVerticaTask."""
 
-    @patch('edx.analytics.tasks.warehouse.load_internal_reporting_database.get_mysql_query_results')
-    def test_table_schema(self, mysql_query_results_mock):
+    @patch('edx.analytics.tasks.warehouse.load_internal_reporting_database.LoadMysqlTableFromS3ToVerticaTask.mysql_table_schema')
+    @patch('edx.analytics.tasks.warehouse.load_internal_reporting_database.LoadMysqlTableFromS3ToVerticaTask.get_table_metadata')
+    def test_table_schema(self, get_table_metadata_mock, mysql_table_schema_mock):
         desc_table = [
-            ('id', 'int(11)', 'NO', 'PRI', None, 'auto_increment'),
-            ('name', 'varchar(255)', 'NO', 'MUL', None, ''),
-            ('meta', 'longtext', 'NO', '', None, ''),
-            ('width', 'smallint(6)', 'YES', 'MUL', None, ''),
-            ('test_tiny', 'tinyint(4)', 'YES', 'MUL', None, ''),
-            ('allow_certificate', 'tinyint(1)', 'NO', '', None, ''),
-            ('user_id', 'bigint(20) unsigned', 'NO', '', None, ''),
-            ('profile_image_uploaded_at', 'datetime', 'YES', '', None, ''),
-            ('change_date', 'datetime(6)', 'YES', '', None, ''),
-            ('total_amount', 'double', 'NO', '', None, ''),
-            ('expiration_date', 'date', 'YES', '', None, ''),
-            ('ip_address', 'char(39)', 'YES', '', None, ''),
-            ('unit_cost', 'decimal(30,2)', 'NO', '', None, '')
+            ('id', 'int(11)', 'NO'),
+            ('name', 'varchar(255)', 'NO'),
+            ('meta', 'longtext', 'NO'),
+            ('width', 'smallint(6)', 'YES'),
+            ('test_tiny', 'tinyint(4)', 'YES'),
+            ('allow_certificate', 'tinyint(1)', 'NO'),
+            ('user_id', 'bigint(20) unsigned', 'NO'),
+            ('profile_image_uploaded_at', 'datetime', 'YES'),
+            ('change_date', 'datetime(6)', 'YES'),
+            ('total_amount', 'double', 'NO'),
+            ('expiration_date', 'date', 'YES'),
+            ('ip_address', 'char(39)', 'YES'),
+            ('unit_cost', 'decimal(30,2)', 'NO')
         ]
-        mysql_query_results_mock.return_value = desc_table
+        mysql_table_schema_mock.return_value = desc_table
+        get_table_metadata_mock.return_value = None
 
-        task = LoadMysqlToVerticaTableTask(table_name='test_table')
+        task = LoadMysqlTableFromS3ToVerticaTask(table_name='test_table')
 
         expected_schema = [
             ('"id"', 'int NOT NULL'),
