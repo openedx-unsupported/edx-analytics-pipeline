@@ -5,6 +5,7 @@ import datetime
 import json
 import logging
 import re
+import subprocess
 
 import luigi
 
@@ -17,6 +18,8 @@ from edx.analytics.tasks.common.sqoop import METADATA_FILENAME, SqoopImportFromM
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
+from edx.analytics.tasks.util.s3_util import ScalableS3Client
+
 
 try:
     from google.cloud.bigquery import SchemaField
@@ -1007,7 +1010,7 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         Inits this Luigi task.
         """
         super(ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask, self).__init__(*args, **kwargs)
-        metadata_target = self.get_schema_metadata_target()
+        metadata_target = self.get_database_metadata_target()
         with metadata_target.open('r') as metadata_file:
             self.metadata = json.load(metadata_file)
 
@@ -1016,7 +1019,7 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
     def get_table_list_for_database(self):
         return self.metadata['table_list']
 
-    def get_schema_metadata_target(self):
+    def get_database_metadata_target(self):
         partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
         metadata_location = url_path_join(
             self.warehouse_path,
@@ -1060,3 +1063,113 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         """
         # OverwriteOutputMixin changes the complete() method behavior, so we override it.
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
+
+
+class CopyMysqlDatabaseFromS3ToS3Task(WarehouseMixin, luigi.Task):
+    """
+    Provides entry point for copying a MySQL database destined for Snowflake from one location in S3 to another.
+    """
+    date = luigi.DateParameter(
+        default=datetime.datetime.utcnow().date(),
+    )
+    database = luigi.Parameter(
+        description='Name of database as stored in S3.'
+    )
+    warehouse_subdirectory = luigi.Parameter(
+        default='import_mysql_to_vertica',
+        description='Subdirectory under warehouse_path to store intermediate data.'
+    )
+    new_warehouse_path = luigi.Parameter(
+        description='The warehouse_path URL to which to copy database data.'
+    )
+
+    def __init__(self, *args, **kwargs):
+        """
+        Inits this Luigi task.
+        """
+        super(CopyMysqlDatabaseFromS3ToS3Task, self).__init__(*args, **kwargs)
+        self.metadata = None
+
+    @property
+    def database_metadata(self):
+        if self.metadata is None:
+            metadata_target = self.get_database_metadata_target()
+            with metadata_target.open('r') as metadata_file:
+                self.metadata = json.load(metadata_file)
+        return self.metadata
+
+    def get_database_metadata_target(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_location = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            DUMP_METADATA_OUTPUT,
+            partition_path_spec,
+            METADATA_FILENAME,
+        )
+        return get_target_from_url(metadata_location)
+
+    def get_table_list_for_database(self):
+        return self.database_metadata['table_list']
+
+    def requires(self):
+        return ExternalURL(self.get_database_metadata_target().path)
+
+    def output(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_location = url_path_join(
+            self.new_warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            DUMP_METADATA_OUTPUT,
+            partition_path_spec,
+            METADATA_FILENAME,
+        )
+        return get_target_from_url(metadata_location)
+
+    def copy_table(self, table_name):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        source_path = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            table_name,
+            partition_path_spec,
+        )
+        destination_path = url_path_join(
+            self.new_warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            table_name,
+            partition_path_spec,
+        )
+        kwargs = {}
+        # First attempt was to create a ScalableS3Client() wrapper in __init__, then calling: 
+        # self.s3_client.copy(source_path, destination_path, part_size=3000000000, **kwargs)
+        # This succeeded when files were small enough to be below the part_size, but there were
+        # files for LMS and ecommerce that exceeded this limit (i.e. by a lot), and multi-part
+        # uploads were failing due to "SignatureDoesNotMatch" errors from S3.  Since we're using
+        # older boto code instead of boto3 (which requires a Luigi upgrade), it seemed easier to
+        # just install awscli and use that in a subprocess to copy each table's data.
+        command = 'aws s3 cp {source_path} {destination_path} --recursive'.format(
+            source_path=source_path, destination_path=destination_path
+        )
+        try:
+            log.info("Calling '{}'".format(command))
+            return_val = subprocess.check_call(command, shell=True)
+            log.info("Call returned '{}'".format(return_val))
+        except subprocess.CalledProcessError as exception:
+            raise
+
+    def copy_metadata_file(self):
+        self.copy_table(DUMP_METADATA_OUTPUT)
+
+    def run(self):
+        if self.new_warehouse_path == self.warehouse_path:
+            raise Exception("Must set new_warehouse_path {} to be different than warehouse_path {}".format(new_warehouse_path, self.warehouse_path))
+
+        for table_name in self.get_table_list_for_database():
+            self.copy_table(table_name)
+
+        self.copy_metadata_file()
