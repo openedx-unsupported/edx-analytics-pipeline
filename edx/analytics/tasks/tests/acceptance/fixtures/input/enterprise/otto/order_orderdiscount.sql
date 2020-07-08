@@ -31,4 +31,5 @@ INSERT INTO `order_orderdiscount` VALUES
 (7,'Basket',6,'Catalog [5]-Absolute-100',NULL,'',1,200.00,'',8),
 (8,'Basket',7,'Catalog [5]-Absolute-50',NULL,'',1,200.00,'',9),
 (9,'Basket',8,'Catalog [5]-Absolute-50',NULL,'',1,200.00,'',10),
-(10,'Basket',6,'Catalog [5]-Absolute-100',NULL,'',1,200.00,'',13);
+(10,'Basket',6,'Catalog [5]-Absolute-100',NULL,'',1,200.00,'',13),
+(11,'Basket',6,'Catalog [5]-Absolute-100',NULL,'',1,200.00,'',14);
