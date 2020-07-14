@@ -16,6 +16,7 @@ from edx.analytics.tasks.common.snowflake_load import (
 from edx.analytics.tasks.common.sqoop import METADATA_FILENAME, SqoopImportFromMysql
 from edx.analytics.tasks.common.vertica_load import SchemaManagementTask, VerticaCopyTask
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
+from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
 try:
@@ -86,22 +87,53 @@ class MysqlToWarehouseTaskMixin(WarehouseMixin):
         return ''
 
 
-class MysqlToVerticaTaskMixin(MysqlToWarehouseTaskMixin):
+class MysqlToS3TaskMixin(MysqlToWarehouseTaskMixin):
     """
-    Parameters for importing a mysql database into Vertica.
+    Parameters for exporting a mysql database to S3.
     """
 
     # Don't use the same source for BigQuery loads as was used for Vertica loads,
     # until their formats and exclude-field parameters match.
     warehouse_subdirectory = luigi.Parameter(
-        default='import_mysql_to_vertica',
+        default='import_mysql_to_s3',
         description='Subdirectory under warehouse_path to store intermediate data.'
     )
 
 
-class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
+class MysqlTableExportMixin(MysqlToS3TaskMixin):
+    """Methods used by classes that export or load MySQL tables."""
+
+    def mysql_table_schema(self):
+        return self.metadata['additional_metadata']['table_schema']
+
+    def get_table_metadata_target(self):
+        """Returns target for metadata file from the given dump."""
+        # find the .metadata file in the source directory.
+        metadata_path = url_path_join(self.s3_location_for_table, METADATA_FILENAME)
+        return get_target_from_url(metadata_path)
+
+    @property
+    def s3_location_for_table(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        destination = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            self.table_name,
+            partition_path_spec
+        ) + '/'
+        return destination
+
+    def get_table_metadata(self):
+        metadata_target = self.get_table_metadata_target()
+        with metadata_target.open('r') as metadata_file:
+            metadata = json.load(metadata_file)
+        return metadata
+
+
+class ExportMysqlTableToS3Task(MysqlTableExportMixin, OverwriteOutputMixin, luigi.Task):
     """
-    Task to import a table from mysql into vertica.
+    Task to export a table from MySQL to S3.
     """
 
     table_name = luigi.Parameter(
@@ -109,10 +141,178 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
     )
 
     def __init__(self, *args, **kwargs):
-        super(LoadMysqlToVerticaTableTask, self).__init__(*args, **kwargs)
-        self.mysql_table_schema = []
-        self.table_schema = []
+        super(ExportMysqlTableToS3Task, self).__init__(*args, **kwargs)
+        self.required_tasks = None
+        self.sqoop_export_task = None
         self.deleted_fields = []
+
+    def requires(self):
+        if self.required_tasks is None:
+            self.required_tasks = {
+                'sqoop_export_task': self.sqoop_export_mysql_table_task
+            }
+        return self.required_tasks
+
+    def output(self):
+        return get_target_from_url(self.s3_location_for_table)
+
+    def complete(self):
+        return self.sqoop_export_mysql_table_task.complete()
+
+    def mysql_compliant_schema(self):
+        table_schema = []
+        results = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
+        for result in results:
+            field_name = result[0].strip()
+            field_type = result[1].strip()
+            field_null = result[2].strip()
+            if self.should_exclude_field(self.table_name, field_name):
+                self.deleted_fields.append(field_name)
+            else:
+                table_schema.append((field_name, field_type, field_null))
+        return table_schema
+
+    @property
+    def sqoop_export_mysql_table_task(self):
+        if self.sqoop_export_task is None:
+            mysql_schema = self.mysql_compliant_schema()
+            column_names = [field_name for (field_name, _field_type, _field_null) in mysql_schema]
+            additional_metadata = {
+                'table_schema': mysql_schema,
+                'deleted_fields': self.deleted_fields,
+                'database': self.database,
+                'table_name': self.table_name,
+                'date': self.date.isoformat(),
+            }
+            self.sqoop_export_task = SqoopImportFromMysql(
+                table_name=self.table_name,
+                credentials=self.db_credentials,
+                database=self.database,
+                destination=self.s3_location_for_table,
+                overwrite=self.overwrite,
+                mysql_delimiters=False,
+                fields_terminated_by=self.field_delimiter,
+                null_string=self.null_marker,
+                delimiter_replacement=' ',
+                direct=False,
+                columns=column_names,
+                additional_metadata=additional_metadata,
+            )
+
+        return self.sqoop_export_task
+
+
+class MysqlDatabaseExportMixin(MysqlToS3TaskMixin):
+    """Parameters and methods used by classes that export or load MySQL databases."""
+
+    include = luigi.ListParameter(
+        default=(),
+        description='List of regular expression patterns for matching the names of tables that should be output.',
+    )
+
+    exclude = luigi.ListParameter(
+        default=(),
+        description='List of regular expression patterns for matching the names of tables that should not be output.',
+    )
+
+    def should_exclude_table(self, table_name):
+        """Determines whether to exclude a table during the import."""
+
+        if self.include:
+            return not any(re.match(pattern, table_name) for pattern in self.include)
+        elif self.exclude:
+            return any(re.match(pattern, table_name) for pattern in self.exclude)
+
+        return False
+
+    def get_table_list_for_database(self):
+        return self.metadata['table_list']
+
+    def database_metadata_target(self):
+        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
+        metadata_destination = url_path_join(
+            self.warehouse_path,
+            self.warehouse_subdirectory,
+            self.database,
+            DUMP_METADATA_OUTPUT,
+            partition_path_spec,
+            METADATA_FILENAME,
+        )
+        return get_target_from_url(metadata_destination)
+
+
+class ExportMysqlDatabaseToS3Task(MysqlDatabaseExportMixin, luigi.Task):
+    """
+    Provides entry point for exporting a MySQL database to S3.
+    """
+
+    overwrite = luigi.BoolParameter(
+        default=False,
+        significant=False,
+    )
+
+    def __init__(self, *args, **kwargs):
+        super(ExportMysqlDatabaseToS3Task, self).__init__(*args, **kwargs)
+        self.table_includes_list = []
+        self.creation_time = None
+        self.required_tasks = None
+
+    def requires(self):
+        if self.creation_time is None:
+            self.creation_time = datetime.datetime.utcnow().isoformat()
+
+        if self.required_tasks is None:
+            self.required_tasks = []
+            if not self.table_includes_list:
+                results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
+                table_list = [result[0].strip() for result in results]
+                self.table_includes_list = [table_name for table_name in table_list if not self.should_exclude_table(table_name)]
+
+            for table_name in self.table_includes_list:
+                self.required_tasks.append(
+                    ExportMysqlTableToS3Task(
+                        date=self.date,
+                        database=self.database,
+                        db_credentials=self.db_credentials,
+                        exclude_field=self.exclude_field,
+                        table_name=table_name,
+                    )
+                )
+        return self.required_tasks
+
+    def output(self):
+        return self.database_metadata_target()
+
+    def run(self):
+        metadata = {
+            'table_list': self.table_includes_list,
+            'database': self.database,
+            'date': self.date.isoformat(),
+            'exclude': self.exclude,
+            'include': self.include,
+            'warehouse_path': self.warehouse_path,
+            'warehouse_subdirectory': self.warehouse_subdirectory,
+            'creation_time': self.creation_time,
+            'completion_time': datetime.datetime.utcnow().isoformat(),
+        }
+        with self.output().open('w') as metadata_file:
+            json.dump(metadata, metadata_file)
+
+
+class LoadMysqlTableFromS3ToVerticaTask(MysqlTableExportMixin, VerticaCopyTask):
+    """
+    Task to import a MySQL table from S3 into vertica.
+    """
+    table_name = luigi.Parameter(
+        description='The name of the table.',
+    )
+    # Some fields are no longer needed when reading from S3.
+    exclude_field = None
+    db_credentials = None
+
+    def __init__(self, *args, **kwargs):
+        super(LoadMysqlTableFromS3ToVerticaTask, self).__init__(*args, **kwargs)
+        self.metadata = self.get_table_metadata()
 
     def requires(self):
         if self.required_tasks is None:
@@ -122,45 +322,31 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
             }
         return self.required_tasks
 
-    def mysql_compliant_schema(self):
-        if not self.mysql_table_schema:
-            results = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
-            for result in results:
-                field_name = result[0].strip()
-                field_type = result[1].strip()
-                field_null = result[2].strip()
-                if self.should_exclude_field(self.table_name, field_name):
-                    self.deleted_fields.append(field_name)
-                else:
-                    self.mysql_table_schema.append((field_name, field_type, field_null))
-        return self.mysql_table_schema
-
     def vertica_compliant_schema(self):
         """Transforms mysql table schema into a vertica compliant schema."""
 
-        if not self.table_schema:
-            mysql_columns = self.mysql_compliant_schema()
-            for (field_name, field_type, field_null) in mysql_columns:
+        vertica_schema = []
+        for field_name, field_type, field_null in self.mysql_table_schema():
 
-                types_with_parentheses = ['tinyint', 'smallint', 'int', 'bigint', 'datetime']
-                if field_type == 'tinyint(1)':
-                    field_type = 'BOOLEAN'
-                elif any(_type in field_type for _type in types_with_parentheses):
-                    field_type = field_type.rsplit('(')[0]
-                elif field_type == 'longtext':
-                    field_type = 'LONG VARCHAR'
-                elif field_type == 'longblob':
-                    field_type = 'LONG VARBINARY'
-                elif field_type == 'double':
-                    field_type = 'DOUBLE PRECISION'
+            types_with_parentheses = ['tinyint', 'smallint', 'int', 'bigint', 'datetime']
+            if field_type == 'tinyint(1)':
+                field_type = 'BOOLEAN'
+            elif any(_type in field_type for _type in types_with_parentheses):
+                field_type = field_type.rsplit('(')[0]
+            elif field_type == 'longtext':
+                field_type = 'LONG VARCHAR'
+            elif field_type == 'longblob':
+                field_type = 'LONG VARBINARY'
+            elif field_type == 'double':
+                field_type = 'DOUBLE PRECISION'
 
-                if field_null == "NO":
-                    field_type = field_type + " NOT NULL"
+            if field_null == "NO":
+                field_type = field_type + " NOT NULL"
 
-                field_name = "\"{}\"".format(field_name)
-                self.table_schema.append((field_name, field_type))
+            field_name = "\"{}\"".format(field_name)
+            vertica_schema.append((field_name, field_type))
 
-        return self.table_schema
+        return vertica_schema
 
     @property
     def copy_delimiter(self):
@@ -190,48 +376,7 @@ class LoadMysqlToVerticaTableTask(MysqlToVerticaTaskMixin, VerticaCopyTask):
 
     @property
     def insert_source_task(self):
-        # Get the columns to request from Sqoop, as a side effect of
-        # getting the Vertica columns. The Vertica column names are quoted, so strip the quotes off.
-        column_names = [name[1:-1] for (name, _) in self.columns]
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        destination = url_path_join(
-            self.warehouse_path,
-            self.warehouse_subdirectory,
-            self.database,
-            self.table_name,
-            partition_path_spec
-        ) + '/'
-
-        additional_metadata = {
-            'table_schema': self.mysql_compliant_schema(),
-            'deleted_fields': self.deleted_fields,
-            'database': self.database,
-            'table_name': self.table_name,
-            'date': self.date.isoformat(),
-        }
-
-        # The arguments here to SqoopImportFromMysql should be the same as for BigQuery.
-        # The old format used mysql_delimiters, and direct mode.  We have now removed direct mode,
-        # and that gives us more choices for other settings.   We have already changed null_string and field termination,
-        # and we hardcode here the replacement of delimiters (like newlines) with spaces
-        # (using Sqoop's --hive-delims-replacement option).
-        # We could also set other SqoopImportTask parameters: escaped_by, enclosed_by, optionally_enclosed_by.
-        # If we wanted to model 'mysql_delimiters=True', we would set escaped-by: \ optionally-enclosed-by: '.
-        # But instead we use the defaults for them, so that there is no escaping or enclosing.
-        return SqoopImportFromMysql(
-            table_name=self.table_name,
-            credentials=self.db_credentials,
-            database=self.database,
-            destination=destination,
-            overwrite=self.overwrite,
-            mysql_delimiters=False,
-            fields_terminated_by=self.field_delimiter,
-            null_string=self.null_marker,
-            delimiter_replacement=' ',
-            direct=False,
-            columns=column_names,
-            additional_metadata=additional_metadata,
-        )
+        return ExternalURL(url=self.s3_location_for_table)
 
     @property
     def default_columns(self):
@@ -323,8 +468,11 @@ class PostImportDatabaseTask(SchemaManagementTask):
         )
 
 
-class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
-    """Provides entry point for importing a mysql database into Vertica."""
+class ImportMysqlDatabaseFromS3ToVerticaSchemaTask(MysqlDatabaseExportMixin, luigi.WrapperTask):
+    """
+    Provides entry point for importing a mysql database into Vertica via S3.
+    This workflow assumes that MySQL database has already been exported to S3.
+    """
 
     schema = luigi.Parameter(
         config_path={'section': 'vertica-export', 'name': 'schema'},
@@ -339,36 +487,24 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
         significant=False,
     )
 
-    exclude = luigi.ListParameter(
-        default=(),
-        description='List of regular expression patterns for matching the names of tables that should not be output.',
-    )
-
     marker_schema = luigi.Parameter(
         description='The marker schema to which to write the marker table.'
     )
 
-    def __init__(self, *args, **kwargs):
-        super(ImportMysqlToVerticaTask, self).__init__(*args, **kwargs)
-        self.table_list = []
-        self.is_complete = False
-        self.creation_time = None
+    # Some fields are no longer needed when reading from S3.
+    exclude_field = None
+    db_credentials = None
 
-    def should_exclude_table(self, table_name):
-        """Determines whether to exclude a table during the import."""
-        if any(re.match(pattern, table_name) for pattern in self.exclude):
-            return True
-        return False
+    def __init__(self, *args, **kwargs):
+        super(ImportMysqlDatabaseFromS3ToVerticaSchemaTask, self).__init__(*args, **kwargs)
+        metadata_target = self.database_metadata_target()
+        with metadata_target.open('r') as metadata_file:
+            self.metadata = json.load(metadata_file)
+        self.is_complete = False
 
     def run(self):
-        if self.creation_time is None:
-            self.creation_time = datetime.datetime.utcnow().isoformat()
-
         # Add yields of tasks in run() method, to serve as dynamic dependencies.
         # This method should be rerun each time it yields a job.
-        if not self.table_list:
-            results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
-            self.table_list = [result[0].strip() for result in results]
 
         pre_import_task = PreImportDatabaseTask(
             date=self.date,
@@ -380,13 +516,12 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
         yield pre_import_task
 
         table_white_list = []
-        for table_name in self.table_list:
+        for table_name in self.get_table_list_for_database():
             if not self.should_exclude_table(table_name):
                 table_white_list.append(table_name)
-                yield LoadMysqlToVerticaTableTask(
+                yield LoadMysqlTableFromS3ToVerticaTask(
                     credentials=self.credentials,
                     schema=pre_import_task.schema_loading,
-                    db_credentials=self.db_credentials,
                     database=self.database,
                     warehouse_path=self.warehouse_path,
                     warehouse_subdirectory=self.warehouse_subdirectory,
@@ -394,7 +529,6 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
                     overwrite=self.overwrite,
                     date=self.date,
                     marker_schema=self.marker_schema,
-                    exclude_field=self.exclude_field,
                 )
 
         yield PostImportDatabaseTask(
@@ -405,30 +539,6 @@ class ImportMysqlToVerticaTask(MysqlToVerticaTaskMixin, luigi.WrapperTask):
             overwrite=self.overwrite,
             tables=table_white_list
         )
-
-        metadata = {
-            'table_list': table_white_list,
-            'database': self.database,
-            'date': self.date.isoformat(),
-            'exclude': self.exclude,
-            'warehouse_path': self.warehouse_path,
-            'warehouse_subdirectory': self.warehouse_subdirectory,
-            'creation_time': self.creation_time,
-            'completion_time': datetime.datetime.utcnow().isoformat(),
-        }
-
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        metadata_destination = url_path_join(
-            self.warehouse_path,
-            self.warehouse_subdirectory,
-            self.database,
-            DUMP_METADATA_OUTPUT,
-            partition_path_spec,
-            METADATA_FILENAME,
-        )
-        metadata_target = get_target_from_url(metadata_destination)
-        with metadata_target.open('w') as metadata_file:
-            json.dump(metadata, metadata_file)
 
         self.is_complete = True
 
@@ -693,199 +803,7 @@ SNOWFLAKE_RESERVED_KEYWORDS = (
 )
 
 
-class MysqlToSnowflakeTaskMixin(MysqlToWarehouseTaskMixin):
-    """
-    Parameters for importing a MySQL database into Snowflake.
-    """
-    # Use the same S3 subdirectory for Snowflake loads that was used for Vertica loads
-    # and rely on an ExternalURL task instead of SqoopImportFromMysql.
-    warehouse_subdirectory = luigi.Parameter(
-        default='import_mysql_to_vertica',
-        description='Subdirectory under warehouse_path to store intermediate data.'
-    )
-
-
-class LoadMysqlToSnowflakeTableTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadFromHiveTSVTask):
-    """
-    Task to import a table from MySQL into Snowflake.
-    """
-    table_name = luigi.Parameter(
-        description='The name of the table to be loaded.',
-    )
-
-    def __init__(self, *args, **kwargs):
-        """
-        Init this task.
-        """
-        super(LoadMysqlToSnowflakeTableTask, self).__init__(*args, **kwargs)
-        self.table_fields = []
-        self.deleted_fields = []
-
-    def get_snowflake_schema(self):
-        """
-        Transforms MySQL table schema into a Snowflake-compliant schema.
-        """
-        if not self.table_fields:
-            results = get_mysql_query_results(self.db_credentials, self.database, 'describe {}'.format(self.table_name))
-            for result in results:
-                field_name = result[0].strip()
-                field_type = result[1].strip()
-                field_null = result[2].strip()
-
-                if self.should_exclude_field(self.table_name, field_name):
-                    self.deleted_fields.append(field_name)
-                else:
-                    # Enclose any Snowflake-reserved keyword field names within double-quotes.
-                    if field_name.upper() in SNOWFLAKE_RESERVED_KEYWORDS:
-                        field_name = '"{}"'.format(field_name.upper())
-
-                    mysql_types_with_parentheses = ['smallint', 'int', 'bigint', 'datetime', 'varchar']
-                    if field_type == 'tinyint(1)':
-                        field_type = 'BOOLEAN'
-                    elif any(_type in field_type for _type in mysql_types_with_parentheses):
-                        field_type = field_type.rsplit('(')[0]
-                    elif field_type == 'longtext':
-                        field_type = 'VARCHAR'
-                    elif field_type == 'longblob':
-                        field_type = 'BINARY'
-
-                    if field_null == 'NO':
-                        field_type += ' NOT NULL'
-
-                    self.table_fields.append((field_name, field_type))
-
-        return self.table_fields
-
-    @property
-    def insert_source_task(self):
-        """
-        Insert the Sqoop task that imports the source MySQL data into S3.
-        """
-        # Use all columns - but strip any double-quotes from the column names.
-        columns = [field[0].strip('"') for field in self.table_schema]
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        destination = url_path_join(
-            self.warehouse_path,
-            self.warehouse_subdirectory,
-            self.database,
-            self.table_name,
-            partition_path_spec
-        ) + '/'
-
-        return SqoopImportFromMysql(
-            table_name=self.table_name,
-            credentials=self.db_credentials,
-            database=self.database,
-            destination=destination,
-            mysql_delimiters=False,
-            fields_terminated_by=self.field_delimiter,
-            null_string=self.null_marker,
-            delimiter_replacement=' ',
-            direct=False,
-            columns=columns,
-        )
-
-    @property
-    def table(self):
-        return self.table_name
-
-    @property
-    def table_schema(self):
-        return self.get_snowflake_schema()
-
-    @property
-    def columns(self):
-        return self.table_schema
-
-    @property
-    def file_format_name(self):
-        return 'SQOOP_MYSQL_FORMAT'
-
-    @property
-    def pattern(self):
-        return '.*part-m.*'
-
-    @property
-    def table_description(self):
-        optional = ''
-        if self.deleted_fields:
-            optional = '  Fields not included in the copy: {}'.format(', '.join(self.deleted_fields))
-        return "Copy of '{}' table from '{}' MySQL database on {}.{}".format(self.table_name, self.database, self.date.isoformat(), optional)
-
-    @property
-    def table_friendly_name(self):
-        return '{} from {}'.format(self.table_name, self.database)
-
-
-class ImportMysqlDatabaseToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
-    """
-    Provides entry point for importing a MySQL database into Snowflake as a single schema.
-
-    Assumes that only one database is written to each schema.
-    """
-    exclude = luigi.ListParameter(
-        default=(),
-        description='List of regular expressions matching database table names that should not be imported from MySQL to Snowflake.'
-    )
-
-    def __init__(self, *args, **kwargs):
-        """
-        Inits this Luigi task.
-        """
-        super(ImportMysqlDatabaseToSnowflakeSchemaTask, self).__init__(*args, **kwargs)
-        self.table_list = []
-        self.required_tasks = None
-
-    def should_exclude_table(self, table_name):
-        """
-        Determines whether to exclude a table during the import.
-        """
-        if any(re.match(pattern, table_name) for pattern in self.exclude):
-            return True
-        return False
-
-    def requires(self):
-        """
-        Determines the required tasks given the non-excluded tables in the MySQL schema.
-        """
-        if not self.table_list:
-            # Compute the list of required MySQL tables to import, excluding any excluded tables.
-            results = get_mysql_query_results(self.db_credentials, self.database, 'show tables')
-            unfiltered_table_list = [result[0].strip() for result in results]
-            self.table_list = [table_name for table_name in unfiltered_table_list if not self.should_exclude_table(table_name)]
-        if self.required_tasks is None:
-            self.required_tasks = []
-            for table_name in self.table_list:
-                self.required_tasks.append(
-                    LoadMysqlToSnowflakeTableTask(
-                        db_credentials=self.db_credentials,
-                        sf_database=self.sf_database,
-                        schema=self.schema,
-                        scratch_schema=self.scratch_schema,
-                        run_id=self.run_id,
-                        warehouse=self.warehouse,
-                        role=self.role,
-                        warehouse_path=self.warehouse_path,
-                        warehouse_subdirectory=self.warehouse_subdirectory,
-                        database=self.database,
-                        table_name=table_name,
-                        overwrite=self.overwrite,
-                        date=self.date,
-                        credentials=self.credentials,
-                        exclude_field=self.exclude_field,
-                    )
-                )
-        return self.required_tasks
-
-    def complete(self):
-        """
-        Reduces the result of the required tasks into a single complete/not-complete.
-        """
-        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
-        return all(r.complete() for r in luigi.task.flatten(self.requires()))
-
-
-class LoadMysqlTableFromS3ToSnowflakeTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadFromHiveTSVTask):
+class LoadMysqlTableFromS3ToSnowflakeTask(MysqlTableExportMixin, SnowflakeLoadFromHiveTSVTask):
     """
     Task to import a table from S3 but originally from MySQL into Snowflake.
     """
@@ -901,27 +819,14 @@ class LoadMysqlTableFromS3ToSnowflakeTask(MysqlToSnowflakeTaskMixin, SnowflakeLo
         Init this task.
         """
         super(LoadMysqlTableFromS3ToSnowflakeTask, self).__init__(*args, **kwargs)
-        metadata_target = self._get_metadata_target()
-        with metadata_target.open('r') as metadata_file:
-            self.metadata = json.load(metadata_file)
-
-    def _get_metadata_target(self):
-        """Returns target for metadata file from the given dump."""
-        # find the .metadata file in the source directory.
-        metadata_path = url_path_join(self.s3_location_for_table, METADATA_FILENAME)
-        return get_target_from_url(metadata_path)
-
-    @property
-    def mysql_table_schema(self):
-        # Override the default property.
-        return self.metadata['additional_metadata']['table_schema']
+        self.metadata = self.get_table_metadata()
 
     def get_snowflake_schema(self):
         """
         Transforms MySQL table schema into a Snowflake-compliant schema.
         """
         results = []
-        for field_name, field_type, field_null in self.mysql_table_schema:
+        for field_name, field_type, field_null in self.mysql_table_schema():
 
             # Enclose any Snowflake-reserved keyword field names within double-quotes.
             if field_name.upper() in SNOWFLAKE_RESERVED_KEYWORDS:
@@ -943,18 +848,6 @@ class LoadMysqlTableFromS3ToSnowflakeTask(MysqlToSnowflakeTaskMixin, SnowflakeLo
             results.append((field_name, field_type))
 
         return results
-
-    @property
-    def s3_location_for_table(self):
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        destination = url_path_join(
-            self.warehouse_path,
-            self.warehouse_subdirectory,
-            self.database,
-            self.table_name,
-            partition_path_spec
-        ) + '/'
-        return destination
 
     @property
     def insert_source_task(self):
@@ -992,7 +885,7 @@ class LoadMysqlTableFromS3ToSnowflakeTask(MysqlToSnowflakeTaskMixin, SnowflakeLo
         return "Copy of '{}' table from '{}' MySQL database on {}.{}".format(self.table_name, self.database, self.date.isoformat(), optional)
 
 
-class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
+class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlDatabaseExportMixin, SnowflakeLoadDownstreamMixin, luigi.WrapperTask):
     """
     Provides entry point for importing a MySQL database into Snowflake as a single schema.
 
@@ -1007,26 +900,11 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         Inits this Luigi task.
         """
         super(ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask, self).__init__(*args, **kwargs)
-        metadata_target = self.get_schema_metadata_target()
+        metadata_target = self.database_metadata_target()
         with metadata_target.open('r') as metadata_file:
             self.metadata = json.load(metadata_file)
 
         self.required_tasks = None
-
-    def get_table_list_for_database(self):
-        return self.metadata['table_list']
-
-    def get_schema_metadata_target(self):
-        partition_path_spec = HivePartition('dt', self.date.isoformat()).path_spec
-        metadata_location = url_path_join(
-            self.warehouse_path,
-            self.warehouse_subdirectory,
-            self.database,
-            DUMP_METADATA_OUTPUT,
-            partition_path_spec,
-            METADATA_FILENAME,
-        )
-        return get_target_from_url(metadata_location)
 
     def requires(self):
         """
@@ -1035,23 +913,24 @@ class ImportMysqlDatabaseFromS3ToSnowflakeSchemaTask(MysqlToSnowflakeTaskMixin, 
         if self.required_tasks is None:
             self.required_tasks = []
             for table_name in self.get_table_list_for_database():
-                self.required_tasks.append(
-                    LoadMysqlTableFromS3ToSnowflakeTask(
-                        sf_database=self.sf_database,
-                        schema=self.schema,
-                        scratch_schema=self.scratch_schema,
-                        run_id=self.run_id,
-                        warehouse=self.warehouse,
-                        role=self.role,
-                        warehouse_path=self.warehouse_path,
-                        warehouse_subdirectory=self.warehouse_subdirectory,
-                        database=self.database,
-                        table_name=table_name,
-                        overwrite=self.overwrite,
-                        date=self.date,
-                        credentials=self.credentials,
+                if not self.should_exclude_table(table_name):
+                    self.required_tasks.append(
+                        LoadMysqlTableFromS3ToSnowflakeTask(
+                            sf_database=self.sf_database,
+                            schema=self.schema,
+                            scratch_schema=self.scratch_schema,
+                            run_id=self.run_id,
+                            warehouse=self.warehouse,
+                            role=self.role,
+                            warehouse_path=self.warehouse_path,
+                            warehouse_subdirectory=self.warehouse_subdirectory,
+                            database=self.database,
+                            table_name=table_name,
+                            overwrite=self.overwrite,
+                            date=self.date,
+                            credentials=self.credentials,
+                        )
                     )
-                )
         return self.required_tasks
 
     def complete(self):

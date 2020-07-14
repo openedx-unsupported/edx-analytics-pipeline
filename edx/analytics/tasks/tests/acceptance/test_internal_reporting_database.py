@@ -26,10 +26,16 @@ class DatabaseImportAcceptanceTest(AcceptanceTestCase):
     @when_vertica_available
     def test_database_import(self):
         self.task.launch([
-            'ImportMysqlToVerticaTask',
+            'ExportMysqlDatabaseToS3Task',
+            '--date', self.DATE,
+            '--exclude-field', as_list_param('.*\\.field_to_exclude$'),
+            '--overwrite',
+        ])
+
+        self.task.launch([
+            'ImportMysqlDatabaseFromS3ToVerticaSchemaTask',
             '--date', self.DATE,
             '--marker-schema', 'acceptance_marker',
-            '--exclude-field', as_list_param('.*\\.field_to_exclude$'),
             '--overwrite',
         ])
 
