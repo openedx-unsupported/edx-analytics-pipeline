@@ -34,12 +34,12 @@ else
 endif
 
 requirements:
-	pip install -r requirements/pip.txt
-	pip install -r requirements/default.txt --no-cache-dir
-	pip install -r requirements/extra.txt --no-cache-dir
+	pip install -qr requirements/pip.txt
+	pip install -qr requirements/default.txt --no-cache-dir
+	pip install -qr requirements/extra.txt --no-cache-dir
 
 test-requirements: requirements
-	pip install -r requirements/test.txt --no-cache-dir
+	pip install -qr requirements/test.txt --no-cache-dir
 
 reset-virtualenv:
 	# without bash, environment variables are not available
@@ -68,27 +68,27 @@ test-docker-py3:
 test-local:
 	# TODO: when we have better coverage, modify this to actually fail when coverage is too low.
 	rm -rf .coverage
-	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --with-xunit --xunit-file=unittests.xml -A 'not acceptance'
+	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run -m pytest -k 'not acceptance'
 
 test: test-requirements develop test-local
 
 test-acceptance: test-requirements
-	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
+	LUIGI_CONFIG_PATH='config/test.cfg' python -m coverage run -m pytest -k acceptance $(ONLY_TESTS)
 
 test-acceptance-py3: test-requirements
-	LUIGI_CONFIG_PATH='config/test.cfg' python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance $(ONLY_TESTS)
+	LUIGI_CONFIG_PATH='config/test.cfg' python3 -m coverage run -m pytest -k acceptance $(ONLY_TESTS)
 
 test-acceptance-local:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run -m pytest -x -k acceptance $(ONLY_TESTS)
 
 test-acceptance-local-py3:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run -m pytest -x -k acceptance $(ONLY_TESTS)
 
 test-acceptance-local-all:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python -m coverage run -m pytest -k acceptance
 
 test-acceptance-local-all-py3:
-	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/test.cfg' ACCEPTANCE_TEST_CONFIG="/var/tmp/acceptance.json" python3 -m coverage run -m pytest -k acceptance
 
 quality-local:
 	bash -c 'source ${ANALYTICS_PIPELINE_VENV}/analytics_pipeline/bin/activate && isort --check-only --recursive edx/'
@@ -105,9 +105,7 @@ coverage-docker:
 
 coverage-local: test-local
 	python -m coverage html
-	python -m coverage xml -o coverage.xml
-	diff-cover coverage.xml --html-report diff_cover.html
-
+	diff-cover coverage.xml --html-report diff_cover.html --compare-branch=origin/master
 	isort --check-only --recursive edx/
 
 	# Compute pep8 quality
@@ -138,10 +136,10 @@ todo:
 
 # for docker devstack
 docker-test-acceptance-local:
-	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance --stop -v $(ONLY_TESTS)
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run -m pytest -x -k acceptance $(ONLY_TESTS)
 
 docker-test-acceptance-local-all:
-	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run --rcfile=./.coveragerc -m nose --nocapture --with-xunit -A acceptance -v
+	LAUNCH_TASK=$(shell which launch-task) REMOTE_TASK=$(shell which remote-task) LUIGI_CONFIG_PATH='config/docker_test.cfg' ACCEPTANCE_TEST_CONFIG="/edx/etc/edx-analytics-pipeline/acceptance.json" python -m coverage run -m pytest -k acceptance
 
 generate-spark-egg-files:
 	# edx-opaque-keys egg
