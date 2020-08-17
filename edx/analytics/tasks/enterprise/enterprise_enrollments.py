@@ -337,8 +337,11 @@ class EnterpriseEnrollmentDataTask(
                         AND courseentitlement.enrollment_course_run_id IS NOT NULL
                     LEFT JOIN student_courseenrollment student_course_enrollment
                         ON student_course_enrollment.id = courseentitlement.enrollment_course_run_id
-                    WHERE ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
-                            OR productattributevalue.value_text = ecomm_order_product.course_uuid
+                    LEFT JOIN refund_refundline AS refund_line
+                        ON ecommerce_order_line.id = refund_line.order_line_id
+                    WHERE (refund_line.id IS NULL OR refund_line.status != 'Complete')
+                        AND (ecommerce_catalogue_product.course_id = ecomm_order_product.course_id
+                             OR productattributevalue.value_text = ecomm_order_product.course_uuid)
                 ) ecommerce_data
                     ON auth_user.username = ecommerce_data.username
                     AND enterprise_course_enrollment.course_id = ecommerce_data.course_id
