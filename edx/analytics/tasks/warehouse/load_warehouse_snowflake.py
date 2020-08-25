@@ -250,6 +250,10 @@ class LoadInternalReportingUserActivityToSnowflake(WarehouseMixin, SnowflakeLoad
         return '.*dt=.*/.*'
 
     @property
+    def truncate_columns(self):
+        return "TRUE"
+
+    @property
     def table(self):
         return 'f_user_activity'
 
