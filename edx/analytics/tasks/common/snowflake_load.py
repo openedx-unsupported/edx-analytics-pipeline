@@ -264,6 +264,13 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
         return ".*"
 
     @property
+    def truncate_columns(self):
+        """
+        Whether to truncate text strings that exceed the target column length.
+        """
+        return "FALSE"
+
+    @property
     def table_description(self):
         """
         Description of table containing various facts, such as import time and excluded fields.
@@ -353,10 +360,12 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
         COPY INTO {scratch_table}
         FROM @{stage_name}
         PATTERN='{pattern}'
+        TRUNCATECOLUMNS = {truncate_columns}
         """.format(
             scratch_table=self.qualified_scratch_table_name,
             stage_name=self.qualified_stage_name,
             pattern=self.pattern,
+            truncate_columns=self.truncate_columns,
         )
         log.debug(query)
         _execute_query(connection, query)
