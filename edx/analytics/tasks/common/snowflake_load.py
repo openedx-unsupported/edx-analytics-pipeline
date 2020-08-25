@@ -267,6 +267,7 @@ class SnowflakeLoadTask(SnowflakeLoadDownstreamMixin, luigi.Task):
     def truncate_columns(self):
         """
         Whether to truncate text strings that exceed the target column length.
+        Note that this will be applied on all string columns of the table.
         """
         return "FALSE"
 
