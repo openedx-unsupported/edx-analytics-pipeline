@@ -1881,13 +1881,14 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, Overwrit
         return """
         SELECT   all_enrollments.course_id AS course_id,
                  all_enrollments.mode AS mode,
-                 SUM(CASE WHEN closest_enrollment.passed_timestamp IS NOT NULL THEN 1 ELSE 0 END) AS passing_users
+                 SUM(CASE WHEN closest_enrollment.passed_timestamp IS NOT NULL AND closest_enrollment.letter_grade != '' THEN 1 ELSE 0 END) AS passing_users
         FROM     course_enrollment all_enrollments
                  LEFT OUTER JOIN (
                      SELECT ce.course_id,
                             ce.user_id,
                             MAX(ce.`date`) AS enrollment_date,
-                            MAX(grades.passed_timestamp) AS passed_timestamp
+                            MAX(grades.passed_timestamp) AS passed_timestamp,
+                            MAX(grades.letter_grade) as letter_grade
                      FROM   course_enrollment ce
                             INNER JOIN grades_persistentcoursegrade grades
                                     ON grades.course_id = ce.course_id
