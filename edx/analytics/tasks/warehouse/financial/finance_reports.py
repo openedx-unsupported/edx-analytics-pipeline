@@ -3,13 +3,9 @@ import luigi
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTaskMixin
 from edx.analytics.tasks.common.vertica_load import VerticaCopyTaskMixin
-from edx.analytics.tasks.warehouse.financial.ed_services_financial_report import (
-    LoadInternalReportingEdServicesReportToWarehouse
-)
 from edx.analytics.tasks.warehouse.financial.reconcile import (
     LoadInternalReportingFullOrderTransactionsToWarehouse, LoadInternalReportingFullOttoOrdersToWarehouse,
-    LoadInternalReportingFullShoppingcartOrdersToWarehouse, LoadInternalReportingOrderTransactionsToWarehouse,
-    TransactionReportTask
+    LoadInternalReportingFullShoppingcartOrdersToWarehouse, LoadInternalReportingOrderTransactionsToWarehouse
 )
 
 
@@ -32,10 +28,6 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
 
     def requires(self):
         yield (
-            TransactionReportTask(
-                import_date=self.import_date,
-                n_reduce_tasks=self.n_reduce_tasks,
-            ),
             LoadInternalReportingOrderTransactionsToWarehouse(
                 import_date=self.import_date,
                 n_reduce_tasks=self.n_reduce_tasks,
@@ -43,13 +35,6 @@ class BuildFinancialReportsTask(MapReduceJobTaskMixin, VerticaCopyTaskMixin, lui
                 credentials=self.credentials,
                 overwrite=self.overwrite,
                 is_empty_transaction_allowed=self.is_empty_transaction_allowed
-            ),
-            LoadInternalReportingEdServicesReportToWarehouse(
-                import_date=self.import_date,
-                n_reduce_tasks=self.n_reduce_tasks,
-                schema=self.schema,
-                credentials=self.credentials,
-                overwrite=self.overwrite,
             ),
             # The following task performs transaction reconciliation on a more complete order record.
             # Rather than hunt down all the places where the current table is being used, we instead
