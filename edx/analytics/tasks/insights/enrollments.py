@@ -1881,6 +1881,8 @@ class CourseGradeByModeDataTask(CourseSummaryEnrollmentDownstreamMixin, Overwrit
         return """
         SELECT   all_enrollments.course_id AS course_id,
                  all_enrollments.mode AS mode,
+                 --A learner is considered as passing when passed_timestamp is non-null and letter_grade is non-empty.
+                 --If passed_timestamp is non-null and letter_grade is empty, the learner transitioned from passing to not passing.
                  SUM(CASE WHEN closest_enrollment.passed_timestamp IS NOT NULL AND closest_enrollment.letter_grade != '' THEN 1 ELSE 0 END) AS passing_users
         FROM     course_enrollment all_enrollments
                  LEFT OUTER JOIN (
