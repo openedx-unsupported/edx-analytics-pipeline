@@ -27,4 +27,7 @@ VALUES
 ),
 (
   3, 'edX/Open_DemoX/edx_demo_course', 'version-1', 'grading-policy-1', 0.2, 'Fail', NULL, '2017-02-01T00:00:00', '2017-02-01T00:00:00'
+),
+(
+  4, 'edX/Open_DemoX/edx_demo_course', 'version-1', 'grading-policy-1', 0, '', '2017-01-31T00:05:00', '2017-02-01T00:00:00', '2017-02-01T00:00:00'
 );
