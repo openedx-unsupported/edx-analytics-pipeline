@@ -15,7 +15,9 @@ DEFAULT_RETRY_STATUS_CODES = (
     requests.codes.request_timeout,         # HTTP Status Code 408
     requests.codes.too_many_requests,       # HTTP Status Code 429
     requests.codes.service_unavailable,     # HTTP Status Code 503
-    requests.codes.gateway_timeout          # HTTP Status Code 504
+    requests.codes.gateway_timeout,         # HTTP Status Code 504
+    requests.codes.bad_gateway,             # HTTP Status Code 502
+    520,                                    # This is a custom Cloudwatch code for "Unknown error".
 )
 DEFAULT_TIMEOUT_SECONDS = 7200
 
