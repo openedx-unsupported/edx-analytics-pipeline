@@ -168,9 +168,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         elasticsearch_client.indices.create(index=self.index, body={
             'settings': settings,
             'mappings': {
-                self.doc_type: {
-                    'properties': self.properties
-                }
+                'properties': self.properties
             }
         })
 
@@ -270,7 +268,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         batch_written_successfully = False
         while True:
             try:
-                resp = elasticsearch_client.bulk(bulk_action_batch, index=self.index, doc_type=self.doc_type)
+                resp = elasticsearch_client.bulk(bulk_action_batch, index=self.index)
             except TransportError as transport_error:
                 if transport_error.status_code not in (REJECTED_REQUEST_STATUS, HTTP_SERVICE_UNAVAILABLE_STATUS_CODE):
                     raise transport_error
@@ -340,13 +338,6 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         """
         raise NotImplementedError
 
-    @property
-    def doc_type(self):
-        """
-        Elasticsearch `document type <https://www.elastic.co/guide/en/elasticsearch/guide/current/mapping.html>`_.
-        """
-        raise NotImplementedError
-
     def extra_modules(self):
         import urllib3
 
@@ -367,7 +358,6 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         return ElasticsearchTarget(
             client=self.create_elasticsearch_client(),
             index=self.alias,
-            doc_type=self.doc_type,
             update_id=self.update_id()
         )
 
