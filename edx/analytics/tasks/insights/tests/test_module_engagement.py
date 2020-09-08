@@ -961,7 +961,6 @@ class ModuleEngagementRosterIndexTaskTest(ReducerTestMixin, TestCase):
         self.assertEquals(self.task.partition_task.n_reduce_tasks, 10)
 
     def test_elasticsearch_properties(self):
-        self.assertEqual(self.task.doc_type, 'roster_entry')
         self.assertEqual(self.task.properties, ModuleEngagementRosterRecord.get_elasticsearch_properties())
 
     def test_documents(self):
