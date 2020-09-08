@@ -135,10 +135,8 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
                     'refresh_interval': 10
                 },
                 'mappings': {
-                    'raw_text': {
-                        'properties': {
-                            'all_text': {'type': 'string'}
-                        }
+                    'properties': {
+                        'all_text': {'type': 'string'}
                     }
                 }
             }
@@ -180,10 +178,6 @@ class RawIndexTask(ElasticsearchIndexTask):
         'refresh_interval': 10
     }
 
-    @property
-    def doc_type(self):
-        return 'raw_text'
-
     def document_generator(self, lines):
         for line in lines:
             yield {'_source': {'all_text': line}}
@@ -204,8 +198,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
                 {'index': {}},
                 {'all_text': 'a'}
             ],
-            index=self.task.index,
-            doc_type='raw_text'
+            index=self.task.index
         )
 
     def test_multiple_batches(self):
@@ -242,7 +235,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
 
     def bulk_call(self, actions):
         """A call to the ES bulk API"""
-        return call(actions, index=self.task.index, doc_type='raw_text')
+        return call(actions, index=self.task.index)
 
     def test_transport_error(self):
         self.mock_es.bulk.side_effect = TransportError(404, 'Not found', 'More detail')
@@ -363,11 +356,9 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
         return call.__getattr__('index')(
             body={
                 'date': datetime.datetime(2016, 3, 25, 0, 0, 0, 0),
-                'target_doc_type': 'raw_text',
                 'update_id': self.task.update_id(),
                 'target_index': 'foo_alias'
             },
-            doc_type='marker',
             id=self.task.output().marker_index_document_id(),
             index='index_updates'
         )
