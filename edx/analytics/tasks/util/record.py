@@ -410,8 +410,6 @@ class Record(object):
             if elasticsearch_format:
                 properties[field_name]['format'] = elasticsearch_format
 
-            if not getattr(field_obj, 'analyzed', False):
-                properties[field_name]['index'] = 'not_analyzed'
         return properties
 
     @classmethod
@@ -568,7 +566,7 @@ class StringField(Field):  # pylint: disable=abstract-method
 
     hive_type = 'STRING'
     bigquery_type = 'STRING'
-    elasticsearch_type = 'string'
+    elasticsearch_type = 'keyword'
 
     def validate_parameters(self):
         if not hasattr(self, 'length'):
@@ -613,7 +611,7 @@ class DelimitedStringField(Field):
     hive_type = 'STRING'
     bigquery_type = 'STRING'
     sql_base_type = 'VARCHAR'
-    elasticsearch_type = 'string'
+    elasticsearch_type = 'text'
     delimiter = '\0'
 
     def serialize_to_string(self, value):
