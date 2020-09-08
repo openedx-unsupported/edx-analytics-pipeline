@@ -226,19 +226,16 @@ class RecordTestCase(TestCase):
             SampleElasticSearchStruct.get_elasticsearch_properties(),
             {
                 'name': {
-                    'type': 'string',
-                    'index': 'not_analyzed',
+                    'type': 'keyword',
                 },
                 'index': {
                     'type': 'integer',
                 },
                 'date': {
                     'type': 'date',
-                    'index': 'not_analyzed',
                 },
                 'dateTime': {
                     'type': 'date',
-                    'index': 'not_analyzed',
                     'format': 'yyyy-MM-dd HH:mm:ss.SSSSSS',
                 },
             }
@@ -599,7 +596,7 @@ class DelimitedStringFieldTest(TestCase):
         self.assertEqual(DelimitedStringField().hive_type, 'STRING')
 
     def test_elasticsearch_type(self):
-        self.assertEqual(DelimitedStringField().elasticsearch_type, 'string')
+        self.assertEqual(DelimitedStringField().elasticsearch_type, 'text')
 
     def test_delimiter(self):
         self.assertEqual(DelimitedStringField().delimiter, '\0')
