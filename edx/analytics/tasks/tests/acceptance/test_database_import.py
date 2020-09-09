@@ -70,6 +70,10 @@ class TestImportPersistentCourseGradeTask(AcceptanceTestCase):
                 '3', '3', 'edX/Open_DemoX/edx_demo_course', '\\N', 'version-1', 'grading-policy-1',
                 '0.2', 'Fail', '\\N', '2017-02-01 00:00:00', '2017-02-01 00:00:00',
             ],
+            [
+                '4', '4', 'edX/Open_DemoX/edx_demo_course', '\\N', 'version-1', 'grading-policy-1',
+                '0', '', '2017-01-31T00:05:00', '2017-02-01T00:00:00', '2017-02-01T00:00:00',
+            ],
         ]
 
         expected_records = [GradesPersistentCourseGradeRecord.from_string_tuple(row) for row in expected_rows]
