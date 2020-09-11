@@ -136,7 +136,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
                 },
                 'mappings': {
                     'properties': {
-                        'all_text': {'type': 'string'}
+                        'all_text': {'type': 'text'}
                     }
                 }
             }
@@ -172,7 +172,7 @@ class RawIndexTask(ElasticsearchIndexTask):
     """A sample elasticsearch indexing class."""
 
     properties = {
-        'all_text': {'type': 'string'}
+        'all_text': {'type': 'text'}
     }
     settings = {
         'refresh_interval': 10
