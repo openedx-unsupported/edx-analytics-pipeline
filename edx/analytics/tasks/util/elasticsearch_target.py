@@ -8,10 +8,7 @@ import luigi
 import luigi.configuration
 from luigi.contrib.hdfs.target import HdfsTarget
 
-try:
-    import elasticsearch
-except ImportError:
-    elasticsearch = None
+import elasticsearch
 
 
 log = logging.getLogger(__name__)
@@ -44,7 +41,7 @@ class ElasticsearchTarget(HdfsTarget):
 
     def marker_index_document_id(self):
         """A concise string that represents a unique ID for this instance of this task."""
-        params = '%s:%s' % (self.index, self.update_id)
+        params = '{}:{}'.format(self.index, self.update_id)
         return hashlib.sha1(params.encode('utf-8')).hexdigest()
 
     def touch(self):

@@ -11,12 +11,9 @@ from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
-try:
-    import elasticsearch
-    import elasticsearch.helpers
-    from elasticsearch.exceptions import TransportError
-except ImportError:
-    elasticsearch = None
+import elasticsearch
+import elasticsearch.helpers
+from elasticsearch.exceptions import TransportError
 
 try:
     from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
@@ -374,10 +371,8 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         elasticsearch_client.indices.refresh(index=self.index)
 
         # Perform an atomic swap of the alias.
-        actions = []
         old_indexes = [ix for ix in self.indexes_for_alias if elasticsearch_client.indices.exists(index=ix)]
-        for old_index in old_indexes:
-            actions.append({"remove": {"index": old_index, "alias": self.alias}})
+        actions = [{"remove": {"index": old_index, "alias": self.alias}} for old_index in old_indexes]
         actions.append({"add": {"index": self.index, "alias": self.alias}})
         elasticsearch_client.indices.update_aliases({"actions": actions})
 
@@ -394,8 +389,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
         """
         elasticsearch_client = self.create_elasticsearch_client()
         try:
-            if elasticsearch_client.indices.exists(index=self.index):
-                elasticsearch_client.indices.delete(index=self.index)
+            elasticsearch_client.indices.delete(index=self.index, ignore=[400, 404])
         except Exception:  # pylint: disable=broad-except
             log.exception("Unable to rollback the elasticsearch load.")
 

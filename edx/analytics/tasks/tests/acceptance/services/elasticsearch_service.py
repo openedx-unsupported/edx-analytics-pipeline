@@ -1,8 +1,5 @@
-try:
-    import elasticsearch
-    from elasticsearch.connection import Urllib3HttpConnection
-except ImportError:
-    elasticsearch = None
+import elasticsearch
+from elasticsearch.connection import Urllib3HttpConnection
 
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
 
@@ -47,4 +44,4 @@ class ElasticsearchService(object):
             response = self._elasticsearch_client.search(index='index_updates', body=query)
 
             for doc in response['hits']['hits']:
-                self._elasticsearch_client.delete(index='index_updates', id=doc['_id'])
+                self._elasticsearch_client.delete(index='index_updates', doc_type='marker', id=doc['_id'])
