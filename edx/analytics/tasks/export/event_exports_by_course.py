@@ -30,9 +30,8 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         if event is None:
             return
 
-        course_id = eventlog.get_course_id(event, from_url=True)
-
-        if course_id is None:
+        course_id = eventlog.get_course_id(event, from_url=False)
+        if not course_id:
             return
 
         if self.course and course_id not in self.course:
@@ -48,10 +47,10 @@ class EventExportByCourseTask(EventLogSelectionMixin, MultiOutputMapReduceJobTas
         # were received by the server and use that to batch them into exports since it is much simpler than trying to
         # inject them into past exports. The use of EventExportByCourseTask is not incremental, we still use this to be
         # consistent with research exports and to be consistent with date of tracking log from where the event came.
-        try:
-            return event['context']['received_at']
-        except KeyError:
-            return super(EventExportByCourseTask, self).get_event_time(event)
+        # try:
+        #     return event['context']['received_at']
+        # except KeyError:
+        return super(EventExportByCourseTask, self).get_event_time(event)
 
     def output_path_for_key(self, key):
         date, course_id = key
