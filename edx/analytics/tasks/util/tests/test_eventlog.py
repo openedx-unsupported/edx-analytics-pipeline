@@ -185,6 +185,22 @@ class GetCourseIdTest(TestCase):
         }
         self.assertEquals(eventlog.get_course_id(event, from_url=True), 'course-v1:DemoX+DemoX+T1_2014')
 
+    def test_course_id_from_xblock_browser_url(self):
+        event = {
+            'event_source': 'browser',
+            'context': {},
+            'page': 'https://courses.edx.org/xblock/block-v1:DemoX+DemoX+T1_2014+type@vertical+block@3848270?p1=0&p2=0'
+        }
+        self.assertEquals(eventlog.get_course_id(event, from_url=True), 'course-v1:DemoX+DemoX+T1_2014')
+
+    def test_course_id_from_invalid_xblock_browser_url(self):
+        event = {
+            'event_source': 'browser',
+            'context': {},
+            'page': 'https://courses.edx.org/xblock/block-v1:DemoX+DemoX+T1_2014?p1=0&p2=0'
+        }
+        self.assertIsNone(eventlog.get_course_id(event, from_url=True))
+
     def test_missing_context(self):
         event = {
             'event_source': 'server'
