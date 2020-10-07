@@ -298,10 +298,12 @@ class LoadInternalReportingUserToSnowflake(WarehouseMixin, SnowflakeLoadFromHive
             ('user_year_of_birth', 'INTEGER'),
             ('user_level_of_education', 'VARCHAR(200)'),
             ('user_gender', 'VARCHAR(45)'),
-            # We use VARCHAR(100) for vertica, but vertica truncates to 100 characters, whereas snowflake throws an error.
-            ('user_email', 'VARCHAR(150)'),
-            # We use VARCHAR(45) for vertica, but vertica truncates to 45 characters, whereas snowflake throws an error.
-            # 54 is the maximum length in our data right now, all of which are retired_user_<sha-1>@retired.invalid
+            # The edx-platform codebase supports emails up to 254 characters long.
+            ('user_email', 'VARCHAR(254)'),
+            # 54 is the maximum length in our data right now, all of which are retired_user_<sha-1>@retired.invalid.  An
+            # interesting but less relevant fact is that the edx-platform code only supports registering new usernames
+            # up to 30 characters:
+            # https://github.com/edx/edx-platform/blob/6e3fe00/openedx/core/djangoapps/user_api/accounts/__init__.py#L18
             ('user_username', 'VARCHAR(54)'),
             ('user_account_creation_time', 'TIMESTAMP_TZ'),
             ('user_last_location_country_code', 'VARCHAR(45)')
