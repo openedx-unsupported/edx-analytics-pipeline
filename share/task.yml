@@ -135,8 +135,10 @@
       sudo: True
       when: ansible_distribution in common_redhat_variants
 
+    # 2020-10-14: Virtualenv needed to be upgraded to get a newer version of pip installed
+    # This version was the newest that would work with our version of setuptools.
     - name: virtualenv installed
-      pip: name=virtualenv version=1.10.1
+      pip: name=virtualenv version=16.7.10
       sudo: True
 
     - name: check if virtualenv already created
