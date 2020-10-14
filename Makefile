@@ -3,7 +3,7 @@
 
 uninstall:
 	pip install -r requirements/pip.txt
-	pip uninstall -y edx.analytics.tasks
+	-pip uninstall -y edx.analytics.tasks
 	python setup.py clean
 
 install: requirements uninstall

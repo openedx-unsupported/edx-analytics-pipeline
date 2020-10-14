@@ -137,7 +137,7 @@
       when: ansible_distribution in common_redhat_variants
 
     - name: virtualenv installed
-      pip: name=virtualenv version=16.6.1
+      pip: name=virtualenv version=16.7.10
       become: True
 
     #- name: check if virtualenv already created
