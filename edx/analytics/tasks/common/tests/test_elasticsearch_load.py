@@ -149,12 +149,17 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(kwargs['body']['settings'], {'refresh_interval': -1})
 
     def test_other_settings(self):
+        number_of_shards = 2
         self.task.settings = {
-            'foo': 'bar'
+            'foo': 'bar',
+            'number_of_shards': number_of_shards,
         }
         self.task.init_local()
         _args, kwargs = self.mock_es.indices.create.call_args
-        self.assertEqual(kwargs['body']['settings'], {'refresh_interval': -1, 'foo': 'bar'})
+        self.assertEqual(
+            kwargs['body']['settings'],
+            {'refresh_interval': -1, 'foo': 'bar', 'number_of_shards': number_of_shards,}
+        )
 
     def test_boto_connection_type(self):
         self.create_task(connection_type='aws')
@@ -412,4 +417,17 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
                 call.indices.flush(index='index_updates'),
                 call.indices.delete(index='foo_alias_old'),
             ]
+        )
+
+
+@freeze_time('2016-03-25')
+@patch.object(luigi.contrib.hdfs.target.HdfsTarget, '__del__', return_value=None)
+class ElasticsearchIndexTaskResetTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
+    """Tests for the rollback logic."""
+
+    def test_reset(self, _mock_del):
+        self.mock_es.indices.exists.return_value = False
+        self.task.rollback()
+        self.assertEqual(
+            self.mock_es.mock_calls, [call.indices.delete(index=self.task.index, ignore=[400, 404]), ]
         )
