@@ -5,15 +5,14 @@ import random
 import time
 from itertools import islice
 
+import elasticsearch
+import elasticsearch.helpers
 import luigi
+from elasticsearch.exceptions import TransportError
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
-
-import elasticsearch
-import elasticsearch.helpers
-from elasticsearch.exceptions import TransportError
 
 try:
     from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection

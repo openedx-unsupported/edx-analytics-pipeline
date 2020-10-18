@@ -158,7 +158,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         _args, kwargs = self.mock_es.indices.create.call_args
         self.assertEqual(
             kwargs['body']['settings'],
-            {'refresh_interval': -1, 'foo': 'bar', 'number_of_shards': number_of_shards,}
+            {'refresh_interval': -1, 'foo': 'bar', 'number_of_shards': number_of_shards}
         )
 
     def test_boto_connection_type(self):
