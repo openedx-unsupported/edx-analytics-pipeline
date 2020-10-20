@@ -16,6 +16,12 @@ COURSE_ID_PATTERN = COURSE_KEY_PATTERN.replace('course_key_string', 'course_id')
 # from common/djangoapps/util/request.py:
 COURSE_REGEX = re.compile(r'^.*?/courses/{}'.format(COURSE_ID_PATTERN))
 
+# Make sure that Opaque Keys' Stevedore extensions are loaded, this can sometimes fail to happen in EMR
+# and it is vitally important that they be there, or jobs will succeed but produce incorrect data. See
+# https://openedx.atlassian.net/wiki/spaces/DE/pages/1934263829/RCA+Insights+data+issues+2020-10-14+-+2020-10-15
+# This will raise an error early on in import if the plugins don't exist.
+CourseKey.get_namespace_plugin('course-v1')
+
 
 def normalize_course_id(course_id):
     """Make a best effort to rescue malformed course_ids"""
