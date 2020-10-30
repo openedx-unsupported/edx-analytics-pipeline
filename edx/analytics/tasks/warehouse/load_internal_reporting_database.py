@@ -18,7 +18,6 @@ from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
 
-
 log = logging.getLogger(__name__)
 
 # define pseudo-table-name to use for storing database-level metadata output.
