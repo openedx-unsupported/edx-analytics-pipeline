@@ -10,7 +10,12 @@ edx-ccx-keys==0.2.1     # AGPL
 edx-opaque-keys==0.4    # AGPL
 elasticsearch==1.7.0    # Apache
 filechunkio==1.8	# MIT
+
+# We should remove this because there is no more code using it. However,
+# psycopg2==2.6.2 currently breaks `make upgrade` and I don't want my small
+# task to balloon into a big one, especially for a deprecated repo.
 google-cloud-bigquery==0.27.0
+
 google-api-python-client==1.7.7
 graphitesend==0.10.0    # Apache
 gspread==3.1.0    # MIT

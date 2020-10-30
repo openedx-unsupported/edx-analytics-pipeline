@@ -775,7 +775,8 @@ class RecordMapper(object):
         Add the `obj` to the `record_key` entry of `record_dict`, performing appropriate conversion based on `record_field`.
 
         For strings, the entry is truncated, if necessary, so we should rarely see truncation errors.  Also, null characters
-        are escaped so that they won't fail when being loaded into BigQuery.
+        are escaped so that they won't fail when being loaded into BigQuery, which may no longer be necessary since we do
+        not use BigQuery anymore.
 
         For timestamps, parsing is done using ciso8601.
 

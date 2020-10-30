@@ -13,7 +13,7 @@ from edx.analytics.tasks.util import eventlog
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 from edx.analytics.tasks.util.tests.opaque_key_mixins import InitializeOpaqueKeysMixin
 from edx.analytics.tasks.warehouse.load_internal_reporting_events import (
-    VERSION, EventRecord, JsonEventRecord, PerDateSegmentEventRecordDataTask, PerDateTrackingEventRecordDataTask,
+    VERSION, EventRecord, PerDateSegmentEventRecordDataTask, PerDateTrackingEventRecordDataTask,
     SegmentEventRecordDataTask, TrackingEventRecordDataTask
 )
 
@@ -172,98 +172,6 @@ class TrackingEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, unittes
         self.assert_single_map_output(event, expected_key, expected_value)
 
 
-@ddt
-class TrackingJsonEventRecordTaskMapTest(BaseTrackingEventRecordTaskMapTest, unittest.TestCase):
-    """Test class for emission of tracking log events in JsonEventRecord format."""
-
-    EVENT_RECORD_TYPE = "JsonEventRecord"
-
-    def get_raw_event(self, event_line):
-        event = eventlog.parse_json_event(event_line)
-        event_data = eventlog.get_event_data(event)
-        if event_data is not None:
-            event['event'] = event_data
-        dump = json.dumps(event, sort_keys=True)
-        encoded_dump = backslash_encode_value(dump)
-        return encoded_dump
-
-    def _get_event_record_from_mapper(self, kwargs):
-        """Returns an EventRecord constructed from mapper output."""
-        line = self.create_event_log_line(**kwargs)
-        mapper_output = tuple(self.task.mapper(line))
-        self.assertEquals(len(mapper_output), 1)
-        row = mapper_output[0]
-        self.assertEquals(len(row), 2)
-        _actual_key, actual_value = row
-        return JsonEventRecord.from_tsv(actual_value)
-
-    @data(
-        {'time': "2013-12-01T15:38:32.805444"},  # a good time, but lies outside the interval
-        {'event_type': None},
-        {'event': 'sdfasdf'},
-    )
-    def test_invalid_events(self, kwargs):
-        self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
-
-    @data(
-        {'event_type': '/implicit/event/url'},
-    )
-    def test_implicit_events(self, kwargs):
-        event = self.create_event_log_line(**kwargs)
-        actual_record = self._get_event_record_from_mapper(kwargs)
-        url = getattr(actual_record, 'url')
-        self.assertEquals(url, kwargs['event_type'])
-        self.assertEquals(getattr(actual_record, 'event_type'), 'edx.server.request')
-
-    def test_problem_check(self):
-        template = self.event_templates['problem_check']
-        event = self.create_event_log_line(template=template)
-        expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
-        expected_dict = {
-            'input_file': '',
-            'source': self.task.PROJECT_NAME,
-            'event_type': 'problem_check',
-            'emitter_type': 'server',
-            'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
-            'username': 'test_user',
-            'course_id': self.encoded_course_id,
-            'org_id': self.encoded_org_id,
-            'user_id': '10',
-            'raw_event': self.get_raw_event(event),
-        }
-        expected_value = JsonEventRecord(**expected_dict).to_separated_values()
-        self.assert_single_map_output(event, expected_key, expected_value)
-
-    def test_play_video(self):
-        template = self.event_templates['play_video']
-        event = self.create_event_log_line(template=template)
-        expected_key = (self.DEFAULT_DATE, self.task.PROJECT_NAME)
-        expected_dict = {
-            'input_file': '',
-            'source': self.task.PROJECT_NAME,
-            'event_type': 'play_video',
-            'emitter_type': 'browser',
-            'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.805444+00:00'),
-            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
-            'username': 'test_user',
-            'course_id': self.encoded_course_id,
-            'org_id': self.encoded_org_id,
-            'user_id': '10',
-            'referrer': 'long meaningful url',
-            'agent_type': 'desktop',
-            'agent_device_name': 'Other',
-            'agent_os': 'Mac OS X',
-            'agent_browser': 'Safari',
-            'agent_touch_capable': False,
-            'raw_event': self.get_raw_event(event),
-        }
-        expected_value = JsonEventRecord(**expected_dict).to_separated_values()
-        self.assert_single_map_output(event, expected_key, expected_value)
-
-
 class BaseSegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMixin, unittest.TestCase):
     """Base class for test analysis of segment events."""
 
@@ -371,7 +279,7 @@ class BaseSegmentEventRecordTaskMapTest(InitializeOpaqueKeysMixin, MapperTestMix
 
 @ddt
 class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.TestCase):
-    """Test class for emission of segment log events in JsonEventRecord format."""
+    """Test class for emission of segment log events in EventRecord format."""
 
     EVENT_RECORD_TYPE = "EventRecord"
 
@@ -464,124 +372,3 @@ class SegmentEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.
         }
         expected_value = EventRecord(**expected_dict).to_separated_values()
         self.assert_single_map_output(event, expected_key, expected_value)
-
-
-@ddt
-class SegmentJsonEventRecordTaskMapTest(BaseSegmentEventRecordTaskMapTest, unittest.TestCase):
-    """Test class for emission of segment log events in JsonEventRecord format."""
-
-    EVENT_RECORD_TYPE = "JsonEventRecord"
-
-    def get_raw_event(self, event_line):
-        event = eventlog.parse_json_event(event_line)
-        dump = json.dumps(event, sort_keys=True)
-        encoded_dump = backslash_encode_value(dump)
-        return encoded_dump
-
-    @data(
-        {'receivedAt': "2013-12-01T15:38:32.805444Z"},
-        {'type': 'track', 'event': None},
-    )
-    def test_invalid_events(self, kwargs):
-        self.assert_no_map_output_for(self.create_event_log_line(**kwargs))
-
-    def _get_event_record_from_mapper(self, kwargs):
-        """Returns an EventRecord constructed from mapper output."""
-        line = self.create_event_log_line(**kwargs)
-        mapper_output = tuple(self.task.mapper(line))
-        self.assertEquals(len(mapper_output), 1)
-        row = mapper_output[0]
-        self.assertEquals(len(row), 2)
-        _actual_key, actual_value = row
-        return JsonEventRecord.from_tsv(actual_value)
-
-    @data(
-        {'timestamp': '2016-7-26T13:26:23-0500'},
-        {'timestamp': '2016-07-26T13:34:0026-0400'},
-        {'timestamp': '2016-0007-29T12:15:34+0530'},
-        {'timestamp': '2016-07-26 05:11:37 a.m. +0000'},
-    )
-    def test_funky_but_parsable_timestamps(self, kwargs):
-        actual_record = self._get_event_record_from_mapper(kwargs)
-        timestamp = getattr(actual_record, 'timestamp')
-        self.assertNotEquals(timestamp, None)
-
-    @data(
-        {'timestamp': '2016-07-26 05:11:37 a.m. +000A'},
-        # TODO: figure out why this no longer works!
-        {'timestamp': '0300-01-01T00:00:00.000Z'},
-    )
-    def test_unparsable_timestamps(self, kwargs):
-        actual_record = self._get_event_record_from_mapper(kwargs)
-        timestamp = getattr(actual_record, 'timestamp')
-        self.assertEquals(timestamp, None)
-
-    @data(
-        {'properties': {'course_id': 'course-v1:FooX+1.23x+2013_Spring'}},
-        {'properties': {'courseid': 'course-v1:FooX+1.23x+2013_Spring'}},
-        {'properties': {'course': 'course-v1:FooX+1.23x+2013_Spring'}},
-        {'properties': {'label': 'course-v1:FooX+1.23x+2013_Spring'}},
-        {'properties': {'url': 'https://courses.edx.org/courses/course-v1:FooX+1.23x+2013_Spring'}},
-        {'properties': {'url': 'https://courses.edx.org/courses/FooX/1.23x/2013_Spring'}},
-        {'properties': {'url': 'https://courses.edx.org/verify_student/start-flow/course-v1:FooX+1.23x+2013_Spring/'}},
-        {'properties': {'url': 'https://courses.edx.org/course_modes/choose/course-v1:FooX+1.23x+2013_Spring/'}},
-    )
-    def test_course_ids(self, kwargs):
-        actual_record = self._get_event_record_from_mapper(kwargs)
-        course_id = getattr(actual_record, 'course_id')
-        self.assertNotEquals(course_id, None)
-        org_id = getattr(actual_record, 'org_id')
-        self.assertNotEquals(org_id, None)
-
-    def test_android_screen(self):
-        template = self.event_templates['android_screen']
-        event = self.create_event_log_line(template=template)
-        expected_key = (self.DEFAULT_DATE, self.DEFAULT_PROJECT)
-        expected_dict = {
-            'input_file': '',
-            'source': self.DEFAULT_PROJECT,
-            'event_type': 'screen',
-            'emitter_type': 'server',
-            'timestamp': ciso8601.parse_datetime('2013-12-17T15:38:32.700000+00:00'),
-            'received_at': ciso8601.parse_datetime('2013-12-17T15:38:32.796000+00:00'),
-            'date': datetime.date(*[int(x) for x in self.DEFAULT_DATE.split('-')]),
-            'agent_type': 'tablet',
-            'agent_device_name': 'Samsung SM-N920A',
-            'agent_os': 'Android',
-            'agent_browser': 'Android',
-            'agent_touch_capable': True,
-            'anonymous_id': self.DEFAULT_ANONYMOUS_ID,
-            'category': 'screen',
-            'label': 'Launch\\0',
-            'raw_event': self.get_raw_event(event),
-        }
-        expected_value = JsonEventRecord(**expected_dict).to_separated_values()
-        self.assert_single_map_output(event, expected_key, expected_value)
-
-
-class PerDateTrackingJsonEventRecordTaskMapTest(TrackingJsonEventRecordTaskMapTest):
-
-    def create_task(self, date=None):  # pylint: disable=arguments-differ
-        """Allow arguments to be passed to the task constructor."""
-        if not date:
-            date = self.DEFAULT_DATE
-        self.task = PerDateTrackingEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
-            output_root='/fake/output',
-            event_record_type=self.EVENT_RECORD_TYPE,
-        )
-        self.task.init_local()
-
-
-class PerDateSegmentJsonEventRecordTaskMapTest(SegmentJsonEventRecordTaskMapTest):
-
-    def create_task(self, date=None):  # pylint: disable=arguments-differ
-        """Allow arguments to be passed to the task constructor."""
-        if not date:
-            date = self.DEFAULT_DATE
-        self.task = PerDateSegmentEventRecordDataTask(
-            date=luigi.DateParameter().parse(date),
-            output_root='/fake/output',
-            event_record_type=self.EVENT_RECORD_TYPE,
-        )
-        self.task.init_local()
