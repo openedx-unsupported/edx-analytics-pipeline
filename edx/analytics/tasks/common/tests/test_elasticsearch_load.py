@@ -56,7 +56,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(self.task.index, 'foo_alias_' + str(hash(self.task.update_id())))
 
     def test_index_already_in_use(self):
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -67,7 +67,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
             self.task.init_local()
 
     def test_multiple_aliases(self):
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}
@@ -85,7 +85,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_remove_if_exists(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -99,7 +99,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_overwrite_multiple_aliases(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}
@@ -116,7 +116,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_index_already_in_use_overwrite(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -385,7 +385,7 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
 
     def test_commit_with_existing_data(self, _mock_del):
         self.create_task()
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}

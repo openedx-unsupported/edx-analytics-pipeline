@@ -124,7 +124,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
 
         # Find all indexes that are referred to by this alias (currently). These will be deleted after a successful
         # load of the new index.
-        aliases = elasticsearch_client.indices.get_aliases(name=self.alias)
+        aliases = elasticsearch_client.indices.get_alias(name=self.alias)
         self.indexes_for_alias.update(
             [index for index, alias_info in aliases.iteritems() if self.alias in alias_info['aliases'].keys()]
         )
