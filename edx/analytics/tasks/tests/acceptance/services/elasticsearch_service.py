@@ -31,7 +31,7 @@ class ElasticsearchService(object):
         if self._disabled:
             return
 
-        response = self._elasticsearch_client.indices.get_aliases(name=self._alias)
+        response = self._elasticsearch_client.indices.get_alias(name=self._alias)
         for index, alias_info in response.iteritems():
             for alias in alias_info['aliases'].keys():
                 if alias == self._alias:
