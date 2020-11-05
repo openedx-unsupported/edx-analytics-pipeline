@@ -5,16 +5,20 @@ import re
 
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
-from opaque_keys.edx.locator import CourseLocator
+from opaque_keys.edx.locator import BlockUsageLocator, CourseLocator
 
 log = logging.getLogger(__name__)
 
-
-# from lms/envs/common.py:
-COURSE_KEY_PATTERN = r'(?P<course_key_string>[^/+]+(/|\+)[^/+]+(/|\+)[^/]+)'
+# Regex to extract a course_id from a course URL.
+# from openedx/core/constants.py:
+COURSE_KEY_PATTERN = r'(?P<course_key_string>[^/+]+(/|\+)[^/+]+(/|\+)[^/?]+)'
 COURSE_ID_PATTERN = COURSE_KEY_PATTERN.replace('course_key_string', 'course_id')
-# from common/djangoapps/util/request.py:
-COURSE_REGEX = re.compile(r'^.*?/courses/{}'.format(COURSE_ID_PATTERN))
+# from openedx/core/lib/request_utils.py:
+COURSE_REGEX = re.compile(r'^(.*?/courses/)(?!v[0-9]+/[^/]+){}'.format(COURSE_ID_PATTERN))
+
+# Regex to extract a course_id from a block URL/block ID.
+BLOCK_ID_PATTERN = r'(?P<block_id>[^/+]+(/|\+)[^/+]+(/|\+)[^/?#]+)'
+BLOCK_REGEX = re.compile(r'^(.*?/xblock/){}'.format(BLOCK_ID_PATTERN))
 
 # Make sure that Opaque Keys' Stevedore extensions are loaded, this can sometimes fail to happen in EMR
 # and it is vitally important that they be there, or jobs will succeed but produce incorrect data. See
@@ -100,13 +104,22 @@ def get_course_key_from_url(url):
     """
     url = url or ''
 
-    match = COURSE_REGEX.match(url)
-    course_key = None
-    if match:
-        course_id_string = match.group('course_id')
+    # First, try to extract the course_id assuming the URL follows this pattern:
+    # https://courses.edx.org/xblock/block-v1:org+course+run+type@vertical+block@3848270e75f34e409eaad53a2a7f1da5?show_title=0&show_bookmark_button=0
+    block_match = BLOCK_REGEX.match(url)
+    if block_match:
+        block_id_string = block_match.group('block_id')
         try:
-            course_key = CourseKey.from_string(course_id_string)
+            return BlockUsageLocator.from_string(block_id_string).course_key
         except InvalidKeyError:
-            pass
+            return None
 
-    return course_key
+    # Second, try to extract the course_id assuming the URL follows this pattern:
+    # https://courses.edx.org/courses/course-v1:org+course+run/courseware/unit1/der_3-sequential/?activate_block_id=block-v1%3Aorg%2Bcourse%2Brun%2Btype%40sequential%2Bblock%40der_3-sequential
+    course_match = COURSE_REGEX.match(url)
+    if course_match:
+        course_id_string = course_match.group('course_id')
+        try:
+            return CourseKey.from_string(course_id_string)
+        except InvalidKeyError:
+            return None

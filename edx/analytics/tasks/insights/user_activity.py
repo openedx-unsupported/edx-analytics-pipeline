@@ -55,9 +55,19 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
             log.error("User-Activity: event without user_id in context: %s", event)
             return
 
+        # Course user activity URLs have changed recently with the introduction of micro-frontends (MFEs).
+        # This code attempts to handle those URL changes with minimal diffences in the number of events processed/used.
+        #
+        # First, attempt to extract the course_id in the historical way - without attempting to extract it
+        # from the event URL.
         course_id = eventlog.get_course_id(event)
         if not course_id:
-            return
+            # If the first attempt fails to extract a course_id, then attempt to extract the course ID
+            # from the URL as well. (This logic is new, so only use it when the above fails.)
+            course_id = eventlog.get_course_id(event, from_url=True)
+            if not course_id:
+                # If a course_id *still* has not been extracted successfully, ignore this event.
+                return
 
         for label in self.get_predicate_labels(event):
             yield date_string, self._encode_tuple((str(user_id), course_id, date_string, label))
@@ -79,6 +89,12 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         labels = [ACTIVE_LABEL]
 
         if event_source == 'server':
+
+            # Ignore any server-based implicit events for the purposes of user activity.
+            # All implicit events have a source of 'server' and have a type beginning with '/'.
+            if event_type.startswith('/'):
+                return []
+
             if event_type == 'problem_check':
                 labels.append(PROBLEM_LABEL)
 
