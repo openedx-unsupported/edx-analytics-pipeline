@@ -8,7 +8,7 @@ boto3==1.4.8            # Apache 2.0
 ciso8601==1.0.3         # MIT
 edx-ccx-keys==0.2.1     # AGPL
 edx-opaque-keys==0.4    # AGPL
-elasticsearch>=7.8.0,<8.0.0    # Apache
+elasticsearch==7.8.0    # Apache
 filechunkio==1.8	# MIT
 google-api-python-client==1.7.7
 graphitesend==0.10.0    # Apache
