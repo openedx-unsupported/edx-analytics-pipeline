@@ -2,6 +2,7 @@
 
 import datetime
 import logging
+import re
 from collections import Counter
 
 import luigi
@@ -42,6 +43,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
     """
 
     output_root = None
+    ALLOWED_TYPE_CHARS_RE = re.compile(r'[^a-zA-Z0-9\!\@\#\$\%\^\&\*\(\)\_\-\+\=\[\]\{\}\;\:\'\"\/\?\,\.\<\>]')
 
     def mapper(self, line):
         value = self.get_event_and_date_string(line)
@@ -86,14 +88,11 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         if event_type.startswith('edx.course.enrollment.'):
             return []
 
+        LABEL_FORMAT = "ACTIVE_{evt_source}_{evt_type}"
+
         labels = [ACTIVE_LABEL]
 
         if event_source == 'server':
-
-            # Ignore any server-based implicit events for the purposes of user activity.
-            # All implicit events have a source of 'server' and have a type beginning with '/'.
-            if event_type.startswith('/'):
-                return []
 
             if event_type == 'problem_check':
                 labels.append(PROBLEM_LABEL)
@@ -104,6 +103,10 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         if event_source in ('browser', 'mobile'):
             if event_type == 'play_video':
                 labels.append(PLAY_VIDEO_LABEL)
+
+        event_type = self.ALLOWED_TYPE_CHARS_RE.sub('#', event_type[:20])
+        label = LABEL_FORMAT.format(evt_source=event_source, evt_type=event_type)
+        labels.append(label)
 
         return labels
 
