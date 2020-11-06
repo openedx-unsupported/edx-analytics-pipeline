@@ -1,7 +1,12 @@
+import logging
+
 import elasticsearch
 from elasticsearch.connection import Urllib3HttpConnection
+from elasticsearch.exceptions import ElasticsearchException, TransportError
 
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
+
+logger = logging.getLogger(__name__)
 
 
 class ElasticsearchService(object):
@@ -31,7 +36,15 @@ class ElasticsearchService(object):
         if self._disabled:
             return
 
-        response = self._elasticsearch_client.indices.get_alias(name=self._alias)
+        try:
+            response = self._elasticsearch_client.indices.get_alias(name=self._alias)
+        except TransportError as ex:
+            logger.error("Elasticsearch transport error while getting index by alias: %r", ex)
+            raise ex
+        except ElasticsearchException as ex:
+            logger.error("Elasticsearch error while getting index by alias: %r", ex)
+            raise ex
+
         for index, alias_info in response.iteritems():
             for alias in alias_info['aliases'].keys():
                 if alias == self._alias:
