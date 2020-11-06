@@ -44,4 +44,4 @@ class ElasticsearchService(object):
             response = self._elasticsearch_client.search(index='index_updates', body=query)
 
             for doc in response['hits']['hits']:
-                self._elasticsearch_client.delete(index='index_updates', doc_type='marker', id=doc['_id'])
+                self._elasticsearch_client.delete(index='index_updates', id=doc['_id'])
