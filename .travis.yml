@@ -39,6 +39,7 @@ before_install:
 
 script:
   - make test-docker
+  - make test_integration_with_es
   - make quality-docker
   - make coverage-docker
 
