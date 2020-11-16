@@ -191,7 +191,7 @@ class UserVideoViewingTask(EventLogSelectionMixin, MapReduceJobTask):
         if not isinstance(user_id, int):
             user_id = int(user_id)
 
-        course_id = eventlog.get_course_id(event)
+        course_id = eventlog.get_course_id(event, from_url=True)
         if course_id is None:
             log.warn('Video event without valid course_id: {0}'.format(line))
             # Slow: self.incr_counter(self.counter_category_name, 'Discard Video Missing Something', 1)
