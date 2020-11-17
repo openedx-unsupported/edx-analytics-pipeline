@@ -38,13 +38,14 @@ before_install:
   - mkdir -p coverage
 
 script:
+  - make test.start_elasticsearch
   - make test-docker
-  - make test_integration_with_es
   - make quality-docker
   - make coverage-docker
   # Not running with warnings as errors on because this repo is in maintenance
   # mode on it's way to being deprecated and so fixing old docs issues in not needed.
   - sudo make docs
+  - make test.stop_elasticsearch
 
 after_success:
   - pip install --upgrade codecov

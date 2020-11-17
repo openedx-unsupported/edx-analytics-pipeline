@@ -11,7 +11,7 @@ class TestElasticsearchService(TestCase):
     """
 
     def setUp(self):
-        self.config = {"elasticsearch_host": "localhost"}
+        self.config = {"elasticsearch_host": "test_elasticsearch_integration"}
         self.index = "test_index"
         self.alias = "test_alias"
         self.es_service = es_service.ElasticsearchService(self.config, self.alias)
