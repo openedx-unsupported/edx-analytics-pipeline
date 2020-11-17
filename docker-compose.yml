@@ -22,4 +22,6 @@ services:
 
 volumes:
   edx_analytics_pipeline_data:
-    driver: local
+
+networks:
+  edx-analytics-pipeline_default:
