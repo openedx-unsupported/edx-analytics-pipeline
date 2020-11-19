@@ -58,7 +58,7 @@ class MysqlInsertTask(MysqlInsertTaskMixin, luigi.Task):
     """
     required_tasks = None
     output_target = None
-    allow_empty_insert = False
+    allow_empty_insert = True
 
     def requires(self):
         if self.required_tasks is None:
