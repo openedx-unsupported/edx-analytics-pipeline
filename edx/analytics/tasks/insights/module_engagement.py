@@ -146,7 +146,7 @@ class ModuleEngagementDataTask(EventLogSelectionMixin, OverwriteOutputMixin, Map
         if event_type is None:
             return
 
-        course_id = eventlog.get_course_id(event)
+        course_id = eventlog.get_course_id(event, from_url=True)
         if not course_id:
             return
 
