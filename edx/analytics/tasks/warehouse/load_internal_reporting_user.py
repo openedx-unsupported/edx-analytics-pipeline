@@ -21,8 +21,8 @@ class AggregateInternalReportingUserTableHive(HiveTableFromQueryTask):
         This task reads from auth_user, auth_user_profile, and last_country_of_user_id, so require that they be
         loaded into Hive (via MySQL loads into Hive or via the pipeline as needed).
         """
-        return [ImportAuthUserTask(overwrite=self.overwrite, destination=self.warehouse_path),
-                ImportAuthUserProfileTask(overwrite=self.overwrite, destination=self.warehouse_path),
+        return [ImportAuthUserTask(destination=self.warehouse_path),
+                ImportAuthUserProfileTask(destination=self.warehouse_path),
                 ExternalLastCountryOfUserToHiveTask(date=self.date)]
 
     @property
