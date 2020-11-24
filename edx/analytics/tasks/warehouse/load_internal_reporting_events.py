@@ -853,7 +853,7 @@ class TrackingEventRecordDataTask(EventLogSelectionMixin, BaseEventRecordDataTas
         # if not username:
         #   return
 
-        course_id = eventlog.get_course_id(event)
+        course_id = eventlog.get_course_id(event, from_url=True)
         # if not course_id:
         #   return
 
