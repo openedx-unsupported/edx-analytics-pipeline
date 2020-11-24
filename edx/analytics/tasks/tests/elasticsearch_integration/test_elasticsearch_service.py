@@ -2,6 +2,7 @@
 Tests integration with ES 7.8.0 version
 """
 from unittest import TestCase
+
 import edx.analytics.tasks.tests.acceptance.services.elasticsearch_service as es_service
 
 
