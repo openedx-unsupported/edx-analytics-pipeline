@@ -64,6 +64,7 @@ class UserActivityTask(OverwriteOutputMixin, WarehouseMixin, EventLogSelectionMi
         course_id = eventlog.get_course_id(event, from_url=True)
         if not course_id:
             # If a course_id has not been extracted successfully, ignore this event.
+            self.incr_counter('UserActivity', 'Discard Missing Course ID', 1)
             return
 
         for label in self.get_predicate_labels(event):
