@@ -131,7 +131,7 @@ class ProblemCheckEventMixin(object):
         event = json.loads(event_string)
 
         # Get context information:
-        course_id = eventlog.get_course_id(event)
+        course_id = eventlog.get_course_id(event, from_url=False)  # The from_url value should mirror the one from the mapper.
         timestamp = event.get('timestamp')
         problem_id = event.get('problem_id')
         grade = event.get('grade')
@@ -988,7 +988,13 @@ def get_problem_check_event(line_or_event):
     # contain the org and course name, but not the run.)  Course_id
     # information could be found from other events, but it would
     # require expanding the events being selected.
-    course_id = eventlog.get_course_id(event)
+    #
+    # Update: Additionally, we added from_url=False in an attempt to buffer
+    # against behavior change in case the default value of this parameter
+    # changes (it was default False at the time of writing).  We do not
+    # anticipate problem_check events emitted from the xmodule runtime to stop
+    # including course_id any time soon, so this should be safe.
+    course_id = eventlog.get_course_id(event, from_url=False)
     if course_id is None:
         log.error("encountered explicit problem_check event with missing course_id: %s", event)
         return None
