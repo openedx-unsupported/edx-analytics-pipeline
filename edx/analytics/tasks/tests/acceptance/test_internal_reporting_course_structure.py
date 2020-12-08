@@ -30,22 +30,6 @@ class InternalReportingCourseStructureAcceptanceTest(AcceptanceTestCase):
                 url_path_join(self.warehouse_path, 'course_block_raw', 'dt=' + self.DATE, file_name)
             )
 
-    @when_vertica_available
-    def test_internal_reporting_course_structure(self):
-        """Tests the workflow for the internal reporting course_structure table, end to end."""
-
-        # First generate the records in S3.
-        self.task.launch([
-            'LoadCourseBlockRecordToVertica',
-            '--date', self.DATE
-        ])
-        # Then load the records from S3 into the Warehouse (as an external URL).
-        self.task.launch([
-            'LoadInternalReportingCourseStructureToWarehouse',
-            '--date', self.DATE
-        ])
-        self.validate_course_structure()
-
     def validate_course_structure(self):
         """Validates the output, comparing it to a csv of all the expected output from this workflow."""
 

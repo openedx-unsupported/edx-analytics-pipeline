@@ -642,42 +642,6 @@ class AllCourseBlockRecordsTask(CourseBlocksDownstreamMixin, luigi.Task):
         self.output().touch_marker()
 
 
-class LoadCourseBlockRecordToVertica(CourseBlocksDownstreamMixin, VerticaCopyTask):
-
-    def requires(self):
-        if self.required_tasks is None:
-            self.required_tasks = {
-                'credentials': ExternalURL(url=self.credentials),
-                'insert_source': self.insert_source_task,
-            }
-        return self.required_tasks
-
-    @property
-    def partition(self):
-        """The table is partitioned by date."""
-        return HivePartition('dt', self.date.isoformat())  # pylint: disable=no-member
-
-    @property
-    def insert_source_task(self):
-        return AllCourseBlockRecordsTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            overwrite=self.overwrite,
-        )
-
-    @property
-    def table(self):
-        return 'course_block_records'
-
-    @property
-    def auto_primary_key(self):
-        return None
-
-    @property
-    def columns(self):
-        return CourseBlockRecord.get_sql_schema()
-
-
 class LoadInternalReportingCourseStructureToWarehouse(WarehouseMixin, VerticaCopyTask):
     """
     Loads the most recent course_block_records table from intermediate storage into the Vertica data warehouse.
