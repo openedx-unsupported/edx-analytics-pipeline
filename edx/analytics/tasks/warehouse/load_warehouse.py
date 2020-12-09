@@ -15,9 +15,6 @@ from edx.analytics.tasks.warehouse.load_internal_reporting_country import LoadIn
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     LoadInternalReportingCourseCatalogToWarehouse
 )
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import (
-    LoadInternalReportingCourseStructureToWarehouse
-)
 from edx.analytics.tasks.warehouse.load_internal_reporting_user import LoadInternalReportingUserToWarehouse
 from edx.analytics.tasks.warehouse.load_internal_reporting_user_activity import (
     LoadInternalReportingUserActivityToWarehouse
@@ -110,10 +107,6 @@ class LoadWarehouseTask(WarehouseWorkflowMixin, luigi.WrapperTask):
                 date=self.date,
                 **kwargs
             ),
-            LoadInternalReportingCourseStructureToWarehouse(
-                date=self.date,
-                **kwargs
-            ),
             LoadUserCourseSummary(
                 date=self.date,
                 **kwargs
@@ -193,8 +186,7 @@ class PostLoadWarehouseTask(WarehouseMixin, SchemaManagementTask):
             'd_user',
             'd_course_subjects',
             'd_course_seat',
-            'd_program_course',
-            'course_structure'
+            'd_program_course'
         ]
         for table in tables:
             query = "SELECT 1 FROM {schema_loading}.{table} LIMIT 1".format(
