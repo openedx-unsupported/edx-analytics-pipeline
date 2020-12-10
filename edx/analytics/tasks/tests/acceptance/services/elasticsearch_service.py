@@ -37,6 +37,7 @@ class ElasticsearchService(object):
             return
 
         try:
+            logger.info("ElasticsearchService: {}".format(str(self._alias)))
             response = self._elasticsearch_client.indices.get_alias(name=self._alias)
         except TransportError as ex:
             logger.error("Elasticsearch transport error while getting index by alias: %r", ex)

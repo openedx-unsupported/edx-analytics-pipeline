@@ -49,6 +49,8 @@ class AwsHttpConnection(Connection):
         response = None
         start = time.time()
         try:
+            logger.info("Debug line")
+            logger.info("AwsHttpConnection: {} | {} | {}".format(str(method), url, str(params), str(body), str(headers)))
             response = self.connection.make_request(method, url, params=params, data=body, headers=headers)
             status = response.status
         except BotoServerError as boto_server_error:
