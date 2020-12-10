@@ -301,7 +301,10 @@ class AcceptanceTestCase(unittest.TestCase):
         self.vertica = vertica.VerticaService(self.config, schema)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
-        self.reset_external_state()
+        try:
+            self.reset_external_state()
+        except Exception:
+            pass
 
         max_diff = os.getenv('MAX_DIFF', None)
         if max_diff is not None:
