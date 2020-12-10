@@ -38,18 +38,18 @@ class ElasticsearchService(object):
 
         try:
             logger.info("ElasticsearchService: {}".format(str(self._alias)))
-            response = self._elasticsearch_client.indices.get_alias(name=self._alias)
+            response = self._elasticsearch_client.indices.get_alias(name=self._alias, ignore_unavailable=True)
         except TransportError as ex:
             logger.error("Elasticsearch transport error while getting index by alias: %r", ex)
             raise ex
         except ElasticsearchException as ex:
             logger.error("Elasticsearch error while getting index by alias: %r", ex)
             raise ex
-
-        for index, alias_info in response.iteritems():
-            for alias in alias_info['aliases'].keys():
-                if alias == self._alias:
-                    self._elasticsearch_client.indices.delete(index=index)
+        if response:
+            for index, alias_info in response.iteritems():
+                for alias in alias_info['aliases'].keys():
+                    if alias == self._alias:
+                        self._elasticsearch_client.indices.delete(index=index)
 
         # Get documents from the marker index which have their target_index set to current alias.
         # Note that there should be only 1 marker document per test run.
