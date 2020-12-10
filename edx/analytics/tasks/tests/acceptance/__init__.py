@@ -274,7 +274,10 @@ class AcceptanceTestCase(unittest.TestCase):
         self.hive = hive.HiveService(self.task, self.config, database_name)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
-        self.reset_external_state()
+        try:
+            self.reset_external_state()
+        except Exception:
+            pass
 
         max_diff = os.getenv('MAX_DIFF', None)
         if max_diff is not None:
