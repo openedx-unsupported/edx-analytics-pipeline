@@ -48,6 +48,11 @@ class AwsHttpConnection(Connection):
 
         response = None
         start = time.time()
+
+        if not headers:
+            headers = {'content-type': 'application/json'}
+        else:
+            headers['content-type'] = 'application/json'
         try:
             logger.info("Debug line")
             logger.info("AwsHttpConnection: {} | {} | {}".format(str(method), url, str(params), str(body), str(headers)))
