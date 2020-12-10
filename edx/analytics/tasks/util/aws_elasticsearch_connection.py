@@ -1,11 +1,15 @@
 """A connection for the elasticsearch-py library that can be used with AWS elasticsearch-as-a-service clusters."""
 
+import copy
+import logging
 import json
 import time
 
 from boto.connection import AWSAuthConnection
 from boto.exception import BotoServerError
 from elasticsearch import Connection
+
+logger = logging.getLogger(__name__)
 
 
 class AwsHttpConnection(Connection):
@@ -30,7 +34,7 @@ class AwsHttpConnection(Connection):
         self.connection = AwsElasticsearchConnection(**connection_params)
 
     # pylint: disable=unused-argument
-    def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=()):
+    def perform_request(self, method, url, params=None, body=None, timeout=None, ignore=(), headers=None):
         """
         Called when making requests to elasticsearch.  Requests are signed and
         http status, headers, and response are returned.
@@ -51,11 +55,14 @@ class AwsHttpConnection(Connection):
             status = boto_server_error.status
         duration = time.time() - start
 
+        logger.info("Connection class: {}; passed headers: {}".format(self.__class__, headers))
+
         raw_data = ''
-        headers = {}
+        headers = copy.deepcopy(headers)
         if response:
             raw_data = response.read()
-            headers = dict(response.getheaders())
+            logger.info("Connection class: {}; response headers: {}".format(self.__class__, response.getheaders()))
+            headers.update(response.getheaders())
 
         # Raise errors based on http status codes and let the client handle them.
         if not (200 <= status < 300) and status not in ignore:
