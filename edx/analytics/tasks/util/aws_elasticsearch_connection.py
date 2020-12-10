@@ -49,13 +49,13 @@ class AwsHttpConnection(Connection):
         response = None
         start = time.time()
         try:
-            response = self.connection.make_request(method, url, params=params, data=body)
+            response = self.connection.make_request(method, url, params=params, data=body, headers=headers)
             status = response.status
         except BotoServerError as boto_server_error:
             status = boto_server_error.status
         duration = time.time() - start
 
-        logger.info("Connection class: {}; passed headers: {}".format(self.__class__, headers))
+        logger.info("Connection class: {}; passed headers: {}".format(self.__class__, str(headers)))
 
         raw_data = ''
         headers = copy.deepcopy(headers)
