@@ -108,16 +108,15 @@ Security groups are comma-separated in 'ec2_security_group_ids' and
 
 ######################################################################
 
-import sys
-import os
 import argparse
-import re
-from time import time
-import boto
-from boto import ec2
-from boto import rds
-from boto import route53
 import ConfigParser
+import os
+import re
+import sys
+from time import time
+
+import boto
+from boto import ec2, rds, route53
 
 try:
     import json

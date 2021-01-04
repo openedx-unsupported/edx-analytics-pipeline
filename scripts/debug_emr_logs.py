@@ -1,12 +1,12 @@
 import argparse
-from collections import deque
 import gzip
 import os
 import re
 import shutil
-import boto.emr
+from collections import deque
+from subprocess import PIPE, Popen
 
-from subprocess import Popen, PIPE
+import boto.emr
 
 DEFAULT_REGION = 'us-east-1'
 

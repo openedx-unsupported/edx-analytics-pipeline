@@ -6,11 +6,15 @@
 #
 --no-binary ansible
 
+-e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
+    # via -r requirements/default.in
+-e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
+    # via -r requirements/default.in
 ansible-base==2.10.4
     # via
     #   -r requirements/base.txt
     #   ansible
-ansible==2.10.4
+ansible==2.10.5
     # via -r requirements/base.txt
 argparse==1.2.1
     # via -r requirements/default.in
@@ -19,20 +23,26 @@ asn1crypto==1.4.0
     #   oscrypto
     #   snowflake-connector-python
 azure-common==1.1.26
-    # via snowflake-connector-python
-azure-core==1.9.0
-    # via azure-storage-blob
+    # via
+    #   azure-storage-blob
+    #   azure-storage-common
+    #   snowflake-connector-python
 azure-nspkg==3.0.2
     # via
     #   azure-common
-    #   azure-core
     #   azure-storage-nspkg
-azure-storage-blob==12.6.0
-    # via snowflake-connector-python
-azure-storage-nspkg==3.1.0
+azure-storage-blob==2.1.0
+    # via
+    #   -r requirements/default.in
+    #   snowflake-connector-python
+azure-storage-common==2.1.0
     # via azure-storage-blob
+azure-storage-nspkg==3.1.0
+    # via azure-storage-common
 backports-abc==0.5
     # via tornado
+bcrypt==3.1.7
+    # via paramiko
 boto3==1.4.8
     # via
     #   -r requirements/default.in
@@ -48,14 +58,15 @@ cachetools==3.1.1
     # via google-auth
 certifi==2020.12.5
     # via
-    #   msrest
     #   requests
     #   snowflake-connector-python
     #   tornado
 cffi==1.14.4
     # via
     #   -r requirements/base.txt
+    #   bcrypt
     #   cryptography
+    #   pynacl
     #   snowflake-connector-python
 chardet==3.0.4
     # via requests
@@ -67,7 +78,8 @@ cryptography==3.3.1
     # via
     #   -r requirements/base.txt
     #   ansible-base
-    #   azure-storage-blob
+    #   azure-storage-common
+    #   paramiko
     #   pyopenssl
     #   snowflake-connector-python
 distlib==0.2.2
@@ -89,10 +101,7 @@ elasticsearch==1.7.0
 enum34==1.1.10
     # via
     #   -r requirements/base.txt
-    #   azure-core
-    #   azure-storage-blob
     #   cryptography
-    #   msrest
     #   snowflake-connector-python
 filechunkio==1.8
     # via -r requirements/default.in
@@ -143,8 +152,6 @@ ipaddress==1.0.23
     # via
     #   -r requirements/base.txt
     #   cryptography
-isodate==0.6.0
-    # via msrest
 isoweek==1.3.3
     # via -r requirements/default.in
 jinja2==2.11.2
@@ -157,24 +164,20 @@ jmespath==0.10.0
     #   botocore
 lockfile==0.12.2
     # via python-daemon
-git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
-    # via -r requirements/default.in
 markupsafe==1.1.1
     # via
     #   -r requirements/base.txt
     #   jinja2
-msrest==0.6.19
-    # via azure-storage-blob
 numpy==1.16.5
     # via -r requirements/default.in
-oauthlib==3.1.0
-    # via requests-oauthlib
 oscrypto==1.2.1
     # via snowflake-connector-python
 packaging==20.8
     # via
     #   -r requirements/base.txt
     #   ansible-base
+paramiko==2.6.0
+    # via -r requirements/default.in
 paypalrestsdk==1.9.0
     # via -r requirements/default.in
 pbr==5.5.1
@@ -204,12 +207,12 @@ pycryptodomex==3.9.9
     # via snowflake-connector-python
 pygeoip==0.3.2
     # via -r requirements/default.in
-git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
-    # via -r requirements/default.in
 pyjwt==1.7.1
     # via snowflake-connector-python
 pymongo==3.11.2
     # via edx-opaque-keys
+pynacl==1.4.0
+    # via paramiko
 pyopenssl==20.0.1
     # via
     #   paypalrestsdk
@@ -227,6 +230,7 @@ python-daemon==2.1.2
 python-dateutil==2.6.1
     # via
     #   -r requirements/default.in
+    #   azure-storage-common
     #   botocore
     #   vertica-python
 python-gnupg==0.3.9
@@ -240,18 +244,14 @@ pyyaml==5.3.1
     # via
     #   -r requirements/base.txt
     #   ansible-base
-requests-oauthlib==1.3.0
-    # via msrest
 requests==2.22.0
     # via
     #   -r requirements/default.in
-    #   azure-core
+    #   azure-storage-common
     #   google-cloud-bigquery
     #   google-cloud-core
     #   gspread
-    #   msrest
     #   paypalrestsdk
-    #   requests-oauthlib
 rsa==4.5
     # via google-auth
 s3transfer==0.1.13
@@ -262,7 +262,7 @@ six==1.10.0
     # via
     #   -r requirements/base.txt
     #   -r requirements/default.in
-    #   azure-core
+    #   bcrypt
     #   cryptography
     #   edx-ccx-keys
     #   edx-opaque-keys
@@ -272,9 +272,9 @@ six==1.10.0
     #   google-cloud-core
     #   google-resumable-media
     #   html5lib
-    #   isodate
     #   paypalrestsdk
     #   protobuf
+    #   pynacl
     #   pyopenssl
     #   python-dateutil
     #   singledispatch
@@ -289,11 +289,6 @@ stevedore==1.19.1
     #   edx-opaque-keys
 tornado==4.5.3
     # via luigi
-typing==3.7.4.3
-    # via
-    #   azure-core
-    #   azure-storage-blob
-    #   msrest
 ua-parser==0.3.6
     # via
     #   -r requirements/default.in

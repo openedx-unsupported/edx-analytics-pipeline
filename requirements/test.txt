@@ -6,11 +6,15 @@
 #
 --no-binary ansible
 
+-e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
+    # via -r requirements/default.txt
+-e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
+    # via -r requirements/default.txt
 ansible-base==2.10.4
     # via
     #   -r requirements/default.txt
     #   ansible
-ansible==2.10.4
+ansible==2.10.5
     # via -r requirements/default.txt
 argparse==1.2.1
     # via -r requirements/default.txt
@@ -24,31 +28,38 @@ astroid==1.4.9
 azure-common==1.1.26
     # via
     #   -r requirements/default.txt
-    #   snowflake-connector-python
-azure-core==1.9.0
-    # via
-    #   -r requirements/default.txt
     #   azure-storage-blob
+    #   azure-storage-common
+    #   snowflake-connector-python
 azure-nspkg==3.0.2
     # via
     #   -r requirements/default.txt
     #   azure-common
-    #   azure-core
     #   azure-storage-nspkg
-azure-storage-blob==12.6.0
+azure-storage-blob==2.1.0
     # via
     #   -r requirements/default.txt
     #   snowflake-connector-python
-azure-storage-nspkg==3.1.0
+azure-storage-common==2.1.0
     # via
     #   -r requirements/default.txt
     #   azure-storage-blob
+azure-storage-nspkg==3.1.0
+    # via
+    #   -r requirements/default.txt
+    #   azure-storage-common
 backports-abc==0.5
     # via
     #   -r requirements/default.txt
     #   tornado
 backports.functools-lru-cache==1.6.1
-    # via pylint
+    # via
+    #   isort
+    #   pylint
+bcrypt==3.1.7
+    # via
+    #   -r requirements/default.txt
+    #   paramiko
 boto3==1.4.8
     # via
     #   -r requirements/default.txt
@@ -68,14 +79,15 @@ cachetools==3.1.1
 certifi==2020.12.5
     # via
     #   -r requirements/default.txt
-    #   msrest
     #   requests
     #   snowflake-connector-python
     #   tornado
 cffi==1.14.4
     # via
     #   -r requirements/default.txt
+    #   bcrypt
     #   cryptography
+    #   pynacl
     #   snowflake-connector-python
 chardet==3.0.4
     # via
@@ -101,7 +113,8 @@ cryptography==3.3.1
     # via
     #   -r requirements/default.txt
     #   ansible-base
-    #   azure-storage-blob
+    #   azure-storage-common
+    #   paramiko
     #   pyopenssl
     #   snowflake-connector-python
 ddt==1.1.1
@@ -130,10 +143,7 @@ elasticsearch==1.7.0
 enum34==1.1.10
     # via
     #   -r requirements/default.txt
-    #   azure-core
-    #   azure-storage-blob
     #   cryptography
-    #   msrest
     #   snowflake-connector-python
 filechunkio==1.8
     # via -r requirements/default.txt
@@ -151,6 +161,7 @@ futures==3.3.0
     #   -r requirements/default.txt
     #   azure-storage-blob
     #   google-cloud-core
+    #   isort
     #   s3transfer
 google-api-python-client==1.7.7
     # via -r requirements/default.txt
@@ -211,11 +222,7 @@ ipaddress==1.0.23
     # via
     #   -r requirements/default.txt
     #   cryptography
-isodate==0.6.0
-    # via
-    #   -r requirements/default.txt
-    #   msrest
-isort==4.2.15
+isort==4.3.21
     # via
     #   -r requirements/test.in
     #   pylint
@@ -240,8 +247,6 @@ lockfile==0.12.2
     # via
     #   -r requirements/default.txt
     #   python-daemon
-git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
-    # via -r requirements/default.txt
 markupsafe==1.1.1
     # via
     #   -r requirements/default.txt
@@ -250,10 +255,6 @@ mccabe==0.6.1
     # via pylint
 mock==2.0.0
     # via -r requirements/test.in
-msrest==0.6.19
-    # via
-    #   -r requirements/default.txt
-    #   azure-storage-blob
 nose-ignore-docstring==0.2
     # via -r requirements/test.in
 nose==1.3.7
@@ -262,10 +263,6 @@ numpy==1.16.5
     # via
     #   -r requirements/default.txt
     #   pandas
-oauthlib==3.1.0
-    # via
-    #   -r requirements/default.txt
-    #   requests-oauthlib
 oscrypto==1.2.1
     # via
     #   -r requirements/default.txt
@@ -276,6 +273,8 @@ packaging==20.8
     #   ansible-base
 pandas==0.13.0
     # via -r requirements/test.in
+paramiko==2.6.0
+    # via -r requirements/default.txt
 pathlib2==2.3.5
     # via importlib-metadata
 paypalrestsdk==1.9.0
@@ -321,8 +320,6 @@ pygeoip==0.3.2
     # via -r requirements/default.txt
 pygments==2.5.2
     # via diff-cover
-git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument
-    # via -r requirements/default.txt
 pyjwt==1.7.1
     # via
     #   -r requirements/default.txt
@@ -333,6 +330,10 @@ pymongo==3.11.2
     # via
     #   -r requirements/default.txt
     #   edx-opaque-keys
+pynacl==1.4.0
+    # via
+    #   -r requirements/default.txt
+    #   paramiko
 pyopenssl==20.0.1
     # via
     #   -r requirements/default.txt
@@ -351,6 +352,7 @@ python-daemon==2.1.2
 python-dateutil==2.6.1
     # via
     #   -r requirements/default.txt
+    #   azure-storage-common
     #   botocore
     #   freezegun
     #   pandas
@@ -367,20 +369,14 @@ pyyaml==5.3.1
     # via
     #   -r requirements/default.txt
     #   ansible-base
-requests-oauthlib==1.3.0
-    # via
-    #   -r requirements/default.txt
-    #   msrest
 requests==2.22.0
     # via
     #   -r requirements/default.txt
-    #   azure-core
+    #   azure-storage-common
     #   google-cloud-bigquery
     #   google-cloud-core
     #   gspread
-    #   msrest
     #   paypalrestsdk
-    #   requests-oauthlib
 rsa==4.5
     # via
     #   -r requirements/default.txt
@@ -399,7 +395,7 @@ six==1.10.0
     # via
     #   -r requirements/default.txt
     #   astroid
-    #   azure-core
+    #   bcrypt
     #   cryptography
     #   diff-cover
     #   edx-ccx-keys
@@ -411,12 +407,12 @@ six==1.10.0
     #   google-cloud-core
     #   google-resumable-media
     #   html5lib
-    #   isodate
     #   mock
     #   pathlib2
     #   paypalrestsdk
     #   protobuf
     #   pylint
+    #   pynacl
     #   pyopenssl
     #   python-dateutil
     #   singledispatch
@@ -433,12 +429,6 @@ tornado==4.5.3
     # via
     #   -r requirements/default.txt
     #   luigi
-typing==3.7.4.3
-    # via
-    #   -r requirements/default.txt
-    #   azure-core
-    #   azure-storage-blob
-    #   msrest
 ua-parser==0.3.6
     # via
     #   -r requirements/default.txt

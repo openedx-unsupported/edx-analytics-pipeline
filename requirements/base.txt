@@ -8,7 +8,7 @@
 
 ansible-base==2.10.4
     # via ansible
-ansible==2.10.4
+ansible==2.10.5
     # via -r requirements/base.in
 boto==2.48.0
     # via -r requirements/base.in
