@@ -18,7 +18,7 @@ html5lib==1.0.1 	# MIT
 isoweek==1.3.3		# BSD
 numpy==1.16.5 		# BSD
 paypalrestsdk==1.9.0    # Paypal SDK License
-psycopg2==2.6.2     # LGPL
+psycopg2==2.7.1     # LGPL
 pygeoip==0.3.2 		# LGPL
 python-cjson==1.1.0	# LGPL
 python-dateutil==2.6.1 	# BSD
@@ -37,6 +37,6 @@ vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3  # BSD
 snowflake-connector-python==2.0.2
 
--e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi # Apache License 2.0
+git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi # Apache License 2.0
 
--e git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD
+git+https://github.com/edx/pyinstrument.git@a35ff76df4c3d5ff9a2876d859303e33d895e78f#egg=pyinstrument     # BSD

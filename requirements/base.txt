@@ -6,21 +6,41 @@
 #
 --no-binary ansible
 
-ansible==1.4.5
-bcrypt==3.1.7             # via paramiko
+ansible-base==2.10.4
+    # via ansible
+ansible==2.10.4
+    # via -r requirements/base.in
 boto==2.48.0
-cffi==1.13.1              # via bcrypt, cryptography, pynacl
-cryptography==2.8         # via paramiko
+    # via -r requirements/base.in
+cffi==1.14.4
+    # via cryptography
+cryptography==3.3.1
+    # via ansible-base
 ecdsa==0.13
-enum34==1.1.6             # via cryptography
-httplib2==0.14.0          # via ansible
-ipaddress==1.0.23         # via cryptography
-jinja2==2.10.3
-markupsafe==1.1.1         # via jinja2
-paramiko==2.6.0           # via ansible
-pycparser==2.19           # via cffi
+    # via -r requirements/base.in
+enum34==1.1.10
+    # via cryptography
+ipaddress==1.0.23
+    # via cryptography
+jinja2==2.11.2
+    # via
+    #   -r requirements/base.in
+    #   ansible-base
+markupsafe==1.1.1
+    # via jinja2
+packaging==20.8
+    # via ansible-base
+pycparser==2.20
+    # via cffi
 pycrypto==2.6.1
-pynacl==1.3.0             # via paramiko
-pyyaml==5.1.2             # via ansible
+    # via -r requirements/base.in
+pyparsing==2.4.7
+    # via packaging
+pyyaml==5.3.1
+    # via ansible-base
 six==1.10.0
+    # via
+    #   -r requirements/base.in
+    #   cryptography
 wheel==0.30.0
+    # via -r requirements/base.in
