@@ -3,7 +3,7 @@
 # Workaround for https://github.com/ansible/ansible/issues/8875
  --no-binary ansible
  
-ansible==1.4.5          # GPL v3 License
+ansible          # GPL v3 License
 boto==2.48.0            # MIT
 ecdsa==0.13 		# MIT
 Jinja2		        # BSD
