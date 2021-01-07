@@ -33,7 +33,7 @@ requests==2.22.0        # Apache 2.0
 six==1.10.0		# MIT
 stevedore==1.19.1 	# Apache 2.0
 ua-parser==0.3.6 	# Apache
-urllib3==1.22           # MIT
+urllib3==1.24.2           # MIT
 user-agents==0.3.2	# MIT
 vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3  # BSD
