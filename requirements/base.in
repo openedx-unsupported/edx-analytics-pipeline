@@ -5,7 +5,7 @@
  
 ansible          # GPL v3 License
 boto==2.48.0            # MIT
-ecdsa==0.13 		# MIT
+ecdsa==0.13.3 		# MIT
 Jinja2		        # BSD
 pycrypto==2.6.1 	# public domain
 wheel==0.30.0
