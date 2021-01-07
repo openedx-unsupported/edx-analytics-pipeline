@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 
 try:
     import mysql.connector
-    from mysql.connector import errorcode
     from mysql.connector.errors import ProgrammingError
+    from mysql.connector import errorcode
     mysql_client_available = True
 except ImportError:
     log.warn('Unable to import mysql client libraries')
