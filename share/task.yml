@@ -145,10 +145,14 @@
       stat: path={{ working_venv_dir }}/bin/activate
       register: virtualenv_created
 
+    - name: virtualenv destroyed
+      command: rm -rf {{ working_venv_dir }}
+      when: virtualenv_created.stat.exists
+
     - name: virtualenv created
       command: >
         virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
-      when: not virtualenv_created.stat.exists
+      # when: not virtualenv_created.stat.exists
 
     - name: update pip
       command: >
