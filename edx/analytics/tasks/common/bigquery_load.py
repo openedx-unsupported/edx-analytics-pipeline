@@ -14,10 +14,10 @@ from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 log = logging.getLogger(__name__)
 
 try:
-    from google.api.core.exceptions import ServiceUnavailable
     from google.cloud import bigquery
-    from google.cloud.exceptions import NotFound
     from google.oauth2 import service_account
+    from google.cloud.exceptions import NotFound
+    from google.api.core.exceptions import ServiceUnavailable
     bigquery_available = True  # pylint: disable=invalid-name
 except ImportError:
     log.warn('Unable to import Bigquery libraries')

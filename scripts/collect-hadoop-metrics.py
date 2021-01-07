@@ -1,13 +1,11 @@
 import json
 import sys
-
 import boto3
 import graphitesend
 import requests
 import yaml
-from yarn_api_client import HistoryServer
-
 from edx.analytics.tasks.util.retry import retry
+from yarn_api_client import HistoryServer
 
 
 def query_metadata_service(path=''):

@@ -12,10 +12,10 @@
 # All configuration values have a default; values that are commented out
 # serve to show the default.
 
+import sys
 import os
 import subprocess
-import sys
-
+ 
 # Generates the toctree.rst, and the configured category .rst files
 subprocess.call(['python', 'gen_tasks.py', '--entry-point=edx.analytics.tasks',
 	             '--labels', 'Workflow Entry Points', 'Supporting Tasks', 
