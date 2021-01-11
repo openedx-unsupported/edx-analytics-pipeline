@@ -11,7 +11,6 @@ from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CourseRecord, CourseSeatRecord, CourseSubjectRecord, ProgramCourseRecord
 )
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
 
 
 def convert_datetime_to_timestamp_tz(coldefs):
@@ -187,37 +186,6 @@ class LoadInternalReportingCourseCatalogToSnowflake(WarehouseMixin, SnowflakeLoa
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
 
 
-class LoadInternalReportingCourseStructureToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
-
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingCourseStructureToSnowflake, self).__init__(*args, **kwargs)
-        path = url_path_join(self.warehouse_path, 'course_block_records')
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-
-    @property
-    def insert_source_task(self):
-        record_table_name = 'course_block_records'
-        partition_location = self.hive_partition_path(record_table_name, self.load_date)
-        return ExternalURL(url=partition_location)
-
-    @property
-    def table(self):
-        return 'course_structure'
-
-    @property
-    def file_format_name(self):
-        return 'hive_tsv_format'
-
-    @property
-    def columns(self):
-        return convert_datetime_to_timestamp_tz(CourseBlockRecord.get_sql_schema())
-
-
 class LoadUserCourseSummaryToSnowflake(WarehouseMixin, SnowflakeLoadFromHiveTSVTask):
 
     @property
@@ -333,8 +301,6 @@ class LoadWarehouseSnowflakeTask(SnowflakeLoadDownstreamMixin, WarehouseMixin, l
         yield LoadInternalReportingCountryToSnowflake(**kwargs)
 
         yield LoadInternalReportingCourseCatalogToSnowflake(**kwargs)
-
-        yield LoadInternalReportingCourseStructureToSnowflake(**kwargs)
 
         yield LoadUserCourseSummaryToSnowflake(**kwargs)
 

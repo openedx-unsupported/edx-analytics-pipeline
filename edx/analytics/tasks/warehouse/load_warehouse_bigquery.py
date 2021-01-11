@@ -12,7 +12,6 @@ from edx.analytics.tasks.util.url import ExternalURL, url_path_join
 from edx.analytics.tasks.warehouse.load_internal_reporting_course_catalog import (
     CourseRecord, CourseSeatRecord, CourseSubjectRecord, ProgramCourseRecord
 )
-from edx.analytics.tasks.warehouse.load_internal_reporting_course_structure import CourseBlockRecord
 
 
 class LoadInternalReportingCertificatesToBigQuery(WarehouseMixin, BigQueryLoadTask):
@@ -146,40 +145,6 @@ class LoadInternalReportingCourseCatalogToBigQuery(WarehouseMixin, BigQueryLoadD
         return all(r.complete() for r in luigi.task.flatten(self.requires()))
 
 
-class LoadInternalReportingCourseStructureToBigQuery(WarehouseMixin, BigQueryLoadTask):
-
-    def __init__(self, *args, **kwargs):
-        super(LoadInternalReportingCourseStructureToBigQuery, self).__init__(*args, **kwargs)
-        path = url_path_join(self.warehouse_path, 'course_block_records')
-        path_targets = PathSetTask([path]).output()
-        paths = list(set([os.path.dirname(target.path) for target in path_targets]))
-        dates = [path.rsplit('/', 2)[-1] for path in paths]
-        latest_date = sorted(dates)[-1]
-
-        self.load_date = datetime.datetime.strptime(latest_date, "dt=%Y-%m-%d").date()
-
-    @property
-    def insert_source_task(self):
-        record_table_name = 'course_block_records'
-        partition_location = self.hive_partition_path(record_table_name, self.load_date)
-        return ExternalURL(url=partition_location)
-
-    @property
-    def table(self):
-        return 'course_structure'
-
-    @property
-    def schema(self):
-        # Note that there is no way to define default values for a column in BigQuery,
-        # so we will skip adding a column here with the load date.  Put that information
-        # instead into the table description.
-        return CourseBlockRecord.get_bigquery_schema()
-
-    @property
-    def table_description(self):
-        return 'Table representing Course Structure as of {}.'.format(self.load_date.isoformat())
-
-
 class LoadUserCourseSummaryToBigQuery(WarehouseMixin, BigQueryLoadTask):
 
     @property
@@ -269,8 +234,6 @@ class LoadWarehouseBigQueryTask(BigQueryLoadDownstreamMixin, WarehouseMixin, lui
         yield LoadInternalReportingCountryToBigQuery(**kwargs)
 
         yield LoadInternalReportingCourseCatalogToBigQuery(**kwargs)
-
-        yield LoadInternalReportingCourseStructureToBigQuery(**kwargs)
 
         yield LoadUserCourseSummaryToBigQuery(**kwargs)
 
