@@ -9,7 +9,6 @@ import logging
 import luigi
 from luigi.contrib.hive import HiveQueryTask
 
-from edx.analytics.tasks.common.vertica_load import VerticaCopyTask, VerticaCopyTaskMixin
 from edx.analytics.tasks.util.edx_api_client import EdxApiClient
 from edx.analytics.tasks.util.hive import BareHiveTableTask, HivePartitionTask, WarehouseMixin, hive_database_name
 from edx.analytics.tasks.util.opaque_key_util import get_org_id_for_course
@@ -499,28 +498,6 @@ class JoinProgramCourseWithOrderTask(LoadInternalReportingCourseCatalogMixin, Hi
         yield ProgramCourseOrderPartitionTask(**kwargs)
 
 
-class LoadInternalReportingProgramCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
-    """Load the d_program_course table in the data warehouse."""
-
-    @property
-    def insert_source_task(self):
-        return JoinProgramCourseWithOrderTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
-
-    @property
-    def table(self):
-        return 'd_program_course'
-
-    @property
-    def columns(self):
-        return ProgramCourseRecord.get_sql_schema()
-
-
 class CourseSeatRecord(Record):
     """Represents a course seat within course run."""
     course_id = StringField(nullable=False, length=255)
@@ -550,28 +527,6 @@ class CourseSeatTask(BaseCourseRunMetadataTask):
             )
             output_file.write(record.to_separated_values(sep=u'\t'))
             output_file.write('\n')
-
-
-class LoadInternalReportingCourseSeatToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
-    """Loads the course seat tsv into the Vertica data warehouse."""
-
-    @property
-    def insert_source_task(self):
-        return CourseSeatTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
-
-    @property
-    def table(self):
-        return 'd_course_seat'
-
-    @property
-    def columns(self):
-        return CourseSeatRecord.get_sql_schema()
 
 
 class CourseRecord(Record):
@@ -669,38 +624,6 @@ class CourseDataTask(BaseCourseRunMetadataTask):
         output_file.write('\n')
 
 
-class LoadInternalReportingCourseToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
-    """Loads the course tsv into the Vertica data warehouse."""
-
-    @property
-    def insert_source_task(self):
-        return CoursePartitionTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        ).data_task
-
-    @property
-    def default_columns(self):
-        return []
-
-    @property
-    def unique_columns(self):
-        return [
-            ('course_id',)
-        ]
-
-    @property
-    def table(self):
-        return 'd_course'
-
-    @property
-    def columns(self):
-        return CourseRecord.get_sql_schema()
-
-
 class CourseSubjectRecord(Record):
     """Represents course subject categorizations for a course."""
     course_id = StringField(nullable=False, length=200)
@@ -730,63 +653,3 @@ class CourseSubjectTask(BaseCourseMetadataTask):
                 )
                 output_file.write(record.to_separated_values(sep=u'\t'))
                 output_file.write('\n')
-
-
-class LoadInternalReportingCourseSubjectToWarehouse(LoadInternalReportingCourseCatalogMixin, VerticaCopyTask):
-    """Loads the course seat tsv into the Vertica data warehouse."""
-
-    @property
-    def insert_source_task(self):
-        return CourseSubjectTask(
-            date=self.date,
-            warehouse_path=self.warehouse_path,
-            api_root_url=self.api_root_url,
-            api_page_size=self.api_page_size,
-            overwrite=self.overwrite,
-        )
-
-    @property
-    def table(self):
-        return 'd_course_subjects'
-
-    @property
-    def auto_primary_key(self):
-        """Overridden since the database schema specifies a different name for the auto incrementing primary key."""
-        return ('row_number', 'AUTO_INCREMENT')
-
-    @property
-    def default_columns(self):
-        """Overridden since the superclass method includes a time of insertion column we don't want in this table."""
-        return None
-
-    @property
-    def columns(self):
-        return CourseSubjectRecord.get_sql_schema()
-
-
-class LoadInternalReportingCourseCatalogToWarehouse(
-        LoadInternalReportingCourseCatalogMixin,
-        VerticaCopyTaskMixin,
-        luigi.WrapperTask):
-    """Workflow for loading course catalog into the data warehouse."""
-
-    def requires(self):
-        kwargs = {
-            'date': self.date,
-            'warehouse_path': self.warehouse_path,
-            'api_root_url': self.api_root_url,
-            'api_page_size': self.api_page_size,
-            'overwrite': self.overwrite,
-            'schema': self.schema,
-            'credentials': self.credentials,
-            'read_timeout': self.read_timeout,
-            'marker_schema': self.marker_schema,
-        }
-        yield LoadInternalReportingCourseToWarehouse(**kwargs)
-        yield LoadInternalReportingCourseSeatToWarehouse(**kwargs)
-        yield LoadInternalReportingProgramCourseToWarehouse(**kwargs)
-        yield LoadInternalReportingCourseSubjectToWarehouse(**kwargs)
-
-    def complete(self):
-        # OverwriteOutputMixin changes the complete() method behavior, so we override it.
-        return all(r.complete() for r in luigi.task.flatten(self.requires()))
