@@ -6,7 +6,7 @@ import unittest
 
 from mock import MagicMock, Mock, patch, sentinel
 
-from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql, SqoopImportFromVertica
+from edx.analytics.tasks.common.sqoop import SqoopImportFromMysql
 from edx.analytics.tasks.util.tests.target import FakeTarget
 
 
@@ -51,38 +51,6 @@ class SqoopImportTestCase(unittest.TestCase):
         )
         return task
 
-    def create_vertica_task(self, num_mappers=None, where=None, table_name=None, schema_name=None, columns=None,
-                            null_string=None, fields_terminated_by=None, delimiter_replacement=None, overwrite=False,
-                            timezone_adjusted_column_list=[], additional_metadata=None):
-        """A generic task generator for Sqoop on Vertica"""
-        if columns is None:
-            column_list = []
-        elif isinstance(columns, list):
-            column_list = columns
-        else:
-            column_list = list(columns)
-
-        kw_args = {
-            "credentials": sentinel.ignored,
-            "schema_name": schema_name,
-            "database": 'exampledata',
-            "destination": "/fake/destination",
-            "table_name": table_name,
-            "num_mappers": num_mappers,
-            "where": where,
-            "columns": column_list,
-            "null_string": null_string,
-            "fields_terminated_by": fields_terminated_by,
-            "delimiter_replacement": delimiter_replacement,
-            "overwrite": overwrite,
-            "timezone_adjusted_column_list": timezone_adjusted_column_list,
-            "additional_metadata": additional_metadata,
-        }
-        # remove options marked as None
-        trimmed_kws = {k: v for k, v in kw_args.iteritems() if v is not None}
-        task = SqoopImportFromVertica(**trimmed_kws)
-        return task
-
     def run_task(self, task, credentials=None):
         """Emulate execution of a Sqoop import from Mysql."""
         if not credentials:
@@ -120,24 +88,6 @@ class SqoopImportTestCase(unittest.TestCase):
             mysql_delimiters=mysql_delimiters,
             escaped_by=escaped_by,
             optionally_enclosed_by=optionally_enclosed_by,
-        )
-        self.run_task(task, credentials)
-
-    def create_and_run_vertica_task(self, credentials=None, num_mappers=None, where=None, table_name=None,
-                                    schema_name=None, columns=None, null_string=None, fields_terminated_by=None,
-                                    delimiter_replacement=None, overwrite=False, timezone_adjusted_column_list=[]):
-        """Create a SqoopImportFromVertica task with specified options, and then run it."""
-        task = self.create_vertica_task(
-            num_mappers=num_mappers,
-            where=where,
-            columns=columns,
-            null_string=null_string,
-            table_name=table_name,
-            schema_name=schema_name,
-            fields_terminated_by=fields_terminated_by,
-            delimiter_replacement=delimiter_replacement,
-            overwrite=overwrite,
-            timezone_adjusted_column_list=timezone_adjusted_column_list,
         )
         self.run_task(task, credentials)
 
@@ -307,59 +257,3 @@ class SqoopImportTestCase(unittest.TestCase):
         self.assertTrue(task.output().exists.called)
         self.assertTrue(task.output().remove.called)
         self.assertTrue(task.attempted_removal)
-
-    def test_success_vertica_with_complete_credentials(self):
-        self.create_and_run_vertica_task(table_name='example_table',
-                                         schema_name='fake_schema',
-                                         delimiter_replacement=' ',
-                                         fields_terminated_by=',',
-                                         columns=['field1', 'field2', 'field3'])
-        arglist = self.get_call_args_after_run()
-        self.assertTrue(self.mock_run.called)
-        expected_arglist = [
-            'sqoop', 'import',
-            '--connect', 'jdbc:vertica://db.example.com/exampledata?searchpath=fake_schema',
-            '--username', u'exampleuser',
-            '--password-file', '/temp/password_file',
-            '--target-dir', '/fake/destination',
-            '--driver', 'com.vertica.jdbc.Driver',
-            '--query', 'SELECT "field1","field2","field3" FROM example_table WHERE $CONDITIONS',
-            '--num-mappers', '1',
-            '--fields-terminated-by', ',',
-            '--optionally-enclosed-by', '\'',
-            '--hive-delims-replacement', ' ',
-            '--lines-terminated-by', '\n',
-        ]
-        self.assertEquals(arglist, expected_arglist)
-        self.assertTrue(self.mock_sqoop_password_target().remove.called)
-
-    def test_success_vertica_with_timestamp_field(self):
-        self.create_and_run_vertica_task(table_name='example_table',
-                                         schema_name='fake_schema',
-                                         delimiter_replacement=' ',
-                                         fields_terminated_by=',',
-                                         columns=['field1', 'field2', 'field3'],
-                                         timezone_adjusted_column_list=['field1'])
-        arglist = self.get_call_args_after_run()
-        self.assertTrue(self.mock_run.called)
-
-        generated_query = 'SELECT "field1" AT TIME ZONE \'UTC\' AS "field1","field2","field3" FROM example_table ' \
-                          'WHERE $CONDITIONS'
-        self.assertEquals(arglist[12], '--query')
-        self.assertEquals(arglist[13], generated_query)
-
-    def test_success_vertica_with_custom_delimiters(self):
-        self.create_and_run_vertica_task(table_name='example_table', schema_name='fake_schema',
-                                         columns=['field1', 'field2', 'field3'], fields_terminated_by='\a',
-                                         delimiter_replacement='a')
-        arglist = self.get_call_args_after_run()
-        self.assertTrue(self.mock_run.called)
-        self.assertEquals(arglist[16], '--fields-terminated-by')
-        self.assertEquals(arglist[17], '\a')
-        self.assertEquals(arglist[20], '--hive-delims-replacement')
-        self.assertEquals(arglist[21], 'a')
-
-    def test_vertica_failure_from_missing_columnlist(self):
-        with self.assertRaises(RuntimeError) as context:
-            self.create_and_run_vertica_task(table_name='example_table', schema_name='fake_schema')
-        self.assertTrue('Error Vertica\'s connector requires specific columns listed' in str(context.exception))

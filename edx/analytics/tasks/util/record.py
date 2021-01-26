@@ -28,8 +28,8 @@ class Record(object):
     Represents a strongly typed record that can be stored in various storage engines and processed by Map Reduce jobs.
 
     The goal is to represent the schema in a way that allows us to generate the schemas for various systems (Hive,
-    Vertica, MySQL etc) as well as use that schema to serialize and deserialize the record in a variety of formats
-    for Map Reduce purposes.
+    MySQL etc) as well as use that schema to serialize and deserialize the record in a variety of formats for Map
+    Reduce purposes.
 
     Once the record is deserialized by the python code it can be used much like a namedtuple or other similar simple
     structure. It is intended to be immutable after initialization, however that can be bypassed relatively simply if

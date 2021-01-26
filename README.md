@@ -20,7 +20,6 @@ It outputs to:
 * S3 - CSV reports, packaged exports
 * MySQL - This is known as the "result store" and is consumed by Insights
 * Elasticsearch - This is also used by Insights
-* Vertica - This is used for business intelligence and reporting purposes
 
 This tool uses [spotify/luigi](https://github.com/spotify/luigi) as the core of the workflow engine.
 

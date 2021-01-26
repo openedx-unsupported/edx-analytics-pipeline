@@ -97,7 +97,6 @@ ua-parser==0.3.6
 uritemplate==3.0.0
 urllib3==1.22
 user-agents==0.3.2
-vertica-python==0.6.11
 wheel==0.30.0
 yarn-api-client==0.2.3
 
