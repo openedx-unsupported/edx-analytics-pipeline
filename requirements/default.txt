@@ -40,7 +40,6 @@ futures==3.3.0            # via azure-storage-blob, google-cloud-core, s3transfe
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3  # via google-api-python-client
 google-auth==1.6.3        # via google-api-python-client, google-auth-httplib2, google-cloud-bigquery, google-cloud-core
-google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1  # via google-cloud-bigquery
 google-resumable-media==0.4.1  # via google-cloud-bigquery
 googleapis-common-protos==1.6.0  # via google-cloud-core
