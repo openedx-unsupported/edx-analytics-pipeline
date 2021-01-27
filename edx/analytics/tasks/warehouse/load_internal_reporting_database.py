@@ -7,6 +7,7 @@ import logging
 import re
 
 import luigi
+
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
 from edx.analytics.tasks.common.snowflake_load import (
     SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask, SnowflakeTarget
