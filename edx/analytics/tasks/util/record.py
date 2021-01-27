@@ -6,11 +6,10 @@ import logging
 import re
 from collections import OrderedDict
 
-import ciso8601
 import pytz
 
+import ciso8601
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
-
 
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
 

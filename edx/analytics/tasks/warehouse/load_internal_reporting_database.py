@@ -7,7 +7,6 @@ import logging
 import re
 
 import luigi
-
 from edx.analytics.tasks.common.mysql_load import get_mysql_query_results
 from edx.analytics.tasks.common.snowflake_load import (
     SnowflakeLoadDownstreamMixin, SnowflakeLoadFromHiveTSVTask, SnowflakeTarget
@@ -16,7 +15,6 @@ from edx.analytics.tasks.common.sqoop import METADATA_FILENAME, SqoopImportFromM
 from edx.analytics.tasks.util.hive import HivePartition, WarehouseMixin
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 from edx.analytics.tasks.util.url import ExternalURL, get_target_from_url, url_path_join
-
 
 log = logging.getLogger(__name__)
 
