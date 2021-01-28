@@ -150,9 +150,10 @@
         virtualenv --python={{ virtualenv_python }} {{ virtualenv_extra_args }} {{ working_venv_dir }}
       when: not virtualenv_created.stat.exists
 
+    # 2021-01-28: Pip 21+ does not support Python 2 so this is as far as we can go.
     - name: update pip
       command: >
-        {{ working_venv_dir }}/bin/pip install -U pip
+        {{ working_venv_dir }}/bin/pip install --upgrade pip==20.3.4
 
     - name: virtualenv initialized on Debian
       shell: >
