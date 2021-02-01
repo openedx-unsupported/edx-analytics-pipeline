@@ -11,13 +11,6 @@ import pytz
 
 from edx.analytics.tasks.util.obfuscate_util import backslash_encode_value
 
-try:
-    from google.cloud.bigquery import SchemaField
-    bigquery_available = True  # pylint: disable=invalid-name
-except ImportError:
-    bigquery_available = False  # pylint: disable=invalid-name
-
-
 DEFAULT_NULL_VALUE = '\\N'  # This is the default string used by Hive to represent a NULL value.
 
 log = logging.getLogger(__name__)
@@ -28,8 +21,8 @@ class Record(object):
     Represents a strongly typed record that can be stored in various storage engines and processed by Map Reduce jobs.
 
     The goal is to represent the schema in a way that allows us to generate the schemas for various systems (Hive,
-    Vertica, MySQL etc) as well as use that schema to serialize and deserialize the record in a variety of formats
-    for Map Reduce purposes.
+    MySQL etc) as well as use that schema to serialize and deserialize the record in a variety of formats for Map
+    Reduce purposes.
 
     Once the record is deserialized by the python code it can be used much like a namedtuple or other similar simple
     structure. It is intended to be immutable after initialization, however that can be bypassed relatively simply if
@@ -366,28 +359,6 @@ class Record(object):
         return schema
 
     @classmethod
-    def get_bigquery_schema(cls):
-        """
-        A skeleton schema of the BigQuery table that could store this data.
-
-        Accepted types for legacy tables are 'STRING', 'INTEGER', 'FLOAT', 'BOOLEAN', 'TIMESTAMP', 'BYTES', 'DATE', 'TIME', 'DATETIME'.
-        Accepted types for standard tables are 'STRING', 'INT64', 'FLOAT64', 'BOOL', 'TIMESTAMP', 'BYTES', 'DATE', 'TIME', 'DATETIME'.
-        Going with legacy values for now.
-        Accepted modes are 'NULLABLE' or 'REQUIRED'.
-
-        Returns: A list of BigQuery SchemaField objects.
-        """
-        if not bigquery_available:
-            raise ImportError('Bigquery library not available')
-
-        schema = []
-        for field_name, field_obj in cls.get_fields().items():
-            mode = 'NULLABLE' if field_obj.nullable else 'REQUIRED'
-            description = getattr(field_obj, 'description', None)
-            schema.append(SchemaField(field_name, field_obj.bigquery_type, description=description, mode=mode))
-        return schema
-
-    @classmethod
     def get_elasticsearch_properties(cls):
         """
         An elasticsearch mapping that could store this data.
@@ -553,11 +524,6 @@ class Field(object):
         raise NotImplementedError
 
     @property
-    def bigquery_type(self):
-        """Returns the BigQuery data type for this type of field."""
-        raise NotImplementedError
-
-    @property
     def elasticsearch_type(self):
         """Returns the elasticsearch type for this type of field."""
         raise NotImplementedError
@@ -567,7 +533,6 @@ class StringField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a relatively short string."""
 
     hive_type = 'STRING'
-    bigquery_type = 'STRING'
     elasticsearch_type = 'string'
 
     def validate_parameters(self):
@@ -611,7 +576,6 @@ class DelimitedStringField(Field):
     """Represents a list of strings, stored as a single delimited string."""
 
     hive_type = 'STRING'
-    bigquery_type = 'STRING'
     sql_base_type = 'VARCHAR'
     elasticsearch_type = 'string'
     delimiter = '\0'
@@ -638,7 +602,6 @@ class BooleanField(Field):
     """Represents a field that contains a boolean."""
 
     hive_type = 'TINYINT'
-    bigquery_type = 'BOOLEAN'
     sql_base_type = 'BOOLEAN'
     elasticsearch_type = 'boolean'
 
@@ -666,7 +629,6 @@ class IntegerField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains an integer."""
 
     hive_type = sql_base_type = 'INT'
-    bigquery_type = 'INTEGER'
     elasticsearch_type = 'integer'
 
     def validate(self, value):
@@ -683,7 +645,6 @@ class DateField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a date."""
 
     hive_type = 'STRING'
-    bigquery_type = 'DATE'
     sql_base_type = 'DATE'
     elasticsearch_type = 'date'
 
@@ -701,7 +662,6 @@ class DateTimeField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a date and time."""
 
     hive_type = 'TIMESTAMP'
-    bigquery_type = 'TIMESTAMP'
     sql_base_type = 'DATETIME'
     elasticsearch_type = 'date'
     elasticsearch_format = 'yyyy-MM-dd HH:mm:ss.SSSSSS'
@@ -761,7 +721,6 @@ class FloatField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a floating point number."""
 
     hive_type = sql_base_type = 'FLOAT'
-    bigquery_type = 'FLOAT'
     elasticsearch_type = 'float'
 
     def validate(self, value):

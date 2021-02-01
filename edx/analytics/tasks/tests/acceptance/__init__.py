@@ -11,7 +11,7 @@ import pandas
 from pandas.util.testing import assert_frame_equal, assert_series_equal
 
 from edx.analytics.tasks.common.pathutil import PathSetTask
-from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task, vertica
+from edx.analytics.tasks.tests.acceptance.services import db, elasticsearch_service, fs, hive, task
 from edx.analytics.tasks.util.s3_util import ScalableS3Client
 from edx.analytics.tasks.util.url import get_target_from_url, url_path_join
 
@@ -53,22 +53,6 @@ def when_geolocation_data_available(function):
         geolocation_data_available = get_target_for_local_server(geolocation_data).exists()
     return unittest.skipIf(
         not geolocation_data_available, 'Geolocation data is not available'
-    )(function)
-
-
-def when_vertica_available(function):
-    config = get_test_config()
-    vertica_available = bool(config.get('vertica_creds_url'))
-    return unittest.skipIf(
-        not vertica_available, 'Vertica service is not available'
-    )(function)
-
-
-def when_vertica_not_available(function):
-    config = get_test_config()
-    vertica_available = bool(config.get('vertica_creds_url'))
-    return unittest.skipIf(
-        vertica_available, 'Vertica service is available'
     )(function)
 
 
@@ -118,12 +102,6 @@ def as_list_param(value, escape_quotes=True):
         return '[\\"{}\\"]'.format(value)
     else:
         return json.dumps([value, ])
-
-
-def coerce_columns_to_string(row):
-    # Vertica response includes datatypes in some columns i-e. datetime, Decimal etc. so convert
-    # them into string before comparison with expected output.   Also a challenge with 'None' values.
-    return [unicode(x) for x in row]
 
 
 def read_csv_fixture_as_list(fixture_file_path):
@@ -275,11 +253,7 @@ class AcceptanceTestCase(unittest.TestCase):
                 'api_root_url': 'http://acceptance.test/api/courses/v1/courses/',
             },
         }
-        if 'vertica_creds_url' in self.config:
-            task_config_override['vertica-export'] = {
-                'credentials': self.config['vertica_creds_url'],
-                'schema': schema
-            }
+
         if 'elasticsearch_host' in self.config:
             task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
         if 'elasticsearch_connection_class' in self.config:
@@ -298,7 +272,6 @@ class AcceptanceTestCase(unittest.TestCase):
         self.otto_db = db.DatabaseService(self.config, otto_database_name)
         self.task = task.TaskService(self.config, task_config_override, self.identifier)
         self.hive = hive.HiveService(self.task, self.config, database_name)
-        self.vertica = vertica.VerticaService(self.config, schema)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
         self.reset_external_state()
@@ -325,7 +298,6 @@ class AcceptanceTestCase(unittest.TestCase):
         self.export_db.reset()
         self.otto_db.reset()
         self.hive.reset()
-        self.vertica.reset()
         self.elasticsearch.reset()
 
     def upload_tracking_log(self, input_file_name, file_date, template_context=None):

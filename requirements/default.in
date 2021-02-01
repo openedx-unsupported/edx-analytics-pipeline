@@ -10,7 +10,6 @@ edx-ccx-keys==0.2.1     # AGPL
 edx-opaque-keys==0.4    # AGPL
 elasticsearch==1.7.0    # Apache
 filechunkio==1.8	# MIT
-google-cloud-bigquery==0.27.0
 google-api-python-client==1.7.7
 graphitesend==0.10.0    # Apache
 gspread==3.1.0    # MIT
@@ -33,7 +32,6 @@ stevedore==1.19.1 	# Apache 2.0
 ua-parser==0.3.6 	# Apache
 urllib3==1.22           # MIT
 user-agents==0.3.2	# MIT
-vertica-python==0.6.11  # MIT
 yarn-api-client==0.2.3  # BSD
 snowflake-connector-python==2.0.2
 

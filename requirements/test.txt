@@ -48,7 +48,6 @@ futures==3.3.0
 google-api-python-client==1.7.7
 google-auth-httplib2==0.0.3
 google-auth==1.6.3
-google-cloud-bigquery==0.27.0
 google-cloud-core==0.27.1
 google-resumable-media==0.4.1
 googleapis-common-protos==1.6.0
@@ -112,7 +111,6 @@ ua-parser==0.3.6
 uritemplate==3.0.0
 urllib3==1.22
 user-agents==0.3.2
-vertica-python==0.6.11
 webencodings==0.5.1
 wheel==0.30.0
 wrapt==1.11.2             # via astroid
