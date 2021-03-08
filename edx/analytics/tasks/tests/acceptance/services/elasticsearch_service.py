@@ -1,10 +1,18 @@
 import logging
 
-import elasticsearch
-from elasticsearch.connection import Urllib3HttpConnection
+# import elasticsearch
+# from elasticsearch.connection import Urllib3HttpConnection
 from elasticsearch.exceptions import ElasticsearchException, TransportError
 
 from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
+
+try:
+    import boto3
+    from elasticsearch import Elasticsearch, RequestsHttpConnection
+    from elasticsearch.connection import Urllib3HttpConnection
+    from requests_aws4auth import AWS4Auth
+except ImportError:
+    elasticsearch = None
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +28,18 @@ class ElasticsearchService(object):
         self._disabled = not bool(config.get('elasticsearch_host'))
         self._alias = alias
         if not self._disabled:
-            self._elasticsearch_client = elasticsearch.Elasticsearch(hosts=[config['elasticsearch_host']], connection_class=connection_class)
+            service = 'es'
+            region = 'us-east-1'
+            credentials = boto3.Session().get_credentials()
+            awsauth = AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
+            self._elasticsearch_client = Elasticsearch(
+                hosts = [{'host': config['elasticsearch_host'], 'port': 443}],
+                http_auth = awsauth,
+                use_ssl = True,
+                verify_certs = True,
+                connection_class = RequestsHttpConnection
+            )
+            #self._elasticsearch_client = elasticsearch.Elasticsearch(hosts=[config['elasticsearch_host']], connection_class=connection_class)
         else:
             self._elasticsearch_client = None
 

@@ -78,6 +78,7 @@ python-dateutil==2.6.1
 python-gnupg==0.3.9
 pytz==2017.3
 pyyaml==5.1.2
+requests-aws4auth==1.0.1
 requests==2.22.0
 rsa==4.0                  # via google-auth
 s3transfer==0.1.13        # via boto3

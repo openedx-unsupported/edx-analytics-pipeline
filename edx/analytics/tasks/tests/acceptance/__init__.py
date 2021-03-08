@@ -255,7 +255,7 @@ class AcceptanceTestCase(unittest.TestCase):
         }
 
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
+            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
         if 'elasticsearch_connection_class' in self.config:
             task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:

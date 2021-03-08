@@ -4,7 +4,11 @@ import datetime
 import hashlib
 import logging
 
-import elasticsearch
+try:
+    import elasticsearch
+except ImportError:
+    elasticsearch = None
+
 import luigi
 import luigi.configuration
 from luigi.contrib.hdfs.target import HdfsTarget
