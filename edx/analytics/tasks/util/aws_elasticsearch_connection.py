@@ -1,8 +1,8 @@
 """A connection for the elasticsearch-py library that can be used with AWS elasticsearch-as-a-service clusters."""
 
 import copy
-import logging
 import json
+import logging
 import time
 
 from boto.connection import AWSAuthConnection

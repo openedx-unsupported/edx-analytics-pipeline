@@ -7,9 +7,9 @@ import ddt
 import luigi.contrib.hdfs.target
 from elasticsearch import TransportError
 from freezegun import freeze_time
-from mock import call, patch
+from mock import MagicMock, call, patch
 
-from edx.analytics.tasks.common.elasticsearch_load import AwsHttpConnection, ElasticsearchIndexTask, IndexingError
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask, IndexingError, RequestsHttpConnection
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
 
@@ -163,9 +163,14 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_boto_connection_type(self):
         self.create_task(connection_type='aws')
+        credentials_mock = MagicMock(access_key='', secret_key='secret', token='')
+        awsauth_patcher = patch('edx.analytics.tasks.common.elasticsearch_load.boto3.Session.get_credentials', return_value=credentials_mock)
+        awsauth_patcher.start()
+        self.addCleanup(awsauth_patcher.stop)
+
         self.task.init_local()
         _args, kwargs = self.elasticsearch_mock.call_args
-        self.assertEqual(kwargs['connection_class'], AwsHttpConnection)
+        self.assertEqual(kwargs['connection_class'], RequestsHttpConnection)
 
     def test_mapper(self):
         with patch('edx.analytics.tasks.common.elasticsearch_load.random') as mock_random:

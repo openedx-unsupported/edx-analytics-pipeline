@@ -1,23 +1,26 @@
 """Load records into elasticsearch clusters."""
 
+import json
 import logging
 import random
 import time
 from itertools import islice
 
-import elasticsearch
-import elasticsearch.helpers
 import luigi
-from elasticsearch.exceptions import TransportError
 
 from edx.analytics.tasks.common.mapreduce import MapReduceJobTask
 from edx.analytics.tasks.util.elasticsearch_target import ElasticsearchTarget
 from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 
 try:
-    from edx.analytics.tasks.util.aws_elasticsearch_connection import AwsHttpConnection
+    import boto3
+    import elasticsearch
+    import elasticsearch.helpers
+    import requests_aws4auth
+    from elasticsearch import RequestsHttpConnection, compat, exceptions, serializer
+    from elasticsearch.exceptions import TransportError
 except ImportError:
-    AwsHttpConnection = None
+    elasticsearch = None
 
 
 log = logging.getLogger(__name__)
@@ -28,6 +31,17 @@ HTTP_CONNECT_TIMEOUT_STATUS_CODE = 408
 REJECTED_REQUEST_STATUS = 429
 HTTP_SERVICE_UNAVAILABLE_STATUS_CODE = 503
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
+
+
+class JSONSerializerPython2(serializer.JSONSerializer):
+    def dumps(self, data):
+        # don't serialize strings
+        if isinstance(data, compat.string_types):
+            return data
+        try:
+            return json.dumps(data, default=self.default)
+        except (ValueError, TypeError) as e:
+            raise exceptions.SerializationError(data, e)
 
 
 class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
@@ -43,7 +57,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
 
     """
 
-    host = luigi.ListParameter(
+    host = luigi.Parameter(
         config_path={'section': 'elasticsearch', 'name': 'host'},
         description='Hostnames for the elasticsearch cluster nodes. They can be specified in any of the formats'
                     ' accepted by the elasticsearch-py library. This includes complete URLs such as http://foo.com/, or'
@@ -124,10 +138,13 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
 
         # Find all indexes that are referred to by this alias (currently). These will be deleted after a successful
         # load of the new index.
-        aliases = elasticsearch_client.indices.get_alias(name=self.alias)
-        self.indexes_for_alias.update(
-            [index for index, alias_info in aliases.iteritems() if self.alias in alias_info['aliases'].keys()]
-        )
+        try:
+            aliases = elasticsearch_client.indices.get_alias(name=self.alias)
+            self.indexes_for_alias.update(
+                [index for index, alias_info in aliases.iteritems() if self.alias in alias_info['aliases'].keys()]
+            )
+        except elasticsearch.exceptions.NotFoundError:
+            log.warn("No indices found for alias %s", self.alias)
 
         if self.index in self.indexes_for_alias:
             if not self.overwrite:
@@ -170,16 +187,31 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
 
     def create_elasticsearch_client(self):
         """Build an elasticsearch client using the various parameters passed into this task."""
-        kwargs = {}
+
         if self.connection_type == 'aws':
-            kwargs['connection_class'] = AwsHttpConnection
-        return elasticsearch.Elasticsearch(
-            hosts=self.host,
-            timeout=self.timeout,
-            retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
-            retry_on_timeout=True,
-            **kwargs
-        )
+            service = 'es'
+            region = 'us-east-1'
+            credentials = boto3.Session().get_credentials()
+            awsauth = requests_aws4auth.AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
+
+            return elasticsearch.Elasticsearch(
+                hosts=[{'host': self.host, 'port': 443}],
+                http_auth=awsauth,
+                use_ssl=True,
+                verify_certs=True,
+                timeout=self.timeout,
+                retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
+                retry_on_timeout=True,
+                connection_class=RequestsHttpConnection,
+                serializer=JSONSerializerPython2(),
+            )
+        else:
+            return elasticsearch.Elasticsearch(
+                hosts=self.host,
+                timeout=self.timeout,
+                retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
+                retry_on_timeout=True,
+            )
 
     def mapper(self, line):
         yield (random.randrange(int(self.n_reduce_tasks)), line.rstrip('\r\n'))
@@ -337,7 +369,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
     def extra_modules(self):
         import urllib3
 
-        packages = [elasticsearch, urllib3]
+        packages = [elasticsearch, urllib3, boto3, requests_aws4auth]
 
         return packages
 
