@@ -87,7 +87,6 @@ USERPROFILE_FIELDS = [
     'year_of_birth',
     'level_of_education',
     'goals',
-    'allow_certificate',
     'country',
     'city',
     'bio',
