@@ -100,9 +100,8 @@ class ObfuscateAuthUserProfileTask(ObfuscateSqlDumpTask):
         row[5] = ''  # meta
         row[6] = ''  # courseware
         row[8] = ''  # mailing_address
-        row[12] = '1'  # allow_certificate
-        row[14] = ''  # city
-        row[15] = ''  # bio
+        row[13] = ''  # city
+        row[14] = ''  # bio
 
         return row
 

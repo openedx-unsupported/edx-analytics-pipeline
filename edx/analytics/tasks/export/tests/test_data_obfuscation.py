@@ -82,20 +82,20 @@ class TestDataObfuscation(TestCase):
     def test_auth_user_profile_obfuscation(self):
         header = ['id', 'user_id', 'name', 'language', 'location',
                   'meta', 'courseware', 'gender',
-                  'mailing_address', 'year_of_birth', 'level_of_education', 'goals', 'allow_certificate', 'country',
+                  'mailing_address', 'year_of_birth', 'level_of_education', 'goals', 'country',
                   'city', 'bio', 'profile_image_uploaded_at']
         data = [
             header,
             ['123', '123456', 'John Doe', 'English', 'Batcave, USA',
              '{"old_names": [["old name", "Name change", "2015-09-07T02:30:17.735773+00:00"]]}', 'course.xml', 'm',
-             '4th Street', '1984', 'hs', 'To be someone', '0', 'NA',
+             '4th Street', '1984', 'hs', 'To be someone', 'NA',
              'ID', 'I like to code', '2015-11-21 22:17:57']
         ]
         expected = [
             header,
             ['123', '273678626', '', '', '',
              '', '', 'm',
-             '', '1984', 'hs', 'To be someone', '1', 'NA',
+             '', '1984', 'hs', 'To be someone', 'NA',
              '', '', '2015-11-21 22:17:57']
         ]
         self.check_output(obfuscate.ObfuscateAuthUserProfileTask, data, expected)
