@@ -40,7 +40,7 @@ class EnterpriseUserAcceptanceTest(AcceptanceTestCase):
 
     def prepare_database(self, name, database):
         sql_fixture_base_url = url_path_join(self.data_dir, 'input', 'enterprise', name)
-        for filename in os.listdir(sql_fixture_base_url):
+        for filename in sorted(os.listdir(sql_fixture_base_url)):
             self.execute_sql_fixture_file(url_path_join(sql_fixture_base_url, filename), database=database)
 
     def test_enterprise_user_table_generation(self):
