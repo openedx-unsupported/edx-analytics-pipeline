@@ -32,7 +32,7 @@ docutils==0.15.2          # via botocore, python-daemon
 ecdsa==0.13
 edx-ccx-keys==0.2.1
 edx-opaque-keys==0.4
-elasticsearch==7.8.0
+elasticsearch==7.10.1
 enum34==1.1.6
 filechunkio==1.8
 future==0.18.1            # via snowflake-connector-python
