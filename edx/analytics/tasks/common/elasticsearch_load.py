@@ -295,6 +295,9 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
             try:
                 resp = elasticsearch_client.bulk(bulk_action_batch, index=self.index)
             except TransportError as transport_error:
+                log.error("=========STARTING============")
+                log.error(str(bulk_action_batch))
+                log.error("=========ENDING==============")
                 if transport_error.status_code not in (REJECTED_REQUEST_STATUS, HTTP_SERVICE_UNAVAILABLE_STATUS_CODE):
                     raise transport_error
             else:
