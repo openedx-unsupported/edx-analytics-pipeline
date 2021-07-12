@@ -65,7 +65,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
                     'allow_empty_insert': True,
                 },
                 'elasticsearch': {
-                    'host': None,
+                    'host': '',
                 },
             }, [], [])
 
