@@ -197,6 +197,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
             http_auth = awsauth,
             use_ssl = True,
             verify_certs = True,
+            timeout=self.timeout,
             retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
             retry_on_timeout=True,
             connection_class = RequestsHttpConnection,
