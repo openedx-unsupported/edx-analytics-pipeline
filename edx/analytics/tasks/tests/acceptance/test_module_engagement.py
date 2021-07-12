@@ -49,7 +49,7 @@ class ModuleEngagementAcceptanceTest(AcceptanceTestCase):
         ),
     )
     @ddt.unpack
-    def atest_roster_generation(self,
+    def test_roster_generation(self,
                                config_override,
                                extra_module_engagement_metric_ranges,
                                extra_module_engagement_rows):
