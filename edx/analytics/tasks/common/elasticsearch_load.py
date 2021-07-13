@@ -17,7 +17,7 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 try:
     import boto3
     import elasticsearch.helpers
-    from elasticsearch import Elasticsearch, RequestsHttpConnection
+    from elasticsearch import Elasticsearch, RequestsHttpConnection, serializer, exceptions
     from elasticsearch.exceptions import TransportError
     import requests_aws4auth
 except ImportError:
@@ -37,6 +37,18 @@ HTTP_CONNECT_TIMEOUT_STATUS_CODE = 408
 REJECTED_REQUEST_STATUS = 429
 HTTP_SERVICE_UNAVAILABLE_STATUS_CODE = 503
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
+
+
+class JSONSerializerPython2(serializer.JSONSerializer):
+    def dumps(self, data):
+        # don't serialize strings
+        if isinstance(data, string_types):
+            return data
+
+        try:
+            return json.dumps(data, default=self.default)
+        except (ValueError, TypeError) as e:
+            raise exceptions.SerializationError(data, e)
 
 
 class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
@@ -201,6 +213,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
             retry_on_status=(HTTP_CONNECT_TIMEOUT_STATUS_CODE, HTTP_GATEWAY_TIMEOUT_STATUS_CODE),
             retry_on_timeout=True,
             connection_class = RequestsHttpConnection,
+            serializer=JSONSerializerPython2(),
         )
         # return elasticsearch.Elasticsearch(
         #     hosts=self.host,
