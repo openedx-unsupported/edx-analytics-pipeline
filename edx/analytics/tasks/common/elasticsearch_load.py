@@ -1,5 +1,5 @@
 """Load records into elasticsearch clusters."""
-
+import json
 import logging
 import random
 import time
