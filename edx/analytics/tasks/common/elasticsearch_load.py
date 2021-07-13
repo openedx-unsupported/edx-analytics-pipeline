@@ -17,7 +17,7 @@ from edx.analytics.tasks.util.overwrite import OverwriteOutputMixin
 try:
     import boto3
     import elasticsearch.helpers
-    from elasticsearch import Elasticsearch, RequestsHttpConnection, serializer, exceptions
+    from elasticsearch import Elasticsearch, RequestsHttpConnection, serializer, exceptions, compat
     from elasticsearch.exceptions import TransportError
     import requests_aws4auth
 except ImportError:
@@ -42,7 +42,7 @@ HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
 class JSONSerializerPython2(serializer.JSONSerializer):
     def dumps(self, data):
         # don't serialize strings
-        if isinstance(data, string_types):
+        if isinstance(data, compat.string_types):
             return data
 
         try:
