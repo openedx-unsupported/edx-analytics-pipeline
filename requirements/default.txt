@@ -61,13 +61,14 @@ paramiko==2.6.0
 paypalrestsdk==1.9.0
 pbr==5.4.3                # via stevedore
 protobuf==3.10.0          # via google-cloud-core, googleapis-common-protos
-psycopg2==2.6.2
+# psycopg2==2.6.2
 pyasn1-modules==0.2.7     # via google-auth, snowflake-connector-python
 pyasn1==0.4.7             # via pyasn1-modules, rsa, snowflake-connector-python
 pycparser==2.19
 pycrypto==2.6.1
 pycryptodomex==3.9.0      # via snowflake-connector-python
-pygeoip==0.3.2
+# pygeoip==0.3.2
+geoip2==2.9.0
 pyjwt==1.7.1              # via snowflake-connector-python
 pymongo==3.9.0            # via edx-opaque-keys
 pynacl==1.3.0

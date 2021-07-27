@@ -64,13 +64,14 @@ paramiko==2.6.0
 paypalrestsdk==1.9.0
 pbr==5.4.3
 protobuf==3.10.0
-psycopg2==2.6.2
+# psycopg2==2.6.2
 pyasn1-modules==0.2.7
 pyasn1==0.4.7
 pycparser==2.19
 pycrypto==2.6.1
 pycryptodomex==3.9.0
-pygeoip==0.3.2
+geoip2==2.9.0
+# pygeoip==0.3.2
 pygments==2.4.2           # via sphinx
 pyjwt==1.7.1
 pymongo==3.9.0
