@@ -96,7 +96,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
                     '#glossary-shard>`_ to use in the elasticsearch index.'
     )
     throttle = luigi.FloatParameter(
-        default=0.1,
+        default=0.75,
         significant=False,
         description='Wait this many seconds between batches of records submitted to the cluster to be indexed. This can'
                     ' be used to tune the indexing process, allowing the cluster to successfully "keep up" with the'

@@ -1277,8 +1277,7 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ModuleEng
         description=ElasticsearchIndexTask.alias.description
     )
     number_of_shards = luigi.Parameter(
-        default=3,
-        # config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
+        config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
         description=ElasticsearchIndexTask.number_of_shards.description
     )
 
