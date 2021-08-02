@@ -1277,26 +1277,30 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ModuleEng
         description=ElasticsearchIndexTask.alias.description
     )
     number_of_shards = luigi.Parameter(
-        config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
+        default=3,
+        # config_path={'section': 'module-engagement', 'name': 'number_of_shards'},
         description=ElasticsearchIndexTask.number_of_shards.description
     )
 
-    @property
-    def partition_task(self):
-        """The output from this task is indexed in elasticsearch."""
-        return ModuleEngagementRosterPartitionTask(
-            mapreduce_engine=self.mapreduce_engine,
-            n_reduce_tasks=self.other_reduce_tasks,
-            overwrite=self.overwrite,
-            date=self.date,
-            overwrite_from_date=self.overwrite_from_date,
-        )
+    # @property
+    # def partition_task(self):
+    #     """The output from this task is indexed in elasticsearch."""
+    #     return ExternalURL(
+    #                 url=url_path_join(self.warehouse_path, 'course_enrollment', self.partition.path_spec) + '/'
+    #     )
+    #     return ModuleEngagementRosterPartitionTask(
+    #         mapreduce_engine=self.mapreduce_engine,
+    #         n_reduce_tasks=self.other_reduce_tasks,
+    #         overwrite=self.overwrite,
+    #         date=self.date,
+    #         overwrite_from_date=self.overwrite_from_date,
+    #     )
 
-    def requires_local(self):
-        return self.partition_task
+    # def requires_local(self):
+    #     return self.partition_task
 
     def input_hadoop(self):
-        return get_target_from_url(self.partition_task.partition_location)
+        return get_target_from_url("s3://edx-analytics-data/prod/warehouse/module_engagement_roster/dt=2021-07-28/")
 
     @property
     def properties(self):
