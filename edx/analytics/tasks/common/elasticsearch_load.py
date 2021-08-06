@@ -33,15 +33,16 @@ HTTP_SERVICE_UNAVAILABLE_STATUS_CODE = 503
 HTTP_GATEWAY_TIMEOUT_STATUS_CODE = 504
 
 
-class JSONSerializerPython2(serializer.JSONSerializer):
-    def dumps(self, data):
-        # don't serialize strings
-        if isinstance(data, compat.string_types):
-            return data
-        try:
-            return json.dumps(data, default=self.default)
-        except (ValueError, TypeError) as e:
-            raise exceptions.SerializationError(data, e)
+if elasticsearch:
+    class JSONSerializerPython2(serializer.JSONSerializer):
+        def dumps(self, data):
+            # don't serialize strings
+            if isinstance(data, compat.string_types):
+                return data
+            try:
+                return json.dumps(data, default=self.default)
+            except (ValueError, TypeError) as e:
+                raise exceptions.SerializationError(data, e)
 
 
 class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
