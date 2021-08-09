@@ -193,7 +193,7 @@ class ElasticsearchIndexTask(OverwriteOutputMixin, MapReduceJobTask):
             service = 'es'
             region = 'us-east-1'
             credentials = boto3.Session().get_credentials()
-            awsauth = requests_aws4auth.AWS4Auth(credentials.access_key, credentials.secret_key, region, service, session_token=credentials.token)
+            awsauth = requests_aws4auth.AWS4Auth(region=region, service=service, refreshable_credentials=credentials)
 
             return elasticsearch.Elasticsearch(
                 hosts=[{'host': self.host, 'port': 443}],
