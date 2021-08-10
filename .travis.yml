@@ -41,6 +41,9 @@ script:
   - make test-docker
   - make quality-docker
   - make coverage-docker
+  # Not running with warnings as errors on because this repo is in maintenance
+  # mode on it's way to being deprecated and so fixing old docs issues in not needed.
+  - sudo make docs
 
 after_success:
   - pip install --upgrade codecov
