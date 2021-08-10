@@ -121,7 +121,6 @@ coverage-local: test-local
 coverage: test coverage-local
 
 docs-requirements:
-	pip install -r requirements/pip.txt
 	pip install -r requirements/docs.txt --no-cache-dir
 	python setup.py install --force
 
