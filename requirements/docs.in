@@ -1,5 +1,7 @@
 # Requirements for documentation validation
 
--r default.txt
+-c constraints.txt
 
+-e git+https://github.com/edx/luigi.git@eb45bcc52243de11b2b16a81229ac584fe1e601b#egg=luigi
 Sphinx==1.5.1
+stevedore
