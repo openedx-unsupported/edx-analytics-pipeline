@@ -1,0 +1,26 @@
+- name: Checkout repositories
+  hosts: "{{ name }}"
+  gather_facts: True
+
+  vars:
+    - working_dir: "{{ root_data_dir }}/{{ uuid }}"
+
+  tasks:
+    - name: repositories checked out
+      git: >
+        repo={{ item.url }}
+        dest={{ working_dir }}/{{ item.dir_name }}
+        version=master
+      with_items: repos
+
+    - name: branches fetched
+      command: git fetch --all chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
+
+    - name: origin/HEAD updated
+      command: git remote set-head origin --auto chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
+
+    - name: branches checked out
+      command: git checkout {{ item.branch }} chdir={{ working_dir }}/{{ item.dir_name }}
+      with_items: repos
