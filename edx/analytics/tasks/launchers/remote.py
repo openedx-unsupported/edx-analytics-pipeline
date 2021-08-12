@@ -46,6 +46,7 @@ def main():
     parser.add_argument('--wheel-url', help='url of the wheelhouse', default=None)
     parser.add_argument('--virtualenv-extra-args', help='additional arguments passed to virtualenv command when creating the virtual environment', default=None)
     parser.add_argument('--skip-setup', action='store_true', help='assumes the environment has already been configured and you can simply run the task')
+    parser.add_argument('--skip-code-checkout', action='store_true', help='assumes the code repos have already been checked out and you can simply run the task')
     parser.add_argument('--package', action='append', help='pip install these packages in the pipeline virtual environment')
     parser.add_argument('--extra-repo', action='append', help="""additional git repositories to checkout on the cluster during the deployment""")
     parser.add_argument('--python-version',
@@ -108,6 +109,15 @@ def run_task_playbook(inventory, arguments, uid):
 
         if prep_result != 0:
             log('ANSIBLE RUN FAILED AFTER {0} RETRIES'.format(ANSIBLE_MAX_RETRY))
+            return prep_result
+
+    if not arguments.skip_code_checkout:
+        extra_vars = convert_args_to_extra_vars(arguments, uid)
+        args = ['repos.yml', '-e', extra_vars]
+        prep_result = run_ansible(tuple(args), arguments, executable='ansible-playbook')
+
+        if prep_result != 0:
+            log('ANSIBLE RUN FAILED')
             return prep_result
 
     data_dir = os.path.join(REMOTE_DATA_DIR, uid)
