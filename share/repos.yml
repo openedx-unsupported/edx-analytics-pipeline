@@ -4,6 +4,7 @@
 
   vars:
     - working_dir: "{{ root_data_dir }}/{{ uuid }}"
+    - log_dir: "{{ root_log_dir }}/{{ uuid}}"
 
   tasks:
     - name: repositories checked out
@@ -24,3 +25,16 @@
     - name: branches checked out
       command: git checkout {{ item.branch }} chdir={{ working_dir }}/{{ item.dir_name }}
       with_items: repos
+
+    - name: logging configured
+      template: src=logging.cfg.j2 dest={{ working_repo_dir }}/logging.cfg
+
+    - name: configuration override removed
+      file: path={{ working_repo_dir }}/override.cfg state=absent
+
+    - name: configuration override installed
+      copy: src={{ override_config }} dest={{ working_repo_dir }}/override.cfg mode=644
+      when: override_config is defined
+
+    - name: boto configured
+      copy: src=boto.cfg dest={{ working_repo_dir }}/.boto mode=644
