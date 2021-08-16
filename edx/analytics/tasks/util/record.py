@@ -363,11 +363,7 @@ class Record(object):
         """
         An elasticsearch mapping that could store this data.
 
-        This schema type recognizes the "analyzed" kwarg that can be passed into the Field definition. By default
-        Fields are not analyzed, however, if the Field is declared with analyzed=True, then it will be analyzed by
-        elasticsearch.
-
-            foo = StringField(analyzed=True)
+        Fields with `elasticsearch_type` as `keyword` are not analyzed.
 
         Returns: A dictionary of property definitions.
         """
