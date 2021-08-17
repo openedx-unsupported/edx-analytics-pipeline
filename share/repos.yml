@@ -5,6 +5,8 @@
   vars:
     - working_dir: "{{ root_data_dir }}/{{ uuid }}"
     - log_dir: "{{ root_log_dir }}/{{ uuid}}"
+    - pipeline_repo_dir_name: repo
+    - working_repo_dir: "{{ working_dir }}/{{ pipeline_repo_dir_name }}"
 
   tasks:
     - name: repositories checked out
