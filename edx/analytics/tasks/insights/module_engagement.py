@@ -1303,10 +1303,6 @@ class ModuleEngagementRosterIndexTask(ModuleEngagementDownstreamMixin, ModuleEng
         """Generate the elasticsearch mapping from the record schema."""
         return ModuleEngagementRosterRecord.get_elasticsearch_properties()
 
-    @property
-    def doc_type(self):
-        return 'roster_entry'
-
     def document_generator(self, lines):
         for line in lines:
             record = ModuleEngagementRosterRecord.from_tsv(line)
@@ -1422,10 +1418,10 @@ class ModuleEngagementWorkflowTask(ModuleEngagementDownstreamMixin, ModuleEngage
         default=0.75,
         significant=False
     )
-    host = luigi.ListParameter(
+    host = luigi.Parameter(
         config_path={'section': 'elasticsearch', 'name': 'host'},
         description=ElasticsearchIndexTask.host.description,
-        default=[],
+        default='',
     )
 
     def requires(self):

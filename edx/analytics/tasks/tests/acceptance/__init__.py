@@ -255,7 +255,7 @@ class AcceptanceTestCase(unittest.TestCase):
         }
 
         if 'elasticsearch_host' in self.config:
-            task_config_override['elasticsearch']['host'] = as_list_param(self.config['elasticsearch_host'], escape_quotes=False)
+            task_config_override['elasticsearch']['host'] = self.config['elasticsearch_host']
         if 'elasticsearch_connection_class' in self.config:
             task_config_override['elasticsearch']['connection_type'] = self.config['elasticsearch_connection_class']
         if 'manifest_input_format' in self.config:
@@ -274,7 +274,10 @@ class AcceptanceTestCase(unittest.TestCase):
         self.hive = hive.HiveService(self.task, self.config, database_name)
         self.elasticsearch = elasticsearch_service.ElasticsearchService(self.config, elasticsearch_alias)
 
-        self.reset_external_state()
+        try:
+            self.reset_external_state()
+        except Exception:
+            pass
 
         max_diff = os.getenv('MAX_DIFF', None)
         if max_diff is not None:

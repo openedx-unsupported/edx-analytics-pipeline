@@ -363,11 +363,7 @@ class Record(object):
         """
         An elasticsearch mapping that could store this data.
 
-        This schema type recognizes the "analyzed" kwarg that can be passed into the Field definition. By default
-        Fields are not analyzed, however, if the Field is declared with analyzed=True, then it will be analyzed by
-        elasticsearch.
-
-            foo = StringField(analyzed=True)
+        Fields with `elasticsearch_type` as `keyword` are not analyzed.
 
         Returns: A dictionary of property definitions.
         """
@@ -381,8 +377,6 @@ class Record(object):
             if elasticsearch_format:
                 properties[field_name]['format'] = elasticsearch_format
 
-            if not getattr(field_obj, 'analyzed', False):
-                properties[field_name]['index'] = 'not_analyzed'
         return properties
 
     @classmethod
@@ -533,7 +527,7 @@ class StringField(Field):  # pylint: disable=abstract-method
     """Represents a field that contains a relatively short string."""
 
     hive_type = 'STRING'
-    elasticsearch_type = 'string'
+    elasticsearch_type = 'keyword'
 
     def validate_parameters(self):
         if not hasattr(self, 'length'):
@@ -577,7 +571,7 @@ class DelimitedStringField(Field):
 
     hive_type = 'STRING'
     sql_base_type = 'VARCHAR'
-    elasticsearch_type = 'string'
+    elasticsearch_type = 'text'
     delimiter = '\0'
 
     def serialize_to_string(self, value):

@@ -60,7 +60,7 @@ test-docker-local:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make develop-local test-local
 
 test-docker:
-	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local test-local
+	docker run --rm -u root --network="edx-analytics-pipeline_default" -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv test-requirements develop-local test-local
 
 test-docker-py3:
 	docker run --rm -u root -v `(pwd)`:/edx/app/analytics_pipeline/analytics_pipeline -it edxops/analytics_pipeline:latest make reset-virtualenv-py3 test-requirements develop-local test-local
@@ -155,3 +155,15 @@ generate-spark-egg-files:
 	cd /var/tmp/ && mkdir -p /var/tmp/edx-ccx-keys/  && tar --strip-components=1 -xzf /var/tmp/edx-ccx-keys.tar.gz -C /var/tmp/edx-ccx-keys/
 	cd /var/tmp/edx-ccx-keys && python setup.py bdist_egg
 	cp /var/tmp/edx-ccx-keys/dist/edx_ccx_keys-0.2.1-py2.7.egg  /var/tmp/edx_egg_files/edx_ccx_keys.egg
+
+test.start_elasticsearch:
+	docker-compose up -d
+	sleep 20
+
+test.stop_elasticsearch:
+	docker-compose stop
+
+test.elasticsearch_integration:
+	python -m nose edx/analytics/tasks/tests/elasticsearch_integration
+
+test_integration_with_es: test.start_elasticsearch test.elasticsearch_integration test.stop_elasticsearch

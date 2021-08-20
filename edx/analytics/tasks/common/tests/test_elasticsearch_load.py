@@ -7,9 +7,9 @@ import ddt
 import luigi.contrib.hdfs.target
 from elasticsearch import TransportError
 from freezegun import freeze_time
-from mock import call, patch
+from mock import MagicMock, call, patch
 
-from edx.analytics.tasks.common.elasticsearch_load import AwsHttpConnection, ElasticsearchIndexTask, IndexingError
+from edx.analytics.tasks.common.elasticsearch_load import ElasticsearchIndexTask, IndexingError, RequestsHttpConnection
 from edx.analytics.tasks.common.tests.map_reduce_mixins import MapperTestMixin, ReducerTestMixin
 
 
@@ -56,7 +56,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(self.task.index, 'foo_alias_' + str(hash(self.task.update_id())))
 
     def test_index_already_in_use(self):
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -67,7 +67,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
             self.task.init_local()
 
     def test_multiple_aliases(self):
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}
@@ -85,7 +85,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_remove_if_exists(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -99,7 +99,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_overwrite_multiple_aliases(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}
@@ -116,7 +116,7 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
 
     def test_index_already_in_use_overwrite(self):
         self.create_task(overwrite=True)
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             self.task.index: {
                 'aliases': {
                     'foo_alias': {}
@@ -135,10 +135,8 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
                     'refresh_interval': 10
                 },
                 'mappings': {
-                    'raw_text': {
-                        'properties': {
-                            'all_text': {'type': 'string'}
-                        }
+                    'properties': {
+                        'all_text': {'type': 'text'}
                     }
                 }
             }
@@ -151,18 +149,28 @@ class ElasticsearchIndexTaskMapTest(BaseIndexTest, MapperTestMixin, unittest.Tes
         self.assertEqual(kwargs['body']['settings'], {'refresh_interval': -1})
 
     def test_other_settings(self):
+        number_of_shards = 2
         self.task.settings = {
-            'foo': 'bar'
+            'foo': 'bar',
+            'number_of_shards': number_of_shards,
         }
         self.task.init_local()
         _args, kwargs = self.mock_es.indices.create.call_args
-        self.assertEqual(kwargs['body']['settings'], {'refresh_interval': -1, 'foo': 'bar'})
+        self.assertEqual(
+            kwargs['body']['settings'],
+            {'refresh_interval': -1, 'foo': 'bar', 'number_of_shards': number_of_shards}
+        )
 
     def test_boto_connection_type(self):
         self.create_task(connection_type='aws')
+        credentials_mock = MagicMock(access_key='', secret_key='secret', token='')
+        awsauth_patcher = patch('edx.analytics.tasks.common.elasticsearch_load.boto3.Session.get_credentials', return_value=credentials_mock)
+        awsauth_patcher.start()
+        self.addCleanup(awsauth_patcher.stop)
+
         self.task.init_local()
         _args, kwargs = self.elasticsearch_mock.call_args
-        self.assertEqual(kwargs['connection_class'], AwsHttpConnection)
+        self.assertEqual(kwargs['connection_class'], RequestsHttpConnection)
 
     def test_mapper(self):
         with patch('edx.analytics.tasks.common.elasticsearch_load.random') as mock_random:
@@ -174,15 +182,11 @@ class RawIndexTask(ElasticsearchIndexTask):
     """A sample elasticsearch indexing class."""
 
     properties = {
-        'all_text': {'type': 'string'}
+        'all_text': {'type': 'text'}
     }
     settings = {
         'refresh_interval': 10
     }
-
-    @property
-    def doc_type(self):
-        return 'raw_text'
 
     def document_generator(self, lines):
         for line in lines:
@@ -204,8 +208,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
                 {'index': {}},
                 {'all_text': 'a'}
             ],
-            index=self.task.index,
-            doc_type='raw_text'
+            index=self.task.index
         )
 
     def test_multiple_batches(self):
@@ -242,7 +245,7 @@ class ElasticsearchIndexTaskReduceTest(BaseIndexTest, ReducerTestMixin, unittest
 
     def bulk_call(self, actions):
         """A call to the ES bulk API"""
-        return call(actions, index=self.task.index, doc_type='raw_text')
+        return call(actions, index=self.task.index)
 
     def test_transport_error(self):
         self.mock_es.bulk.side_effect = TransportError(404, 'Not found', 'More detail')
@@ -363,11 +366,9 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
         return call.__getattr__('index')(
             body={
                 'date': datetime.datetime(2016, 3, 25, 0, 0, 0, 0),
-                'target_doc_type': 'raw_text',
                 'update_id': self.task.update_id(),
                 'target_index': 'foo_alias'
             },
-            doc_type='marker',
             id=self.task.output().marker_index_document_id(),
             index='index_updates'
         )
@@ -389,7 +390,7 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
 
     def test_commit_with_existing_data(self, _mock_del):
         self.create_task()
-        self.mock_es.indices.get_aliases.return_value = {
+        self.mock_es.indices.get_alias.return_value = {
             'foo_alias_old': {
                 'aliases': {
                     'foo_alias': {}
@@ -421,4 +422,17 @@ class ElasticsearchIndexTaskCommitTest(BaseIndexTest, ReducerTestMixin, unittest
                 call.indices.flush(index='index_updates'),
                 call.indices.delete(index='foo_alias_old'),
             ]
+        )
+
+
+@freeze_time('2016-03-25')
+@patch.object(luigi.contrib.hdfs.target.HdfsTarget, '__del__', return_value=None)
+class ElasticsearchIndexTaskResetTest(BaseIndexTest, ReducerTestMixin, unittest.TestCase):
+    """Tests for the rollback logic."""
+
+    def test_reset(self, _mock_del):
+        self.mock_es.indices.exists.return_value = False
+        self.task.rollback()
+        self.assertEqual(
+            self.mock_es.mock_calls, [call.indices.delete(index=self.task.index, ignore=[400, 404]), ]
         )
