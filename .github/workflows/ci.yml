@@ -1,0 +1,59 @@
+name: Python CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - '**'
+
+jobs:
+  run_tests:
+    name: Tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os:
+          - ubuntu-18.04
+        python-version:
+          - 2.7
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: setup python
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Pull the docker image
+      run: make docker-pull
+
+    - name: Create Coverage dest
+      run: mkdir -p coverage
+
+    - name: Run Elastic Search
+      run: make test.start_elasticsearch
+
+    - name: Run Docker test
+      run: make test-docker
+
+    - name: Run Quality Check
+      run: make quality-docker
+
+    - name: Create Coverage Report
+      run: make coverage-docker
+
+    - name: Run Docs Check
+      run: sudo make docs
+
+    - name: Stop elastic search Check
+      run: make test.stop_elasticsearch
+
+    - name: Install Codecov
+      run: pip install --upgrade codecov
+
+    - name: Run Coverage
+      uses: codecov/codecov-action@v2
+      with:
+        fail_ci_if_error: true
