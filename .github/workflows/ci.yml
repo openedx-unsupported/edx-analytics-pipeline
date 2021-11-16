@@ -36,12 +36,15 @@ jobs:
       run: make test.start_elasticsearch
 
     - name: Run Docker test
+      shell: 'script -q -e -c "bash {0}"'
       run: make test-docker
 
     - name: Run Quality Check
+      shell: 'script -q -e -c "bash {0}"'
       run: make quality-docker
 
     - name: Create Coverage Report
+      shell: 'script -q -e -c "bash {0}"'
       run: make coverage-docker
 
     - name: Run Docs Check
