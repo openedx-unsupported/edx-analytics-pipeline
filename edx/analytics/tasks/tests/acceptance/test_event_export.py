@@ -33,7 +33,6 @@ class EventExportAcceptanceTest(AcceptanceTestCase):
 
         self.input_paths = [
             url_path_join(self.test_src, 'edx', self.PROD_FOLDER, 'tracking.log-20140515.gz'),
-            url_path_join(self.test_src, 'edx', 'OtherFolder', 'tracking.log-20140515.gz'),
             url_path_join(self.test_src, 'edge', self.EDGE_FOLDER, 'tracking.log-20140516-12345456.gz')
         ]
 

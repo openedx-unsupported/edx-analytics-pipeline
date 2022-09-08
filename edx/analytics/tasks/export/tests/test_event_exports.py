@@ -388,25 +388,6 @@ class EventExportTestCase(EventExportTestCaseBase):
 
         # Some coverage missing here, but it's probably good enough for now
 
-    def test_unrecognized_environment(self):
-        self.task.init_local()
-
-        for server in [self.SERVER_NAME_1, self.SERVER_NAME_2]:
-            expected_output = [((self.EXAMPLE_DATE, 'FooX'), self.EXAMPLE_EVENT)]
-            self.assertItemsEqual(self.run_mapper_for_server_file(server, self.EXAMPLE_EVENT), expected_output)
-
-        self.assertItemsEqual(self.run_mapper_for_server_file('foobar', self.EXAMPLE_EVENT), [])
-
-    def test_odd_file_paths(self):
-        self.task.init_local()
-
-        for path in ['something.gz', 'test://input/something.gz']:
-            self.assertItemsEqual(self.run_mapper_for_file_path(path, self.EXAMPLE_EVENT), [])
-
-    def test_missing_environment_variable(self):
-        self.task.init_local()
-        self.assertItemsEqual([output for output in self.task.mapper(self.EXAMPLE_EVENT) if output is not None], [])
-
 
 class TestEvent():
     DATE = '2014-05-20'
