@@ -47,7 +47,7 @@
 
     - pipeline_repo_dir_name: repo
     - repos:
-      - url: https://github.com/edx/edx-analytics-pipeline.git
+      - url: https://github.com/openedx/edx-analytics-pipeline.git
         branch: master
         dir_name: "{{ pipeline_repo_dir_name }}"
     - working_repo_dir: "{{ working_dir }}/{{ pipeline_repo_dir_name }}"

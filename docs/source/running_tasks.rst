@@ -9,7 +9,7 @@ General Notes
 -------------
 
 #. These tasks are intended to be kicked off by some scheduler (Jenkins, cron etc)
-#. You can use a script to automatically deploy a cluster on EMR, run the task and then shut it down. Here is an example: `run-automated-task.sh <https://github.com/edx/edx-analytics-configuration/blob/master/automation/run-automated-task.sh>`_.
+#. You can use a script to automatically deploy a cluster on EMR, run the task and then shut it down. Here is an example: `run-automated-task.sh <https://github.com/openedx/edx-analytics-configuration/blob/master/automation/run-automated-task.sh>`_.
 #. Tweak ``NUM_REDUCE_TASKS`` based on the size of your cluster. If the cluster is not being used for anything else a good rule of thumb is to make ``NUM_REDUCE_TASKS`` equal the number of available reduce slots on your cluster. See hadoop docs to determine the number of reduce slots available on your cluster.
 #. Luigi, the underlying workflow engine, has support for both S3 and HDFS when specifying input and output paths. ``s3://`` can be replaced with ``hdfs://`` in all examples below.
 #. "credentials" files are json files should be stored somewhere secure and have the following format. They are often stored in S3 or HDFS but can also be stored on the local filesystem of the machine running the data pipeline.

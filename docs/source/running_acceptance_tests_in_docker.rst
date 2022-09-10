@@ -42,4 +42,4 @@ Running Acceptance Tests
       make docker-test-acceptance-local ONLY_TESTS=edx.analytics.tasks.tests.acceptance.test_user_activity
 
 
-.. _Devstack: https://github.com/edx/devstack/tree/master/README.rst#getting-started-on-analytics
+.. _Devstack: https://github.com/openedx/devstack/tree/master/README.rst#getting-started-on-analytics
