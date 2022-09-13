@@ -175,7 +175,7 @@ def convert_args_to_extra_vars(arguments, uid):
     }
     repos = {
         'pipeline': {
-            'url': 'https://github.com/edx/edx-analytics-pipeline.git',
+            'url': 'https://github.com/openedx/edx-analytics-pipeline.git',
             'branch': 'origin/master',
             'dir_name': REMOTE_CODE_DIR_BASE
         }
@@ -211,7 +211,7 @@ def convert_args_to_extra_vars(arguments, uid):
         # additional repos are specified as URLs with query string parameters for the branch and dir_name.
         # For Example:
         #   git+ssh://git@github.com:edx/edx-analytics-pipeline.git?dir_name=pipeline&branch=origin%2Frelease
-        #   https://github.com/edx/edx-analytics-pipeline?dir_name=pipeline&branch=test12
+        #   https://github.com/openedx/edx-analytics-pipeline?dir_name=pipeline&branch=test12
         for idx, repo in enumerate(arguments.extra_repo):
             full_url = urlparse(repo)
             git_url = full_url.netloc + full_url.path
