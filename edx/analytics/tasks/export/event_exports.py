@@ -93,7 +93,11 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
         if event is None:
             return
 
-        if not self.is_valid_input_file():
+        # Ignore events that are emitted from Studio and Worker nodes.
+        # Events emitted from worker nodes have empty host.
+        event_host = event.get('host')
+        if event_host == 'studio.edx.org' or event_host == '':
+            self.event_export_counter("Discarded Studio and Worker Events", 1)
             return
 
         org_id = self.get_org_id(event)
@@ -137,13 +141,6 @@ class EventExportTask(EventLogSelectionMixin, MultiOutputMapReduceJobTask):
             return event['context']['received_at']
         except KeyError:
             return super(EventExportTask, self).get_event_time(event)
-
-    def is_valid_input_file(self):
-        """
-        Return True iff the contents of the input file being processed should be included in the export.
-
-        """
-        return self.required_path_text in self.get_map_input_file()
 
     def output_path_for_key(self, key):
         date, org_id = key
