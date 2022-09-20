@@ -340,6 +340,8 @@ class LoadMysqlTableFromS3ToSnowflakeTask(MysqlTableExportMixin, SnowflakeLoadFr
                 field_type = 'VARCHAR'
             elif field_type == 'longblob':
                 field_type = 'BINARY'
+            elif field_type == 'json':
+                field_type = 'VARIANT'
 
             if field_null == 'NO':
                 field_type += ' NOT NULL'
