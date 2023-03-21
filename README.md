@@ -82,6 +82,7 @@ For small installations, you may want to use our [single instance installation g
 
 For larger installations, we do not have a similarly detailed guide, you can start with our [installation guide](http://edx.readthedocs.io/projects/edx-installing-configuring-and-running/en/latest/insights/index.html).
 
+The default installation of Hadoop YARN has an administrative interface and [REST API endpoint](https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/ResourceManagerRest.html) it exposes [by default on port 8088](https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-common/yarn-default.xml#yarn.resourcemanager.webapp.address) that can be used to run arbritrary tasks on the server. Secure this port in production.
 
 How to Contribute
 -----------------
