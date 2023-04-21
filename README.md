@@ -40,17 +40,17 @@ Here is a simplified, high level, view of the architecture:
 Setting up Docker-based Development Environment
 -----------------------------------------------
 
-As part of our movement towards the adoption of [OEP-5](https://github.com/openedx/open-edx-proposals/blob/master/oeps/oep-0005-arch-containerize-devstack.rst), we have 
-ported our development setup from Vagrant to Docker, which uses a multi-container approach driven by Docker Compose. 
+As part of our movement towards the adoption of [OEP-5](https://github.com/openedx/open-edx-proposals/blob/master/oeps/oep-0005-arch-containerize-devstack.rst), we have
+ported our development setup from Vagrant to Docker, which uses a multi-container approach driven by Docker Compose.
 There is a guide in place for [Setting up Docker Analyticstack](https://github.com/openedx/devstack#getting-started-on-analytics) in
-the devstack repository which can help you set up a new analyticstack. 
+the devstack repository which can help you set up a new analyticstack.
 
 Here is a diagram showing how the components are related and connected to one another:
 
 ![the analyticstack](/images/docker_analyticstack.png?raw=true)
 
 Setting up a Vagrant-based Development Environment
--------------------------------------------------- 
+--------------------------------------------------
 
 We call this environment the Vagrant "analyticstack". It contains many of the services needed to develop new features for Insights and the data pipeline.
 
@@ -88,8 +88,8 @@ How to Contribute
 -----------------
 
 Contributions are very welcome, but for legal reasons, you must submit a signed
-[individual contributor's agreement](http://code.edx.org/individual-contributor-agreement.pdf)
+[individual contributor's agreement](http://openedx.org/cla)
 before we can accept your contribution. See our
-[CONTRIBUTING](https://github.com/openedx/edx-platform/blob/master/CONTRIBUTING.rst)
+[CONTRIBUTING](https://github.com/openedx/.github/blob/master/CONTRIBUTING.md)
 file for more information -- it also contains guidelines for how to maintain
 high code quality, which will make your contribution more likely to be accepted.
