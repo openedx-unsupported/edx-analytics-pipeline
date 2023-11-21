@@ -255,6 +255,18 @@ class SqoopImportFromMysql(SqoopImportTask):
             arglist.append('--direct')
         if self.mysql_delimiters:
             arglist.append('--mysql-delimiters')
+
+        # Sqoop adds --skip-opt by default, which in turn adds
+        # NO_FIELD_OPTIONS, NO_KEY_OPTIONS and NO_TABLE_OPTIONS to the sql_mode.
+        # MySQL 8.0 does not support these options and throws an error.
+        # Using --opt along with additional options to workaround this issue.
+        # https://dev.mysql.com/doc/refman/5.7/en/sql-mode.html#sql-mode-changes
+        arglist.append('--')
+        arglist.append('--opt')
+        arglist.append('--skip-disable-keys')
+        arglist.append('--skip-add-locks')
+        arglist.append('--skip-extended-insert')
+
         return arglist
 
     def source_database_type(self):
