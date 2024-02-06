@@ -54,11 +54,7 @@ for dialect_name, dialect_class in DIALECTS.iteritems():
 def parse_line(line, dialect='excel'):
     """Parse one line of CSV in the dialect specified."""
     # csv.reader requires an iterable per row, so we wrap the line in a list
-    try:
-        parsed = csv.reader([line], dialect=dialect).next()
-    except csv.Error:
-        log.error('Error parsing line: %s', line)
-        raise
+    parsed = csv.reader([line], dialect=dialect).next()
 
     return parsed
 
