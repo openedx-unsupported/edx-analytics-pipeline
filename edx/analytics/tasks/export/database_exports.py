@@ -76,7 +76,12 @@ class StudentModulePerCourseTask(MultiOutputMapReduceJobTask):
             key: course_id
             value: tab separated row data
         """
-        values = csv_util.parse_line(line, dialect='mysqldump')
+        try:
+            values = csv_util.parse_line(line, dialect='mysqldump')
+        except csv.Error:
+            log.error('Error parsing line: %s', line)
+            print('Error parsing line: %s' % line)
+            raise
         record = StudentModuleRecord(*values)
 
         course_id = record.course_id
