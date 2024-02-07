@@ -76,7 +76,16 @@ class StudentModulePerCourseTask(MultiOutputMapReduceJobTask):
             key: course_id
             value: tab separated row data
         """
-        values = csv_util.parse_line(line, dialect='mysqldump')
+        try:
+            values = csv_util.parse_line(line, dialect='mysqldump')
+        except csv.Error as e:
+            if 'field larger than field limit' in e.message:
+                log.error('Field larger than field limit in line: %s', line)
+                return
+            else:
+                log.error('Error parsing line: %s', line)
+                raise
+
         record = StudentModuleRecord(*values)
 
         course_id = record.course_id
