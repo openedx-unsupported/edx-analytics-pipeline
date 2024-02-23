@@ -3,10 +3,10 @@ name: Python CI
 on:
   push:
     branches:
-      - master
+    - master
   pull_request:
     branches:
-      - '**'
+    - '**'
 
 jobs:
   run_tests:
@@ -15,10 +15,8 @@ jobs:
     strategy:
       matrix:
         os:
-          - ubuntu-20.04
-        python-version:
-          - 2.7
-
+        - ubuntu-20.04
+        python-version: [2.7, '3.8', '3.12']
     steps:
     - uses: actions/checkout@v1
     - name: setup python
